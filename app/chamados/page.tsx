@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { obterMarcaDaEmpresa } from '@/lib/empresa'
+import type { Marca } from '@/lib/marca'
 
 type Chamado = {
   id: string
@@ -33,6 +35,30 @@ const prioridadeLabels: Record<string, string> = {
   alta: 'Alta',
   urgente: 'Urgente',
 }
+
+const identidade = {
+  agilmed: {
+    nome: 'ÁgilMed Ocupacional',
+    curto: 'ÁgilMed',
+    inicial: 'A',
+    principal: '#2563eb',
+    principalEscura: '#1d4ed8',
+    fundo: '#eff6ff',
+    borda: '#dbeafe',
+    textoSuave: '#64748b',
+  },
+
+  reallife: {
+    nome: 'Real Life SSMA',
+    curto: 'Real Life',
+    inicial: 'R',
+    principal: '#0f766e',
+    principalEscura: '#115e59',
+    fundo: '#f0fdfa',
+    borda: '#ccfbf1',
+    textoSuave: '#64748b',
+  },
+} as const
 
 function formatarData(data: string) {
   return new Intl.DateTimeFormat('pt-BR', {
@@ -107,6 +133,7 @@ export default function ChamadosPage() {
   const [erro, setErro] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [marca, setMarca] = useState<Marca>('agilmed')
 
   useEffect(() => {
     async function carregarChamados() {
@@ -121,6 +148,9 @@ export default function ChamadosPage() {
         router.push('/login')
         return
       }
+
+      const marcaEmpresa = await obterMarcaDaEmpresa()
+      setMarca(marcaEmpresa)
 
       const { data, error } = await supabase
         .from('chamados')
@@ -142,6 +172,8 @@ export default function ChamadosPage() {
 
     carregarChamados()
   }, [router])
+
+  const tema = identidade[marca]
 
   const chamadosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
@@ -184,7 +216,14 @@ export default function ChamadosPage() {
     return (
       <main style={styles.page}>
         <div style={styles.loading}>
-          <div style={styles.loadingSpinner} />
+          <div
+            style={{
+              ...styles.loadingSpinner,
+              borderColor: tema.borda,
+              borderTopColor: tema.principal,
+            }}
+          />
+
           <span>Carregando seus chamados...</span>
         </div>
       </main>
@@ -196,11 +235,18 @@ export default function ChamadosPage() {
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <Link href="/" style={styles.logoArea}>
-            <div style={styles.logoMark}>A</div>
+            <div
+              style={{
+                ...styles.logoMark,
+                background: tema.principal,
+              }}
+            >
+              {tema.inicial}
+            </div>
 
             <div>
               <div style={styles.logoTitle}>
-                ÁgilMed <span>&</span> Real Life
+                {tema.nome}
               </div>
 
               <div style={styles.logoSubtitle}>
@@ -214,7 +260,13 @@ export default function ChamadosPage() {
               Início
             </Link>
 
-            <Link href="/chamados" style={styles.navLinkActive}>
+            <Link
+              href="/chamados"
+              style={{
+                ...styles.navLinkActive,
+                color: tema.principal,
+              }}
+            >
               Chamados
             </Link>
 
@@ -246,7 +298,12 @@ export default function ChamadosPage() {
 
         <section style={styles.pageHeader}>
           <div>
-            <div style={styles.eyebrow}>
+            <div
+              style={{
+                ...styles.eyebrow,
+                color: tema.principal,
+              }}
+            >
               ATENDIMENTO
             </div>
 
@@ -262,7 +319,11 @@ export default function ChamadosPage() {
 
           <Link
             href="/chamados/novo"
-            style={styles.primaryButton}
+            style={{
+              ...styles.primaryButton,
+              background: tema.principal,
+              borderColor: tema.principal,
+            }}
           >
             <span style={styles.buttonPlus}>+</span>
             Novo chamado
@@ -271,10 +332,19 @@ export default function ChamadosPage() {
 
         <section style={styles.statsGrid}>
           <div style={styles.statCard}>
-            <div style={styles.statIcon}>▤</div>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: tema.fundo,
+                color: tema.principal,
+              }}
+            >
+              ▤
+            </div>
 
             <div>
               <div style={styles.statNumber}>{total}</div>
+
               <div style={styles.statLabel}>
                 Total de chamados
               </div>
@@ -285,8 +355,8 @@ export default function ChamadosPage() {
             <div
               style={{
                 ...styles.statIcon,
-                background: '#eff6ff',
-                color: '#2563eb',
+                background: tema.fundo,
+                color: tema.principal,
               }}
             >
               ◷
@@ -294,6 +364,7 @@ export default function ChamadosPage() {
 
             <div>
               <div style={styles.statNumber}>{abertos}</div>
+
               <div style={styles.statLabel}>
                 Aguardando atendimento
               </div>
@@ -315,6 +386,7 @@ export default function ChamadosPage() {
               <div style={styles.statNumber}>
                 {emAtendimento}
               </div>
+
               <div style={styles.statLabel}>
                 Em andamento
               </div>
@@ -333,7 +405,10 @@ export default function ChamadosPage() {
             </div>
 
             <div>
-              <div style={styles.statNumber}>{resolvidos}</div>
+              <div style={styles.statNumber}>
+                {resolvidos}
+              </div>
+
               <div style={styles.statLabel}>
                 Resolvidos
               </div>
@@ -343,7 +418,10 @@ export default function ChamadosPage() {
 
         {erro && (
           <div style={styles.errorBox}>
-            <strong>Não foi possível carregar os chamados.</strong>
+            <strong>
+              Não foi possível carregar os chamados.
+            </strong>
+
             <span>{erro}</span>
           </div>
         )}
@@ -415,7 +493,10 @@ export default function ChamadosPage() {
                   setBusca('')
                   setFiltroStatus('todos')
                 }}
-                style={styles.clearFilters}
+                style={{
+                  ...styles.clearFilters,
+                  color: tema.principal,
+                }}
               >
                 Limpar filtros
               </button>
@@ -424,7 +505,15 @@ export default function ChamadosPage() {
 
           {chamadosFiltrados.length === 0 ? (
             <div style={styles.emptyCard}>
-              <div style={styles.emptyIcon}>□</div>
+              <div
+                style={{
+                  ...styles.emptyIcon,
+                  background: tema.fundo,
+                  color: tema.principal,
+                }}
+              >
+                □
+              </div>
 
               <h2 style={styles.emptyTitle}>
                 {chamados.length === 0
@@ -441,7 +530,11 @@ export default function ChamadosPage() {
               {chamados.length === 0 && (
                 <Link
                   href="/chamados/novo"
-                  style={styles.primaryButton}
+                  style={{
+                    ...styles.primaryButton,
+                    background: tema.principal,
+                    borderColor: tema.principal,
+                  }}
                 >
                   Abrir novo chamado
                 </Link>
@@ -457,7 +550,12 @@ export default function ChamadosPage() {
                 >
                   <div style={styles.ticketTop}>
                     <div style={styles.ticketIdentification}>
-                      <span style={styles.ticketNumber}>
+                      <span
+                        style={{
+                          ...styles.ticketNumber,
+                          color: tema.principal,
+                        }}
+                      >
                         #{chamado.numero}
                       </span>
 
@@ -473,6 +571,7 @@ export default function ChamadosPage() {
                       }}
                     >
                       <span style={styles.statusDot} />
+
                       {statusLabels[chamado.status] ||
                         chamado.status}
                     </span>
@@ -489,7 +588,12 @@ export default function ChamadosPage() {
                       </p>
                     </div>
 
-                    <div style={styles.ticketArrow}>
+                    <div
+                      style={{
+                        ...styles.ticketArrow,
+                        color: tema.principal,
+                      }}
+                    >
                       →
                     </div>
                   </div>
@@ -551,8 +655,20 @@ export default function ChamadosPage() {
           )}
         </section>
 
-        <section style={styles.helpCard}>
-          <div style={styles.helpIcon}>?</div>
+        <section
+          style={{
+            ...styles.helpCard,
+            background: tema.principalEscura,
+          }}
+        >
+          <div
+            style={{
+              ...styles.helpIcon,
+              background: tema.principal,
+            }}
+          >
+            ?
+          </div>
 
           <div style={styles.helpContent}>
             <h2 style={styles.helpTitle}>
@@ -575,7 +691,8 @@ export default function ChamadosPage() {
         </section>
 
         <footer style={styles.footer}>
-          <strong>ÁgilMed & Real Life</strong>
+          <strong>{tema.nome}</strong>
+
           <span>Portal do Cliente</span>
         </footer>
       </div>
@@ -621,7 +738,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '42px',
     height: '42px',
     borderRadius: '12px',
-    background: '#2563eb',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
@@ -656,7 +772,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   navLinkActive: {
-    color: '#2563eb',
     textDecoration: 'none',
     fontSize: '13px',
     fontWeight: 800,
@@ -699,7 +814,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   eyebrow: {
-    color: '#2563eb',
     fontSize: '10px',
     fontWeight: 900,
     letterSpacing: '0.12em',
@@ -724,14 +838,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '7px',
-    background: '#2563eb',
     color: '#ffffff',
     borderRadius: '10px',
     padding: '12px 17px',
     fontSize: '13px',
     fontWeight: 800,
     textDecoration: 'none',
-    border: '1px solid #2563eb',
     whiteSpace: 'nowrap',
   },
 
@@ -762,8 +874,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '40px',
     height: '40px',
     borderRadius: '11px',
-    background: '#f1f5f9',
-    color: '#64748b',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -886,7 +996,6 @@ const styles: Record<string, React.CSSProperties> = {
   clearFilters: {
     border: 0,
     background: 'transparent',
-    color: '#2563eb',
     fontSize: '12px',
     fontWeight: 700,
     cursor: 'pointer',
@@ -923,7 +1032,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   ticketNumber: {
-    color: '#2563eb',
     fontSize: '12px',
     fontWeight: 900,
   },
@@ -989,7 +1097,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   ticketArrow: {
-    color: '#2563eb',
     fontSize: '24px',
     fontWeight: 500,
     flexShrink: 0,
@@ -1038,8 +1145,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '52px',
     height: '52px',
     borderRadius: '15px',
-    background: '#eff6ff',
-    color: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1063,7 +1168,6 @@ const styles: Record<string, React.CSSProperties> = {
 
   helpCard: {
     marginTop: '30px',
-    background: '#172033',
     color: '#ffffff',
     borderRadius: '17px',
     padding: '23px 25px',
@@ -1076,7 +1180,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '42px',
     height: '42px',
     borderRadius: '12px',
-    background: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1138,6 +1241,5 @@ const styles: Record<string, React.CSSProperties> = {
     height: '16px',
     borderRadius: '50%',
     border: '2px solid #dbeafe',
-    borderTopColor: '#2563eb',
   },
 }
