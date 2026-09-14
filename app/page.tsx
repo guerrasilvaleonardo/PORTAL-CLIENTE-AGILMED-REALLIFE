@@ -11,6 +11,7 @@ type Perfil = {
   nome: string | null
   email: string | null
   empresa_id: string | null
+  perfil: 'cliente' | 'gestor' | 'admin'
 }
 
 type Empresa = {
