@@ -141,9 +141,7 @@ export default function HomePage() {
         return
       }
 
-      const { data: perfilData } = await supabase
-        .from('profiles')
-        .select('nome, email, empresa_id')
+      .select('nome, email, empresa_id, perfil')
         .eq('id', user.id)
         .single()
 
