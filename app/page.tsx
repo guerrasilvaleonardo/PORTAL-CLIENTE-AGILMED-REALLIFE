@@ -5,73 +5,146 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-type Profile = {
-  id: string
-  nome: string
+type Perfil = {
+  nome: string | null
   email: string | null
   empresa_id: string | null
-  perfil: string
-  ativo: boolean
 }
 
 type Empresa = {
-  id: string
   razao_social: string
   nome_fantasia: string | null
-  cnpj: string | null
-  email: string | null
-  telefone: string | null
-  cidade: string | null
-  estado: string | null
+}
+
+type ChamadoResumo = {
+  id: string
+  numero: number
+  assunto: string
   status: string
+  prioridade: string
+  created_at: string
+}
+
+const statusLabels: Record<string, string> = {
+  aberto: 'Aberto',
+  em_atendimento: 'Em atendimento',
+  aguardando_cliente: 'Aguardando cliente',
+  resolvido: 'Resolvido',
+  encerrado: 'Encerrado',
+}
+
+const prioridadeLabels: Record<string, string> = {
+  baixa: 'Baixa',
+  normal: 'Normal',
+  alta: 'Alta',
+  urgente: 'Urgente',
+}
+
+function formatarData(data: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(data))
+}
+
+function statusStyle(status: string) {
+  const estilos: Record<string, React.CSSProperties> = {
+    aberto: {
+      background: '#eff6ff',
+      color: '#1d4ed8',
+    },
+    em_atendimento: {
+      background: '#fff7ed',
+      color: '#c2410c',
+    },
+    aguardando_cliente: {
+      background: '#fefce8',
+      color: '#a16207',
+    },
+    resolvido: {
+      background: '#f0fdf4',
+      color: '#15803d',
+    },
+    encerrado: {
+      background: '#f1f5f9',
+      color: '#475569',
+    },
+  }
+
+  return estilos[status] || estilos.aberto
+}
+
+function prioridadeStyle(prioridade: string) {
+  const estilos: Record<string, React.CSSProperties> = {
+    baixa: {
+      color: '#64748b',
+    },
+    normal: {
+      color: '#2563eb',
+    },
+    alta: {
+      color: '#ea580c',
+    },
+    urgente: {
+      color: '#dc2626',
+    },
+  }
+
+  return estilos[prioridade] || estilos.normal
 }
 
 export default function HomePage() {
   const router = useRouter()
 
-  const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
+  const [chamados, setChamados] = useState<ChamadoResumo[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function carregarDados() {
-      setLoading(true)
-
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
       if (!user) {
-        router.replace('/login')
+        router.push('/login')
         return
       }
 
-      const { data: profileData, error: profileError } = await supabase
+      const { data: perfilData } = await supabase
         .from('profiles')
-        .select('*')
+        .select('nome, email, empresa_id')
         .eq('id', user.id)
         .single()
 
-      if (profileError || !profileData) {
-        console.error('Erro ao carregar perfil:', profileError)
+      if (!perfilData) {
         setLoading(false)
         return
       }
 
-      setProfile(profileData)
+      setPerfil(perfilData)
 
-      if (profileData.empresa_id) {
-        const { data: empresaData, error: empresaError } = await supabase
+      if (perfilData.empresa_id) {
+        const { data: empresaData } = await supabase
           .from('empresas')
-          .select('*')
-          .eq('id', profileData.empresa_id)
+          .select('razao_social, nome_fantasia')
+          .eq('id', perfilData.empresa_id)
           .single()
 
-        if (empresaError) {
-          console.error('Erro ao carregar empresa:', empresaError)
-        } else {
-          setEmpresa(empresaData)
-        }
+        setEmpresa(empresaData)
+
+        const { data: chamadosData } = await supabase
+          .from('chamados')
+          .select(
+            'id, numero, assunto, status, prioridade, created_at'
+          )
+          .eq('empresa_id', perfilData.empresa_id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        setChamados(chamadosData || [])
       }
 
       setLoading(false)
@@ -82,1133 +155,933 @@ export default function HomePage() {
 
   async function sair() {
     await supabase.auth.signOut()
-    router.replace('/login')
+    router.push('/login')
   }
+
+  const nomeUsuario =
+    perfil?.nome?.split(' ')[0] || 'Cliente'
+
+  const chamadosAbertos = chamados.filter(
+    (chamado) =>
+      chamado.status !== 'resolvido' &&
+      chamado.status !== 'encerrado'
+  ).length
+
+  const chamadosResolvidos = chamados.filter(
+    (chamado) =>
+      chamado.status === 'resolvido' ||
+      chamado.status === 'encerrado'
+  ).length
 
   if (loading) {
     return (
-      <main className="loading-page">
-        <div className="loading-card">
-          <div className="loading-spinner"></div>
-          <h2>Carregando portal...</h2>
-          <p>Aguarde enquanto buscamos seus dados.</p>
+      <main style={styles.page}>
+        <div style={styles.loading}>
+          Carregando seu portal...
         </div>
-
-        <style jsx>{`
-          .loading-page {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f5f7fa;
-            padding: 24px;
-          }
-
-          .loading-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-          }
-
-          .loading-spinner {
-            width: 42px;
-            height: 42px;
-            margin: 0 auto 20px;
-            border: 4px solid #dbe4e8;
-            border-top-color: #0f766e;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-          }
-
-          h2 {
-            margin: 0 0 8px;
-            color: #172033;
-          }
-
-          p {
-            margin: 0;
-            color: #64748b;
-          }
-
-          @keyframes spin {
-            to {
-              transform: rotate(360deg);
-            }
-          }
-        `}</style>
       </main>
     )
   }
 
   return (
-    <div className="portal-page">
-      <header className="portal-header">
-        <div className="header-inner">
-          <div className="brand-area">
-            <div className="brand-logo">
-              AM
-            </div>
+    <main style={styles.page}>
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <Link href="/" style={styles.logoArea}>
+            <div style={styles.logoMark}>A</div>
 
             <div>
-              <h1>ÁgilMed & Real Life</h1>
-              <span>Portal do Cliente</span>
-            </div>
-          </div>
+              <div style={styles.logoTitle}>
+                ÁgilMed <span>&</span> Real Life
+              </div>
 
-          <div className="header-user">
-            <div className="user-info">
-              <strong>{profile?.nome || 'Cliente'}</strong>
-              <span>{profile?.email || ''}</span>
+              <div style={styles.logoSubtitle}>
+                Portal do Cliente
+              </div>
             </div>
+          </Link>
+
+          <nav style={styles.nav}>
+            <Link href="/" style={styles.navLinkActive}>
+              Início
+            </Link>
+
+            <Link href="/chamados" style={styles.navLink}>
+              Chamados
+            </Link>
+
+            <span style={styles.navDisabled}>
+              Documentos
+            </span>
+
+            <span style={styles.navDisabled}>
+              Indicadores
+            </span>
+
+            <span style={styles.navDisabled}>
+              Minha empresa
+            </span>
 
             <button
               type="button"
-              className="logout-button"
               onClick={sair}
+              style={styles.logoutButton}
             >
               Sair
             </button>
-          </div>
+          </nav>
         </div>
       </header>
 
-      <div className="portal-layout">
-        <aside className="sidebar">
-          <div className="sidebar-title">
-            <span>MENU</span>
-          </div>
-
-          <nav className="menu">
-            <Link
-              href="/"
-              className="menu-item active"
-            >
-              <span className="menu-icon">⌂</span>
-              <span>Início</span>
-            </Link>
-
-            <Link
-              href="/seguranca-do-trabalho"
-              className="menu-item"
-            >
-              <span className="menu-icon">✓</span>
-              <span>Segurança do Trabalho</span>
-            </Link>
-
-            <a
-              href="#"
-              className="menu-item"
-            >
-              <span className="menu-icon">♥</span>
-              <span>Saúde Ocupacional</span>
-            </a>
-
-            <a
-              href="#"
-              className="menu-item"
-            >
-              <span className="menu-icon">▣</span>
-              <span>Treinamentos</span>
-            </a>
-
-            <a
-              href="#"
-              className="menu-item"
-            >
-              <span className="menu-icon">▤</span>
-              <span>Documentos</span>
-            </a>
-
-            <a
-              href="#"
-              className="menu-item"
-            >
-              <span className="menu-icon">▥</span>
-              <span>Indicadores</span>
-            </a>
-
-            <a
-              href="#"
-              className="menu-item"
-            >
-              <span className="menu-icon">!</span>
-              <span>Pendências</span>
-            </a>
-
-            <a
-              href="#"
-              className="menu-item"
-            >
-              <span className="menu-icon">⚙</span>
-              <span>Configurações</span>
-            </a>
-          </nav>
-
-          <div className="sidebar-footer">
-            <div className="support-box">
-              <strong>Precisa de ajuda?</strong>
-              <span>Entre em contato com nossa equipe.</span>
-            </div>
-          </div>
-        </aside>
-
-        <main className="main-content">
-          <section className="welcome-section">
-            <div>
-              <span className="eyebrow">
-                PORTAL DO CLIENTE
-              </span>
-
-              <h2>
-                Olá, {profile?.nome?.split(' ')[0] || 'Cliente'}!
-              </h2>
-
-              <p>
-                Bem-vindo ao seu ambiente exclusivo de gestão
-                ÁgilMed & Real Life.
-              </p>
+      <div style={styles.container}>
+        <section style={styles.hero}>
+          <div>
+            <div style={styles.eyebrow}>
+              PORTAL DO CLIENTE
             </div>
 
-            <div className="welcome-status">
-              <span className="status-dot"></span>
-              Portal conectado
-            </div>
-          </section>
+            <h1 style={styles.heroTitle}>
+              Olá, {nomeUsuario}.
+              <br />
+              Como podemos ajudar?
+            </h1>
 
-          <section className="company-bar">
-            <div className="company-main">
-              <div className="company-icon">
-                {empresa?.nome_fantasia?.charAt(0) || 'E'}
-              </div>
+            <p style={styles.heroText}>
+              Abra chamados, acompanhe atendimentos e converse
+              diretamente com nossa equipe em um só lugar.
+            </p>
 
-              <div>
-                <span className="company-label">
-                  EMPRESA
-                </span>
-
-                <strong>
-                  {empresa?.nome_fantasia ||
-                    empresa?.razao_social ||
-                    'Empresa não cadastrada'}
-                </strong>
-
-                {empresa?.razao_social &&
-                  empresa?.nome_fantasia &&
-                  empresa.razao_social !== empresa.nome_fantasia && (
-                    <small>
-                      {empresa.razao_social}
-                    </small>
-                  )}
-              </div>
-            </div>
-
-            <div className="company-status">
-              <span
-                className={
-                  empresa?.status === 'ativo'
-                    ? 'status-badge active'
-                    : 'status-badge inactive'
-                }
-              >
-                {empresa?.status === 'ativo'
-                  ? 'Empresa ativa'
-                  : 'Empresa inativa'}
-              </span>
-            </div>
-          </section>
-
-          <section className="section">
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">
-                  VISÃO GERAL
-                </span>
-
-                <h3>
-                  Acesso rápido
-                </h3>
-              </div>
-            </div>
-
-            <div className="modules-grid">
+            <div style={styles.heroActions}>
               <Link
-                href="/seguranca-do-trabalho"
-                className="module-card security-card"
+                href="/chamados/novo"
+                style={styles.primaryButton}
               >
-                <div className="module-top">
-                  <div className="module-icon security">
-                    ✓
-                  </div>
-
-                  <span className="module-arrow">
-                    →
-                  </span>
-                </div>
-
-                <h4>
-                  Segurança do Trabalho
-                </h4>
-
-                <p>
-                  Acesse documentos, inspeções,
-                  ocorrências, planos de ação,
-                  indicadores e informações de SST.
-                </p>
-
-                <span className="module-button">
-                  Acessar módulo
-                </span>
+                + Abrir novo chamado
               </Link>
 
-              <a
-                href="#"
-                className="module-card"
+              <Link
+                href="/chamados"
+                style={styles.secondaryButton}
               >
-                <div className="module-top">
-                  <div className="module-icon health">
-                    ♥
-                  </div>
+                Ver meus chamados
+              </Link>
+            </div>
+          </div>
 
-                  <span className="module-arrow">
-                    →
-                  </span>
-                </div>
+          <div style={styles.heroCard}>
+            <div style={styles.heroCardLabel}>
+              SUA EMPRESA
+            </div>
 
-                <h4>
-                  Saúde Ocupacional
-                </h4>
+            <div style={styles.heroCardTitle}>
+              {empresa?.nome_fantasia ||
+                empresa?.razao_social ||
+                'Empresa cliente'}
+            </div>
 
-                <p>
-                  Acompanhe exames ocupacionais,
-                  ASOs, programas médicos e
-                  informações de saúde.
+            <div style={styles.heroCardText}>
+              Estamos prontos para atender suas solicitações.
+            </div>
+          </div>
+        </section>
+
+        <section style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.statIcon}>📋</div>
+
+            <div>
+              <div style={styles.statNumber}>
+                {chamados.length}
+              </div>
+
+              <div style={styles.statLabel}>
+                Chamados recentes
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.statIcon}>⏳</div>
+
+            <div>
+              <div style={styles.statNumber}>
+                {chamadosAbertos}
+              </div>
+
+              <div style={styles.statLabel}>
+                Em atendimento
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.statIcon}>✓</div>
+
+            <div>
+              <div style={styles.statNumber}>
+                {chamadosResolvidos}
+              </div>
+
+              <div style={styles.statLabel}>
+                Resolvidos
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <div style={styles.sectionEyebrow}>
+                ATENDIMENTO
+              </div>
+
+              <h2 style={styles.sectionTitle}>
+                Acesso rápido
+              </h2>
+            </div>
+          </div>
+
+          <div style={styles.quickGrid}>
+            <Link
+              href="/chamados/novo"
+              style={styles.quickCard}
+            >
+              <div style={styles.quickIcon}>+</div>
+
+              <div>
+                <h3 style={styles.quickTitle}>
+                  Novo chamado
+                </h3>
+
+                <p style={styles.quickText}>
+                  Precisa de ajuda? Registre uma nova
+                  solicitação para nossa equipe.
                 </p>
+              </div>
 
-                <span className="module-button disabled">
-                  Em breve
-                </span>
-              </a>
+              <span style={styles.arrow}>→</span>
+            </Link>
 
-              <a
-                href="#"
-                className="module-card"
-              >
-                <div className="module-top">
-                  <div className="module-icon training">
-                    ▣
-                  </div>
+            <Link
+              href="/chamados"
+              style={styles.quickCard}
+            >
+              <div style={styles.quickIcon}>☰</div>
 
-                  <span className="module-arrow">
-                    →
-                  </span>
-                </div>
+              <div>
+                <h3 style={styles.quickTitle}>
+                  Meus chamados
+                </h3>
 
-                <h4>
-                  Treinamentos
-                </h4>
-
-                <p>
-                  Consulte treinamentos,
-                  certificados, participantes
-                  e vencimentos.
+                <p style={styles.quickText}>
+                  Consulte chamados, status, mensagens e
+                  histórico de atendimentos.
                 </p>
+              </div>
 
-                <span className="module-button disabled">
-                  Em breve
-                </span>
-              </a>
+              <span style={styles.arrow}>→</span>
+            </Link>
 
-              <a
-                href="#"
-                className="module-card"
-              >
-                <div className="module-top">
-                  <div className="module-icon documents">
-                    ▤
-                  </div>
+            <div style={styles.quickCardDisabled}>
+              <div style={styles.quickIconDisabled}>▣</div>
 
-                  <span className="module-arrow">
-                    →
-                  </span>
-                </div>
-
-                <h4>
+              <div>
+                <h3 style={styles.quickTitle}>
                   Documentos
-                </h4>
+                </h3>
 
-                <p>
-                  Consulte documentos,
-                  laudos, procedimentos,
-                  relatórios e registros.
+                <p style={styles.quickText}>
+                  Acesse documentos e arquivos
+                  disponibilizados pela equipe.
                 </p>
+              </div>
 
-                <span className="module-button disabled">
-                  Em breve
-                </span>
-              </a>
+              <span style={styles.comingSoon}>
+                Em breve
+              </span>
             </div>
-          </section>
 
-          <section className="section">
-            <div className="section-heading">
+            <div style={styles.quickCardDisabled}>
+              <div style={styles.quickIconDisabled}>◔</div>
+
               <div>
-                <span className="eyebrow">
-                  EMPRESA
-                </span>
-
-                <h3>
-                  Dados cadastrais
+                <h3 style={styles.quickTitle}>
+                  Indicadores
                 </h3>
+
+                <p style={styles.quickText}>
+                  Acompanhe indicadores e resultados dos
+                  seus atendimentos.
+                </p>
               </div>
+
+              <span style={styles.comingSoon}>
+                Em breve
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section style={styles.section}>
+          <div style={styles.sectionHeader}>
+            <div>
+              <div style={styles.sectionEyebrow}>
+                HISTÓRICO
+              </div>
+
+              <h2 style={styles.sectionTitle}>
+                Chamados recentes
+              </h2>
             </div>
 
-            <div className="company-details portal-card">
-              <div className="detail-item">
-                <span>Razão Social</span>
-                <strong>
-                  {empresa?.razao_social || 'Não informado'}
-                </strong>
-              </div>
+            <Link
+              href="/chamados"
+              style={styles.viewAll}
+            >
+              Ver todos →
+            </Link>
+          </div>
 
-              <div className="detail-item">
-                <span>Nome Fantasia</span>
-                <strong>
-                  {empresa?.nome_fantasia || 'Não informado'}
-                </strong>
-              </div>
+          {chamados.length === 0 ? (
+            <div style={styles.emptyCard}>
+              <div style={styles.emptyIcon}>📋</div>
 
-              <div className="detail-item">
-                <span>CNPJ</span>
-                <strong>
-                  {empresa?.cnpj || 'Não informado'}
-                </strong>
-              </div>
+              <h3 style={styles.emptyTitle}>
+                Nenhum chamado ainda
+              </h3>
 
-              <div className="detail-item">
-                <span>Telefone</span>
-                <strong>
-                  {empresa?.telefone || 'Não informado'}
-                </strong>
-              </div>
+              <p style={styles.emptyText}>
+                Quando você abrir uma solicitação, ela
+                aparecerá aqui.
+              </p>
 
-              <div className="detail-item">
-                <span>E-mail</span>
-                <strong>
-                  {empresa?.email || 'Não informado'}
-                </strong>
-              </div>
-
-              <div className="detail-item">
-                <span>Localização</span>
-                <strong>
-                  {empresa?.cidade && empresa?.estado
-                    ? `${empresa.cidade} - ${empresa.estado}`
-                    : 'Não informado'}
-                </strong>
-              </div>
+              <Link
+                href="/chamados/novo"
+                style={styles.primaryButton}
+              >
+                Abrir primeiro chamado
+              </Link>
             </div>
-          </section>
+          ) : (
+            <div style={styles.tableCard}>
+              {chamados.map((chamado, index) => (
+                <Link
+                  key={chamado.id}
+                  href={`/chamados/${chamado.id}`}
+                  style={{
+                    ...styles.ticketRow,
+                    ...(index === chamados.length - 1
+                      ? styles.lastRow
+                      : {}),
+                  }}
+                >
+                  <div style={styles.ticketNumber}>
+                    #{chamado.numero}
+                  </div>
 
-          <section className="section">
-            <div className="section-heading">
-              <div>
-                <span className="eyebrow">
-                  SUA CONTA
-                </span>
+                  <div style={styles.ticketMain}>
+                    <div style={styles.ticketSubject}>
+                      {chamado.assunto}
+                    </div>
 
-                <h3>
-                  Informações do usuário
-                </h3>
-              </div>
+                    <div style={styles.ticketDate}>
+                      Aberto em {formatarData(chamado.created_at)}
+                    </div>
+                  </div>
+
+                  <div style={styles.ticketPriority}>
+                    <span
+                      style={prioridadeStyle(
+                        chamado.prioridade
+                      )}
+                    >
+                      {prioridadeLabels[
+                        chamado.prioridade
+                      ] || chamado.prioridade}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span
+                      style={{
+                        ...styles.statusBadge,
+                        ...statusStyle(chamado.status),
+                      }}
+                    >
+                      {statusLabels[chamado.status] ||
+                        chamado.status}
+                    </span>
+                  </div>
+
+                  <div style={styles.ticketArrow}>→</div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={styles.helpCard}>
+          <div>
+            <div style={styles.helpEyebrow}>
+              PRECISA DE AJUDA?
             </div>
 
-            <div className="account-card portal-card">
-              <div className="account-avatar">
-                {profile?.nome?.charAt(0)?.toUpperCase() || 'C'}
-              </div>
+            <h2 style={styles.helpTitle}>
+              Nossa equipe está pronta para atender você.
+            </h2>
 
-              <div className="account-info">
-                <strong>
-                  {profile?.nome || 'Cliente'}
-                </strong>
+            <p style={styles.helpText}>
+              Abra um chamado pelo portal e acompanhe todo
+              o atendimento de forma simples e transparente.
+            </p>
+          </div>
 
-                <span>
-                  {profile?.email || 'E-mail não informado'}
-                </span>
+          <Link
+            href="/chamados/novo"
+            style={styles.helpButton}
+          >
+            Abrir chamado
+          </Link>
+        </section>
 
-                <div className="account-tags">
-                  <span>
-                    Perfil: {profile?.perfil || 'cliente'}
-                  </span>
+        <footer style={styles.footer}>
+          <div>
+            <strong>ÁgilMed & Real Life</strong>
+            <span> · Portal do Cliente</span>
+          </div>
 
-                  <span>
-                    {profile?.ativo
-                      ? 'Usuário ativo'
-                      : 'Usuário inativo'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <footer className="portal-footer">
-            <span>
-              ÁgilMed & Real Life
-            </span>
-
-            <span>
-              Portal do Cliente
-            </span>
-          </footer>
-        </main>
+          <div>
+            {perfil?.email || ''}
+          </div>
+        </footer>
       </div>
-
-      <style jsx>{`
-        .portal-page {
-          min-height: 100vh;
-          background: #f5f7fa;
-          color: #172033;
-        }
-
-        .portal-header {
-          height: 76px;
-          background: #ffffff;
-          border-bottom: 1px solid #e5e7eb;
-          position: sticky;
-          top: 0;
-          z-index: 20;
-        }
-
-        .header-inner {
-          max-width: 1440px;
-          height: 100%;
-          margin: 0 auto;
-          padding: 0 32px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .brand-area {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .brand-logo {
-          width: 42px;
-          height: 42px;
-          border-radius: 11px;
-          background: #0f766e;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 14px;
-          letter-spacing: -0.5px;
-        }
-
-        .brand-area h1 {
-          margin: 0;
-          font-size: 16px;
-          line-height: 1.2;
-          color: #172033;
-        }
-
-        .brand-area span {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 12px;
-        }
-
-        .header-user {
-          display: flex;
-          align-items: center;
-          gap: 18px;
-        }
-
-        .user-info {
-          display: flex;
-          flex-direction: column;
-          text-align: right;
-        }
-
-        .user-info strong {
-          font-size: 14px;
-          color: #172033;
-        }
-
-        .user-info span {
-          font-size: 12px;
-          color: #64748b;
-          margin-top: 2px;
-        }
-
-        .logout-button {
-          border: 1px solid #d7dde5;
-          background: #ffffff;
-          color: #475569;
-          border-radius: 9px;
-          padding: 9px 14px;
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        .logout-button:hover {
-          border-color: #0f766e;
-          color: #0f766e;
-        }
-
-        .portal-layout {
-          max-width: 1440px;
-          margin: 0 auto;
-          display: grid;
-          grid-template-columns: 250px minmax(0, 1fr);
-          min-height: calc(100vh - 76px);
-        }
-
-        .sidebar {
-          background: #ffffff;
-          border-right: 1px solid #e5e7eb;
-          padding: 28px 18px;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .sidebar-title {
-          padding: 0 12px 12px;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 1.2px;
-          color: #94a3b8;
-        }
-
-        .menu {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-        }
-
-        .menu-item {
-          min-height: 44px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 12px;
-          border-radius: 10px;
-          color: #64748b;
-          font-size: 13px;
-          font-weight: 600;
-          transition: 0.2s ease;
-        }
-
-        .menu-item:hover {
-          background: #f1f7f6;
-          color: #0f766e;
-        }
-
-        .menu-item.active {
-          background: #e9f5f3;
-          color: #0f766e;
-        }
-
-        .menu-icon {
-          width: 20px;
-          text-align: center;
-          font-size: 16px;
-          font-weight: 800;
-        }
-
-        .sidebar-footer {
-          margin-top: auto;
-          padding-top: 24px;
-        }
-
-        .support-box {
-          background: #f8fafc;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 14px;
-        }
-
-        .support-box strong {
-          display: block;
-          font-size: 12px;
-          color: #334155;
-          margin-bottom: 5px;
-        }
-
-        .support-box span {
-          display: block;
-          color: #64748b;
-          font-size: 11px;
-          line-height: 1.5;
-        }
-
-        .main-content {
-          padding: 38px 42px 50px;
-          min-width: 0;
-        }
-
-        .welcome-section {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 20px;
-          margin-bottom: 28px;
-        }
-
-        .eyebrow {
-          display: block;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 1.3px;
-          color: #0f766e;
-          margin-bottom: 8px;
-        }
-
-        .welcome-section h2 {
-          margin: 0;
-          font-size: 30px;
-          line-height: 1.15;
-          letter-spacing: -0.8px;
-          color: #172033;
-        }
-
-        .welcome-section p {
-          margin: 8px 0 0;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        .welcome-status {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          border: 1px solid #dce9e6;
-          background: #ffffff;
-          color: #0f766e;
-          padding: 9px 12px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 700;
-          white-space: nowrap;
-        }
-
-        .status-dot {
-          width: 7px;
-          height: 7px;
-          background: #16a34a;
-          border-radius: 50%;
-        }
-
-        .company-bar {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 18px 20px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          margin-bottom: 34px;
-          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
-        }
-
-        .company-main {
-          display: flex;
-          align-items: center;
-          gap: 13px;
-        }
-
-        .company-icon {
-          width: 44px;
-          height: 44px;
-          flex: 0 0 44px;
-          border-radius: 12px;
-          background: #e9f5f3;
-          color: #0f766e;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          font-weight: 800;
-        }
-
-        .company-label {
-          display: block;
-          font-size: 9px;
-          letter-spacing: 1px;
-          color: #94a3b8;
-          font-weight: 800;
-          margin-bottom: 3px;
-        }
-
-        .company-main strong {
-          display: block;
-          font-size: 15px;
-          color: #172033;
-        }
-
-        .company-main small {
-          display: block;
-          color: #64748b;
-          margin-top: 3px;
-          font-size: 11px;
-        }
-
-        .status-badge {
-          padding: 7px 11px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 800;
-        }
-
-        .status-badge.active {
-          background: #eaf8ef;
-          color: #15803d;
-        }
-
-        .status-badge.inactive {
-          background: #fef2f2;
-          color: #b91c1c;
-        }
-
-        .section {
-          margin-bottom: 34px;
-        }
-
-        .section-heading {
-          margin-bottom: 16px;
-        }
-
-        .section-heading h3 {
-          margin: 0;
-          font-size: 19px;
-          color: #172033;
-        }
-
-        .modules-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 16px;
-        }
-
-        .module-card {
-          display: block;
-          min-width: 0;
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 20px;
-          color: inherit;
-          text-decoration: none;
-          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
-          transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            border-color 0.2s ease;
-        }
-
-        .module-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
-          border-color: #cbd5e1;
-        }
-
-        .security-card:hover {
-          border-color: #8dd4ca;
-        }
-
-        .module-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 18px;
-        }
-
-        .module-icon {
-          width: 42px;
-          height: 42px;
-          border-radius: 11px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 17px;
-        }
-
-        .module-icon.security {
-          background: #e9f5f3;
-          color: #0f766e;
-        }
-
-        .module-icon.health {
-          background: #fceef1;
-          color: #be123c;
-        }
-
-        .module-icon.training {
-          background: #eef2ff;
-          color: #4f46e5;
-        }
-
-        .module-icon.documents {
-          background: #fff7ed;
-          color: #c2410c;
-        }
-
-        .module-arrow {
-          color: #94a3b8;
-          font-size: 18px;
-        }
-
-        .module-card h4 {
-          margin: 0 0 8px;
-          font-size: 15px;
-          color: #172033;
-        }
-
-        .module-card p {
-          min-height: 66px;
-          margin: 0 0 18px;
-          color: #64748b;
-          font-size: 12px;
-          line-height: 1.6;
-        }
-
-        .module-button {
-          display: block;
-          width: 100%;
-          padding: 10px 12px;
-          border-radius: 9px;
-          background: #0f766e;
-          color: #ffffff;
-          text-align: center;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .module-button.disabled {
-          background: #f1f5f9;
-          color: #94a3b8;
-        }
-
-        .portal-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
-        }
-
-        .company-details {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          overflow: hidden;
-        }
-
-        .detail-item {
-          padding: 18px 20px;
-          border-right: 1px solid #eef2f7;
-          border-bottom: 1px solid #eef2f7;
-        }
-
-        .detail-item span {
-          display: block;
-          color: #94a3b8;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.6px;
-          margin-bottom: 6px;
-          text-transform: uppercase;
-        }
-
-        .detail-item strong {
-          display: block;
-          color: #334155;
-          font-size: 13px;
-          word-break: break-word;
-        }
-
-        .account-card {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          padding: 20px;
-        }
-
-        .account-avatar {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          background: #0f766e;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 18px;
-          flex: 0 0 50px;
-        }
-
-        .account-info strong {
-          display: block;
-          color: #172033;
-          font-size: 15px;
-        }
-
-        .account-info > span {
-          display: block;
-          color: #64748b;
-          font-size: 12px;
-          margin-top: 3px;
-        }
-
-        .account-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 7px;
-          margin-top: 9px;
-        }
-
-        .account-tags span {
-          background: #f1f5f9;
-          color: #64748b;
-          border-radius: 999px;
-          padding: 5px 9px;
-          font-size: 10px;
-          font-weight: 700;
-        }
-
-        .portal-footer {
-          padding-top: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          color: #94a3b8;
-          font-size: 11px;
-        }
-
-        @media (max-width: 1100px) {
-          .modules-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .company-details {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .portal-layout {
-            grid-template-columns: 220px minmax(0, 1fr);
-          }
-
-          .main-content {
-            padding: 32px 28px 44px;
-          }
-        }
-
-        @media (max-width: 800px) {
-          .portal-header {
-            height: auto;
-          }
-
-          .header-inner {
-            padding: 14px 18px;
-            gap: 15px;
-          }
-
-          .header-user {
-            gap: 8px;
-          }
-
-          .user-info {
-            display: none;
-          }
-
-          .portal-layout {
-            display: block;
-          }
-
-          .sidebar {
-            border-right: 0;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 12px;
-          }
-
-          .sidebar-title,
-          .sidebar-footer {
-            display: none;
-          }
-
-          .menu {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .main-content {
-            padding: 26px 18px 38px;
-          }
-
-          .welcome-section {
-            display: block;
-          }
-
-          .welcome-status {
-            margin-top: 16px;
-          }
-
-          .company-bar {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .company-status {
-            padding-left: 57px;
-          }
-        }
-
-        @media (max-width: 600px) {
-          .brand-area h1 {
-            font-size: 14px;
-          }
-
-          .brand-area span {
-            font-size: 10px;
-          }
-
-          .brand-logo {
-            width: 38px;
-            height: 38px;
-          }
-
-          .welcome-section h2 {
-            font-size: 25px;
-          }
-
-          .modules-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .company-details {
-            grid-template-columns: 1fr;
-          }
-
-          .detail-item {
-            border-right: 0;
-          }
-
-          .portal-footer {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 5px;
-          }
-        }
-      `}</style>
-    </div>
+    </main>
   )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    background: '#f5f7fa',
+    color: '#172033',
+  },
+
+  header: {
+    background: '#ffffff',
+    borderBottom: '1px solid #e5e7eb',
+    position: 'sticky',
+    top: 0,
+    zIndex: 20,
+  },
+
+  headerInner: {
+    width: '100%',
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '16px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '24px',
+  },
+
+  logoArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    textDecoration: 'none',
+    color: '#172033',
+  },
+
+  logoMark: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '12px',
+    background: '#2563eb',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '21px',
+    fontWeight: 900,
+  },
+
+  logoTitle: {
+    fontSize: '16px',
+    fontWeight: 800,
+    lineHeight: 1.2,
+  },
+
+  logoSubtitle: {
+    color: '#64748b',
+    fontSize: '11px',
+    marginTop: '3px',
+  },
+
+  nav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '22px',
+  },
+
+  navLink: {
+    color: '#64748b',
+    textDecoration: 'none',
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+
+  navLinkActive: {
+    color: '#2563eb',
+    textDecoration: 'none',
+    fontSize: '13px',
+    fontWeight: 700,
+  },
+
+  navDisabled: {
+    color: '#cbd5e1',
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+
+  logoutButton: {
+    border: '1px solid #e2e8f0',
+    background: '#ffffff',
+    color: '#64748b',
+    borderRadius: '9px',
+    padding: '8px 13px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: 700,
+  },
+
+  container: {
+    width: '100%',
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '42px 24px 60px',
+  },
+
+  hero: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 360px',
+    gap: '32px',
+    alignItems: 'center',
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '22px',
+    padding: '42px',
+    boxShadow: '0 8px 30px rgba(15, 23, 42, 0.05)',
+  },
+
+  eyebrow: {
+    color: '#2563eb',
+    fontSize: '11px',
+    fontWeight: 900,
+    letterSpacing: '0.12em',
+    marginBottom: '12px',
+  },
+
+  heroTitle: {
+    margin: 0,
+    fontSize: '38px',
+    lineHeight: 1.12,
+    letterSpacing: '-0.03em',
+  },
+
+  heroText: {
+    maxWidth: '680px',
+    color: '#64748b',
+    fontSize: '16px',
+    lineHeight: 1.7,
+    margin: '18px 0 0',
+  },
+
+  heroActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginTop: '26px',
+  },
+
+  primaryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#2563eb',
+    color: '#ffffff',
+    borderRadius: '10px',
+    padding: '12px 17px',
+    fontSize: '13px',
+    fontWeight: 800,
+    textDecoration: 'none',
+    border: '1px solid #2563eb',
+  },
+
+  secondaryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#ffffff',
+    color: '#2563eb',
+    borderRadius: '10px',
+    padding: '12px 17px',
+    fontSize: '13px',
+    fontWeight: 800,
+    textDecoration: 'none',
+    border: '1px solid #bfdbfe',
+  },
+
+  heroCard: {
+    background: '#eff6ff',
+    border: '1px solid #dbeafe',
+    borderRadius: '18px',
+    padding: '25px',
+  },
+
+  heroCardLabel: {
+    color: '#2563eb',
+    fontSize: '10px',
+    fontWeight: 900,
+    letterSpacing: '0.1em',
+    marginBottom: '10px',
+  },
+
+  heroCardTitle: {
+    color: '#172033',
+    fontSize: '20px',
+    fontWeight: 800,
+    lineHeight: 1.3,
+  },
+
+  heroCardText: {
+    color: '#64748b',
+    fontSize: '13px',
+    lineHeight: 1.6,
+    marginTop: '10px',
+  },
+
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '18px',
+    marginTop: '22px',
+  },
+
+  statCard: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    padding: '21px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+  },
+
+  statIcon: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '12px',
+    background: '#eff6ff',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '19px',
+    fontWeight: 800,
+  },
+
+  statNumber: {
+    fontSize: '24px',
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+
+  statLabel: {
+    color: '#64748b',
+    fontSize: '12px',
+    marginTop: '5px',
+  },
+
+  section: {
+    marginTop: '42px',
+  },
+
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '20px',
+    marginBottom: '18px',
+  },
+
+  sectionEyebrow: {
+    color: '#2563eb',
+    fontSize: '10px',
+    fontWeight: 900,
+    letterSpacing: '0.1em',
+    marginBottom: '6px',
+  },
+
+  sectionTitle: {
+    margin: 0,
+    fontSize: '24px',
+    letterSpacing: '-0.02em',
+  },
+
+  viewAll: {
+    color: '#2563eb',
+    textDecoration: 'none',
+    fontSize: '13px',
+    fontWeight: 700,
+  },
+
+  quickGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '18px',
+  },
+
+  quickCard: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    padding: '23px',
+    textDecoration: 'none',
+    color: '#172033',
+  },
+
+  quickCardDisabled: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    padding: '23px',
+    opacity: 0.72,
+  },
+
+  quickIcon: {
+    width: '43px',
+    height: '43px',
+    borderRadius: '12px',
+    background: '#eff6ff',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '21px',
+    fontWeight: 800,
+    flexShrink: 0,
+  },
+
+  quickIconDisabled: {
+    width: '43px',
+    height: '43px',
+    borderRadius: '12px',
+    background: '#f1f5f9',
+    color: '#64748b',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '18px',
+    fontWeight: 800,
+    flexShrink: 0,
+  },
+
+  quickTitle: {
+    margin: 0,
+    fontSize: '16px',
+    fontWeight: 800,
+  },
+
+  quickText: {
+    margin: '7px 0 0',
+    color: '#64748b',
+    fontSize: '13px',
+    lineHeight: 1.55,
+  },
+
+  arrow: {
+    position: 'absolute',
+    right: '20px',
+    bottom: '18px',
+    color: '#2563eb',
+    fontSize: '18px',
+    fontWeight: 800,
+  },
+
+  comingSoon: {
+    position: 'absolute',
+    right: '17px',
+    top: '17px',
+    background: '#f1f5f9',
+    color: '#64748b',
+    borderRadius: '999px',
+    padding: '5px 8px',
+    fontSize: '9px',
+    fontWeight: 800,
+  },
+
+  tableCard: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    overflow: 'hidden',
+  },
+
+  ticketRow: {
+    display: 'grid',
+    gridTemplateColumns: '80px minmax(0, 1fr) 100px 150px 25px',
+    alignItems: 'center',
+    gap: '16px',
+    padding: '18px 21px',
+    borderBottom: '1px solid #eef0f3',
+    textDecoration: 'none',
+    color: '#172033',
+  },
+
+  lastRow: {
+    borderBottom: 0,
+  },
+
+  ticketNumber: {
+    color: '#2563eb',
+    fontSize: '12px',
+    fontWeight: 800,
+  },
+
+  ticketMain: {
+    minWidth: 0,
+  },
+
+  ticketSubject: {
+    fontSize: '14px',
+    fontWeight: 700,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+
+  ticketDate: {
+    color: '#94a3b8',
+    fontSize: '11px',
+    marginTop: '5px',
+  },
+
+  ticketPriority: {
+    fontSize: '12px',
+    fontWeight: 700,
+  },
+
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '10px',
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+  },
+
+  ticketArrow: {
+    color: '#94a3b8',
+    fontSize: '17px',
+  },
+
+  emptyCard: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    padding: '45px 25px',
+    textAlign: 'center',
+  },
+
+  emptyIcon: {
+    fontSize: '32px',
+    marginBottom: '10px',
+  },
+
+  emptyTitle: {
+    margin: 0,
+    fontSize: '18px',
+  },
+
+  emptyText: {
+    color: '#64748b',
+    fontSize: '13px',
+    margin: '8px auto 20px',
+    maxWidth: '440px',
+  },
+
+  helpCard: {
+    marginTop: '42px',
+    background: '#172033',
+    color: '#ffffff',
+    borderRadius: '20px',
+    padding: '30px 32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '25px',
+  },
+
+  helpEyebrow: {
+    color: '#93c5fd',
+    fontSize: '10px',
+    fontWeight: 900,
+    letterSpacing: '0.1em',
+    marginBottom: '7px',
+  },
+
+  helpTitle: {
+    margin: 0,
+    fontSize: '21px',
+  },
+
+  helpText: {
+    margin: '8px 0 0',
+    color: '#cbd5e1',
+    fontSize: '13px',
+    lineHeight: 1.6,
+    maxWidth: '680px',
+  },
+
+  helpButton: {
+    flexShrink: 0,
+    background: '#ffffff',
+    color: '#172033',
+    textDecoration: 'none',
+    borderRadius: '10px',
+    padding: '12px 17px',
+    fontSize: '13px',
+    fontWeight: 800,
+  },
+
+  footer: {
+    marginTop: '35px',
+    paddingTop: '20px',
+    borderTop: '1px solid #e2e8f0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '20px',
+    color: '#94a3b8',
+    fontSize: '11px',
+  },
+
+  loading: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#64748b',
+    fontSize: '14px',
+  },
 }
