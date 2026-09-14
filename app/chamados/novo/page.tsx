@@ -1,9 +1,8 @@
-'use client'
+'use client';
 
-import Link from 'next/link'
-import { FormEvent, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 const categorias = [
   'Saúde Ocupacional',
@@ -15,13 +14,13 @@ const categorias = [
   'Atendimento administrativo',
   'Financeiro',
   'Outros',
-]
+];
 
 const prioridades = [
   {
     value: 'baixa',
     label: 'Baixa',
-    description: 'Pode ser tratado normalmente.',
+    description: 'Solicitação sem urgência.',
   },
   {
     value: 'normal',
@@ -31,766 +30,1183 @@ const prioridades = [
   {
     value: 'alta',
     label: 'Alta',
-    description: 'Necessita de atenção prioritária.',
+    description: 'Necessita atenção prioritária.',
   },
   {
     value: 'urgente',
     label: 'Urgente',
-    description: 'Situação que precisa de atendimento imediato.',
+    description: 'Situação que exige atendimento imediato.',
   },
-]
+];
 
 export default function NovoChamadoPage() {
-  const router = useRouter()
+  const router = useRouter();
 
-  const [categoria, setCategoria] = useState('')
-  const [assunto, setAssunto] = useState('')
-  const [descricao, setDescricao] = useState('')
-  const [prioridade, setPrioridade] = useState('normal')
+  const [carregando, setCarregando] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
 
-  const [enviando, setEnviando] = useState(false)
-  const [erro, setErro] = useState('')
+  const [empresaId, setEmpresaId] = useState('');
+  const [usuarioId, setUsuarioId] = useState('');
 
-  async function abrirChamado(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  const [categoria, setCategoria] = useState('');
+  const [assunto, setAssunto] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [prioridade, setPrioridade] = useState('normal');
 
-    setErro('')
+  useEffect(() => {
+    async function carregarUsuario() {
+      try {
+        setCarregando(true);
+        setErro('');
+
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !user) {
+          router.push('/login');
+          return;
+        }
+
+        const { data: perfil, error: perfilError } = await supabase
+          .from('profiles')
+          .select('id, empresa_id')
+          .eq('id', user.id)
+          .single();
+
+        if (perfilError || !perfil) {
+          setErro(
+            'Não foi possível identificar o perfil da sua empresa. Entre em contato com o atendimento.'
+          );
+          return;
+        }
+
+        setUsuarioId(perfil.id);
+        setEmpresaId(perfil.empresa_id);
+      } catch {
+        setErro(
+          'Ocorreu um erro ao carregar seus dados. Tente novamente.'
+        );
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarUsuario();
+  }, [router]);
+
+  async function criarChamado(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setErro('');
 
     if (!categoria) {
-      setErro('Selecione uma categoria.')
-      return
+      setErro('Selecione uma categoria para o chamado.');
+      return;
     }
 
     if (!assunto.trim()) {
-      setErro('Informe o assunto do chamado.')
-      return
+      setErro('Informe o assunto do chamado.');
+      return;
     }
 
     if (!descricao.trim()) {
-      setErro('Descreva o que você precisa.')
-      return
+      setErro('Descreva o que você precisa.');
+      return;
     }
 
-    setEnviando(true)
+    if (!empresaId || !usuarioId) {
+      setErro(
+        'Não foi possível identificar sua empresa ou seu usuário.'
+      );
+      return;
+    }
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      setEnviando(true);
 
-      if (!user) {
-        router.replace('/login')
-        return
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, empresa_id')
-        .eq('id', user.id)
-        .single()
-
-      if (profileError || !profile) {
-        throw new Error(
-          'Não foi possível identificar o perfil do usuário.',
-        )
-      }
-
-      if (!profile.empresa_id) {
-        throw new Error(
-          'Seu usuário não está vinculado a uma empresa.',
-        )
-      }
-
-      const { data: chamado, error: chamadoError } = await supabase
+      const { data, error } = await supabase
         .from('chamados')
         .insert({
-          empresa_id: profile.empresa_id,
-          criado_por: user.id,
+          empresa_id: empresaId,
+          criado_por: usuarioId,
           categoria,
           assunto: assunto.trim(),
           descricao: descricao.trim(),
           prioridade,
           status: 'aberto',
         })
-        .select('id')
-        .single()
+        .select('id, numero')
+        .single();
 
-      if (chamadoError || !chamado) {
-        console.error('Erro ao criar chamado:', chamadoError)
-
-        throw new Error(
-          chamadoError?.message ||
-            'Não foi possível abrir o chamado.',
-        )
+      if (error) {
+        console.error(error);
+        setErro(
+          'Não foi possível abrir o chamado. Tente novamente.'
+        );
+        return;
       }
 
-      router.push(`/chamados/${chamado.id}`)
+      router.push(`/chamados/${data.id}`);
     } catch (error) {
-      console.error(error)
-
-      if (error instanceof Error) {
-        setErro(error.message)
-      } else {
-        setErro('Não foi possível abrir o chamado.')
-      }
-
-      setEnviando(false)
+      console.error(error);
+      setErro(
+        'Ocorreu um erro ao abrir o chamado. Tente novamente.'
+      );
+    } finally {
+      setEnviando(false);
     }
   }
 
+  if (carregando) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.backgroundGlow} />
+
+        <header style={styles.header}>
+          <div style={styles.headerInner}>
+            <div style={styles.brandArea}>
+              <div style={styles.logo}>A</div>
+
+              <div>
+                <div style={styles.brandName}>Portal do Cliente</div>
+                <div style={styles.brandSubtitle}>
+                  ÁgilMed • Real Life SSMA
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section style={styles.loadingContainer}>
+          <div style={styles.spinner} />
+          <p style={styles.loadingText}>Carregando seus dados...</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <div className="page">
-      <header className="header">
-        <div className="header-inner">
-          <Link href="/" className="brand">
-            <div className="brand-logo">AM</div>
+    <main style={styles.page}>
+      <div style={styles.backgroundGlow} />
+
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <div style={styles.brandArea}>
+            <div style={styles.logo}>A</div>
 
             <div>
-              <strong>ÁgilMed & Real Life</strong>
-              <span>Portal do Cliente</span>
+              <div style={styles.brandName}>Portal do Cliente</div>
+              <div style={styles.brandSubtitle}>
+                ÁgilMed • Real Life SSMA
+              </div>
             </div>
-          </Link>
+          </div>
 
-          <Link href="/chamados" className="back-link">
-            ← Meus chamados
-          </Link>
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            style={styles.headerButton}
+          >
+            ← Voltar ao início
+          </button>
         </div>
       </header>
 
-      <main className="container">
-        <div className="page-heading">
-          <span className="eyebrow">ATENDIMENTO</span>
+      <div style={styles.content}>
+        <div style={styles.breadcrumb}>
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            style={styles.breadcrumbButton}
+          >
+            Início
+          </button>
 
-          <h1>Novo chamado</h1>
+          <span style={styles.breadcrumbSeparator}>/</span>
 
-          <p>
-            Descreva sua solicitação e nossa equipe entrará em contato
-            pelo portal.
-          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/chamados')}
+            style={styles.breadcrumbButton}
+          >
+            Chamados
+          </button>
+
+          <span style={styles.breadcrumbSeparator}>/</span>
+
+          <span style={styles.breadcrumbCurrent}>Novo chamado</span>
         </div>
 
-        <form onSubmit={abrirChamado} className="form-card">
-          <div className="form-section">
-            <div className="section-title">
-              <span className="section-number">01</span>
-
-              <div>
-                <h2>Sobre o chamado</h2>
-                <p>Informe o assunto da sua solicitação.</p>
-              </div>
+        <section style={styles.hero}>
+          <div>
+            <div style={styles.eyebrow}>
+              CENTRAL DE ATENDIMENTO
             </div>
 
-            <div className="field">
-              <label htmlFor="categoria">
-                Categoria <span>*</span>
-              </label>
+            <h1 style={styles.title}>Abrir novo chamado</h1>
 
-              <select
-                id="categoria"
-                value={categoria}
-                onChange={(event) => setCategoria(event.target.value)}
-                disabled={enviando}
-              >
-                <option value="">Selecione uma categoria</option>
-
-                {categorias.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field">
-              <label htmlFor="assunto">
-                Assunto <span>*</span>
-              </label>
-
-              <input
-                id="assunto"
-                type="text"
-                value={assunto}
-                onChange={(event) => setAssunto(event.target.value)}
-                placeholder="Ex.: Preciso agendar exame ocupacional"
-                maxLength={150}
-                disabled={enviando}
-              />
-
-              <small>
-                Seja objetivo para facilitar a identificação da
-                solicitação.
-              </small>
-            </div>
-
-            <div className="field">
-              <label htmlFor="descricao">
-                Descrição <span>*</span>
-              </label>
-
-              <textarea
-                id="descricao"
-                value={descricao}
-                onChange={(event) => setDescricao(event.target.value)}
-                placeholder="Descreva detalhadamente o que você precisa, incluindo informações importantes para nossa equipe."
-                rows={7}
-                maxLength={3000}
-                disabled={enviando}
-              />
-
-              <small>
-                {descricao.length}/3000 caracteres
-              </small>
-            </div>
+            <p style={styles.subtitle}>
+              Envie sua solicitação para nossa equipe. Quanto mais
+              detalhes você informar, mais rápido poderemos ajudar.
+            </p>
           </div>
 
-          <div className="divider" />
+          <div style={styles.heroIcon}>+</div>
+        </section>
 
-          <div className="form-section">
-            <div className="section-title">
-              <span className="section-number">02</span>
-
-              <div>
-                <h2>Prioridade</h2>
-                <p>
-                  Informe o nível de prioridade desta solicitação.
-                </p>
-              </div>
-            </div>
-
-            <div className="priority-grid">
-              {prioridades.map((item) => (
-                <label
-                  key={item.value}
-                  className={`priority-option ${
-                    prioridade === item.value ? 'selected' : ''
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="prioridade"
-                    value={item.value}
-                    checked={prioridade === item.value}
-                    onChange={(event) =>
-                      setPrioridade(event.target.value)
-                    }
-                    disabled={enviando}
-                  />
-
-                  <span className="radio-mark" />
-
-                  <span className="priority-content">
-                    <strong>{item.label}</strong>
-                    <small>{item.description}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="divider" />
-
-          <div className="attachment-info">
-            <div className="attachment-icon">📎</div>
+        {erro && (
+          <div style={styles.errorBox}>
+            <div style={styles.errorIcon}>!</div>
 
             <div>
-              <strong>Anexos</strong>
+              <strong style={styles.errorTitle}>
+                Não foi possível continuar
+              </strong>
 
-              <p>
-                Os anexos poderão ser adicionados ao chamado após sua
-                abertura.
-              </p>
+              <p style={styles.errorText}>{erro}</p>
             </div>
           </div>
+        )}
 
-          {erro && (
-            <div className="error-message">
-              <strong>Não foi possível abrir o chamado.</strong>
-              <span>{erro}</span>
-            </div>
-          )}
+        <form onSubmit={criarChamado}>
+          <div style={styles.layout}>
+            <section style={styles.mainCard}>
+              <div style={styles.cardHeader}>
+                <div>
+                  <h2 style={styles.cardTitle}>
+                    Informações do chamado
+                  </h2>
 
-          <div className="form-actions">
-            <Link
-              href="/chamados"
-              className={`cancel-button ${
-                enviando ? 'disabled-link' : ''
-              }`}
-            >
-              Cancelar
-            </Link>
+                  <p style={styles.cardDescription}>
+                    Preencha os dados abaixo para registrar sua
+                    solicitação.
+                  </p>
+                </div>
 
-            <button
-              type="submit"
-              className="submit-button"
-              disabled={enviando}
-            >
-              {enviando ? 'Abrindo chamado...' : 'Abrir chamado'}
-            </button>
+                <span style={styles.requiredLabel}>
+                  * Obrigatório
+                </span>
+              </div>
+
+              <div style={styles.formContent}>
+                <div style={styles.field}>
+                  <label style={styles.label}>
+                    Categoria <span style={styles.required}>*</span>
+                  </label>
+
+                  <select
+                    value={categoria}
+                    onChange={(event) =>
+                      setCategoria(event.target.value)
+                    }
+                    style={styles.input}
+                    required
+                  >
+                    <option value="">
+                      Selecione uma categoria
+                    </option>
+
+                    {categorias.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>
+                    Assunto <span style={styles.required}>*</span>
+                  </label>
+
+                  <input
+                    type="text"
+                    value={assunto}
+                    onChange={(event) =>
+                      setAssunto(event.target.value)
+                    }
+                    placeholder="Ex.: Preciso atualizar um documento"
+                    style={styles.input}
+                    maxLength={150}
+                    required
+                  />
+
+                  <span style={styles.helper}>
+                    Resuma em poucas palavras o motivo do contato.
+                  </span>
+                </div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>
+                    Descrição <span style={styles.required}>*</span>
+                  </label>
+
+                  <textarea
+                    value={descricao}
+                    onChange={(event) =>
+                      setDescricao(event.target.value)
+                    }
+                    placeholder="Descreva sua necessidade, dúvida ou problema com o máximo de detalhes possível..."
+                    style={styles.textarea}
+                    rows={7}
+                    required
+                  />
+
+                  <span style={styles.helper}>
+                    Informe informações que possam ajudar nossa
+                    equipe a entender e resolver sua solicitação.
+                  </span>
+                </div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>
+                    Prioridade <span style={styles.required}>*</span>
+                  </label>
+
+                  <div style={styles.priorityGrid}>
+                    {prioridades.map((item) => {
+                      const selecionada =
+                        prioridade === item.value;
+
+                      return (
+                        <button
+                          key={item.value}
+                          type="button"
+                          onClick={() =>
+                            setPrioridade(item.value)
+                          }
+                          style={{
+                            ...styles.priorityOption,
+                            ...(selecionada
+                              ? styles.priorityOptionSelected
+                              : {}),
+                          }}
+                        >
+                          <div style={styles.priorityTop}>
+                            <span
+                              style={{
+                                ...styles.radio,
+                                ...(selecionada
+                                  ? styles.radioSelected
+                                  : {}),
+                              }}
+                            >
+                              {selecionada && (
+                                <span
+                                  style={styles.radioDot}
+                                />
+                              )}
+                            </span>
+
+                            <span
+                              style={{
+                                ...styles.priorityLabel,
+                                ...(selecionada
+                                  ? styles.priorityLabelSelected
+                                  : {}),
+                              }}
+                            >
+                              {item.label}
+                            </span>
+                          </div>
+
+                          <span style={styles.priorityDescription}>
+                            {item.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div style={styles.attachmentBox}>
+                  <div style={styles.attachmentIcon}>↥</div>
+
+                  <div>
+                    <strong style={styles.attachmentTitle}>
+                      Anexos
+                    </strong>
+
+                    <p style={styles.attachmentText}>
+                      Após abrir o chamado, você poderá enviar
+                      documentos, imagens e outros arquivos
+                      relacionados à solicitação.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.formFooter}>
+                <button
+                  type="button"
+                  onClick={() => router.push('/chamados')}
+                  style={styles.cancelButton}
+                  disabled={enviando}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  style={{
+                    ...styles.submitButton,
+                    ...(enviando
+                      ? styles.submitButtonDisabled
+                      : {}),
+                  }}
+                  disabled={enviando}
+                >
+                  {enviando ? (
+                    <>
+                      <span style={styles.buttonSpinner} />
+                      Abrindo chamado...
+                    </>
+                  ) : (
+                    <>
+                      Abrir chamado
+                      <span style={styles.submitArrow}>→</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </section>
+
+            <aside style={styles.sidebar}>
+              <div style={styles.infoCard}>
+                <div style={styles.infoIcon}>i</div>
+
+                <h3 style={styles.infoTitle}>
+                  Como funciona?
+                </h3>
+
+                <div style={styles.steps}>
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>1</div>
+
+                    <div>
+                      <strong style={styles.stepTitle}>
+                        Você abre o chamado
+                      </strong>
+
+                      <p style={styles.stepText}>
+                        Explique sua necessidade e envie as
+                        informações necessárias.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={styles.stepLine} />
+
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>2</div>
+
+                    <div>
+                      <strong style={styles.stepTitle}>
+                        Nossa equipe analisa
+                      </strong>
+
+                      <p style={styles.stepText}>
+                        O chamado será direcionado para o
+                        responsável adequado.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={styles.stepLine} />
+
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>3</div>
+
+                    <div>
+                      <strong style={styles.stepTitle}>
+                        Você acompanha
+                      </strong>
+
+                      <p style={styles.stepText}>
+                        Acompanhe mensagens, atualizações e o
+                        andamento diretamente pelo portal.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={styles.stepLine} />
+
+                  <div style={styles.step}>
+                    <div style={styles.stepNumber}>4</div>
+
+                    <div>
+                      <strong style={styles.stepTitle}>
+                        Chamado resolvido
+                      </strong>
+
+                      <p style={styles.stepText}>
+                        Após a solução, você poderá avaliar o
+                        atendimento.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.helpCard}>
+                <div style={styles.helpIcon}>?</div>
+
+                <div>
+                  <strong style={styles.helpTitle}>
+                    Precisa de ajuda?
+                  </strong>
+
+                  <p style={styles.helpText}>
+                    Nossa equipe está pronta para atender sua
+                    solicitação.
+                  </p>
+                </div>
+              </div>
+            </aside>
           </div>
         </form>
-
-        <div className="security-note">
-          <span>🔒</span>
-
-          <p>
-            As informações enviadas são vinculadas à sua empresa e
-            ficam disponíveis apenas para os usuários autorizados.
-          </p>
-        </div>
-      </main>
-
-      <style jsx>{`
-        .page {
-          min-height: 100vh;
-          background: #f5f7fa;
-          color: #172033;
-        }
-
-        .header {
-          height: 76px;
-          background: #ffffff;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .header-inner {
-          max-width: 1100px;
-          height: 100%;
-          margin: 0 auto;
-          padding: 0 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .brand-logo {
-          width: 42px;
-          height: 42px;
-          border-radius: 11px;
-          background: #0f766e;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 14px;
-        }
-
-        .brand strong {
-          display: block;
-          font-size: 15px;
-        }
-
-        .brand span {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        .back-link {
-          color: #0f766e;
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        .container {
-          width: 100%;
-          max-width: 900px;
-          margin: 0 auto;
-          padding: 42px 24px 60px;
-        }
-
-        .page-heading {
-          margin-bottom: 28px;
-        }
-
-        .eyebrow {
-          display: block;
-          margin-bottom: 7px;
-          color: #0f766e;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 1.2px;
-        }
-
-        .page-heading h1 {
-          margin: 0;
-          font-size: 30px;
-          letter-spacing: -0.7px;
-        }
-
-        .page-heading p {
-          margin: 8px 0 0;
-          color: #64748b;
-          font-size: 14px;
-          line-height: 1.6;
-        }
-
-        .form-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 18px;
-          box-shadow: 0 5px 18px rgba(15, 23, 42, 0.05);
-          overflow: hidden;
-        }
-
-        .form-section {
-          padding: 28px;
-        }
-
-        .section-title {
-          display: flex;
-          align-items: flex-start;
-          gap: 13px;
-          margin-bottom: 25px;
-        }
-
-        .section-number {
-          width: 34px;
-          height: 34px;
-          flex: 0 0 34px;
-          border-radius: 9px;
-          background: #e9f5f3;
-          color: #0f766e;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-weight: 800;
-        }
-
-        .section-title h2 {
-          margin: 0;
-          font-size: 17px;
-        }
-
-        .section-title p {
-          margin: 4px 0 0;
-          color: #64748b;
-          font-size: 12px;
-        }
-
-        .field {
-          margin-bottom: 21px;
-        }
-
-        .field:last-child {
-          margin-bottom: 0;
-        }
-
-        .field label {
-          display: block;
-          margin-bottom: 7px;
-          color: #334155;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .field label span {
-          color: #dc2626;
-        }
-
-        .field input,
-        .field select,
-        .field textarea {
-          width: 100%;
-          border: 1px solid #d7dde5;
-          border-radius: 9px;
-          background: #ffffff;
-          color: #172033;
-          outline: none;
-          transition:
-            border-color 0.2s ease,
-            box-shadow 0.2s ease;
-        }
-
-        .field input,
-        .field select {
-          height: 44px;
-          padding: 0 13px;
-          font-size: 13px;
-        }
-
-        .field textarea {
-          min-height: 150px;
-          padding: 12px 13px;
-          resize: vertical;
-          font-size: 13px;
-          line-height: 1.6;
-        }
-
-        .field input:focus,
-        .field select:focus,
-        .field textarea:focus {
-          border-color: #0f766e;
-          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
-        }
-
-        .field input::placeholder,
-        .field textarea::placeholder {
-          color: #a1aab8;
-        }
-
-        .field small {
-          display: block;
-          margin-top: 6px;
-          color: #94a3b8;
-          font-size: 10px;
-        }
-
-        .divider {
-          height: 1px;
-          background: #eef2f7;
-        }
-
-        .priority-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 10px;
-        }
-
-        .priority-option {
-          position: relative;
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          padding: 14px;
-          border: 1px solid #e2e8f0;
-          border-radius: 11px;
-          cursor: pointer;
-          transition: 0.2s ease;
-        }
-
-        .priority-option:hover {
-          border-color: #a7d5cf;
-          background: #f8fcfb;
-        }
-
-        .priority-option.selected {
-          border-color: #0f766e;
-          background: #f1faf8;
-        }
-
-        .priority-option input {
-          position: absolute;
-          opacity: 0;
-          pointer-events: none;
-        }
-
-        .radio-mark {
-          width: 16px;
-          height: 16px;
-          flex: 0 0 16px;
-          margin-top: 2px;
-          border: 1px solid #cbd5e1;
-          border-radius: 50%;
-          position: relative;
-        }
-
-        .priority-option.selected .radio-mark {
-          border-color: #0f766e;
-        }
-
-        .priority-option.selected .radio-mark::after {
-          content: '';
-          position: absolute;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #0f766e;
-          top: 3px;
-          left: 3px;
-        }
-
-        .priority-content strong {
-          display: block;
-          color: #334155;
-          font-size: 12px;
-        }
-
-        .priority-content small {
-          display: block;
-          margin-top: 4px;
-          color: #94a3b8;
-          font-size: 9px;
-          line-height: 1.4;
-        }
-
-        .attachment-info {
-          margin: 22px 28px 0;
-          padding: 14px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          border: 1px dashed #cbd5e1;
-          border-radius: 11px;
-          background: #f8fafc;
-        }
-
-        .attachment-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 9px;
-          background: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 15px;
-        }
-
-        .attachment-info strong {
-          display: block;
-          color: #334155;
-          font-size: 12px;
-        }
-
-        .attachment-info p {
-          margin: 3px 0 0;
-          color: #64748b;
-          font-size: 10px;
-        }
-
-        .error-message {
-          margin: 22px 28px 0;
-          padding: 13px 15px;
-          border: 1px solid #fecaca;
-          border-radius: 10px;
-          background: #fef2f2;
-          color: #b91c1c;
-        }
-
-        .error-message strong {
-          display: block;
-          font-size: 12px;
-        }
-
-        .error-message span {
-          display: block;
-          margin-top: 3px;
-          font-size: 11px;
-        }
-
-        .form-actions {
-          margin-top: 26px;
-          padding: 20px 28px;
-          border-top: 1px solid #eef2f7;
-          background: #fafbfc;
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 10px;
-        }
-
-        .cancel-button,
-        .submit-button {
-          min-height: 42px;
-          border-radius: 9px;
-          padding: 0 18px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .cancel-button {
-          border: 1px solid #d7dde5;
-          background: #ffffff;
-          color: #475569;
-        }
-
-        .submit-button {
-          border: 0;
-          background: #0f766e;
-          color: #ffffff;
-          cursor: pointer;
-        }
-
-        .submit-button:disabled {
-          opacity: 0.65;
-          cursor: wait;
-        }
-
-        .disabled-link {
-          pointer-events: none;
-          opacity: 0.5;
-        }
-
-        .security-note {
-          margin-top: 15px;
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          padding: 0 5px;
-          color: #94a3b8;
-        }
-
-        .security-note span {
-          font-size: 12px;
-        }
-
-        .security-note p {
-          margin: 0;
-          font-size: 10px;
-          line-height: 1.5;
-        }
-
-        @media (max-width: 750px) {
-          .priority-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (max-width: 600px) {
-          .header {
-            height: auto;
-          }
-
-          .header-inner {
-            padding: 14px 18px;
-          }
-
-          .container {
-            padding: 28px 16px 40px;
-          }
-
-          .page-heading h1 {
-            font-size: 25px;
-          }
-
-          .form-section {
-            padding: 22px 18px;
-          }
-
-          .attachment-info {
-            margin-left: 18px;
-            margin-right: 18px;
-          }
-
-          .form-actions {
-            padding: 18px;
-          }
-
-          .priority-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .back-link {
-            font-size: 11px;
-          }
-
-          .brand strong {
-            font-size: 13px;
-          }
-        }
-      `}
-      </style>
-    </div>
-  )
+      </div>
+
+      <footer style={styles.footer}>
+        <span>
+          Portal do Cliente
+        </span>
+
+        <span style={styles.footerDot}>•</span>
+
+        <span>
+          ÁgilMed Ocupacional & Real Life SSMA
+        </span>
+      </footer>
+    </main>
+  );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    background:
+      'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+    color: '#0f172a',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+
+  backgroundGlow: {
+    position: 'absolute',
+    top: '-180px',
+    right: '-180px',
+    width: '480px',
+    height: '480px',
+    borderRadius: '50%',
+    background:
+      'radial-gradient(circle, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0) 70%)',
+    pointerEvents: 'none',
+  },
+
+  header: {
+    position: 'relative',
+    zIndex: 2,
+    background: 'rgba(255,255,255,0.94)',
+    borderBottom: '1px solid #e2e8f0',
+    backdropFilter: 'blur(10px)',
+  },
+
+  headerInner: {
+    width: '100%',
+    maxWidth: '1180px',
+    margin: '0 auto',
+    padding: '18px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '20px',
+  },
+
+  brandArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+
+  logo: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '12px',
+    background:
+      'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '19px',
+    fontWeight: 800,
+    boxShadow: '0 8px 20px rgba(37,99,235,0.22)',
+  },
+
+  brandName: {
+    fontSize: '16px',
+    fontWeight: 800,
+    color: '#0f172a',
+    lineHeight: 1.2,
+  },
+
+  brandSubtitle: {
+    marginTop: '3px',
+    fontSize: '11px',
+    color: '#64748b',
+    fontWeight: 600,
+  },
+
+  headerButton: {
+    border: '1px solid #e2e8f0',
+    background: '#ffffff',
+    color: '#334155',
+    borderRadius: '10px',
+    padding: '10px 14px',
+    fontSize: '13px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+
+  content: {
+    position: 'relative',
+    zIndex: 1,
+    width: '100%',
+    maxWidth: '1180px',
+    margin: '0 auto',
+    padding: '28px 24px 60px',
+  },
+
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
+    fontSize: '13px',
+    marginBottom: '28px',
+  },
+
+  breadcrumbButton: {
+    border: 0,
+    padding: 0,
+    background: 'transparent',
+    color: '#2563eb',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+
+  breadcrumbSeparator: {
+    color: '#94a3b8',
+  },
+
+  breadcrumbCurrent: {
+    color: '#64748b',
+    fontWeight: 600,
+  },
+
+  hero: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '30px',
+    marginBottom: '28px',
+  },
+
+  eyebrow: {
+    fontSize: '11px',
+    fontWeight: 800,
+    letterSpacing: '0.12em',
+    color: '#2563eb',
+    marginBottom: '8px',
+  },
+
+  title: {
+    margin: 0,
+    fontSize: 'clamp(30px, 4vw, 42px)',
+    lineHeight: 1.1,
+    letterSpacing: '-0.035em',
+    fontWeight: 850,
+    color: '#0f172a',
+  },
+
+  subtitle: {
+    margin: '12px 0 0',
+    maxWidth: '680px',
+    color: '#64748b',
+    fontSize: '15px',
+    lineHeight: 1.65,
+  },
+
+  heroIcon: {
+    flexShrink: 0,
+    width: '68px',
+    height: '68px',
+    borderRadius: '20px',
+    background: '#dbeafe',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '34px',
+    fontWeight: 300,
+  },
+
+  errorBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px',
+    padding: '15px 17px',
+    marginBottom: '20px',
+    border: '1px solid #fecaca',
+    background: '#fef2f2',
+    borderRadius: '14px',
+    color: '#991b1b',
+  },
+
+  errorIcon: {
+    width: '25px',
+    height: '25px',
+    flexShrink: 0,
+    borderRadius: '50%',
+    background: '#dc2626',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 800,
+    fontSize: '14px',
+  },
+
+  errorTitle: {
+    fontSize: '13px',
+  },
+
+  errorText: {
+    margin: '4px 0 0',
+    fontSize: '13px',
+    lineHeight: 1.5,
+  },
+
+  layout: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 320px',
+    gap: '22px',
+    alignItems: 'start',
+  },
+
+  mainCard: {
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '18px',
+    boxShadow: '0 12px 35px rgba(15,23,42,0.06)',
+    overflow: 'hidden',
+  },
+
+  cardHeader: {
+    padding: '24px 26px',
+    borderBottom: '1px solid #e2e8f0',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '20px',
+  },
+
+  cardTitle: {
+    margin: 0,
+    fontSize: '18px',
+    fontWeight: 800,
+    color: '#0f172a',
+  },
+
+  cardDescription: {
+    margin: '6px 0 0',
+    fontSize: '13px',
+    lineHeight: 1.5,
+    color: '#64748b',
+  },
+
+  requiredLabel: {
+    flexShrink: 0,
+    color: '#64748b',
+    fontSize: '11px',
+    fontWeight: 600,
+  },
+
+  formContent: {
+    padding: '26px',
+  },
+
+  field: {
+    marginBottom: '23px',
+  },
+
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontSize: '13px',
+    fontWeight: 800,
+    color: '#334155',
+  },
+
+  required: {
+    color: '#dc2626',
+  },
+
+  input: {
+    width: '100%',
+    boxSizing: 'border-box',
+    minHeight: '48px',
+    padding: '0 14px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '11px',
+    background: '#ffffff',
+    color: '#0f172a',
+    fontSize: '14px',
+    outline: 'none',
+  },
+
+  textarea: {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '13px 14px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '11px',
+    background: '#ffffff',
+    color: '#0f172a',
+    fontSize: '14px',
+    lineHeight: 1.6,
+    resize: 'vertical',
+    outline: 'none',
+    fontFamily: 'inherit',
+  },
+
+  helper: {
+    display: 'block',
+    marginTop: '7px',
+    color: '#94a3b8',
+    fontSize: '11px',
+    lineHeight: 1.5,
+  },
+
+  priorityGrid: {
+    display: 'grid',
+    gridTemplateColumns:
+      'repeat(2, minmax(0, 1fr))',
+    gap: '10px',
+  },
+
+  priorityOption: {
+    textAlign: 'left',
+    padding: '14px',
+    border: '1px solid #e2e8f0',
+    borderRadius: '12px',
+    background: '#ffffff',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+
+  priorityOptionSelected: {
+    border: '1px solid #2563eb',
+    background: '#eff6ff',
+    boxShadow: '0 0 0 3px rgba(37,99,235,0.08)',
+  },
+
+  priorityTop: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '9px',
+  },
+
+  radio: {
+    width: '17px',
+    height: '17px',
+    borderRadius: '50%',
+    border: '2px solid #cbd5e1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  radioSelected: {
+    borderColor: '#2563eb',
+  },
+
+  radioDot: {
+    width: '7px',
+    height: '7px',
+    borderRadius: '50%',
+    background: '#2563eb',
+  },
+
+  priorityLabel: {
+    fontSize: '13px',
+    fontWeight: 800,
+    color: '#334155',
+  },
+
+  priorityLabelSelected: {
+    color: '#1d4ed8',
+  },
+
+  priorityDescription: {
+    display: 'block',
+    marginTop: '7px',
+    marginLeft: '26px',
+    color: '#64748b',
+    fontSize: '11px',
+    lineHeight: 1.45,
+  },
+
+  attachmentBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '13px',
+    padding: '16px',
+    borderRadius: '12px',
+    background: '#f8fafc',
+    border: '1px dashed #cbd5e1',
+  },
+
+  attachmentIcon: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '9px',
+    background: '#e2e8f0',
+    color: '#475569',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+    flexShrink: 0,
+  },
+
+  attachmentTitle: {
+    display: 'block',
+    fontSize: '13px',
+    color: '#334155',
+  },
+
+  attachmentText: {
+    margin: '4px 0 0',
+    fontSize: '11px',
+    lineHeight: 1.5,
+    color: '#64748b',
+  },
+
+  formFooter: {
+    padding: '18px 26px',
+    borderTop: '1px solid #e2e8f0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '10px',
+  },
+
+  cancelButton: {
+    minHeight: '44px',
+    padding: '0 18px',
+    borderRadius: '10px',
+    border: '1px solid #cbd5e1',
+    background: '#ffffff',
+    color: '#475569',
+    fontSize: '13px',
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+
+  submitButton: {
+    minHeight: '44px',
+    padding: '0 19px',
+    borderRadius: '10px',
+    border: 0,
+    background:
+      'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    color: '#ffffff',
+    fontSize: '13px',
+    fontWeight: 800,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '9px',
+    boxShadow: '0 7px 18px rgba(37,99,235,0.22)',
+  },
+
+  submitButtonDisabled: {
+    opacity: 0.7,
+    cursor: 'wait',
+  },
+
+  submitArrow: {
+    fontSize: '17px',
+    lineHeight: 1,
+  },
+
+  sidebar: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '15px',
+  },
+
+  infoCard: {
+    background: '#ffffff',
+    border: '1px solid #e2e8f0',
+    borderRadius: '18px',
+    padding: '22px',
+    boxShadow: '0 12px 35px rgba(15,23,42,0.05)',
+  },
+
+  infoIcon: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '10px',
+    background: '#dbeafe',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 900,
+    marginBottom: '13px',
+  },
+
+  infoTitle: {
+    margin: 0,
+    fontSize: '16px',
+    fontWeight: 800,
+    color: '#0f172a',
+  },
+
+  steps: {
+    marginTop: '19px',
+  },
+
+  step: {
+    display: 'flex',
+    gap: '11px',
+    alignItems: 'flex-start',
+  },
+
+  stepNumber: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: '#eff6ff',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 900,
+  },
+
+  stepTitle: {
+    display: 'block',
+    fontSize: '12px',
+    color: '#334155',
+  },
+
+  stepText: {
+    margin: '4px 0 0',
+    fontSize: '11px',
+    lineHeight: 1.5,
+    color: '#64748b',
+  },
+
+  stepLine: {
+    width: '1px',
+    height: '18px',
+    background: '#e2e8f0',
+    marginLeft: '14px',
+  },
+
+  helpCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px',
+    padding: '18px',
+    borderRadius: '16px',
+    background:
+      'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+    color: '#ffffff',
+  },
+
+  helpIcon: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '9px',
+    background: 'rgba(255,255,255,0.12)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 900,
+    flexShrink: 0,
+  },
+
+  helpTitle: {
+    display: 'block',
+    fontSize: '13px',
+  },
+
+  helpText: {
+    margin: '4px 0 0',
+    color: '#cbd5e1',
+    fontSize: '11px',
+    lineHeight: 1.5,
+  },
+
+  footer: {
+    position: 'relative',
+    zIndex: 1,
+    padding: '22px 24px 30px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: '7px',
+    color: '#94a3b8',
+    fontSize: '11px',
+  },
+
+  footerDot: {
+    color: '#cbd5e1',
+  },
+
+  loadingContainer: {
+    minHeight: '70vh',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '14px',
+    position: 'relative',
+    zIndex: 1,
+  },
+
+  spinner: {
+    width: '34px',
+    height: '34px',
+    borderRadius: '50%',
+    border: '3px solid #dbeafe',
+    borderTopColor: '#2563eb',
+  },
+
+  loadingText: {
+    margin: 0,
+    color: '#64748b',
+    fontSize: '13px',
+  },
+
+  buttonSpinner: {
+    width: '15px',
+    height: '15px',
+    borderRadius: '50%',
+    border: '2px solid rgba(255,255,255,0.4)',
+    borderTopColor: '#ffffff',
+  },
+};
