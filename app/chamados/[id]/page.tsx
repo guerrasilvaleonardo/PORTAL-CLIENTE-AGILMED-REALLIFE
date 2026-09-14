@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -84,22 +86,7 @@ export default function DetalhesChamadoPage() {
       const { data: chamadoData, error: chamadoError } = await supabase
         .from('chamados')
         .select(
-          `
-            id,
-            numero,
-            categoria,
-            assunto,
-            descricao,
-            prioridade,
-            status,
-            prazo_sla,
-            resolvido_em,
-            encerrado_em,
-            avaliacao,
-            comentario_avaliacao,
-            created_at,
-            updated_at
-          `
+          'id, numero, categoria, assunto, descricao, prioridade, status, prazo_sla, resolvido_em, encerrado_em, avaliacao, comentario_avaliacao, created_at, updated_at'
         )
         .eq('id', chamadoId)
         .single()
@@ -116,21 +103,15 @@ export default function DetalhesChamadoPage() {
       const { data: mensagensData, error: mensagensError } =
         await supabase
           .from('chamado_mensagens')
-          .select(
-            `
-              id,
-              chamado_id,
-              autor_id,
-              mensagem,
-              created_at
-            `
-          )
+          .select('id, chamado_id, autor_id, mensagem, created_at')
           .eq('chamado_id', chamadoId)
           .order('created_at', { ascending: true })
 
       if (mensagensError) {
         console.error(mensagensError)
-        setErro('O chamado foi carregado, mas não foi possível carregar as mensagens.')
+        setErro(
+          'O chamado foi carregado, mas não foi possível carregar as mensagens.'
+        )
         setMensagens([])
         setLoading(false)
         return
@@ -255,6 +236,7 @@ export default function DetalhesChamadoPage() {
         <div style={styles.container}>
           <div style={styles.errorCard}>
             <h1 style={styles.errorTitle}>Chamado não encontrado</h1>
+
             <p style={styles.errorText}>
               {erro || 'Não foi possível localizar este chamado.'}
             </p>
@@ -293,11 +275,7 @@ export default function DetalhesChamadoPage() {
           </Link>
         </div>
 
-        {erro && (
-          <div style={styles.warning}>
-            {erro}
-          </div>
-        )}
+        {erro && <div style={styles.warning}>{erro}</div>}
 
         <section style={styles.grid}>
           <div style={styles.mainColumn}>
@@ -317,6 +295,7 @@ export default function DetalhesChamadoPage() {
 
               <div style={styles.infoGrid}>
                 <Info label="Categoria" value={chamado.categoria} />
+
                 <Info
                   label="Prioridade"
                   value={
@@ -324,18 +303,22 @@ export default function DetalhesChamadoPage() {
                     chamado.prioridade
                   }
                 />
+
                 <Info
                   label="Abertura"
                   value={formatarData(chamado.created_at)}
                 />
+
                 <Info
                   label="Atualização"
                   value={formatarData(chamado.updated_at)}
                 />
+
                 <Info
                   label="Prazo SLA"
                   value={formatarData(chamado.prazo_sla)}
                 />
+
                 <Info
                   label="Encerramento"
                   value={formatarData(chamado.encerrado_em)}
@@ -344,6 +327,7 @@ export default function DetalhesChamadoPage() {
 
               <div style={styles.descriptionBox}>
                 <div style={styles.label}>Descrição</div>
+
                 <p style={styles.description}>{chamado.descricao}</p>
               </div>
 
@@ -381,46 +365,33 @@ export default function DetalhesChamadoPage() {
                 </div>
               ) : (
                 <div style={styles.messageList}>
-                  {mensagens.map((mensagem) => {
-                    const isCliente = mensagem.autor_id !== null
+                  {mensagens.map((mensagem) => (
+                    <div key={mensagem.id} style={styles.messageItem}>
+                      <div style={styles.messageAvatar}>
+                        {mensagem.autor_nome.charAt(0).toUpperCase()}
+                      </div>
 
-                    return (
-                      <div key={mensagem.id} style={styles.messageItem}>
-                        <div style={styles.messageAvatar}>
-                          {mensagem.autor_nome
-                            .charAt(0)
-                            .toUpperCase()}
+                      <div style={styles.messageContent}>
+                        <div style={styles.messageMeta}>
+                          <strong>{mensagem.autor_nome}</strong>
+
+                          <span style={styles.profileTag}>
+                            {mensagem.autor_perfil === 'cliente'
+                              ? 'Cliente'
+                              : 'Equipe'}
+                          </span>
+
+                          <span style={styles.messageDate}>
+                            {formatarData(mensagem.created_at)}
+                          </span>
                         </div>
 
-                        <div style={styles.messageContent}>
-                          <div style={styles.messageMeta}>
-                            <strong>{mensagem.autor_nome}</strong>
-
-                            <span style={styles.profileTag}>
-                              {mensagem.autor_perfil === 'cliente'
-                                ? 'Cliente'
-                                : 'Equipe'}
-                            </span>
-
-                            <span style={styles.messageDate}>
-                              {formatarData(mensagem.created_at)}
-                            </span>
-                          </div>
-
-                          <div
-                            style={{
-                              ...styles.messageBubble,
-                              ...(isCliente
-                                ? styles.clientMessage
-                                : styles.teamMessage),
-                            }}
-                          >
-                            {mensagem.mensagem}
-                          </div>
+                        <div style={styles.messageBubble}>
+                          {mensagem.mensagem}
                         </div>
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -550,6 +521,7 @@ function TimelineItem({
             ...(active ? styles.timelineDotActive : {}),
           }}
         />
+
         {!last && <div style={styles.timelineLine} />}
       </div>
 
@@ -574,18 +546,22 @@ function statusStyle(status: string) {
       background: '#eff6ff',
       color: '#1d4ed8',
     },
+
     em_atendimento: {
       background: '#fff7ed',
       color: '#c2410c',
     },
+
     aguardando_cliente: {
       background: '#fefce8',
       color: '#a16207',
     },
+
     resolvido: {
       background: '#f0fdf4',
       color: '#15803d',
     },
+
     encerrado: {
       background: '#f1f5f9',
       color: '#475569',
@@ -813,18 +789,11 @@ const styles: Record<string, React.CSSProperties> = {
   messageBubble: {
     padding: '13px 15px',
     borderRadius: '12px',
+    background: '#eff6ff',
     color: '#334155',
     fontSize: '14px',
     lineHeight: 1.6,
     whiteSpace: 'pre-wrap',
-  },
-
-  clientMessage: {
-    background: '#eff6ff',
-  },
-
-  teamMessage: {
-    background: '#f8fafc',
   },
 
   messageForm: {
