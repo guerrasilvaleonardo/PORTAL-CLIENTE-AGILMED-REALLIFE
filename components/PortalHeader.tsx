@@ -18,6 +18,17 @@ export default function PortalHeader() {
     let ativo = true
 
     async function carregarMarca() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        if (ativo) {
+          setMarca(null)
+        }
+        return
+      }
+
       const marcaEmpresa = await obterMarcaDaEmpresa()
 
       if (ativo) {
@@ -44,6 +55,13 @@ export default function PortalHeader() {
     router.replace('/login')
   }
 
+  // Não exibe o cabeçalho na tela de login
+  if (pathname === '/login') {
+    return null
+  }
+
+  // Enquanto a empresa ainda está sendo identificada,
+  // não mostra nenhuma marca para evitar o flash da ÁgilMed.
   if (!marca) {
     return null
   }
@@ -160,7 +178,7 @@ export default function PortalHeader() {
               padding: '9px 12px',
               borderRadius: '9px',
               background: 'transparent',
-              color: '#64748b',
+              color: '#64748f',
               fontSize: '14px',
               fontWeight: 600,
               cursor: saindo ? 'wait' : 'pointer',
