@@ -1,0 +1,66 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #f5f7fa;
+  color: #172033;
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.portal-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.portal-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.portal-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  box-shadow: 0 5px 15px rgba(15, 23, 42, 0.05);
+}
+
+.portal-card:hover {
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.09);
+  transform: translateY(-2px);
+  transition: 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .portal-container {
+    padding: 0 16px;
+  }
+}
