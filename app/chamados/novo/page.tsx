@@ -74,8 +74,8 @@ export default function NovoChamadoPage() {
 
   const [empresaId, setEmpresaId] = useState('');
   const [usuarioId, setUsuarioId] = useState('');
-  const [marca, setMarca] = useState<Marca>('agilmed');
-
+  const [marca, setMarca] = useState<Marca | null>(null);
+  
   const [categoria, setCategoria] = useState('');
   const [assunto, setAssunto] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -190,9 +190,22 @@ export default function NovoChamadoPage() {
     }
   }
 
-  const tema = identidade[marca];
+ if (!marca) {
+  return (
+    <main style={styles.page}>
+      <section style={styles.loadingContainer}>
+        <div style={styles.spinner} />
+        <p style={styles.loadingText}>
+          Carregando seus dados...
+        </p>
+      </section>
+    </main>
+  );
+}
 
-  if (carregando) {
+const tema = identidade[marca];
+
+if (carregando) {
     return (
       <main style={styles.page}>
         <div
