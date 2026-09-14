@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { obterMarcaDaEmpresa } from '@/lib/empresa';
+import type { Marca } from '@/lib/marca';
 
 const categorias = [
   'Saúde Ocupacional',
@@ -39,6 +41,30 @@ const prioridades = [
   },
 ];
 
+const identidade = {
+  agilmed: {
+    nome: 'ÁgilMed Ocupacional',
+    curto: 'ÁgilMed',
+    inicial: 'A',
+    principal: '#2563eb',
+    principalEscura: '#1d4ed8',
+    fundo: '#eff6ff',
+    fundoForte: '#dbeafe',
+    borda: '#dbeafe',
+  },
+
+  reallife: {
+    nome: 'Real Life SSMA',
+    curto: 'Real Life',
+    inicial: 'R',
+    principal: '#0f766e',
+    principalEscura: '#115e59',
+    fundo: '#f0fdfa',
+    fundoForte: '#ccfbf1',
+    borda: '#ccfbf1',
+  },
+} as const;
+
 export default function NovoChamadoPage() {
   const router = useRouter();
 
@@ -48,6 +74,7 @@ export default function NovoChamadoPage() {
 
   const [empresaId, setEmpresaId] = useState('');
   const [usuarioId, setUsuarioId] = useState('');
+  const [marca, setMarca] = useState<Marca>('agilmed');
 
   const [categoria, setCategoria] = useState('');
   const [assunto, setAssunto] = useState('');
@@ -83,6 +110,9 @@ export default function NovoChamadoPage() {
           return;
         }
 
+        const marcaEmpresa = await obterMarcaDaEmpresa();
+
+        setMarca(marcaEmpresa);
         setUsuarioId(perfil.id);
         setEmpresaId(perfil.empresa_id);
       } catch {
@@ -160,20 +190,38 @@ export default function NovoChamadoPage() {
     }
   }
 
+  const tema = identidade[marca];
+
   if (carregando) {
     return (
       <main style={styles.page}>
-        <div style={styles.backgroundGlow} />
+        <div
+          style={{
+            ...styles.backgroundGlow,
+            background: `radial-gradient(circle, ${tema.fundoForte} 0%, rgba(255,255,255,0) 70%)`,
+          }}
+        />
 
         <header style={styles.header}>
           <div style={styles.headerInner}>
             <div style={styles.brandArea}>
-              <div style={styles.logo}>A</div>
+              <div
+                style={{
+                  ...styles.logo,
+                  background: `linear-gradient(135deg, ${tema.principal} 0%, ${tema.principalEscura} 100%)`,
+                  boxShadow: `0 8px 20px ${tema.principal}35`,
+                }}
+              >
+                {tema.inicial}
+              </div>
 
               <div>
-                <div style={styles.brandName}>Portal do Cliente</div>
+                <div style={styles.brandName}>
+                  Portal do Cliente
+                </div>
+
                 <div style={styles.brandSubtitle}>
-                  ÁgilMed • Real Life SSMA
+                  {tema.nome}
                 </div>
               </div>
             </div>
@@ -181,8 +229,17 @@ export default function NovoChamadoPage() {
         </header>
 
         <section style={styles.loadingContainer}>
-          <div style={styles.spinner} />
-          <p style={styles.loadingText}>Carregando seus dados...</p>
+          <div
+            style={{
+              ...styles.spinner,
+              borderColor: tema.borda,
+              borderTopColor: tema.principal,
+            }}
+          />
+
+          <p style={styles.loadingText}>
+            Carregando seus dados...
+          </p>
         </section>
       </main>
     );
@@ -190,17 +247,33 @@ export default function NovoChamadoPage() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.backgroundGlow} />
+      <div
+        style={{
+          ...styles.backgroundGlow,
+          background: `radial-gradient(circle, ${tema.fundoForte} 0%, rgba(255,255,255,0) 70%)`,
+        }}
+      />
 
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <div style={styles.brandArea}>
-            <div style={styles.logo}>A</div>
+            <div
+              style={{
+                ...styles.logo,
+                background: `linear-gradient(135deg, ${tema.principal} 0%, ${tema.principalEscura} 100%)`,
+                boxShadow: `0 8px 20px ${tema.principal}35`,
+              }}
+            >
+              {tema.inicial}
+            </div>
 
             <div>
-              <div style={styles.brandName}>Portal do Cliente</div>
+              <div style={styles.brandName}>
+                Portal do Cliente
+              </div>
+
               <div style={styles.brandSubtitle}>
-                ÁgilMed • Real Life SSMA
+                {tema.nome}
               </div>
             </div>
           </div>
@@ -220,7 +293,10 @@ export default function NovoChamadoPage() {
           <button
             type="button"
             onClick={() => router.push('/')}
-            style={styles.breadcrumbButton}
+            style={{
+              ...styles.breadcrumbButton,
+              color: tema.principal,
+            }}
           >
             Início
           </button>
@@ -230,23 +306,35 @@ export default function NovoChamadoPage() {
           <button
             type="button"
             onClick={() => router.push('/chamados')}
-            style={styles.breadcrumbButton}
+            style={{
+              ...styles.breadcrumbButton,
+              color: tema.principal,
+            }}
           >
             Chamados
           </button>
 
           <span style={styles.breadcrumbSeparator}>/</span>
 
-          <span style={styles.breadcrumbCurrent}>Novo chamado</span>
+          <span style={styles.breadcrumbCurrent}>
+            Novo chamado
+          </span>
         </div>
 
         <section style={styles.hero}>
           <div>
-            <div style={styles.eyebrow}>
+            <div
+              style={{
+                ...styles.eyebrow,
+                color: tema.principal,
+              }}
+            >
               CENTRAL DE ATENDIMENTO
             </div>
 
-            <h1 style={styles.title}>Abrir novo chamado</h1>
+            <h1 style={styles.title}>
+              Abrir novo chamado
+            </h1>
 
             <p style={styles.subtitle}>
               Envie sua solicitação para nossa equipe. Quanto mais
@@ -254,7 +342,15 @@ export default function NovoChamadoPage() {
             </p>
           </div>
 
-          <div style={styles.heroIcon}>+</div>
+          <div
+            style={{
+              ...styles.heroIcon,
+              background: tema.fundoForte,
+              color: tema.principal,
+            }}
+          >
+            +
+          </div>
         </section>
 
         {erro && (
@@ -294,7 +390,8 @@ export default function NovoChamadoPage() {
               <div style={styles.formContent}>
                 <div style={styles.field}>
                   <label style={styles.label}>
-                    Categoria <span style={styles.required}>*</span>
+                    Categoria{' '}
+                    <span style={styles.required}>*</span>
                   </label>
 
                   <select
@@ -319,7 +416,8 @@ export default function NovoChamadoPage() {
 
                 <div style={styles.field}>
                   <label style={styles.label}>
-                    Assunto <span style={styles.required}>*</span>
+                    Assunto{' '}
+                    <span style={styles.required}>*</span>
                   </label>
 
                   <input
@@ -341,7 +439,8 @@ export default function NovoChamadoPage() {
 
                 <div style={styles.field}>
                   <label style={styles.label}>
-                    Descrição <span style={styles.required}>*</span>
+                    Descrição{' '}
+                    <span style={styles.required}>*</span>
                   </label>
 
                   <textarea
@@ -363,7 +462,8 @@ export default function NovoChamadoPage() {
 
                 <div style={styles.field}>
                   <label style={styles.label}>
-                    Prioridade <span style={styles.required}>*</span>
+                    Prioridade{' '}
+                    <span style={styles.required}>*</span>
                   </label>
 
                   <div style={styles.priorityGrid}>
@@ -381,7 +481,12 @@ export default function NovoChamadoPage() {
                           style={{
                             ...styles.priorityOption,
                             ...(selecionada
-                              ? styles.priorityOptionSelected
+                              ? {
+                                  ...styles.priorityOptionSelected,
+                                  borderColor: tema.principal,
+                                  background: tema.fundo,
+                                  boxShadow: `0 0 0 3px ${tema.principal}14`,
+                                }
                               : {}),
                           }}
                         >
@@ -390,13 +495,20 @@ export default function NovoChamadoPage() {
                               style={{
                                 ...styles.radio,
                                 ...(selecionada
-                                  ? styles.radioSelected
+                                  ? {
+                                      ...styles.radioSelected,
+                                      borderColor: tema.principal,
+                                    }
                                   : {}),
                               }}
                             >
                               {selecionada && (
                                 <span
-                                  style={styles.radioDot}
+                                  style={{
+                                    ...styles.radioDot,
+                                    background:
+                                      tema.principal,
+                                  }}
                                 />
                               )}
                             </span>
@@ -405,7 +517,10 @@ export default function NovoChamadoPage() {
                               style={{
                                 ...styles.priorityLabel,
                                 ...(selecionada
-                                  ? styles.priorityLabelSelected
+                                  ? {
+                                      ...styles.priorityLabelSelected,
+                                      color: tema.principalEscura,
+                                    }
                                   : {}),
                               }}
                             >
@@ -413,7 +528,9 @@ export default function NovoChamadoPage() {
                             </span>
                           </div>
 
-                          <span style={styles.priorityDescription}>
+                          <span
+                            style={styles.priorityDescription}
+                          >
                             {item.description}
                           </span>
                         </button>
@@ -453,6 +570,8 @@ export default function NovoChamadoPage() {
                   type="submit"
                   style={{
                     ...styles.submitButton,
+                    background: `linear-gradient(135deg, ${tema.principal} 0%, ${tema.principalEscura} 100%)`,
+                    boxShadow: `0 7px 18px ${tema.principal}38`,
                     ...(enviando
                       ? styles.submitButtonDisabled
                       : {}),
@@ -467,7 +586,9 @@ export default function NovoChamadoPage() {
                   ) : (
                     <>
                       Abrir chamado
-                      <span style={styles.submitArrow}>→</span>
+                      <span style={styles.submitArrow}>
+                        →
+                      </span>
                     </>
                   )}
                 </button>
@@ -476,7 +597,15 @@ export default function NovoChamadoPage() {
 
             <aside style={styles.sidebar}>
               <div style={styles.infoCard}>
-                <div style={styles.infoIcon}>i</div>
+                <div
+                  style={{
+                    ...styles.infoIcon,
+                    background: tema.fundoForte,
+                    color: tema.principal,
+                  }}
+                >
+                  i
+                </div>
 
                 <h3 style={styles.infoTitle}>
                   Como funciona?
@@ -484,7 +613,15 @@ export default function NovoChamadoPage() {
 
                 <div style={styles.steps}>
                   <div style={styles.step}>
-                    <div style={styles.stepNumber}>1</div>
+                    <div
+                      style={{
+                        ...styles.stepNumber,
+                        background: tema.fundo,
+                        color: tema.principal,
+                      }}
+                    >
+                      1
+                    </div>
 
                     <div>
                       <strong style={styles.stepTitle}>
@@ -501,7 +638,15 @@ export default function NovoChamadoPage() {
                   <div style={styles.stepLine} />
 
                   <div style={styles.step}>
-                    <div style={styles.stepNumber}>2</div>
+                    <div
+                      style={{
+                        ...styles.stepNumber,
+                        background: tema.fundo,
+                        color: tema.principal,
+                      }}
+                    >
+                      2
+                    </div>
 
                     <div>
                       <strong style={styles.stepTitle}>
@@ -518,7 +663,15 @@ export default function NovoChamadoPage() {
                   <div style={styles.stepLine} />
 
                   <div style={styles.step}>
-                    <div style={styles.stepNumber}>3</div>
+                    <div
+                      style={{
+                        ...styles.stepNumber,
+                        background: tema.fundo,
+                        color: tema.principal,
+                      }}
+                    >
+                      3
+                    </div>
 
                     <div>
                       <strong style={styles.stepTitle}>
@@ -535,7 +688,15 @@ export default function NovoChamadoPage() {
                   <div style={styles.stepLine} />
 
                   <div style={styles.step}>
-                    <div style={styles.stepNumber}>4</div>
+                    <div
+                      style={{
+                        ...styles.stepNumber,
+                        background: tema.fundo,
+                        color: tema.principal,
+                      }}
+                    >
+                      4
+                    </div>
 
                     <div>
                       <strong style={styles.stepTitle}>
@@ -551,7 +712,12 @@ export default function NovoChamadoPage() {
                 </div>
               </div>
 
-              <div style={styles.helpCard}>
+              <div
+                style={{
+                  ...styles.helpCard,
+                  background: `linear-gradient(135deg, ${tema.principalEscura} 0%, #0f172a 100%)`,
+                }}
+              >
                 <div style={styles.helpIcon}>?</div>
 
                 <div>
@@ -571,15 +737,11 @@ export default function NovoChamadoPage() {
       </div>
 
       <footer style={styles.footer}>
-        <span>
-          Portal do Cliente
-        </span>
+        <span>Portal do Cliente</span>
 
         <span style={styles.footerDot}>•</span>
 
-        <span>
-          ÁgilMed Ocupacional & Real Life SSMA
-        </span>
+        <span>{tema.nome}</span>
       </footer>
     </main>
   );
@@ -602,8 +764,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '480px',
     height: '480px',
     borderRadius: '50%',
-    background:
-      'radial-gradient(circle, rgba(37,99,235,0.10) 0%, rgba(37,99,235,0) 70%)',
     pointerEvents: 'none',
   },
 
@@ -636,15 +796,12 @@ const styles: Record<string, React.CSSProperties> = {
     width: '42px',
     height: '42px',
     borderRadius: '12px',
-    background:
-      'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '19px',
     fontWeight: 800,
-    boxShadow: '0 8px 20px rgba(37,99,235,0.22)',
   },
 
   brandName: {
@@ -694,7 +851,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: 0,
     padding: 0,
     background: 'transparent',
-    color: '#2563eb',
     fontWeight: 700,
     cursor: 'pointer',
   },
@@ -720,7 +876,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     fontWeight: 800,
     letterSpacing: '0.12em',
-    color: '#2563eb',
     marginBottom: '8px',
   },
 
@@ -746,8 +901,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '68px',
     height: '68px',
     borderRadius: '20px',
-    background: '#dbeafe',
-    color: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -910,8 +1063,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   priorityOptionSelected: {
-    border: '1px solid #2563eb',
-    background: '#eff6ff',
     boxShadow: '0 0 0 3px rgba(37,99,235,0.08)',
   },
 
@@ -932,15 +1083,12 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
 
-  radioSelected: {
-    borderColor: '#2563eb',
-  },
+  radioSelected: {},
 
   radioDot: {
     width: '7px',
     height: '7px',
     borderRadius: '50%',
-    background: '#2563eb',
   },
 
   priorityLabel: {
@@ -949,9 +1097,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#334155',
   },
 
-  priorityLabelSelected: {
-    color: '#1d4ed8',
-  },
+  priorityLabelSelected: {},
 
   priorityDescription: {
     display: 'block',
@@ -1024,8 +1170,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 19px',
     borderRadius: '10px',
     border: 0,
-    background:
-      'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
     color: '#ffffff',
     fontSize: '13px',
     fontWeight: 800,
@@ -1034,7 +1178,6 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '9px',
-    boxShadow: '0 7px 18px rgba(37,99,235,0.22)',
   },
 
   submitButtonDisabled: {
@@ -1065,8 +1208,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '34px',
     height: '34px',
     borderRadius: '10px',
-    background: '#dbeafe',
-    color: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1096,8 +1237,6 @@ const styles: Record<string, React.CSSProperties> = {
     height: '28px',
     borderRadius: '50%',
     flexShrink: 0,
-    background: '#eff6ff',
-    color: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1131,8 +1270,6 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px',
     padding: '18px',
     borderRadius: '16px',
-    background:
-      'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
     color: '#ffffff',
   },
 
@@ -1192,7 +1329,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '34px',
     height: '34px',
     borderRadius: '50%',
-    border: '3px solid #dbeafe',
+    border: '3px solid',
     borderTopColor: '#2563eb',
   },
 
