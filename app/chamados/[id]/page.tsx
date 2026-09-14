@@ -1,7 +1,8 @@
+```tsx
 'use client'
 
 import Link from 'next/link'
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -11,13 +12,8 @@ type Chamado = {
   categoria: string
   assunto: string
   descricao: string
-  prioridade: 'baixa' | 'normal' | 'alta' | 'urgente'
-  status:
-    | 'aberto'
-    | 'em_atendimento'
-    | 'aguardando_cliente'
-    | 'resolvido'
-    | 'encerrado'
+  prioridade: string
+  status: string
   prazo_sla: string | null
   resolvido_em: string | null
   encerrado_em: string | null
@@ -33,13 +29,11 @@ type Mensagem = {
   autor_id: string
   mensagem: string
   created_at: string
-  autor?: {
-    nome: string
-    perfil: string
-  } | null
+  autor_nome: string
+  autor_perfil: string
 }
 
-const statusLabel: Record<Chamado['status'], string> = {
+const statusLabels: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
@@ -47,35 +41,37 @@ const statusLabel: Record<Chamado['status'], string> = {
   encerrado: 'Encerrado',
 }
 
-const prioridadeLabel: Record<Chamado['prioridade'], string> = {
+const prioridadeLabels: Record<string, string> = {
   baixa: 'Baixa',
   normal: 'Normal',
   alta: 'Alta',
   urgente: 'Urgente',
 }
 
-function formatarData(data: string) {
+function formatarData(data: string | null) {
+  if (!data) return '—'
+
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(data))
 }
 
-export default function DetalheChamadoPage() {
+export default function DetalhesChamadoPage() {
   const params = useParams()
   const router = useRouter()
 
-  const chamadoId = String(params.id)
+  const chamadoId = Array.isArray(params.id) ? params.id[0] : params.id
 
-  const [loading, setLoading] = useState(true)
   const [chamado, setChamado] = useState<Chamado | null>(null)
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [novaMensagem, setNovaMensagem] = useState('')
+  const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
 
   useEffect(() => {
-    async function carregarChamado() {
+    async function carregar() {
       setLoading(true)
       setErro('')
 
@@ -84,46 +80,41 @@ export default function DetalheChamadoPage() {
       } = await supabase.auth.getUser()
 
       if (!user) {
-        router.replace('/login')
+        router.push('/login')
         return
       }
 
-      const { data: chamadoData, error: chamadoError } =
-        await supabase
-          .from('chamados')
-          .select(
-            `
-              id,
-              numero,
-              categoria,
-              assunto,
-              descricao,
-              prioridade,
-              status,
-              prazo_sla,
-              resolvido_em,
-              encerrado_em,
-              avaliacao,
-              comentario_avaliacao,
-              created_at,
-              updated_at
-            `,
-          )
-          .eq('id', chamadoId)
-          .single()
-
-      if (chamadoError || !chamadoData) {
-        console.error(
-          'Erro ao carregar chamado:',
-          chamadoError,
+      const { data: chamadoData, error: chamadoError } = await supabase
+        .from('chamados')
+        .select(
+          `
+            id,
+            numero,
+            categoria,
+            assunto,
+            descricao,
+            prioridade,
+            status,
+            prazo_sla,
+            resolvido_em,
+            encerrado_em,
+            avaliacao,
+            comentario_avaliacao,
+            created_at,
+            updated_at
+          `
         )
+        .eq('id', chamadoId)
+        .single()
 
-        setErro('Chamado não encontrado ou não disponível.')
+      if (chamadoError) {
+        console.error(chamadoError)
+        setErro('Não foi possível carregar o chamado.')
         setLoading(false)
         return
       }
 
-      setChamado(chamadoData)
+      setChamado(chamadoData as Chamado)
 
       const { data: mensagensData, error: mensagensError } =
         await supabase
@@ -134,37 +125,72 @@ export default function DetalheChamadoPage() {
               chamado_id,
               autor_id,
               mensagem,
-              created_at,
-              autor:profiles!chamado_mensagens_autor_id_fkey (
-                nome,
-                perfil
-              )
-            `,
+              created_at
+            `
           )
           .eq('chamado_id', chamadoId)
           .order('created_at', { ascending: true })
 
       if (mensagensError) {
-        console.error(
-          'Erro ao carregar mensagens:',
-          mensagensError,
-        )
-      } else {
-        setMensagens((mensagensData || []) as Mensagem[])
+        console.error(mensagensError)
+        setErro('O chamado foi carregado, mas não foi possível carregar as mensagens.')
+        setMensagens([])
+        setLoading(false)
+        return
       }
 
+      const mensagensBase = mensagensData ?? []
+
+      if (mensagensBase.length === 0) {
+        setMensagens([])
+        setLoading(false)
+        return
+      }
+
+      const autorIds = [
+        ...new Set(
+          mensagensBase.map((item) => item.autor_id).filter(Boolean)
+        ),
+      ]
+
+      const { data: perfisData, error: perfisError } = await supabase
+        .from('profiles')
+        .select('id, nome, perfil')
+        .in('id', autorIds)
+
+      if (perfisError) {
+        console.error(perfisError)
+      }
+
+      const perfis = perfisData ?? []
+
+      const mensagensFormatadas: Mensagem[] = mensagensBase.map((item) => {
+        const perfil = perfis.find((p) => p.id === item.autor_id)
+
+        return {
+          id: item.id,
+          chamado_id: item.chamado_id,
+          autor_id: item.autor_id,
+          mensagem: item.mensagem,
+          created_at: item.created_at,
+          autor_nome: perfil?.nome || 'Usuário',
+          autor_perfil: perfil?.perfil || 'cliente',
+        }
+      })
+
+      setMensagens(mensagensFormatadas)
       setLoading(false)
     }
 
-    carregarChamado()
+    if (chamadoId) {
+      carregar()
+    }
   }, [chamadoId, router])
 
-  async function enviarMensagem(event: FormEvent<HTMLFormElement>) {
+  async function enviarMensagem(event: React.FormEvent) {
     event.preventDefault()
 
-    if (!novaMensagem.trim()) {
-      return
-    }
+    if (!novaMensagem.trim()) return
 
     setEnviando(true)
     setErro('')
@@ -174,1363 +200,794 @@ export default function DetalheChamadoPage() {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      router.replace('/login')
+      router.push('/login')
       return
     }
-
-    const texto = novaMensagem.trim()
 
     const { data, error } = await supabase
       .from('chamado_mensagens')
       .insert({
         chamado_id: chamadoId,
         autor_id: user.id,
-        mensagem: texto,
+        mensagem: novaMensagem.trim(),
       })
-      .select(
-        `
-          id,
-          chamado_id,
-          autor_id,
-          mensagem,
-          created_at,
-          autor:profiles!chamado_mensagens_autor_id_fkey (
-            nome,
-            perfil
-          )
-        `,
-      )
+      .select('id, chamado_id, autor_id, mensagem, created_at')
       .single()
 
     if (error) {
-      console.error('Erro ao enviar mensagem:', error)
-
-      setErro(
-        'Não foi possível enviar a mensagem. Tente novamente.',
-      )
-
+      console.error(error)
+      setErro('Não foi possível enviar a mensagem.')
       setEnviando(false)
       return
     }
 
-    setMensagens((atual) => [
-      ...atual,
-      data as Mensagem,
-    ])
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('nome, perfil')
+      .eq('id', user.id)
+      .single()
 
+    const mensagemFormatada: Mensagem = {
+      id: data.id,
+      chamado_id: data.chamado_id,
+      autor_id: data.autor_id,
+      mensagem: data.mensagem,
+      created_at: data.created_at,
+      autor_nome: perfil?.nome || 'Você',
+      autor_perfil: perfil?.perfil || 'cliente',
+    }
+
+    setMensagens((atual) => [...atual, mensagemFormatada])
     setNovaMensagem('')
     setEnviando(false)
   }
 
-  async function sair() {
-    await supabase.auth.signOut()
-    router.replace('/login')
-  }
-
   if (loading) {
     return (
-      <main className="loading-page">
-        <div className="loading-card">
-          <div className="loading-spinner" />
-
-          <h2>Carregando chamado...</h2>
-
-          <p>Aguarde enquanto buscamos as informações.</p>
+      <main style={styles.page}>
+        <div style={styles.container}>
+          <div style={styles.loading}>Carregando chamado...</div>
         </div>
-
-        <style jsx>{`
-          .loading-page {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f5f7fa;
-            padding: 24px;
-          }
-
-          .loading-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-          }
-
-          .loading-spinner {
-            width: 42px;
-            height: 42px;
-            margin: 0 auto 20px;
-            border: 4px solid #dbe4e8;
-            border-top-color: #0f766e;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-          }
-
-          h2 {
-            margin: 0 0 8px;
-            color: #172033;
-          }
-
-          p {
-            margin: 0;
-            color: #64748b;
-          }
-
-          @keyframes spin {
-            to {
-              transform: rotate(360deg);
-            }
-          }
-        `}</style>
       </main>
     )
   }
 
   if (!chamado) {
     return (
-      <div className="error-page">
-        <div className="error-card">
-          <div className="error-icon">!</div>
+      <main style={styles.page}>
+        <div style={styles.container}>
+          <div style={styles.errorCard}>
+            <h1 style={styles.errorTitle}>Chamado não encontrado</h1>
+            <p style={styles.errorText}>
+              {erro || 'Não foi possível localizar este chamado.'}
+            </p>
 
-          <h1>Chamado não encontrado</h1>
-
-          <p>
-            {erro ||
-              'Não foi possível localizar este chamado.'}
-          </p>
-
-          <Link href="/chamados" className="back-button">
-            Voltar para meus chamados
-          </Link>
+            <Link href="/chamados" style={styles.primaryButton}>
+              Voltar para chamados
+            </Link>
+          </div>
         </div>
-
-        <style jsx>{`
-          .error-page {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f5f7fa;
-            padding: 24px;
-          }
-
-          .error-card {
-            width: 100%;
-            max-width: 450px;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 18px;
-            padding: 40px;
-            text-align: center;
-          }
-
-          .error-icon {
-            width: 50px;
-            height: 50px;
-            margin: 0 auto 16px;
-            border-radius: 50%;
-            background: #fef2f2;
-            color: #b91c1c;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            font-weight: 800;
-          }
-
-          .error-card h1 {
-            margin: 0;
-            font-size: 21px;
-          }
-
-          .error-card p {
-            margin: 8px 0 22px;
-            color: #64748b;
-            font-size: 13px;
-            line-height: 1.5;
-          }
-
-          .back-button {
-            display: inline-block;
-            background: #0f766e;
-            color: #ffffff;
-            border-radius: 9px;
-            padding: 11px 16px;
-            font-size: 12px;
-            font-weight: 800;
-          }
-        `}</style>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="page">
-      <header className="header">
-        <div className="header-inner">
-          <Link href="/" className="brand">
-            <div className="brand-logo">AM</div>
-
-            <div>
-              <strong>ÁgilMed & Real Life</strong>
-              <span>Portal do Cliente</span>
-            </div>
-          </Link>
-
-          <div className="header-actions">
-            <Link href="/chamados" className="back-link">
-              ← Meus chamados
+    <main style={styles.page}>
+      <div style={styles.container}>
+        <div style={styles.topBar}>
+          <div>
+            <Link href="/chamados" style={styles.backLink}>
+              ← Voltar para chamados
             </Link>
 
-            <button
-              type="button"
-              onClick={sair}
-              className="logout"
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container">
-        <div className="breadcrumb">
-          <Link href="/chamados">Meus chamados</Link>
-
-          <span>›</span>
-
-          <strong>
-            #{String(chamado.numero).padStart(5, '0')}
-          </strong>
-        </div>
-
-        <section className="ticket-header">
-          <div>
-            <span className="eyebrow">CHAMADO</span>
-
-            <div className="title-line">
-              <h1>{chamado.assunto}</h1>
-
-              <span
-                className={`status status-${chamado.status}`}
-              >
-                {statusLabel[chamado.status]}
-              </span>
+            <div style={styles.eyebrow}>
+              CHAMADO #{chamado.numero}
             </div>
 
-            <p>
-              Chamado #{String(chamado.numero).padStart(5, '0')} ·
-              Aberto em {formatarData(chamado.created_at)}
+            <h1 style={styles.title}>{chamado.assunto}</h1>
+
+            <p style={styles.subtitle}>
+              Acompanhe o andamento e converse com nossa equipe.
             </p>
           </div>
-        </section>
 
-        <div className="layout">
-          <div className="main-column">
-            <section className="card description-card">
-              <div className="card-heading">
-                <div>
-                  <span className="eyebrow">SOLICITAÇÃO</span>
-                  <h2>Descrição</h2>
-                </div>
-              </div>
+          <Link href="/chamados/novo" style={styles.primaryButton}>
+            + Novo chamado
+          </Link>
+        </div>
 
-              <div className="description">
-                {chamado.descricao}
-              </div>
+        {erro && (
+          <div style={styles.warning}>
+            {erro}
+          </div>
+        )}
 
-              <div className="meta-grid">
-                <div>
-                  <span>Categoria</span>
-                  <strong>{chamado.categoria}</strong>
-                </div>
+        <section style={styles.grid}>
+          <div style={styles.mainColumn}>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h2 style={styles.cardTitle}>Detalhes do chamado</h2>
 
-                <div>
-                  <span>Prioridade</span>
-
-                  <strong
-                    className={`priority priority-${chamado.prioridade}`}
-                  >
-                    {prioridadeLabel[chamado.prioridade]}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Última atualização</span>
-
-                  <strong>
-                    {formatarData(chamado.updated_at)}
-                  </strong>
-                </div>
-              </div>
-            </section>
-
-            <section className="card conversation-card">
-              <div className="card-heading">
-                <div>
-                  <span className="eyebrow">ATENDIMENTO</span>
-                  <h2>Conversas</h2>
-                </div>
-
-                <span className="message-count">
-                  {mensagens.length}{' '}
-                  {mensagens.length === 1
-                    ? 'mensagem'
-                    : 'mensagens'}
+                <span
+                  style={{
+                    ...styles.statusBadge,
+                    ...statusStyle(chamado.status),
+                  }}
+                >
+                  {statusLabels[chamado.status] || chamado.status}
                 </span>
               </div>
 
-              <div className="messages">
-                {mensagens.length === 0 && (
-                  <div className="no-messages">
-                    <div className="no-messages-icon">
-                      💬
-                    </div>
-
-                    <strong>
-                      Nenhuma mensagem ainda
-                    </strong>
-
-                    <p>
-                      Envie uma mensagem para complementar sua
-                      solicitação.
-                    </p>
-                  </div>
-                )}
-
-                {mensagens.map((mensagem) => (
-                  <div
-                    key={mensagem.id}
-                    className="message"
-                  >
-                    <div className="message-avatar">
-                      {mensagem.autor?.nome
-                        ?.charAt(0)
-                        ?.toUpperCase() || 'U'}
-                    </div>
-
-                    <div className="message-body">
-                      <div className="message-top">
-                        <strong>
-                          {mensagem.autor?.nome ||
-                            'Usuário'}
-                        </strong>
-
-                        <span>
-                          {formatarData(
-                            mensagem.created_at,
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="message-role">
-                        {mensagem.autor?.perfil ===
-                        'cliente'
-                          ? 'Cliente'
-                          : 'Equipe de atendimento'}
-                      </div>
-
-                      <p>{mensagem.mensagem}</p>
-                    </div>
-                  </div>
-                ))}
+              <div style={styles.infoGrid}>
+                <Info label="Categoria" value={chamado.categoria} />
+                <Info
+                  label="Prioridade"
+                  value={
+                    prioridadeLabels[chamado.prioridade] ||
+                    chamado.prioridade
+                  }
+                />
+                <Info
+                  label="Abertura"
+                  value={formatarData(chamado.created_at)}
+                />
+                <Info
+                  label="Atualização"
+                  value={formatarData(chamado.updated_at)}
+                />
+                <Info
+                  label="Prazo SLA"
+                  value={formatarData(chamado.prazo_sla)}
+                />
+                <Info
+                  label="Encerramento"
+                  value={formatarData(chamado.encerrado_em)}
+                />
               </div>
 
-              {chamado.status !== 'encerrado' && (
-                <form
-                  onSubmit={enviarMensagem}
-                  className="message-form"
-                >
-                  <label htmlFor="nova-mensagem">
-                    Enviar mensagem
-                  </label>
+              <div style={styles.descriptionBox}>
+                <div style={styles.label}>Descrição</div>
+                <p style={styles.description}>{chamado.descricao}</p>
+              </div>
 
-                  <textarea
-                    id="nova-mensagem"
-                    value={novaMensagem}
-                    onChange={(event) =>
-                      setNovaMensagem(
-                        event.target.value,
-                      )
-                    }
-                    placeholder="Digite sua mensagem..."
-                    rows={4}
-                    maxLength={2000}
-                    disabled={enviando}
-                  />
+              {chamado.avaliacao && (
+                <div style={styles.evaluationBox}>
+                  <div style={styles.label}>Avaliação</div>
 
-                  {erro && (
-                    <div className="message-error">
-                      {erro}
-                    </div>
-                  )}
-
-                  <div className="message-actions">
-                    <span>
-                      {novaMensagem.length}/2000
-                    </span>
-
-                    <button
-                      type="submit"
-                      disabled={
-                        enviando ||
-                        !novaMensagem.trim()
-                      }
-                    >
-                      {enviando
-                        ? 'Enviando...'
-                        : 'Enviar mensagem'}
-                    </button>
+                  <div style={styles.stars}>
+                    {'★'.repeat(chamado.avaliacao)}
+                    {'☆'.repeat(5 - chamado.avaliacao)}
                   </div>
-                </form>
+
+                  {chamado.comentario_avaliacao && (
+                    <p style={styles.description}>
+                      {chamado.comentario_avaliacao}
+                    </p>
+                  )}
+                </div>
               )}
-            </section>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h2 style={styles.cardTitle}>Conversas</h2>
+
+                <span style={styles.messageCount}>
+                  {mensagens.length}{' '}
+                  {mensagens.length === 1 ? 'mensagem' : 'mensagens'}
+                </span>
+              </div>
+
+              {mensagens.length === 0 ? (
+                <div style={styles.emptyMessages}>
+                  Ainda não existem mensagens neste chamado.
+                </div>
+              ) : (
+                <div style={styles.messageList}>
+                  {mensagens.map((mensagem) => {
+                    const isCliente = mensagem.autor_id !== null
+
+                    return (
+                      <div key={mensagem.id} style={styles.messageItem}>
+                        <div style={styles.messageAvatar}>
+                          {mensagem.autor_nome
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+
+                        <div style={styles.messageContent}>
+                          <div style={styles.messageMeta}>
+                            <strong>{mensagem.autor_nome}</strong>
+
+                            <span style={styles.profileTag}>
+                              {mensagem.autor_perfil === 'cliente'
+                                ? 'Cliente'
+                                : 'Equipe'}
+                            </span>
+
+                            <span style={styles.messageDate}>
+                              {formatarData(mensagem.created_at)}
+                            </span>
+                          </div>
+
+                          <div
+                            style={{
+                              ...styles.messageBubble,
+                              ...(isCliente
+                                ? styles.clientMessage
+                                : styles.teamMessage),
+                            }}
+                          >
+                            {mensagem.mensagem}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <form onSubmit={enviarMensagem} style={styles.messageForm}>
+                <textarea
+                  value={novaMensagem}
+                  onChange={(event) =>
+                    setNovaMensagem(event.target.value)
+                  }
+                  placeholder="Digite sua mensagem..."
+                  rows={4}
+                  style={styles.textarea}
+                />
+
+                <div style={styles.formFooter}>
+                  <span style={styles.helper}>
+                    Envie uma mensagem para continuar o atendimento.
+                  </span>
+
+                  <button
+                    type="submit"
+                    disabled={enviando || !novaMensagem.trim()}
+                    style={{
+                      ...styles.primaryButton,
+                      ...(enviando || !novaMensagem.trim()
+                        ? styles.disabledButton
+                        : {}),
+                    }}
+                  >
+                    {enviando ? 'Enviando...' : 'Enviar mensagem'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
 
-          <aside className="side-column">
-            <section className="card information-card">
-              <div className="card-heading">
-                <div>
-                  <span className="eyebrow">INFORMAÇÕES</span>
-                  <h2>Detalhes</h2>
-                </div>
-              </div>
+          <aside style={styles.sideColumn}>
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>Andamento</h2>
 
-              <div className="information-list">
-                <div>
-                  <span>Número</span>
+              <div style={styles.timeline}>
+                <TimelineItem
+                  title="Chamado aberto"
+                  date={formatarData(chamado.created_at)}
+                  active
+                />
 
-                  <strong>
-                    #{String(chamado.numero).padStart(
-                      5,
-                      '0',
-                    )}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Status</span>
-
-                  <strong>
-                    {statusLabel[chamado.status]}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Prioridade</span>
-
-                  <strong>
-                    {prioridadeLabel[chamado.prioridade]}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Categoria</span>
-
-                  <strong>
-                    {chamado.categoria}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Abertura</span>
-
-                  <strong>
-                    {formatarData(
-                      chamado.created_at,
-                    )}
-                  </strong>
-                </div>
-
-                {chamado.prazo_sla && (
-                  <div>
-                    <span>Prazo de atendimento</span>
-
-                    <strong>
-                      {formatarData(
-                        chamado.prazo_sla,
-                      )}
-                    </strong>
-                  </div>
-                )}
-
-                {chamado.resolvido_em && (
-                  <div>
-                    <span>Resolvido em</span>
-
-                    <strong>
-                      {formatarData(
-                        chamado.resolvido_em,
-                      )}
-                    </strong>
-                  </div>
-                )}
-
-                {chamado.encerrado_em && (
-                  <div>
-                    <span>Encerrado em</span>
-
-                    <strong>
-                      {formatarData(
-                        chamado.encerrado_em,
-                      )}
-                    </strong>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="card timeline-card">
-              <div className="card-heading">
-                <div>
-                  <span className="eyebrow">ACOMPANHAMENTO</span>
-                  <h2>Status</h2>
-                </div>
-              </div>
-
-              <div className="timeline">
-                <div className="timeline-item active">
-                  <span className="timeline-dot" />
-
-                  <div>
-                    <strong>Chamado aberto</strong>
-
-                    <span>
-                      {formatarData(
-                        chamado.created_at,
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  className={`timeline-item ${
-                    [
-                      'em_atendimento',
-                      'aguardando_cliente',
-                      'resolvido',
-                      'encerrado',
-                    ].includes(chamado.status)
-                      ? 'active'
-                      : ''
-                  }`}
-                >
-                  <span className="timeline-dot" />
-
-                  <div>
-                    <strong>
-                      Em atendimento
-                    </strong>
-
-                    <span>
-                      {[
-                        'em_atendimento',
-                        'aguardando_cliente',
-                        'resolvido',
-                        'encerrado',
-                      ].includes(chamado.status)
-                        ? 'Atendimento iniciado'
-                        : 'Aguardando atendimento'}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  className={`timeline-item ${
-                    ['resolvido', 'encerrado'].includes(
-                      chamado.status,
-                    )
-                      ? 'active'
-                      : ''
-                  }`}
-                >
-                  <span className="timeline-dot" />
-
-                  <div>
-                    <strong>Resolvido</strong>
-
-                    <span>
-                      {chamado.resolvido_em
-                        ? formatarData(
-                            chamado.resolvido_em,
-                          )
-                        : 'Ainda não resolvido'}
-                    </span>
-                  </div>
-                </div>
-
-                <div
-                  className={`timeline-item ${
+                <TimelineItem
+                  title="Em atendimento"
+                  active={
+                    chamado.status === 'em_atendimento' ||
+                    chamado.status === 'aguardando_cliente' ||
+                    chamado.status === 'resolvido' ||
                     chamado.status === 'encerrado'
-                      ? 'active'
-                      : ''
-                  }`}
-                >
-                  <span className="timeline-dot" />
+                  }
+                />
 
-                  <div>
-                    <strong>Encerrado</strong>
+                <TimelineItem
+                  title="Resolvido"
+                  date={formatarData(chamado.resolvido_em)}
+                  active={
+                    chamado.status === 'resolvido' ||
+                    chamado.status === 'encerrado'
+                  }
+                />
 
-                    <span>
-                      {chamado.encerrado_em
-                        ? formatarData(
-                            chamado.encerrado_em,
-                          )
-                        : 'Ainda não encerrado'}
-                    </span>
-                  </div>
-                </div>
+                <TimelineItem
+                  title="Encerrado"
+                  date={formatarData(chamado.encerrado_em)}
+                  active={chamado.status === 'encerrado'}
+                  last
+                />
               </div>
-            </section>
+            </div>
 
-            {chamado.status === 'encerrado' && (
-              <section className="card evaluation-card">
-                <span className="eyebrow">AVALIAÇÃO</span>
+            <div style={styles.card}>
+              <h2 style={styles.cardTitle}>Próximos passos</h2>
 
-                <h2>Como foi o atendimento?</h2>
+              <p style={styles.sideText}>
+                Nossa equipe acompanhará este chamado e responderá
+                diretamente por aqui.
+              </p>
 
-                {chamado.avaliacao ? (
-                  <>
-                    <div className="stars">
-                      {Array.from(
-                        { length: 5 },
-                        (_, index) => (
-                          <span
-                            key={index}
-                            className={
-                              index <
-                              chamado.avaliacao!
-                                ? 'star active'
-                                : 'star'
-                            }
-                          >
-                            ★
-                          </span>
-                        ),
-                      )}
-                    </div>
-
-                    {chamado.comentario_avaliacao && (
-                      <p>
-                        “
-                        {chamado.comentario_avaliacao}
-                        ”
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p>
-                    Este chamado foi encerrado e ainda não
-                    foi avaliado.
-                  </p>
-                )}
-              </section>
-            )}
+              <Link href="/chamados" style={styles.secondaryButton}>
+                Ver meus chamados
+              </Link>
+            </div>
           </aside>
-        </div>
-      </main>
-
-      <style jsx>{`
-        .page {
-          min-height: 100vh;
-          background: #f5f7fa;
-          color: #172033;
-        }
-
-        .header {
-          height: 76px;
-          background: #ffffff;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .header-inner {
-          max-width: 1200px;
-          height: 100%;
-          margin: 0 auto;
-          padding: 0 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .brand-logo {
-          width: 42px;
-          height: 42px;
-          border-radius: 11px;
-          background: #0f766e;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 14px;
-        }
-
-        .brand strong {
-          display: block;
-          font-size: 15px;
-        }
-
-        .brand span {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-        }
-
-        .back-link {
-          color: #0f766e;
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        .logout {
-          border: 1px solid #d7dde5;
-          background: #ffffff;
-          color: #475569;
-          border-radius: 9px;
-          padding: 9px 14px;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 28px 24px 60px;
-        }
-
-        .breadcrumb {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 22px;
-          color: #94a3b8;
-          font-size: 11px;
-        }
-
-        .breadcrumb a {
-          color: #0f766e;
-          font-weight: 700;
-        }
-
-        .breadcrumb strong {
-          color: #64748b;
-        }
-
-        .ticket-header {
-          margin-bottom: 26px;
-        }
-
-        .eyebrow {
-          display: block;
-          margin-bottom: 7px;
-          color: #0f766e;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 1.2px;
-        }
-
-        .title-line {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .ticket-header h1 {
-          margin: 0;
-          font-size: 28px;
-          letter-spacing: -0.6px;
-        }
-
-        .ticket-header p {
-          margin: 7px 0 0;
-          color: #64748b;
-          font-size: 12px;
-        }
-
-        .status {
-          padding: 6px 9px;
-          border-radius: 999px;
-          font-size: 9px;
-          font-weight: 800;
-          white-space: nowrap;
-        }
-
-        .status-aberto {
-          background: #eaf4ff;
-          color: #2563eb;
-        }
-
-        .status-em_atendimento {
-          background: #e9f5f3;
-          color: #0f766e;
-        }
-
-        .status-aguardando_cliente {
-          background: #fff7ed;
-          color: #b45309;
-        }
-
-        .status-resolvido {
-          background: #eaf8ef;
-          color: #15803d;
-        }
-
-        .status-encerrado {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-
-        .layout {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 320px;
-          gap: 20px;
-          align-items: start;
-        }
-
-        .main-column,
-        .side-column {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-
-        .card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
-          overflow: hidden;
-        }
-
-        .card-heading {
-          padding: 20px 22px 17px;
-          border-bottom: 1px solid #eef2f7;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 15px;
-        }
-
-        .card-heading .eyebrow {
-          margin-bottom: 5px;
-        }
-
-        .card-heading h2 {
-          margin: 0;
-          font-size: 17px;
-        }
-
-        .description {
-          padding: 21px 22px;
-          color: #475569;
-          font-size: 13px;
-          line-height: 1.75;
-          white-space: pre-wrap;
-        }
-
-        .meta-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          border-top: 1px solid #eef2f7;
-        }
-
-        .meta-grid > div {
-          padding: 15px 18px;
-          border-right: 1px solid #eef2f7;
-        }
-
-        .meta-grid > div:last-child {
-          border-right: 0;
-        }
-
-        .meta-grid span,
-        .information-list span {
-          display: block;
-          margin-bottom: 5px;
-          color: #94a3b8;
-          font-size: 9px;
-          font-weight: 800;
-          letter-spacing: 0.5px;
-          text-transform: uppercase;
-        }
-
-        .meta-grid strong,
-        .information-list strong {
-          display: block;
-          color: #334155;
-          font-size: 11px;
-          line-height: 1.4;
-        }
-
-        .priority-baixa {
-          color: #15803d !important;
-        }
-
-        .priority-normal {
-          color: #475569 !important;
-        }
-
-        .priority-alta {
-          color: #c2410c !important;
-        }
-
-        .priority-urgente {
-          color: #b91c1c !important;
-        }
-
-        .message-count {
-          color: #94a3b8;
-          font-size: 10px;
-        }
-
-        .messages {
-          padding: 4px 22px;
-        }
-
-        .message {
-          display: flex;
-          gap: 12px;
-          padding: 19px 0;
-          border-bottom: 1px solid #eef2f7;
-        }
-
-        .message:last-child {
-          border-bottom: 0;
-        }
-
-        .message-avatar {
-          width: 36px;
-          height: 36px;
-          flex: 0 0 36px;
-          border-radius: 50%;
-          background: #e9f5f3;
-          color: #0f766e;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          font-weight: 800;
-        }
-
-        .message-body {
-          min-width: 0;
-          flex: 1;
-        }
-
-        .message-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-        }
-
-        .message-top strong {
-          color: #334155;
-          font-size: 12px;
-        }
-
-        .message-top span {
-          color: #94a3b8;
-          font-size: 9px;
-          white-space: nowrap;
-        }
-
-        .message-role {
-          margin-top: 2px;
-          color: #0f766e;
-          font-size: 9px;
-          font-weight: 700;
-        }
-
-        .message-body p {
-          margin: 9px 0 0;
-          color: #475569;
-          font-size: 12px;
-          line-height: 1.65;
-          white-space: pre-wrap;
-        }
-
-        .no-messages {
-          padding: 35px 20px;
-          text-align: center;
-        }
-
-        .no-messages-icon {
-          width: 45px;
-          height: 45px;
-          margin: 0 auto 10px;
-          border-radius: 12px;
-          background: #f1f5f9;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 19px;
-        }
-
-        .no-messages strong {
-          display: block;
-          font-size: 12px;
-        }
-
-        .no-messages p {
-          margin: 5px 0 0;
-          color: #94a3b8;
-          font-size: 10px;
-        }
-
-        .message-form {
-          padding: 18px 22px 22px;
-          border-top: 1px solid #eef2f7;
-          background: #fafbfc;
-        }
-
-        .message-form label {
-          display: block;
-          margin-bottom: 7px;
-          color: #334155;
-          font-size: 11px;
-          font-weight: 800;
-        }
-
-        .message-form textarea {
-          width: 100%;
-          border: 1px solid #d7dde5;
-          border-radius: 9px;
-          background: #ffffff;
-          padding: 11px 12px;
-          resize: vertical;
-          color: #172033;
-          font-size: 12px;
-          line-height: 1.5;
-          outline: none;
-        }
-
-        .message-form textarea:focus {
-          border-color: #0f766e;
-          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
-        }
-
-        .message-actions {
-          margin-top: 9px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-        }
-
-        .message-actions span {
-          color: #94a3b8;
-          font-size: 9px;
-        }
-
-        .message-actions button {
-          border: 0;
-          border-radius: 8px;
-          background: #0f766e;
-          color: #ffffff;
-          padding: 9px 14px;
-          font-size: 11px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .message-actions button:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        .message-error {
-          margin-top: 8px;
-          color: #b91c1c;
-          font-size: 10px;
-        }
-
-        .information-list {
-          padding: 5px 22px;
-        }
-
-        .information-list > div {
-          padding: 14px 0;
-          border-bottom: 1px solid #eef2f7;
-        }
-
-        .information-list > div:last-child {
-          border-bottom: 0;
-        }
-
-        .timeline {
-          padding: 18px 22px 22px;
-        }
-
-        .timeline-item {
-          position: relative;
-          display: flex;
-          gap: 12px;
-          min-height: 62px;
-        }
-
-        .timeline-item:not(:last-child)::before {
-          content: '';
-          position: absolute;
-          left: 5px;
-          top: 12px;
-          width: 1px;
-          height: calc(100% - 2px);
-          background: #e2e8f0;
-        }
-
-        .timeline-item.active:not(:last-child)::before {
-          background: #b9ddd8;
-        }
-
-        .timeline-dot {
-          width: 11px;
-          height: 11px;
-          flex: 0 0 11px;
-          margin-top: 2px;
-          border-radius: 50%;
-          background: #e2e8f0;
-          border: 2px solid #ffffff;
-          box-shadow: 0 0 0 1px #cbd5e1;
-          z-index: 1;
-        }
-
-        .timeline-item.active .timeline-dot {
-          background: #0f766e;
-          box-shadow: 0 0 0 1px #0f766e;
-        }
-
-        .timeline-item strong {
-          display: block;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        .timeline-item.active strong {
-          color: #334155;
-        }
-
-        .timeline-item div span {
-          display: block;
-          margin-top: 3px;
-          color: #94a3b8;
-          font-size: 9px;
-          line-height: 1.4;
-        }
-
-        .evaluation-card {
-          padding: 20px;
-        }
-
-        .evaluation-card h2 {
-          margin: 0;
-          font-size: 15px;
-        }
-
-        .stars {
-          display: flex;
-          gap: 3px;
-          margin-top: 13px;
-        }
-
-        .star {
-          color: #dbe2ea;
-          font-size: 20px;
-        }
-
-        .star.active {
-          color: #f59e0b;
-        }
-
-        .evaluation-card p {
-          margin: 10px 0 0;
-          color: #64748b;
-          font-size: 11px;
-          line-height: 1.5;
-        }
-
-        .loading-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f5f7fa;
-          padding: 24px;
-        }
-
-        .loading-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 20px;
-          padding: 40px;
-          text-align: center;
-        }
-
-        .loading-card h2 {
-          margin: 0 0 8px;
-        }
-
-        .loading-card p {
-          margin: 0;
-          color: #64748b;
-        }
-
-        .loading-spinner {
-          width: 42px;
-          height: 42px;
-          margin: 0 auto 20px;
-          border: 4px solid #dbe4e8;
-          border-top-color: #0f766e;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .error-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f5f7fa;
-          padding: 24px;
-        }
-
-        .error-card {
-          width: 100%;
-          max-width: 450px;
-          padding: 40px;
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 18px;
-          text-align: center;
-        }
-
-        .error-card h1 {
-          margin: 0;
-          font-size: 21px;
-        }
-
-        .error-card p {
-          color: #64748b;
-          font-size: 13px;
-          line-height: 1.5;
-        }
-
-        .error-icon {
-          width: 50px;
-          height: 50px;
-          margin: 0 auto 15px;
-          border-radius: 50%;
-          background: #fef2f2;
-          color: #b91c1c;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 22px;
-          font-weight: 800;
-        }
-
-        .back-button {
-          display: inline-block;
-          margin-top: 10px;
-          padding: 11px 16px;
-          border-radius: 9px;
-          background: #0f766e;
-          color: #ffffff;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        @media (max-width: 900px) {
-          .layout {
-            grid-template-columns: 1fr;
-          }
-
-          .side-column {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .evaluation-card {
-            grid-column: 1 / -1;
-          }
-        }
-
-        @media (max-width: 650px) {
-          .header {
-            height: auto;
-          }
-
-          .header-inner {
-            padding: 14px 18px;
-          }
-
-          .header-actions {
-            gap: 8px;
-          }
-
-          .logout {
-            display: none;
-          }
-
-          .container {
-            padding: 22px 16px 40px;
-          }
-
-          .title-line {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .ticket-header h1 {
-            font-size: 23px;
-          }
-
-          .side-column {
-            display: flex;
-          }
-
-          .meta-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .meta-grid > div {
-            border-right: 0;
-            border-bottom: 1px solid #eef2f7;
-          }
-
-          .meta-grid > div:last-child {
-            border-bottom: 0;
-          }
-
-          .message-top {
-            align-items: flex-start;
-            flex-direction: column;
-            gap: 3px;
-          }
-        }
-      `}</style>
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function Info({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div>
+      <div style={styles.label}>{label}</div>
+      <div style={styles.infoValue}>{value}</div>
     </div>
   )
 }
+
+function TimelineItem({
+  title,
+  date,
+  active,
+  last,
+}: {
+  title: string
+  date?: string
+  active: boolean
+  last?: boolean
+}) {
+  return (
+    <div style={styles.timelineItem}>
+      <div style={styles.timelineRail}>
+        <div
+          style={{
+            ...styles.timelineDot,
+            ...(active ? styles.timelineDotActive : {}),
+          }}
+        />
+        {!last && <div style={styles.timelineLine} />}
+      </div>
+
+      <div style={styles.timelineContent}>
+        <strong
+          style={{
+            color: active ? '#172033' : '#94a3b8',
+          }}
+        >
+          {title}
+        </strong>
+
+        {date && <span style={styles.timelineDate}>{date}</span>}
+      </div>
+    </div>
+  )
+}
+
+function statusStyle(status: string) {
+  const stylesByStatus: Record<string, React.CSSProperties> = {
+    aberto: {
+      background: '#eff6ff',
+      color: '#1d4ed8',
+    },
+    em_atendimento: {
+      background: '#fff7ed',
+      color: '#c2410c',
+    },
+    aguardando_cliente: {
+      background: '#fefce8',
+      color: '#a16207',
+    },
+    resolvido: {
+      background: '#f0fdf4',
+      color: '#15803d',
+    },
+    encerrado: {
+      background: '#f1f5f9',
+      color: '#475569',
+    },
+  }
+
+  return stylesByStatus[status] || stylesByStatus.aberto
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    background: '#f5f7fa',
+    padding: '32px 20px 60px',
+  },
+
+  container: {
+    width: '100%',
+    maxWidth: '1200px',
+    margin: '0 auto',
+  },
+
+  topBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: '24px',
+    marginBottom: '28px',
+  },
+
+  backLink: {
+    display: 'inline-block',
+    color: '#475569',
+    fontSize: '14px',
+    fontWeight: 600,
+    marginBottom: '18px',
+  },
+
+  eyebrow: {
+    color: '#2563eb',
+    fontSize: '12px',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+    marginBottom: '8px',
+  },
+
+  title: {
+    margin: 0,
+    color: '#172033',
+    fontSize: '32px',
+    lineHeight: 1.15,
+  },
+
+  subtitle: {
+    margin: '10px 0 0',
+    color: '#64748b',
+    fontSize: '15px',
+  },
+
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 320px',
+    gap: '24px',
+    alignItems: 'start',
+  },
+
+  mainColumn: {
+    display: 'grid',
+    gap: '24px',
+  },
+
+  sideColumn: {
+    display: 'grid',
+    gap: '24px',
+  },
+
+  card: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '18px',
+    padding: '24px',
+    boxShadow: '0 5px 15px rgba(15, 23, 42, 0.05)',
+  },
+
+  cardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '16px',
+    marginBottom: '22px',
+  },
+
+  cardTitle: {
+    margin: 0,
+    color: '#172033',
+    fontSize: '19px',
+  },
+
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '7px 12px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+  },
+
+  infoGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: '22px',
+    paddingBottom: '22px',
+    borderBottom: '1px solid #eef0f3',
+  },
+
+  label: {
+    color: '#94a3b8',
+    fontSize: '11px',
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: '7px',
+  },
+
+  infoValue: {
+    color: '#172033',
+    fontSize: '14px',
+    fontWeight: 600,
+  },
+
+  descriptionBox: {
+    paddingTop: '22px',
+  },
+
+  description: {
+    margin: 0,
+    color: '#475569',
+    fontSize: '15px',
+    lineHeight: 1.7,
+    whiteSpace: 'pre-wrap',
+  },
+
+  evaluationBox: {
+    marginTop: '22px',
+    paddingTop: '22px',
+    borderTop: '1px solid #eef0f3',
+  },
+
+  stars: {
+    color: '#f59e0b',
+    fontSize: '22px',
+    letterSpacing: '2px',
+    marginBottom: '8px',
+  },
+
+  messageCount: {
+    color: '#64748b',
+    fontSize: '13px',
+  },
+
+  emptyMessages: {
+    padding: '24px',
+    textAlign: 'center',
+    border: '1px dashed #cbd5e1',
+    borderRadius: '12px',
+    color: '#64748b',
+    fontSize: '14px',
+  },
+
+  messageList: {
+    display: 'grid',
+    gap: '18px',
+  },
+
+  messageItem: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'flex-start',
+  },
+
+  messageAvatar: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    background: '#e0ecff',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 800,
+    flexShrink: 0,
+  },
+
+  messageContent: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  messageMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginBottom: '7px',
+    color: '#172033',
+    fontSize: '13px',
+  },
+
+  profileTag: {
+    background: '#f1f5f9',
+    color: '#64748b',
+    borderRadius: '999px',
+    padding: '3px 8px',
+    fontSize: '10px',
+    fontWeight: 700,
+  },
+
+  messageDate: {
+    color: '#94a3b8',
+    fontSize: '11px',
+    fontWeight: 500,
+  },
+
+  messageBubble: {
+    padding: '13px 15px',
+    borderRadius: '12px',
+    color: '#334155',
+    fontSize: '14px',
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap',
+  },
+
+  clientMessage: {
+    background: '#eff6ff',
+  },
+
+  teamMessage: {
+    background: '#f8fafc',
+  },
+
+  messageForm: {
+    marginTop: '24px',
+    paddingTop: '22px',
+    borderTop: '1px solid #eef0f3',
+  },
+
+  textarea: {
+    width: '100%',
+    minHeight: '110px',
+    resize: 'vertical',
+    border: '1px solid #cbd5e1',
+    borderRadius: '12px',
+    padding: '13px 14px',
+    outline: 'none',
+    color: '#172033',
+    background: '#ffffff',
+  },
+
+  formFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '16px',
+    marginTop: '12px',
+  },
+
+  helper: {
+    color: '#94a3b8',
+    fontSize: '12px',
+  },
+
+  primaryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#2563eb',
+    color: '#ffffff',
+    border: 0,
+    borderRadius: '10px',
+    padding: '11px 16px',
+    fontSize: '13px',
+    fontWeight: 700,
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
+  },
+
+  secondaryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#ffffff',
+    color: '#2563eb',
+    border: '1px solid #bfdbfe',
+    borderRadius: '10px',
+    padding: '11px 16px',
+    fontSize: '13px',
+    fontWeight: 700,
+    textDecoration: 'none',
+    marginTop: '16px',
+  },
+
+  disabledButton: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+
+  timeline: {
+    marginTop: '22px',
+  },
+
+  timelineItem: {
+    display: 'flex',
+    gap: '12px',
+    minHeight: '62px',
+  },
+
+  timelineRail: {
+    width: '18px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+
+  timelineDot: {
+    width: '11px',
+    height: '11px',
+    borderRadius: '50%',
+    background: '#cbd5e1',
+    marginTop: '3px',
+    flexShrink: 0,
+  },
+
+  timelineDotActive: {
+    background: '#2563eb',
+    boxShadow: '0 0 0 4px #dbeafe',
+  },
+
+  timelineLine: {
+    width: '2px',
+    flex: 1,
+    background: '#e2e8f0',
+    marginTop: '5px',
+  },
+
+  timelineContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    paddingBottom: '18px',
+    fontSize: '13px',
+  },
+
+  timelineDate: {
+    color: '#94a3b8',
+    fontSize: '11px',
+  },
+
+  sideText: {
+    margin: '12px 0 0',
+    color: '#64748b',
+    fontSize: '14px',
+    lineHeight: 1.6,
+  },
+
+  loading: {
+    background: '#ffffff',
+    borderRadius: '18px',
+    padding: '40px',
+    textAlign: 'center',
+    color: '#64748b',
+  },
+
+  errorCard: {
+    background: '#ffffff',
+    border: '1px solid #fecaca',
+    borderRadius: '18px',
+    padding: '32px',
+    textAlign: 'center',
+  },
+
+  errorTitle: {
+    margin: '0 0 10px',
+    color: '#991b1b',
+  },
+
+  errorText: {
+    color: '#64748b',
+    marginBottom: '24px',
+  },
+
+  warning: {
+    background: '#fff7ed',
+    border: '1px solid #fed7aa',
+    color: '#9a3412',
+    borderRadius: '12px',
+    padding: '12px 14px',
+    marginBottom: '20px',
+    fontSize: '13px',
+  },
+}
+```
