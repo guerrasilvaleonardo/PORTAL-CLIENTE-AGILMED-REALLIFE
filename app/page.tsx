@@ -1,127 +1,80 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+type Profile = {
+  id: string
+  nome: string
+  email: string | null
+  empresa_id: string | null
+  perfil: string
+  ativo: boolean
+}
+
 type Empresa = {
   id: string
-  razao_social: string | null
+  razao_social: string
   nome_fantasia: string | null
   cnpj: string | null
   email: string | null
   telefone: string | null
-  endereco: string | null
   cidade: string | null
   estado: string | null
-  cep: string | null
-  status: string | null
+  status: string
 }
 
-type Profile = {
-  id: string
-  nome: string | null
-  email: string | null
-  empresa_id: string | null
-  perfil: string | null
-  ativo: boolean | null
-}
-
-export default function Home() {
+export default function HomePage() {
   const router = useRouter()
 
+  const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
-  const [carregando, setCarregando] = useState(true)
-  const [erro, setErro] = useState('')
 
   useEffect(() => {
     async function carregarDados() {
-      setCarregando(true)
-      setErro('')
+      setLoading(true)
 
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-        if (userError) {
-          throw new Error(
-            `Erro ao verificar usuário: ${userError.message}`
-          )
-        }
+      if (!user) {
+        router.replace('/login')
+        return
+      }
 
-        if (!user) {
-          router.replace('/login')
-          return
-        }
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
-        /*
-         * BUSCA O PERFIL DO USUÁRIO
-         */
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle()
+      if (profileError || !profileData) {
+        console.error('Erro ao carregar perfil:', profileError)
+        setLoading(false)
+        return
+      }
 
-        if (profileError) {
-          throw new Error(
-            `Erro ao carregar o perfil: ${profileError.message}`
-          )
-        }
+      setProfile(profileData)
 
-        if (!profileData) {
-          throw new Error(
-            'Perfil do usuário não encontrado no banco de dados.'
-          )
-        }
-
-        setProfile(profileData)
-
-        /*
-         * VERIFICA SE O PERFIL POSSUI EMPRESA
-         */
-        if (!profileData.empresa_id) {
-          throw new Error(
-            'O usuário está sem empresa vinculada no cadastro de perfil.'
-          )
-        }
-
-        /*
-         * BUSCA A EMPRESA PELO empresa_id
-         */
+      if (profileData.empresa_id) {
         const { data: empresaData, error: empresaError } = await supabase
           .from('empresas')
           .select('*')
           .eq('id', profileData.empresa_id)
-          .maybeSingle()
+          .single()
 
         if (empresaError) {
-          throw new Error(
-            `Erro ao carregar a empresa: ${empresaError.message}`
-          )
-        }
-
-        if (!empresaData) {
-          throw new Error(
-            `Empresa não encontrada para o ID: ${profileData.empresa_id}`
-          )
-        }
-
-        setEmpresa(empresaData)
-      } catch (error) {
-        console.error(error)
-
-        if (error instanceof Error) {
-          setErro(error.message)
+          console.error('Erro ao carregar empresa:', empresaError)
         } else {
-          setErro('Ocorreu um erro inesperado ao carregar o portal.')
+          setEmpresa(empresaData)
         }
-      } finally {
-        setCarregando(false)
       }
+
+      setLoading(false)
     }
 
     carregarDados()
@@ -132,13 +85,13 @@ export default function Home() {
     router.replace('/login')
   }
 
-  if (carregando) {
+  if (loading) {
     return (
       <main className="loading-page">
         <div className="loading-card">
-          <div className="loading-spinner" />
-          <h2>Carregando seu portal...</h2>
-          <p>Estamos buscando os dados da sua empresa.</p>
+          <div className="loading-spinner"></div>
+          <h2>Carregando portal...</h2>
+          <p>Aguarde enquanto buscamos seus dados.</p>
         </div>
 
         <style jsx>{`
@@ -147,17 +100,15 @@ export default function Home() {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 24px;
             background: #f5f7fa;
+            padding: 24px;
           }
 
           .loading-card {
-            width: 100%;
-            max-width: 420px;
-            padding: 40px 30px;
             background: #ffffff;
             border: 1px solid #e5e7eb;
             border-radius: 20px;
+            padding: 40px;
             text-align: center;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
           }
@@ -166,7 +117,7 @@ export default function Home() {
             width: 42px;
             height: 42px;
             margin: 0 auto 20px;
-            border: 4px solid #e5e7eb;
+            border: 4px solid #dbe4e8;
             border-top-color: #0f766e;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
@@ -175,13 +126,11 @@ export default function Home() {
           h2 {
             margin: 0 0 8px;
             color: #172033;
-            font-size: 22px;
           }
 
           p {
             margin: 0;
             color: #64748b;
-            font-size: 15px;
           }
 
           @keyframes spin {
@@ -194,47 +143,25 @@ export default function Home() {
     )
   }
 
-  const nomeUsuario =
-    profile?.nome ||
-    profile?.email ||
-    'Cliente'
-
-  const nomeEmpresa =
-    empresa?.nome_fantasia ||
-    empresa?.razao_social ||
-    'Empresa não identificada'
-
-  const statusEmpresa =
-    empresa?.status === 'ativo'
-      ? 'Cadastro ativo'
-      : 'Cadastro inativo'
-
-  const inicial =
-    nomeUsuario.charAt(0).toUpperCase()
-
   return (
-    <main className="dashboard">
+    <div className="portal-page">
       <header className="portal-header">
-        <div className="portal-container header-content">
+        <div className="header-inner">
           <div className="brand-area">
             <div className="brand-logo">
               AM
             </div>
 
             <div>
-              <strong>ÁgilMed</strong>
-              <span>& Real Life</span>
+              <h1>ÁgilMed & Real Life</h1>
+              <span>Portal do Cliente</span>
             </div>
           </div>
 
-          <div className="user-area">
-            <div className="user-avatar">
-              {inicial}
-            </div>
-
+          <div className="header-user">
             <div className="user-info">
-              <strong>{nomeUsuario}</strong>
-              <span>{profile?.email || 'Cliente'}</span>
+              <strong>{profile?.nome || 'Cliente'}</strong>
+              <span>{profile?.email || ''}</span>
             </div>
 
             <button
@@ -248,330 +175,421 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="portal-container page-content">
+      <div className="portal-layout">
         <aside className="sidebar">
           <div className="sidebar-title">
-            Portal do Cliente
+            <span>MENU</span>
           </div>
 
-          <nav>
-            <a href="#" className="menu-item active">
-              <span>⌂</span>
-              Início
+          <nav className="menu">
+            <Link
+              href="/"
+              className="menu-item active"
+            >
+              <span className="menu-icon">⌂</span>
+              <span>Início</span>
+            </Link>
+
+            <Link
+              href="/seguranca-do-trabalho"
+              className="menu-item"
+            >
+              <span className="menu-icon">✓</span>
+              <span>Segurança do Trabalho</span>
+            </Link>
+
+            <a
+              href="#"
+              className="menu-item"
+            >
+              <span className="menu-icon">♥</span>
+              <span>Saúde Ocupacional</span>
             </a>
 
             <a
-  href="/seguranca-do-trabalho"
-  className="menu-item"
->
-  <span>✓</span>
-  Segurança do Trabalho
-</a>
-
-            <a href="#" className="menu-item">
-              <span>♥</span>
-              Saúde Ocupacional
+              href="#"
+              className="menu-item"
+            >
+              <span className="menu-icon">▣</span>
+              <span>Treinamentos</span>
             </a>
 
-            <a href="#" className="menu-item">
-              <span>▣</span>
-              Treinamentos
+            <a
+              href="#"
+              className="menu-item"
+            >
+              <span className="menu-icon">▤</span>
+              <span>Documentos</span>
             </a>
 
-            <a href="#" className="menu-item">
-              <span>▤</span>
-              Documentos
+            <a
+              href="#"
+              className="menu-item"
+            >
+              <span className="menu-icon">▥</span>
+              <span>Indicadores</span>
             </a>
 
-            <a href="#" className="menu-item">
-              <span>▥</span>
-              Indicadores
+            <a
+              href="#"
+              className="menu-item"
+            >
+              <span className="menu-icon">!</span>
+              <span>Pendências</span>
             </a>
 
-            <a href="#" className="menu-item">
-              <span>!</span>
-              Pendências
-            </a>
-
-            <a href="#" className="menu-item">
-              <span>⚙</span>
-              Configurações
+            <a
+              href="#"
+              className="menu-item"
+            >
+              <span className="menu-icon">⚙</span>
+              <span>Configurações</span>
             </a>
           </nav>
+
+          <div className="sidebar-footer">
+            <div className="support-box">
+              <strong>Precisa de ajuda?</strong>
+              <span>Entre em contato com nossa equipe.</span>
+            </div>
+          </div>
         </aside>
 
-        <section className="content">
-          <div className="welcome-card">
+        <main className="main-content">
+          <section className="welcome-section">
             <div>
-              <span className="welcome-label">
+              <span className="eyebrow">
                 PORTAL DO CLIENTE
               </span>
 
-              <h1>
-                Olá, {nomeUsuario.split(' ')[0]}!
-              </h1>
+              <h2>
+                Olá, {profile?.nome?.split(' ')[0] || 'Cliente'}!
+              </h2>
 
               <p>
-                Acompanhe documentos, exames, treinamentos,
-                indicadores e pendências da sua empresa.
+                Bem-vindo ao seu ambiente exclusivo de gestão
+                ÁgilMed & Real Life.
               </p>
             </div>
 
-            <div className="welcome-icon">
-              ✓
+            <div className="welcome-status">
+              <span className="status-dot"></span>
+              Portal conectado
             </div>
-          </div>
+          </section>
 
-          {erro && (
-            <div className="error-card">
-              <strong>Não foi possível carregar todos os dados.</strong>
+          <section className="company-bar">
+            <div className="company-main">
+              <div className="company-icon">
+                {empresa?.nome_fantasia?.charAt(0) || 'E'}
+              </div>
 
-              <p>{erro}</p>
+              <div>
+                <span className="company-label">
+                  EMPRESA
+                </span>
 
-              <small>
-                O login está funcionando, mas precisamos verificar
-                o vínculo entre o usuário e a empresa.
-              </small>
-            </div>
-          )}
+                <strong>
+                  {empresa?.nome_fantasia ||
+                    empresa?.razao_social ||
+                    'Empresa não cadastrada'}
+                </strong>
 
-          <div className="company-bar">
-            <div>
-              <span>EMPRESA</span>
-
-              <strong>
-                {nomeEmpresa}
-              </strong>
-            </div>
-
-            <div>
-              <span>CNPJ</span>
-
-              <strong>
-                {empresa?.cnpj || 'Não informado'}
-              </strong>
+                {empresa?.razao_social &&
+                  empresa?.nome_fantasia &&
+                  empresa.razao_social !== empresa.nome_fantasia && (
+                    <small>
+                      {empresa.razao_social}
+                    </small>
+                  )}
+              </div>
             </div>
 
-            <div>
-              <span>STATUS</span>
-
-              <strong
+            <div className="company-status">
+              <span
                 className={
                   empresa?.status === 'ativo'
-                    ? 'status-active'
-                    : 'status-inactive'
+                    ? 'status-badge active'
+                    : 'status-badge inactive'
                 }
               >
-                {statusEmpresa}
-              </strong>
-            </div>
-          </div>
-
-          <div className="section-heading">
-            <div>
-              <span className="section-label">
-                VISÃO GERAL
+                {empresa?.status === 'ativo'
+                  ? 'Empresa ativa'
+                  : 'Empresa inativa'}
               </span>
-
-              <h2>
-                Acompanhe sua empresa
-              </h2>
             </div>
-          </div>
+          </section>
 
-          <div className="cards-grid">
-            <div className="portal-card module-card">
-              <div className="module-icon">
-                ✓
+          <section className="section">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">
+                  VISÃO GERAL
+                </span>
+
+                <h3>
+                  Acesso rápido
+                </h3>
+              </div>
+            </div>
+
+            <div className="modules-grid">
+              <Link
+                href="/seguranca-do-trabalho"
+                className="module-card security-card"
+              >
+                <div className="module-top">
+                  <div className="module-icon security">
+                    ✓
+                  </div>
+
+                  <span className="module-arrow">
+                    →
+                  </span>
+                </div>
+
+                <h4>
+                  Segurança do Trabalho
+                </h4>
+
+                <p>
+                  Acesse documentos, inspeções,
+                  ocorrências, planos de ação,
+                  indicadores e informações de SST.
+                </p>
+
+                <span className="module-button">
+                  Acessar módulo
+                </span>
+              </Link>
+
+              <a
+                href="#"
+                className="module-card"
+              >
+                <div className="module-top">
+                  <div className="module-icon health">
+                    ♥
+                  </div>
+
+                  <span className="module-arrow">
+                    →
+                  </span>
+                </div>
+
+                <h4>
+                  Saúde Ocupacional
+                </h4>
+
+                <p>
+                  Acompanhe exames ocupacionais,
+                  ASOs, programas médicos e
+                  informações de saúde.
+                </p>
+
+                <span className="module-button disabled">
+                  Em breve
+                </span>
+              </a>
+
+              <a
+                href="#"
+                className="module-card"
+              >
+                <div className="module-top">
+                  <div className="module-icon training">
+                    ▣
+                  </div>
+
+                  <span className="module-arrow">
+                    →
+                  </span>
+                </div>
+
+                <h4>
+                  Treinamentos
+                </h4>
+
+                <p>
+                  Consulte treinamentos,
+                  certificados, participantes
+                  e vencimentos.
+                </p>
+
+                <span className="module-button disabled">
+                  Em breve
+                </span>
+              </a>
+
+              <a
+                href="#"
+                className="module-card"
+              >
+                <div className="module-top">
+                  <div className="module-icon documents">
+                    ▤
+                  </div>
+
+                  <span className="module-arrow">
+                    →
+                  </span>
+                </div>
+
+                <h4>
+                  Documentos
+                </h4>
+
+                <p>
+                  Consulte documentos,
+                  laudos, procedimentos,
+                  relatórios e registros.
+                </p>
+
+                <span className="module-button disabled">
+                  Em breve
+                </span>
+              </a>
+            </div>
+          </section>
+
+          <section className="section">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">
+                  EMPRESA
+                </span>
+
+                <h3>
+                  Dados cadastrais
+                </h3>
+              </div>
+            </div>
+
+            <div className="company-details portal-card">
+              <div className="detail-item">
+                <span>Razão Social</span>
+                <strong>
+                  {empresa?.razao_social || 'Não informado'}
+                </strong>
               </div>
 
-              <h3>
-                Segurança do Trabalho
-              </h3>
-
-              <p>
-                Acesse documentos, inspeções,
-                ocorrências e informações de SST.
-              </p>
-
-              <button type="button">
-                Acessar
-              </button>
-            </div>
-
-            <div className="portal-card module-card">
-              <div className="module-icon">
-                ♥
+              <div className="detail-item">
+                <span>Nome Fantasia</span>
+                <strong>
+                  {empresa?.nome_fantasia || 'Não informado'}
+                </strong>
               </div>
 
-              <h3>
-                Saúde Ocupacional
-              </h3>
-
-              <p>
-                Consulte exames ocupacionais,
-                ASOs e informações de saúde.
-              </p>
-
-              <button type="button">
-                Acessar
-              </button>
-            </div>
-
-            <div className="portal-card module-card">
-              <div className="module-icon">
-                ▣
+              <div className="detail-item">
+                <span>CNPJ</span>
+                <strong>
+                  {empresa?.cnpj || 'Não informado'}
+                </strong>
               </div>
 
-              <h3>
-                Treinamentos
-              </h3>
-
-              <p>
-                Acompanhe treinamentos, certificados
-                e vencimentos.
-              </p>
-
-              <button type="button">
-                Acessar
-              </button>
-            </div>
-
-            <div className="portal-card module-card">
-              <div className="module-icon">
-                ▤
+              <div className="detail-item">
+                <span>Telefone</span>
+                <strong>
+                  {empresa?.telefone || 'Não informado'}
+                </strong>
               </div>
 
-              <h3>
-                Documentos
-              </h3>
+              <div className="detail-item">
+                <span>E-mail</span>
+                <strong>
+                  {empresa?.email || 'Não informado'}
+                </strong>
+              </div>
 
-              <p>
-                Consulte documentos e arquivos
-                disponibilizados para sua empresa.
-              </p>
-
-              <button type="button">
-                Acessar
-              </button>
+              <div className="detail-item">
+                <span>Localização</span>
+                <strong>
+                  {empresa?.cidade && empresa?.estado
+                    ? `${empresa.cidade} - ${empresa.estado}`
+                    : 'Não informado'}
+                </strong>
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div className="bottom-grid">
-            <div className="portal-card information-card">
-              <div className="card-heading">
-                <div>
-                  <span className="section-label">
-                    EMPRESA
+          <section className="section">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">
+                  SUA CONTA
+                </span>
+
+                <h3>
+                  Informações do usuário
+                </h3>
+              </div>
+            </div>
+
+            <div className="account-card portal-card">
+              <div className="account-avatar">
+                {profile?.nome?.charAt(0)?.toUpperCase() || 'C'}
+              </div>
+
+              <div className="account-info">
+                <strong>
+                  {profile?.nome || 'Cliente'}
+                </strong>
+
+                <span>
+                  {profile?.email || 'E-mail não informado'}
+                </span>
+
+                <div className="account-tags">
+                  <span>
+                    Perfil: {profile?.perfil || 'cliente'}
                   </span>
 
-                  <h2>
-                    Dados cadastrais
-                  </h2>
-                </div>
-              </div>
-
-              <div className="data-grid">
-                <div className="data-item">
-                  <span>Razão Social</span>
-                  <strong>
-                    {empresa?.razao_social || 'Não informado'}
-                  </strong>
-                </div>
-
-                <div className="data-item">
-                  <span>Nome Fantasia</span>
-                  <strong>
-                    {empresa?.nome_fantasia || 'Não informado'}
-                  </strong>
-                </div>
-
-                <div className="data-item">
-                  <span>CNPJ</span>
-                  <strong>
-                    {empresa?.cnpj || 'Não informado'}
-                  </strong>
-                </div>
-
-                <div className="data-item">
-                  <span>Telefone</span>
-                  <strong>
-                    {empresa?.telefone || 'Não informado'}
-                  </strong>
-                </div>
-
-                <div className="data-item">
-                  <span>E-mail</span>
-                  <strong>
-                    {empresa?.email || 'Não informado'}
-                  </strong>
-                </div>
-
-                <div className="data-item">
-                  <span>Cidade / Estado</span>
-                  <strong>
-                    {empresa?.cidade
-                      ? `${empresa.cidade} / ${empresa.estado || ''}`
-                      : 'Não informado'}
-                  </strong>
+                  <span>
+                    {profile?.ativo
+                      ? 'Usuário ativo'
+                      : 'Usuário inativo'}
+                  </span>
                 </div>
               </div>
             </div>
+          </section>
 
-            <div className="portal-card account-card">
-              <span className="section-label">
-                MINHA CONTA
-              </span>
+          <footer className="portal-footer">
+            <span>
+              ÁgilMed & Real Life
+            </span>
 
-              <h2>
-                {nomeUsuario}
-              </h2>
-
-              <p>
-                {profile?.email || 'E-mail não informado'}
-              </p>
-
-              <div className="account-status">
-                <span />
-                Conta ativa
-              </div>
-
-              <button
-                type="button"
-                className="account-logout"
-                onClick={sair}
-              >
-                Encerrar sessão
-              </button>
-            </div>
-          </div>
-        </section>
+            <span>
+              Portal do Cliente
+            </span>
+          </footer>
+        </main>
       </div>
 
       <style jsx>{`
-        .dashboard {
+        .portal-page {
           min-height: 100vh;
           background: #f5f7fa;
-        }
-
-        .portal-container {
-          width: 100%;
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 0 28px;
+          color: #172033;
         }
 
         .portal-header {
+          height: 76px;
           background: #ffffff;
           border-bottom: 1px solid #e5e7eb;
+          position: sticky;
+          top: 0;
+          z-index: 20;
         }
 
-        .header-content {
-          min-height: 76px;
+        .header-inner {
+          max-width: 1440px;
+          height: 100%;
+          margin: 0 auto;
+          padding: 0 32px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 20px;
         }
 
         .brand-area {
@@ -581,116 +599,107 @@ export default function Home() {
         }
 
         .brand-logo {
-          width: 44px;
-          height: 44px;
+          width: 42px;
+          height: 42px;
+          border-radius: 11px;
+          background: #0f766e;
+          color: #ffffff;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 12px;
-          background: #0f766e;
-          color: #ffffff;
-          font-size: 15px;
           font-weight: 800;
+          font-size: 14px;
+          letter-spacing: -0.5px;
         }
 
-        .brand-area strong {
+        .brand-area h1 {
+          margin: 0;
+          font-size: 16px;
+          line-height: 1.2;
           color: #172033;
-          font-size: 19px;
         }
 
         .brand-area span {
+          display: block;
+          margin-top: 3px;
           color: #64748b;
-          font-size: 19px;
+          font-size: 12px;
         }
 
-        .user-area {
+        .header-user {
           display: flex;
           align-items: center;
-          gap: 10px;
-        }
-
-        .user-avatar {
-          width: 40px;
-          height: 40px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-          background: #dff5f1;
-          color: #0f766e;
-          font-weight: 800;
+          gap: 18px;
         }
 
         .user-info {
           display: flex;
           flex-direction: column;
-          gap: 2px;
-          margin-right: 10px;
+          text-align: right;
         }
 
         .user-info strong {
-          color: #172033;
           font-size: 14px;
+          color: #172033;
         }
 
         .user-info span {
-          color: #64748b;
           font-size: 12px;
+          color: #64748b;
+          margin-top: 2px;
         }
 
-        .logout-button,
-        .account-logout {
-          border: 1px solid #d1d5db;
+        .logout-button {
+          border: 1px solid #d7dde5;
           background: #ffffff;
           color: #475569;
           border-radius: 9px;
           padding: 9px 14px;
+          font-size: 13px;
           font-weight: 700;
-          transition: 0.2s ease;
         }
 
-        .logout-button:hover,
-        .account-logout:hover {
+        .logout-button:hover {
           border-color: #0f766e;
           color: #0f766e;
         }
 
-        .page-content {
+        .portal-layout {
+          max-width: 1440px;
+          margin: 0 auto;
           display: grid;
-          grid-template-columns: 235px minmax(0, 1fr);
-          gap: 28px;
-          padding-top: 28px;
-          padding-bottom: 50px;
+          grid-template-columns: 250px minmax(0, 1fr);
+          min-height: calc(100vh - 76px);
         }
 
         .sidebar {
-          align-self: start;
           background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 18px;
-          padding: 18px;
-          position: sticky;
-          top: 20px;
+          border-right: 1px solid #e5e7eb;
+          padding: 28px 18px;
+          display: flex;
+          flex-direction: column;
         }
 
         .sidebar-title {
-          color: #172033;
-          font-size: 14px;
+          padding: 0 12px 12px;
+          font-size: 10px;
           font-weight: 800;
-          margin: 4px 10px 14px;
+          letter-spacing: 1.2px;
+          color: #94a3b8;
         }
 
-        nav {
+        .menu {
           display: flex;
           flex-direction: column;
           gap: 5px;
         }
 
         .menu-item {
+          min-height: 44px;
           display: flex;
           align-items: center;
-          gap: 10px;
-          padding: 11px 12px;
+          gap: 12px;
+          padding: 10px 12px;
           border-radius: 10px;
           color: #64748b;
           font-size: 13px;
@@ -698,365 +707,508 @@ export default function Home() {
           transition: 0.2s ease;
         }
 
-        .menu-item span {
+        .menu-item:hover {
+          background: #f1f7f6;
+          color: #0f766e;
+        }
+
+        .menu-item.active {
+          background: #e9f5f3;
+          color: #0f766e;
+        }
+
+        .menu-icon {
           width: 20px;
           text-align: center;
+          font-size: 16px;
           font-weight: 800;
         }
 
-        .menu-item:hover,
-        .menu-item.active {
-          background: #eaf7f5;
-          color: #0f766e;
+        .sidebar-footer {
+          margin-top: auto;
+          padding-top: 24px;
         }
 
-        .content {
-          min-width: 0;
-        }
-
-        .welcome-card {
-          min-height: 190px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 30px;
-          padding: 34px;
-          border-radius: 22px;
-          background: linear-gradient(
-            135deg,
-            #0f766e 0%,
-            #115e59 100%
-          );
-          color: #ffffff;
-          box-shadow: 0 12px 30px rgba(15, 118, 110, 0.18);
-        }
-
-        .welcome-label,
-        .section-label {
-          display: block;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-        }
-
-        .welcome-label {
-          color: #b8ebe5;
-          margin-bottom: 8px;
-        }
-
-        .welcome-card h1 {
-          margin: 0 0 8px;
-          font-size: 32px;
-          line-height: 1.1;
-        }
-
-        .welcome-card p {
-          max-width: 650px;
-          margin: 0;
-          color: #d9f5f2;
-          line-height: 1.6;
-          font-size: 15px;
-        }
-
-        .welcome-icon {
-          width: 76px;
-          height: 76px;
-          flex: 0 0 76px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 1px solid rgba(255, 255, 255, 0.25);
-          border-radius: 22px;
-          background: rgba(255, 255, 255, 0.12);
-          font-size: 32px;
-          font-weight: 800;
-        }
-
-        .error-card {
-          margin-top: 20px;
-          padding: 18px 20px;
-          border: 1px solid #fecaca;
-          border-radius: 14px;
-          background: #fff7f7;
-          color: #991b1b;
-        }
-
-        .error-card strong {
-          display: block;
-          margin-bottom: 6px;
-        }
-
-        .error-card p {
-          margin: 0 0 6px;
-          font-size: 14px;
-        }
-
-        .error-card small {
-          color: #b91c1c;
-        }
-
-        .company-bar {
-          display: grid;
-          grid-template-columns: 1.5fr 1fr 1fr;
-          gap: 20px;
-          margin-top: 20px;
-          padding: 20px 22px;
-          background: #ffffff;
+        .support-box {
+          background: #f8fafc;
           border: 1px solid #e5e7eb;
-          border-radius: 16px;
+          border-radius: 12px;
+          padding: 14px;
         }
 
-        .company-bar div {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-        }
-
-        .company-bar span {
-          color: #94a3b8;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.1em;
-        }
-
-        .company-bar strong {
-          color: #172033;
-          font-size: 14px;
-        }
-
-        .status-active {
-          color: #15803d !important;
-        }
-
-        .status-inactive {
-          color: #b91c1c !important;
-        }
-
-        .section-heading {
-          display: flex;
-          justify-content: space-between;
-          align-items: end;
-          margin: 32px 0 16px;
-        }
-
-        .section-label {
-          color: #0f766e;
+        .support-box strong {
+          display: block;
+          font-size: 12px;
+          color: #334155;
           margin-bottom: 5px;
         }
 
-        .section-heading h2,
-        .card-heading h2,
-        .account-card h2 {
-          margin: 0;
-          color: #172033;
-          font-size: 21px;
+        .support-box span {
+          display: block;
+          color: #64748b;
+          font-size: 11px;
+          line-height: 1.5;
         }
 
-        .cards-grid {
+        .main-content {
+          padding: 38px 42px 50px;
+          min-width: 0;
+        }
+
+        .welcome-section {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          margin-bottom: 28px;
+        }
+
+        .eyebrow {
+          display: block;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 1.3px;
+          color: #0f766e;
+          margin-bottom: 8px;
+        }
+
+        .welcome-section h2 {
+          margin: 0;
+          font-size: 30px;
+          line-height: 1.15;
+          letter-spacing: -0.8px;
+          color: #172033;
+        }
+
+        .welcome-section p {
+          margin: 8px 0 0;
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .welcome-status {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid #dce9e6;
+          background: #ffffff;
+          color: #0f766e;
+          padding: 9px 12px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        .status-dot {
+          width: 7px;
+          height: 7px;
+          background: #16a34a;
+          border-radius: 50%;
+        }
+
+        .company-bar {
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 16px;
+          padding: 18px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          margin-bottom: 34px;
+          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+        }
+
+        .company-main {
+          display: flex;
+          align-items: center;
+          gap: 13px;
+        }
+
+        .company-icon {
+          width: 44px;
+          height: 44px;
+          flex: 0 0 44px;
+          border-radius: 12px;
+          background: #e9f5f3;
+          color: #0f766e;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: 800;
+        }
+
+        .company-label {
+          display: block;
+          font-size: 9px;
+          letter-spacing: 1px;
+          color: #94a3b8;
+          font-weight: 800;
+          margin-bottom: 3px;
+        }
+
+        .company-main strong {
+          display: block;
+          font-size: 15px;
+          color: #172033;
+        }
+
+        .company-main small {
+          display: block;
+          color: #64748b;
+          margin-top: 3px;
+          font-size: 11px;
+        }
+
+        .status-badge {
+          padding: 7px 11px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .status-badge.active {
+          background: #eaf8ef;
+          color: #15803d;
+        }
+
+        .status-badge.inactive {
+          background: #fef2f2;
+          color: #b91c1c;
+        }
+
+        .section {
+          margin-bottom: 34px;
+        }
+
+        .section-heading {
+          margin-bottom: 16px;
+        }
+
+        .section-heading h3 {
+          margin: 0;
+          font-size: 19px;
+          color: #172033;
+        }
+
+        .modules-grid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 16px;
         }
 
-        .portal-card {
+        .module-card {
+          display: block;
+          min-width: 0;
           background: #ffffff;
           border: 1px solid #e5e7eb;
-          border-radius: 18px;
-          box-shadow: 0 5px 15px rgba(15, 23, 42, 0.05);
-        }
-
-        .module-card {
-          padding: 22px;
-          transition: 0.2s ease;
+          border-radius: 16px;
+          padding: 20px;
+          color: inherit;
+          text-decoration: none;
+          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+          transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            border-color 0.2s ease;
         }
 
         .module-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 25px rgba(15, 23, 42, 0.09);
+          transform: translateY(-3px);
+          box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+          border-color: #cbd5e1;
+        }
+
+        .security-card:hover {
+          border-color: #8dd4ca;
+        }
+
+        .module-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 18px;
         }
 
         .module-icon {
           width: 42px;
           height: 42px;
+          border-radius: 11px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 12px;
-          background: #eaf7f5;
-          color: #0f766e;
           font-weight: 800;
-          margin-bottom: 16px;
+          font-size: 17px;
         }
 
-        .module-card h3 {
+        .module-icon.security {
+          background: #e9f5f3;
+          color: #0f766e;
+        }
+
+        .module-icon.health {
+          background: #fceef1;
+          color: #be123c;
+        }
+
+        .module-icon.training {
+          background: #eef2ff;
+          color: #4f46e5;
+        }
+
+        .module-icon.documents {
+          background: #fff7ed;
+          color: #c2410c;
+        }
+
+        .module-arrow {
+          color: #94a3b8;
+          font-size: 18px;
+        }
+
+        .module-card h4 {
           margin: 0 0 8px;
+          font-size: 15px;
           color: #172033;
-          font-size: 16px;
         }
 
         .module-card p {
           min-height: 66px;
           margin: 0 0 18px;
           color: #64748b;
-          font-size: 13px;
-          line-height: 1.55;
+          font-size: 12px;
+          line-height: 1.6;
         }
 
-        .module-card button {
+        .module-button {
+          display: block;
           width: 100%;
-          border: 0;
+          padding: 10px 12px;
           border-radius: 9px;
-          padding: 10px;
           background: #0f766e;
           color: #ffffff;
-          font-weight: 700;
+          text-align: center;
+          font-size: 12px;
+          font-weight: 800;
         }
 
-        .bottom-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
-          gap: 16px;
-          margin-top: 20px;
-        }
-
-        .information-card,
-        .account-card {
-          padding: 24px;
-        }
-
-        .card-heading {
-          margin-bottom: 20px;
-        }
-
-        .data-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 16px;
-        }
-
-        .data-item {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-          padding: 13px;
-          border-radius: 10px;
-          background: #f8fafc;
-        }
-
-        .data-item span {
+        .module-button.disabled {
+          background: #f1f5f9;
           color: #94a3b8;
-          font-size: 11px;
-          font-weight: 700;
         }
 
-        .data-item strong {
+        .portal-card {
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 16px;
+          box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+        }
+
+        .company-details {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          overflow: hidden;
+        }
+
+        .detail-item {
+          padding: 18px 20px;
+          border-right: 1px solid #eef2f7;
+          border-bottom: 1px solid #eef2f7;
+        }
+
+        .detail-item span {
+          display: block;
+          color: #94a3b8;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 0.6px;
+          margin-bottom: 6px;
+          text-transform: uppercase;
+        }
+
+        .detail-item strong {
+          display: block;
           color: #334155;
-          font-size: 13px;
-        }
-
-        .account-card {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-        }
-
-        .account-card h2 {
-          margin-top: 8px;
-        }
-
-        .account-card p {
-          margin: 6px 0 18px;
-          color: #64748b;
           font-size: 13px;
           word-break: break-word;
         }
 
-        .account-status {
+        .account-card {
           display: flex;
           align-items: center;
-          gap: 8px;
-          color: #15803d;
-          font-size: 13px;
-          font-weight: 700;
-          margin-bottom: 20px;
+          gap: 16px;
+          padding: 20px;
         }
 
-        .account-status span {
-          width: 8px;
-          height: 8px;
+        .account-avatar {
+          width: 50px;
+          height: 50px;
           border-radius: 50%;
-          background: #22c55e;
+          background: #0f766e;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          font-size: 18px;
+          flex: 0 0 50px;
+        }
+
+        .account-info strong {
+          display: block;
+          color: #172033;
+          font-size: 15px;
+        }
+
+        .account-info > span {
+          display: block;
+          color: #64748b;
+          font-size: 12px;
+          margin-top: 3px;
+        }
+
+        .account-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          margin-top: 9px;
+        }
+
+        .account-tags span {
+          background: #f1f5f9;
+          color: #64748b;
+          border-radius: 999px;
+          padding: 5px 9px;
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .portal-footer {
+          padding-top: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          color: #94a3b8;
+          font-size: 11px;
         }
 
         @media (max-width: 1100px) {
-          .cards-grid {
+          .modules-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
-          .page-content {
-            grid-template-columns: 200px minmax(0, 1fr);
+          .company-details {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .portal-layout {
+            grid-template-columns: 220px minmax(0, 1fr);
+          }
+
+          .main-content {
+            padding: 32px 28px 44px;
           }
         }
 
-        @media (max-width: 850px) {
-          .page-content {
-            grid-template-columns: 1fr;
+        @media (max-width: 800px) {
+          .portal-header {
+            height: auto;
           }
 
-          .sidebar {
-            position: static;
+          .header-inner {
+            padding: 14px 18px;
+            gap: 15px;
           }
 
-          nav {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .company-bar,
-          .bottom-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 600px) {
-          .portal-container {
-            padding-left: 16px;
-            padding-right: 16px;
-          }
-
-          .header-content {
-            min-height: 68px;
+          .header-user {
+            gap: 8px;
           }
 
           .user-info {
             display: none;
           }
 
-          .welcome-card {
-            padding: 26px;
+          .portal-layout {
+            display: block;
           }
 
-          .welcome-card h1 {
-            font-size: 27px;
+          .sidebar {
+            border-right: 0;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px;
           }
 
-          .welcome-icon {
+          .sidebar-title,
+          .sidebar-footer {
             display: none;
           }
 
-          .cards-grid {
+          .menu {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .main-content {
+            padding: 26px 18px 38px;
+          }
+
+          .welcome-section {
+            display: block;
+          }
+
+          .welcome-status {
+            margin-top: 16px;
+          }
+
+          .company-bar {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .company-status {
+            padding-left: 57px;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .brand-area h1 {
+            font-size: 14px;
+          }
+
+          .brand-area span {
+            font-size: 10px;
+          }
+
+          .brand-logo {
+            width: 38px;
+            height: 38px;
+          }
+
+          .welcome-section h2 {
+            font-size: 25px;
+          }
+
+          .modules-grid {
             grid-template-columns: 1fr;
           }
 
-          .data-grid {
+          .company-details {
             grid-template-columns: 1fr;
           }
 
-          nav {
-            grid-template-columns: 1fr;
+          .detail-item {
+            border-right: 0;
+          }
+
+          .portal-footer {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
           }
         }
       `}</style>
-    </main>
+    </div>
   )
 }
