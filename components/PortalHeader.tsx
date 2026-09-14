@@ -43,16 +43,16 @@ export default function PortalHeader() {
     }
   }, [])
 
-  async function sair() {
-    if (saindo) {
-      return
-    }
+ async function sair() {
+  if (saindo) {
+    return
+  }
 
-    setSaindo(true)
+  setSaindo(true)
 
-    await supabase.auth.signOut()
+  router.replace('/login')
 
-    router.replace('/login')
+  await supabase.auth.signOut()
   }
 
   // Não exibe o cabeçalho na tela de login
