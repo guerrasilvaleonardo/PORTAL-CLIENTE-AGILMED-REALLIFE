@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { obterMarcaDaEmpresa } from '@/lib/empresa'
+import type { Marca } from '@/lib/marca'
 
 type Perfil = {
   nome: string | null
@@ -94,12 +96,37 @@ function prioridadeStyle(prioridade: string) {
   return estilos[prioridade] || estilos.normal
 }
 
+const identidade = {
+  agilmed: {
+    nome: 'ÁgilMed Ocupacional',
+    curto: 'ÁgilMed',
+    inicial: 'A',
+    principal: '#2563eb',
+    principalEscura: '#1d4ed8',
+    fundo: '#eff6ff',
+    borda: '#dbeafe',
+    textoSuave: '#64748b',
+  },
+
+  reallife: {
+    nome: 'Real Life SSMA',
+    curto: 'Real Life',
+    inicial: 'R',
+    principal: '#0f766e',
+    principalEscura: '#115e59',
+    fundo: '#f0fdfa',
+    borda: '#ccfbf1',
+    textoSuave: '#64748b',
+  },
+} as const
+
 export default function HomePage() {
   const router = useRouter()
 
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [chamados, setChamados] = useState<ChamadoResumo[]>([])
+  const [marca, setMarca] = useState<Marca>('agilmed')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -125,6 +152,9 @@ export default function HomePage() {
       }
 
       setPerfil(perfilData)
+
+      const marcaEmpresa = await obterMarcaDaEmpresa()
+      setMarca(marcaEmpresa)
 
       if (perfilData.empresa_id) {
         const { data: empresaData } = await supabase
@@ -158,6 +188,8 @@ export default function HomePage() {
     router.push('/login')
   }
 
+  const tema = identidade[marca]
+
   const nomeUsuario =
     perfil?.nome?.split(' ')[0] || 'Cliente'
 
@@ -184,15 +216,29 @@ export default function HomePage() {
   }
 
   return (
-    <main style={styles.page}>
+    <main
+      style={{
+        ...styles.page,
+        '--marca-principal': tema.principal,
+        '--marca-fundo': tema.fundo,
+        '--marca-borda': tema.borda,
+      } as React.CSSProperties}
+    >
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <Link href="/" style={styles.logoArea}>
-            <div style={styles.logoMark}>A</div>
+            <div
+              style={{
+                ...styles.logoMark,
+                background: tema.principal,
+              }}
+            >
+              {tema.inicial}
+            </div>
 
             <div>
               <div style={styles.logoTitle}>
-                ÁgilMed <span>&</span> Real Life
+                {tema.nome}
               </div>
 
               <div style={styles.logoSubtitle}>
@@ -202,7 +248,13 @@ export default function HomePage() {
           </Link>
 
           <nav style={styles.nav}>
-            <Link href="/" style={styles.navLinkActive}>
+            <Link
+              href="/"
+              style={{
+                ...styles.navLinkActive,
+                color: tema.principal,
+              }}
+            >
               Início
             </Link>
 
@@ -236,7 +288,12 @@ export default function HomePage() {
       <div style={styles.container}>
         <section style={styles.hero}>
           <div>
-            <div style={styles.eyebrow}>
+            <div
+              style={{
+                ...styles.eyebrow,
+                color: tema.principal,
+              }}
+            >
               PORTAL DO CLIENTE
             </div>
 
@@ -254,22 +311,41 @@ export default function HomePage() {
             <div style={styles.heroActions}>
               <Link
                 href="/chamados/novo"
-                style={styles.primaryButton}
+                style={{
+                  ...styles.primaryButton,
+                  background: tema.principal,
+                  borderColor: tema.principal,
+                }}
               >
                 + Abrir novo chamado
               </Link>
 
               <Link
                 href="/chamados"
-                style={styles.secondaryButton}
+                style={{
+                  ...styles.secondaryButton,
+                  color: tema.principal,
+                  borderColor: tema.borda,
+                }}
               >
                 Ver meus chamados
               </Link>
             </div>
           </div>
 
-          <div style={styles.heroCard}>
-            <div style={styles.heroCardLabel}>
+          <div
+            style={{
+              ...styles.heroCard,
+              background: tema.fundo,
+              borderColor: tema.borda,
+            }}
+          >
+            <div
+              style={{
+                ...styles.heroCardLabel,
+                color: tema.principal,
+              }}
+            >
               SUA EMPRESA
             </div>
 
@@ -287,7 +363,15 @@ export default function HomePage() {
 
         <section style={styles.statsGrid}>
           <div style={styles.statCard}>
-            <div style={styles.statIcon}>📋</div>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: tema.fundo,
+                color: tema.principal,
+              }}
+            >
+              📋
+            </div>
 
             <div>
               <div style={styles.statNumber}>
@@ -301,7 +385,15 @@ export default function HomePage() {
           </div>
 
           <div style={styles.statCard}>
-            <div style={styles.statIcon}>⏳</div>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: tema.fundo,
+                color: tema.principal,
+              }}
+            >
+              ⏳
+            </div>
 
             <div>
               <div style={styles.statNumber}>
@@ -315,7 +407,15 @@ export default function HomePage() {
           </div>
 
           <div style={styles.statCard}>
-            <div style={styles.statIcon}>✓</div>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: tema.fundo,
+                color: tema.principal,
+              }}
+            >
+              ✓
+            </div>
 
             <div>
               <div style={styles.statNumber}>
@@ -332,7 +432,12 @@ export default function HomePage() {
         <section style={styles.section}>
           <div style={styles.sectionHeader}>
             <div>
-              <div style={styles.sectionEyebrow}>
+              <div
+                style={{
+                  ...styles.sectionEyebrow,
+                  color: tema.principal,
+                }}
+              >
                 ATENDIMENTO
               </div>
 
@@ -347,7 +452,15 @@ export default function HomePage() {
               href="/chamados/novo"
               style={styles.quickCard}
             >
-              <div style={styles.quickIcon}>+</div>
+              <div
+                style={{
+                  ...styles.quickIcon,
+                  background: tema.fundo,
+                  color: tema.principal,
+                }}
+              >
+                +
+              </div>
 
               <div>
                 <h3 style={styles.quickTitle}>
@@ -360,14 +473,29 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <span style={styles.arrow}>→</span>
+              <span
+                style={{
+                  ...styles.arrow,
+                  color: tema.principal,
+                }}
+              >
+                →
+              </span>
             </Link>
 
             <Link
               href="/chamados"
               style={styles.quickCard}
             >
-              <div style={styles.quickIcon}>☰</div>
+              <div
+                style={{
+                  ...styles.quickIcon,
+                  background: tema.fundo,
+                  color: tema.principal,
+                }}
+              >
+                ☰
+              </div>
 
               <div>
                 <h3 style={styles.quickTitle}>
@@ -380,11 +508,20 @@ export default function HomePage() {
                 </p>
               </div>
 
-              <span style={styles.arrow}>→</span>
+              <span
+                style={{
+                  ...styles.arrow,
+                  color: tema.principal,
+                }}
+              >
+                →
+              </span>
             </Link>
 
             <div style={styles.quickCardDisabled}>
-              <div style={styles.quickIconDisabled}>▣</div>
+              <div style={styles.quickIconDisabled}>
+                ▣
+              </div>
 
               <div>
                 <h3 style={styles.quickTitle}>
@@ -403,7 +540,9 @@ export default function HomePage() {
             </div>
 
             <div style={styles.quickCardDisabled}>
-              <div style={styles.quickIconDisabled}>◔</div>
+              <div style={styles.quickIconDisabled}>
+                ◔
+              </div>
 
               <div>
                 <h3 style={styles.quickTitle}>
@@ -426,7 +565,12 @@ export default function HomePage() {
         <section style={styles.section}>
           <div style={styles.sectionHeader}>
             <div>
-              <div style={styles.sectionEyebrow}>
+              <div
+                style={{
+                  ...styles.sectionEyebrow,
+                  color: tema.principal,
+                }}
+              >
                 HISTÓRICO
               </div>
 
@@ -437,7 +581,10 @@ export default function HomePage() {
 
             <Link
               href="/chamados"
-              style={styles.viewAll}
+              style={{
+                ...styles.viewAll,
+                color: tema.principal,
+              }}
             >
               Ver todos →
             </Link>
@@ -458,7 +605,11 @@ export default function HomePage() {
 
               <Link
                 href="/chamados/novo"
-                style={styles.primaryButton}
+                style={{
+                  ...styles.primaryButton,
+                  background: tema.principal,
+                  borderColor: tema.principal,
+                }}
               >
                 Abrir primeiro chamado
               </Link>
@@ -476,7 +627,12 @@ export default function HomePage() {
                       : {}),
                   }}
                 >
-                  <div style={styles.ticketNumber}>
+                  <div
+                    style={{
+                      ...styles.ticketNumber,
+                      color: tema.principal,
+                    }}
+                  >
                     #{chamado.numero}
                   </div>
 
@@ -486,7 +642,8 @@ export default function HomePage() {
                     </div>
 
                     <div style={styles.ticketDate}>
-                      Aberto em {formatarData(chamado.created_at)}
+                      Aberto em{' '}
+                      {formatarData(chamado.created_at)}
                     </div>
                   </div>
 
@@ -521,7 +678,12 @@ export default function HomePage() {
           )}
         </section>
 
-        <section style={styles.helpCard}>
+        <section
+          style={{
+            ...styles.helpCard,
+            background: tema.principalEscura,
+          }}
+        >
           <div>
             <div style={styles.helpEyebrow}>
               PRECISA DE AJUDA?
@@ -547,13 +709,11 @@ export default function HomePage() {
 
         <footer style={styles.footer}>
           <div>
-            <strong>ÁgilMed & Real Life</strong>
+            <strong>{tema.nome}</strong>
             <span> · Portal do Cliente</span>
           </div>
 
-          <div>
-            {perfil?.email || ''}
-          </div>
+          <div>{perfil?.email || ''}</div>
         </footer>
       </div>
     </main>
@@ -598,7 +758,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '42px',
     height: '42px',
     borderRadius: '12px',
-    background: '#2563eb',
     color: '#ffffff',
     display: 'flex',
     alignItems: 'center',
@@ -633,7 +792,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   navLinkActive: {
-    color: '#2563eb',
     textDecoration: 'none',
     fontSize: '13px',
     fontWeight: 700,
@@ -676,7 +834,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   eyebrow: {
-    color: '#2563eb',
     fontSize: '11px',
     fontWeight: 900,
     letterSpacing: '0.12em',
@@ -709,14 +866,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: '#2563eb',
     color: '#ffffff',
     borderRadius: '10px',
     padding: '12px 17px',
     fontSize: '13px',
     fontWeight: 800,
     textDecoration: 'none',
-    border: '1px solid #2563eb',
+    border: '1px solid',
   },
 
   secondaryButton: {
@@ -724,24 +880,21 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     background: '#ffffff',
-    color: '#2563eb',
     borderRadius: '10px',
     padding: '12px 17px',
     fontSize: '13px',
     fontWeight: 800,
     textDecoration: 'none',
-    border: '1px solid #bfdbfe',
+    border: '1px solid',
   },
 
   heroCard: {
-    background: '#eff6ff',
-    border: '1px solid #dbeafe',
     borderRadius: '18px',
     padding: '25px',
+    border: '1px solid',
   },
 
   heroCardLabel: {
-    color: '#2563eb',
     fontSize: '10px',
     fontWeight: 900,
     letterSpacing: '0.1em',
@@ -783,8 +936,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '42px',
     height: '42px',
     borderRadius: '12px',
-    background: '#eff6ff',
-    color: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -817,7 +968,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   sectionEyebrow: {
-    color: '#2563eb',
     fontSize: '10px',
     fontWeight: 900,
     letterSpacing: '0.1em',
@@ -831,7 +981,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   viewAll: {
-    color: '#2563eb',
     textDecoration: 'none',
     fontSize: '13px',
     fontWeight: 700,
@@ -872,8 +1021,6 @@ const styles: Record<string, React.CSSProperties> = {
     width: '43px',
     height: '43px',
     borderRadius: '12px',
-    background: '#eff6ff',
-    color: '#2563eb',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -913,7 +1060,6 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute',
     right: '20px',
     bottom: '18px',
-    color: '#2563eb',
     fontSize: '18px',
     fontWeight: 800,
   },
@@ -953,7 +1099,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   ticketNumber: {
-    color: '#2563eb',
     fontSize: '12px',
     fontWeight: 800,
   },
@@ -1023,7 +1168,6 @@ const styles: Record<string, React.CSSProperties> = {
 
   helpCard: {
     marginTop: '42px',
-    background: '#172033',
     color: '#ffffff',
     borderRadius: '20px',
     padding: '30px 32px',
@@ -1034,7 +1178,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   helpEyebrow: {
-    color: '#93c5fd',
+    color: '#ccfbf1',
     fontSize: '10px',
     fontWeight: 900,
     letterSpacing: '0.1em',
@@ -1048,7 +1192,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   helpText: {
     margin: '8px 0 0',
-    color: '#cbd5e1',
+    color: '#dbeafe',
     fontSize: '13px',
     lineHeight: 1.6,
     maxWidth: '680px',
