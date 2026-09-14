@@ -133,6 +133,10 @@ export default function ChamadosPage() {
   const [erro, setErro] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todos')
+
+  // IMPORTANTE:
+  // Não inicia mais como ÁgilMed.
+  // A página aguarda descobrir a marca real da empresa.
   const [marca, setMarca] = useState<Marca | null>(null)
 
   useEffect(() => {
@@ -150,6 +154,7 @@ export default function ChamadosPage() {
       }
 
       const marcaEmpresa = await obterMarcaDaEmpresa()
+
       setMarca(marcaEmpresa)
 
       const { data, error } = await supabase
@@ -173,11 +178,8 @@ export default function ChamadosPage() {
     carregarChamados()
   }, [router])
 
-  if (!marca) {
-  return null
-}
-
-const tema = identidade[marca]
+  // O useMemo fica antes do retorno condicional.
+  // Isso evita quebra da ordem dos Hooks do React.
   const chamadosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
 
@@ -214,6 +216,21 @@ const tema = identidade[marca]
       chamado.status === 'resolvido' ||
       chamado.status === 'encerrado'
   ).length
+
+  // Enquanto a empresa ainda não foi identificada,
+  // não renderiza nenhuma cor da ÁgilMed.
+  if (!marca) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.loading}>
+          <div style={styles.loadingSpinner} />
+          <span>Carregando seus chamados...</span>
+        </div>
+      </main>
+    )
+  }
+
+  const tema = identidade[marca]
 
   if (loading) {
     return (
@@ -346,7 +363,9 @@ const tema = identidade[marca]
             </div>
 
             <div>
-              <div style={styles.statNumber}>{total}</div>
+              <div style={styles.statNumber}>
+                {total}
+              </div>
 
               <div style={styles.statLabel}>
                 Total de chamados
@@ -366,7 +385,9 @@ const tema = identidade[marca]
             </div>
 
             <div>
-              <div style={styles.statNumber}>{abertos}</div>
+              <div style={styles.statNumber}>
+                {abertos}
+              </div>
 
               <div style={styles.statLabel}>
                 Aguardando atendimento
@@ -468,15 +489,26 @@ const tema = identidade[marca]
                 style={styles.select}
               >
                 <option value="todos">Todos</option>
-                <option value="aberto">Aberto</option>
+
+                <option value="aberto">
+                  Aberto
+                </option>
+
                 <option value="em_atendimento">
                   Em atendimento
                 </option>
+
                 <option value="aguardando_cliente">
                   Aguardando cliente
                 </option>
-                <option value="resolvido">Resolvido</option>
-                <option value="encerrado">Encerrado</option>
+
+                <option value="resolvido">
+                  Resolvido
+                </option>
+
+                <option value="encerrado">
+                  Encerrado
+                </option>
               </select>
             </div>
           </div>
@@ -606,7 +638,9 @@ const tema = identidade[marca]
                       <span>
                         Abertura:{' '}
                         <strong>
-                          {formatarData(chamado.created_at)}
+                          {formatarData(
+                            chamado.created_at
+                          )}
                         </strong>
                       </span>
 
@@ -617,13 +651,17 @@ const tema = identidade[marca]
                       <span>
                         Atualizado:{' '}
                         <strong>
-                          {formatarData(chamado.updated_at)}
+                          {formatarData(
+                            chamado.updated_at
+                          )}
                         </strong>
                       </span>
 
                       {chamado.prazo_sla && (
                         <>
-                          <span style={styles.metaSeparator}>
+                          <span
+                            style={styles.metaSeparator}
+                          >
                             •
                           </span>
 
