@@ -133,7 +133,7 @@ export default function ChamadosPage() {
   const [erro, setErro] = useState('')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todos')
-  const [marca, setMarca] = useState<Marca>('agilmed')
+  const [marca, setMarca] = useState<Marca | null>(null)
 
   useEffect(() => {
     async function carregarChamados() {
@@ -173,8 +173,11 @@ export default function ChamadosPage() {
     carregarChamados()
   }, [router])
 
-  const tema = identidade[marca]
+  if (!marca) {
+  return null
+}
 
+const tema = identidade[marca]
   const chamadosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
 
