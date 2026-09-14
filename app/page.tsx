@@ -1,3 +1,4 @@
+```tsx
 'use client'
 
 import Link from 'next/link'
@@ -127,53 +128,62 @@ export default function HomePage() {
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [chamados, setChamados] = useState<ChamadoResumo[]>([])
-  const [marca, setMarca] = useState<Marca>('agilmed')
+  const [marca, setMarca] = useState<Marca | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function carregarDados() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      try {
+        setLoading(true)
 
-      if (!user) {
-        router.push('/login')
-        return
-      }
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-      .select('nome, email, empresa_id, perfil')
-        .eq('id', user.id)
-        .single()
+        if (!user) {
+          router.push('/login')
+          return
+        }
 
-      if (!perfilData) {
-        setLoading(false)
-        return
-      }
-
-      setPerfil(perfilData)
-
-      const marcaEmpresa = await obterMarcaDaEmpresa()
-      setMarca(marcaEmpresa)
-
-      if (perfilData.empresa_id) {
-        const { data: empresaData } = await supabase
-          .from('empresas')
-          .select('razao_social, nome_fantasia')
-          .eq('id', perfilData.empresa_id)
+        const { data: perfilData, error: perfilError } = await supabase
+          .from('profiles')
+          .select('nome, email, empresa_id, perfil')
+          .eq('id', user.id)
           .single()
 
-        setEmpresa(empresaData)
+        if (perfilError || !perfilData) {
+          setLoading(false)
+          return
+        }
 
-        const { data: chamadosData } = await supabase
-          .from('chamados')
-          .select(
-            'id, numero, assunto, status, prioridade, created_at'
-          )
-          .eq('empresa_id', perfilData.empresa_id)
-          .order('created_at', { ascending: false })
-          .limit(5)
+        setPerfil(perfilData as Perfil)
 
-        setChamados(chamadosData || [])
+        const marcaEmpresa = await obterMarcaDaEmpresa()
+        setMarca(marcaEmpresa)
+
+        if (perfilData.empresa_id) {
+          const { data: empresaData } = await supabase
+            .from('empresas')
+            .select('razao_social, nome_fantasia')
+            .eq('id', perfilData.empresa_id)
+            .single()
+
+          setEmpresa(empresaData)
+
+          const { data: chamadosData } = await supabase
+            .from('chamados')
+            .select(
+              'id, numero, assunto, status, prioridade, created_at'
+            )
+            .eq('empresa_id', perfilData.empresa_id)
+            .order('created_at', { ascending: false })
+            .limit(5)
+
+          setChamados(chamadosData || [])
+        }
+      } catch {
+        setLoading(false)
+        return
       }
 
       setLoading(false)
@@ -185,6 +195,16 @@ export default function HomePage() {
   async function sair() {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  if (loading || !marca) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.loading}>
+          Carregando seu portal...
+        </div>
+      </main>
+    )
   }
 
   const tema = identidade[marca]
@@ -203,16 +223,6 @@ export default function HomePage() {
       chamado.status === 'resolvido' ||
       chamado.status === 'encerrado'
   ).length
-
-  if (loading) {
-    return (
-      <main style={styles.page}>
-        <div style={styles.loading}>
-          Carregando seu portal...
-        </div>
-      </main>
-    )
-  }
 
   return (
     <main
@@ -1228,3 +1238,4 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
   },
 }
+```
