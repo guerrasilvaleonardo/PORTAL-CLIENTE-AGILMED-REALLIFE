@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import PortalHeader from '@/components/PortalHeader'
 
 export const metadata: Metadata = {
   title: 'Portal do Cliente | ÁgilMed & Real Life',
@@ -14,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <PortalHeader />
+        {children}
+      </body>
     </html>
   )
 }
