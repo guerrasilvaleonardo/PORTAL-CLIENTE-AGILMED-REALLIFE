@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Portal do Cliente | ÁgilMed & Real Life',
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body style={{ margin: 0 }}>{children}</body>
+      <body>{children}</body>
     </html>
   )
 }
