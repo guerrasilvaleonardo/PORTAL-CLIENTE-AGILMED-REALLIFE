@@ -627,9 +627,58 @@ export default function HomePage() {
             <div style={styles.tableCard}>
               {chamados.map((chamado, index) => (
                 <Link
-                  key={chamado.id}
-                  href={`/chamados/${chamado.id}`}
-                  style={{
+  key={chamado.id}
+  href={'/chamados/' + chamado.id}
+  style={{
+    ...styles.ticketRow,
+    ...(index === chamados.length - 1
+      ? styles.lastRow
+      : {}),
+  }}
+>
+  <div
+    style={{
+      ...styles.ticketNumber,
+      color: tema.principal,
+    }}
+  >
+    #{chamado.numero}
+  </div>
+
+  <div style={styles.ticketMain}>
+    <div style={styles.ticketSubject}>
+      {chamado.assunto}
+    </div>
+
+    <div style={styles.ticketDate}>
+      Aberto em{' '}
+      {formatarData(chamado.created_at)}
+    </div>
+  </div>
+
+  <div style={styles.ticketPriority}>
+    <span
+      style={prioridadeStyle(chamado.prioridade)}
+    >
+      {prioridadeLabels[chamado.prioridade] ||
+        chamado.prioridade}
+    </span>
+  </div>
+
+  <div>
+    <span
+      style={{
+        ...styles.statusBadge,
+        ...statusStyle(chamado.status),
+      }}
+    >
+      {statusLabels[chamado.status] ||
+        chamado.status}
+    </span>
+  </div>
+
+  <div style={styles.ticketArrow}>→</div>
+</Link>
                     ...styles.ticketRow,
                     ...(index === chamados.length - 1
                       ? styles.lastRow
