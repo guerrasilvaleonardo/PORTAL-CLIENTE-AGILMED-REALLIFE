@@ -260,10 +260,13 @@ export default function Home() {
               Início
             </a>
 
-            <a href="#" className="menu-item">
-              <span>✓</span>
-              Segurança do Trabalho
-            </a>
+            <a
+  href="/seguranca-do-trabalho"
+  className="menu-item"
+>
+  <span>✓</span>
+  Segurança do Trabalho
+</a>
 
             <a href="#" className="menu-item">
               <span>♥</span>
