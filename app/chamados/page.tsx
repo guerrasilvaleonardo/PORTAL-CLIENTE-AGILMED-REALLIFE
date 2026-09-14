@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -11,19 +11,15 @@ type Chamado = {
   categoria: string
   assunto: string
   descricao: string
-  prioridade: 'baixa' | 'normal' | 'alta' | 'urgente'
-  status:
-    | 'aberto'
-    | 'em_atendimento'
-    | 'aguardando_cliente'
-    | 'resolvido'
-    | 'encerrado'
+  prioridade: string
+  status: string
   prazo_sla: string | null
   created_at: string
   updated_at: string
 }
 
-const statusLabel: Record<Chamado['status'], string> = {
+const statusLabels: Record<string, string> = {
+  todos: 'Todos',
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
@@ -31,7 +27,7 @@ const statusLabel: Record<Chamado['status'], string> = {
   encerrado: 'Encerrado',
 }
 
-const prioridadeLabel: Record<Chamado['prioridade'], string> = {
+const prioridadeLabels: Record<string, string> = {
   baixa: 'Baixa',
   normal: 'Normal',
   alta: 'Alta',
@@ -40,18 +36,77 @@ const prioridadeLabel: Record<Chamado['prioridade'], string> = {
 
 function formatarData(data: string) {
   return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   }).format(new Date(data))
+}
+
+function statusStyle(status: string) {
+  const estilos: Record<string, React.CSSProperties> = {
+    aberto: {
+      background: '#eff6ff',
+      color: '#1d4ed8',
+    },
+
+    em_atendimento: {
+      background: '#fff7ed',
+      color: '#c2410c',
+    },
+
+    aguardando_cliente: {
+      background: '#fefce8',
+      color: '#a16207',
+    },
+
+    resolvido: {
+      background: '#f0fdf4',
+      color: '#15803d',
+    },
+
+    encerrado: {
+      background: '#f1f5f9',
+      color: '#475569',
+    },
+  }
+
+  return estilos[status] || estilos.aberto
+}
+
+function prioridadeStyle(prioridade: string) {
+  const estilos: Record<string, React.CSSProperties> = {
+    baixa: {
+      color: '#64748b',
+      background: '#f8fafc',
+    },
+
+    normal: {
+      color: '#2563eb',
+      background: '#eff6ff',
+    },
+
+    alta: {
+      color: '#c2410c',
+      background: '#fff7ed',
+    },
+
+    urgente: {
+      color: '#dc2626',
+      background: '#fef2f2',
+    },
+  }
+
+  return estilos[prioridade] || estilos.normal
 }
 
 export default function ChamadosPage() {
   const router = useRouter()
 
-  const [loading, setLoading] = useState(true)
   const [chamados, setChamados] = useState<Chamado[]>([])
-  const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
+  const [busca, setBusca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('todos')
 
   useEffect(() => {
     async function carregarChamados() {
@@ -63,30 +118,19 @@ export default function ChamadosPage() {
       } = await supabase.auth.getUser()
 
       if (!user) {
-        router.replace('/login')
+        router.push('/login')
         return
       }
 
       const { data, error } = await supabase
         .from('chamados')
         .select(
-          `
-            id,
-            numero,
-            categoria,
-            assunto,
-            descricao,
-            prioridade,
-            status,
-            prazo_sla,
-            created_at,
-            updated_at
-          `,
+          'id, numero, categoria, assunto, descricao, prioridade, status, prazo_sla, created_at, updated_at'
         )
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Erro ao carregar chamados:', error)
+        console.error(error)
         setErro('Não foi possível carregar seus chamados.')
         setLoading(false)
         return
@@ -99,684 +143,1001 @@ export default function ChamadosPage() {
     carregarChamados()
   }, [router])
 
-  async function sair() {
-    await supabase.auth.signOut()
-    router.replace('/login')
-  }
+  const chamadosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
 
-  const chamadosFiltrados =
-    filtroStatus === 'todos'
-      ? chamados
-      : chamados.filter((chamado) => chamado.status === filtroStatus)
+    return chamados.filter((chamado) => {
+      const correspondeStatus =
+        filtroStatus === 'todos' ||
+        chamado.status === filtroStatus
 
-  const totalAbertos = chamados.filter(
+      const correspondeBusca =
+        !termo ||
+        String(chamado.numero).includes(termo) ||
+        chamado.assunto.toLowerCase().includes(termo) ||
+        chamado.categoria.toLowerCase().includes(termo) ||
+        chamado.descricao.toLowerCase().includes(termo)
+
+      return correspondeStatus && correspondeBusca
+    })
+  }, [chamados, busca, filtroStatus])
+
+  const total = chamados.length
+
+  const abertos = chamados.filter(
+    (chamado) => chamado.status === 'aberto'
+  ).length
+
+  const emAtendimento = chamados.filter(
     (chamado) =>
-      chamado.status === 'aberto' ||
-      chamado.status === 'em_atendimento',
+      chamado.status === 'em_atendimento' ||
+      chamado.status === 'aguardando_cliente'
   ).length
 
-  const totalAguardando = chamados.filter(
-    (chamado) => chamado.status === 'aguardando_cliente',
-  ).length
-
-  const totalResolvidos = chamados.filter(
+  const resolvidos = chamados.filter(
     (chamado) =>
       chamado.status === 'resolvido' ||
-      chamado.status === 'encerrado',
+      chamado.status === 'encerrado'
   ).length
 
   if (loading) {
     return (
-      <main className="loading-page">
-        <div className="loading-card">
-          <div className="loading-spinner" />
-          <h2>Carregando chamados...</h2>
-          <p>Aguarde enquanto buscamos suas solicitações.</p>
+      <main style={styles.page}>
+        <div style={styles.loading}>
+          <div style={styles.loadingSpinner} />
+          <span>Carregando seus chamados...</span>
         </div>
-
-        <style jsx>{`
-          .loading-page {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f5f7fa;
-            padding: 24px;
-          }
-
-          .loading-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-          }
-
-          .loading-spinner {
-            width: 42px;
-            height: 42px;
-            margin: 0 auto 20px;
-            border: 4px solid #dbe4e8;
-            border-top-color: #0f766e;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-          }
-
-          h2 {
-            margin: 0 0 8px;
-            color: #172033;
-          }
-
-          p {
-            margin: 0;
-            color: #64748b;
-          }
-
-          @keyframes spin {
-            to {
-              transform: rotate(360deg);
-            }
-          }
-        `}</style>
       </main>
     )
   }
 
   return (
-    <div className="page">
-      <header className="header">
-        <div className="header-inner">
-          <Link href="/" className="brand">
-            <div className="brand-logo">AM</div>
+    <main style={styles.page}>
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <Link href="/" style={styles.logoArea}>
+            <div style={styles.logoMark}>A</div>
 
             <div>
-              <strong>ÁgilMed & Real Life</strong>
-              <span>Portal do Cliente</span>
+              <div style={styles.logoTitle}>
+                ÁgilMed <span>&</span> Real Life
+              </div>
+
+              <div style={styles.logoSubtitle}>
+                Portal do Cliente
+              </div>
             </div>
           </Link>
 
-          <div className="header-actions">
-            <Link href="/" className="back-link">
-              ← Início
+          <nav style={styles.nav}>
+            <Link href="/" style={styles.navLink}>
+              Início
             </Link>
 
-            <button type="button" onClick={sair} className="logout">
-              Sair
-            </button>
-          </div>
+            <Link href="/chamados" style={styles.navLinkActive}>
+              Chamados
+            </Link>
+
+            <span style={styles.navDisabled}>
+              Documentos
+            </span>
+
+            <span style={styles.navDisabled}>
+              Indicadores
+            </span>
+
+            <span style={styles.navDisabled}>
+              Minha empresa
+            </span>
+          </nav>
         </div>
       </header>
 
-      <main className="container">
-        <div className="top-area">
+      <div style={styles.container}>
+        <div style={styles.breadcrumb}>
+          <Link href="/" style={styles.breadcrumbLink}>
+            Início
+          </Link>
+
+          <span> / </span>
+
+          <span>Meus chamados</span>
+        </div>
+
+        <section style={styles.pageHeader}>
           <div>
-            <span className="eyebrow">ATENDIMENTO</span>
+            <div style={styles.eyebrow}>
+              ATENDIMENTO
+            </div>
 
-            <h1>Meus chamados</h1>
+            <h1 style={styles.title}>
+              Meus chamados
+            </h1>
 
-            <p>
-              Acompanhe suas solicitações e converse com nossa equipe.
+            <p style={styles.subtitle}>
+              Acompanhe suas solicitações e converse com nossa
+              equipe.
             </p>
           </div>
 
-          <Link href="/chamados/novo" className="new-button">
-            + Novo chamado
+          <Link
+            href="/chamados/novo"
+            style={styles.primaryButton}
+          >
+            <span style={styles.buttonPlus}>+</span>
+            Novo chamado
           </Link>
-        </div>
+        </section>
 
-        <section className="summary-grid">
-          <div className="summary-card">
-            <span className="summary-icon">🎫</span>
+        <section style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.statIcon}>▤</div>
 
             <div>
-              <span>Total</span>
-              <strong>{chamados.length}</strong>
+              <div style={styles.statNumber}>{total}</div>
+              <div style={styles.statLabel}>
+                Total de chamados
+              </div>
             </div>
           </div>
 
-          <div className="summary-card">
-            <span className="summary-icon open">●</span>
+          <div style={styles.statCard}>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: '#eff6ff',
+                color: '#2563eb',
+              }}
+            >
+              ◷
+            </div>
 
             <div>
-              <span>Em atendimento</span>
-              <strong>{totalAbertos}</strong>
+              <div style={styles.statNumber}>{abertos}</div>
+              <div style={styles.statLabel}>
+                Aguardando atendimento
+              </div>
             </div>
           </div>
 
-          <div className="summary-card">
-            <span className="summary-icon waiting">◷</span>
+          <div style={styles.statCard}>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: '#fff7ed',
+                color: '#ea580c',
+              }}
+            >
+              ↻
+            </div>
 
             <div>
-              <span>Aguardando você</span>
-              <strong>{totalAguardando}</strong>
+              <div style={styles.statNumber}>
+                {emAtendimento}
+              </div>
+              <div style={styles.statLabel}>
+                Em andamento
+              </div>
             </div>
           </div>
 
-          <div className="summary-card">
-            <span className="summary-icon done">✓</span>
+          <div style={styles.statCard}>
+            <div
+              style={{
+                ...styles.statIcon,
+                background: '#f0fdf4',
+                color: '#15803d',
+              }}
+            >
+              ✓
+            </div>
 
             <div>
-              <span>Resolvidos</span>
-              <strong>{totalResolvidos}</strong>
+              <div style={styles.statNumber}>{resolvidos}</div>
+              <div style={styles.statLabel}>
+                Resolvidos
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="content-card">
-          <div className="card-header">
-            <div>
-              <span className="eyebrow">SOLICITAÇÕES</span>
-              <h2>Histórico de chamados</h2>
+        {erro && (
+          <div style={styles.errorBox}>
+            <strong>Não foi possível carregar os chamados.</strong>
+            <span>{erro}</span>
+          </div>
+        )}
+
+        <section style={styles.listSection}>
+          <div style={styles.toolbar}>
+            <div style={styles.searchBox}>
+              <span style={styles.searchIcon}>⌕</span>
+
+              <input
+                type="text"
+                value={busca}
+                onChange={(event) =>
+                  setBusca(event.target.value)
+                }
+                placeholder="Buscar por número, assunto ou categoria..."
+                style={styles.searchInput}
+              />
+
+              {busca && (
+                <button
+                  type="button"
+                  onClick={() => setBusca('')}
+                  style={styles.clearButton}
+                >
+                  ×
+                </button>
+              )}
             </div>
 
-            <select
-              value={filtroStatus}
-              onChange={(event) => setFiltroStatus(event.target.value)}
-              className="filter"
-            >
-              <option value="todos">Todos os chamados</option>
-              <option value="aberto">Abertos</option>
-              <option value="em_atendimento">Em atendimento</option>
-              <option value="aguardando_cliente">
-                Aguardando cliente
-              </option>
-              <option value="resolvido">Resolvidos</option>
-              <option value="encerrado">Encerrados</option>
-            </select>
+            <div style={styles.filterArea}>
+              <span style={styles.filterLabel}>
+                Status:
+              </span>
+
+              <select
+                value={filtroStatus}
+                onChange={(event) =>
+                  setFiltroStatus(event.target.value)
+                }
+                style={styles.select}
+              >
+                <option value="todos">Todos</option>
+                <option value="aberto">Aberto</option>
+                <option value="em_atendimento">
+                  Em atendimento
+                </option>
+                <option value="aguardando_cliente">
+                  Aguardando cliente
+                </option>
+                <option value="resolvido">Resolvido</option>
+                <option value="encerrado">Encerrado</option>
+              </select>
+            </div>
           </div>
 
-          {erro && <div className="error">{erro}</div>}
+          <div style={styles.resultInfo}>
+            <span>
+              {chamadosFiltrados.length}{' '}
+              {chamadosFiltrados.length === 1
+                ? 'chamado encontrado'
+                : 'chamados encontrados'}
+            </span>
 
-          {!erro && chamadosFiltrados.length === 0 && (
-            <div className="empty">
-              <div className="empty-icon">🎫</div>
+            {(busca || filtroStatus !== 'todos') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBusca('')
+                  setFiltroStatus('todos')
+                }}
+                style={styles.clearFilters}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
 
-              <h3>Nenhum chamado encontrado</h3>
+          {chamadosFiltrados.length === 0 ? (
+            <div style={styles.emptyCard}>
+              <div style={styles.emptyIcon}>□</div>
 
-              <p>
-                Você ainda não possui chamados nessa categoria.
+              <h2 style={styles.emptyTitle}>
+                {chamados.length === 0
+                  ? 'Você ainda não possui chamados'
+                  : 'Nenhum chamado encontrado'}
+              </h2>
+
+              <p style={styles.emptyText}>
+                {chamados.length === 0
+                  ? 'Quando você abrir uma solicitação, ela aparecerá nesta área para acompanhamento.'
+                  : 'Tente alterar os filtros ou realizar uma nova busca.'}
               </p>
 
-              <Link href="/chamados/novo" className="empty-button">
-                Abrir meu primeiro chamado
-              </Link>
+              {chamados.length === 0 && (
+                <Link
+                  href="/chamados/novo"
+                  style={styles.primaryButton}
+                >
+                  Abrir novo chamado
+                </Link>
+              )}
             </div>
-          )}
-
-          {!erro && chamadosFiltrados.length > 0 && (
-            <div className="tickets">
+          ) : (
+            <div style={styles.ticketList}>
               {chamadosFiltrados.map((chamado) => (
                 <Link
-                  href={`/chamados/${chamado.id}`}
                   key={chamado.id}
-                  className="ticket"
+                  href={`/chamados/${chamado.id}`}
+                  style={styles.ticketCard}
                 >
-                  <div className="ticket-number">
-                    <span>CHAMADO</span>
-                    <strong>#{String(chamado.numero).padStart(5, '0')}</strong>
-                  </div>
+                  <div style={styles.ticketTop}>
+                    <div style={styles.ticketIdentification}>
+                      <span style={styles.ticketNumber}>
+                        #{chamado.numero}
+                      </span>
 
-                  <div className="ticket-main">
-                    <div className="ticket-title-row">
-                      <h3>{chamado.assunto}</h3>
-
-                      <span
-                        className={`status status-${chamado.status}`}
-                      >
-                        {statusLabel[chamado.status]}
+                      <span style={styles.ticketCategory}>
+                        {chamado.categoria}
                       </span>
                     </div>
 
-                    <p>
-                      {chamado.categoria} · Aberto em{' '}
-                      {formatarData(chamado.created_at)}
-                    </p>
-                  </div>
-
-                  <div className="ticket-priority">
-                    <span>Prioridade</span>
-
-                    <strong
-                      className={`priority priority-${chamado.prioridade}`}
+                    <span
+                      style={{
+                        ...styles.statusBadge,
+                        ...statusStyle(chamado.status),
+                      }}
                     >
-                      {prioridadeLabel[chamado.prioridade]}
-                    </strong>
+                      <span style={styles.statusDot} />
+                      {statusLabels[chamado.status] ||
+                        chamado.status}
+                    </span>
                   </div>
 
-                  <div className="ticket-arrow">→</div>
+                  <div style={styles.ticketBody}>
+                    <div style={styles.ticketContent}>
+                      <h2 style={styles.ticketTitle}>
+                        {chamado.assunto}
+                      </h2>
+
+                      <p style={styles.ticketDescription}>
+                        {chamado.descricao}
+                      </p>
+                    </div>
+
+                    <div style={styles.ticketArrow}>
+                      →
+                    </div>
+                  </div>
+
+                  <div style={styles.ticketFooter}>
+                    <div style={styles.ticketMeta}>
+                      <span>
+                        Abertura:{' '}
+                        <strong>
+                          {formatarData(chamado.created_at)}
+                        </strong>
+                      </span>
+
+                      <span style={styles.metaSeparator}>
+                        •
+                      </span>
+
+                      <span>
+                        Atualizado:{' '}
+                        <strong>
+                          {formatarData(chamado.updated_at)}
+                        </strong>
+                      </span>
+
+                      {chamado.prazo_sla && (
+                        <>
+                          <span style={styles.metaSeparator}>
+                            •
+                          </span>
+
+                          <span>
+                            SLA:{' '}
+                            <strong>
+                              {formatarData(
+                                chamado.prazo_sla
+                              )}
+                            </strong>
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    <span
+                      style={{
+                        ...styles.priorityBadge,
+                        ...prioridadeStyle(
+                          chamado.prioridade
+                        ),
+                      }}
+                    >
+                      {prioridadeLabels[
+                        chamado.prioridade
+                      ] || chamado.prioridade}
+                    </span>
+                  </div>
                 </Link>
               ))}
             </div>
           )}
         </section>
-      </main>
 
-      <style jsx>{`
-        .page {
-          min-height: 100vh;
-          background: #f5f7fa;
-          color: #172033;
-        }
-
-        .header {
-          height: 76px;
-          background: #ffffff;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .header-inner {
-          max-width: 1200px;
-          height: 100%;
-          margin: 0 auto;
-          padding: 0 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .brand-logo {
-          width: 42px;
-          height: 42px;
-          border-radius: 11px;
-          background: #0f766e;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 800;
-          font-size: 14px;
-        }
-
-        .brand strong {
-          display: block;
-          font-size: 15px;
-        }
-
-        .brand span {
-          display: block;
-          margin-top: 3px;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .back-link {
-          color: #0f766e;
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        .logout {
-          border: 1px solid #d7dde5;
-          background: #ffffff;
-          color: #475569;
-          border-radius: 9px;
-          padding: 9px 14px;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 40px 24px 60px;
-        }
-
-        .top-area {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 20px;
-          margin-bottom: 28px;
-        }
-
-        .eyebrow {
-          display: block;
-          margin-bottom: 7px;
-          color: #0f766e;
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 1.2px;
-        }
-
-        h1 {
-          margin: 0;
-          font-size: 30px;
-          letter-spacing: -0.7px;
-        }
-
-        .top-area p {
-          margin: 8px 0 0;
-          color: #64748b;
-          font-size: 14px;
-        }
-
-        .new-button {
-          background: #0f766e;
-          color: #ffffff;
-          border-radius: 10px;
-          padding: 12px 18px;
-          font-size: 13px;
-          font-weight: 800;
-          white-space: nowrap;
-        }
-
-        .summary-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 14px;
-          margin-bottom: 26px;
-        }
-
-        .summary-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 14px;
-          padding: 17px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .summary-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          background: #eef2f7;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-        }
-
-        .summary-icon.open {
-          color: #0f766e;
-          background: #e9f5f3;
-        }
-
-        .summary-icon.waiting {
-          color: #b45309;
-          background: #fff7ed;
-        }
-
-        .summary-icon.done {
-          color: #15803d;
-          background: #eaf8ef;
-        }
-
-        .summary-card span:not(.summary-icon) {
-          display: block;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        .summary-card strong {
-          display: block;
-          margin-top: 2px;
-          font-size: 20px;
-        }
-
-        .content-card {
-          background: #ffffff;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          overflow: hidden;
-        }
-
-        .card-header {
-          padding: 22px 22px 18px;
-          border-bottom: 1px solid #eef2f7;
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 20px;
-        }
-
-        .card-header h2 {
-          margin: 0;
-          font-size: 18px;
-        }
-
-        .filter {
-          border: 1px solid #d7dde5;
-          border-radius: 9px;
-          background: #ffffff;
-          color: #475569;
-          padding: 9px 12px;
-          font-size: 12px;
-        }
-
-        .tickets {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .ticket {
-          display: grid;
-          grid-template-columns: 100px minmax(0, 1fr) 120px 30px;
-          align-items: center;
-          gap: 18px;
-          padding: 19px 22px;
-          border-bottom: 1px solid #eef2f7;
-          transition: background 0.2s ease;
-        }
-
-        .ticket:hover {
-          background: #f8fafc;
-        }
-
-        .ticket:last-child {
-          border-bottom: 0;
-        }
-
-        .ticket-number span,
-        .ticket-priority span {
-          display: block;
-          color: #94a3b8;
-          font-size: 9px;
-          font-weight: 800;
-          letter-spacing: 0.8px;
-          margin-bottom: 4px;
-        }
-
-        .ticket-number strong {
-          color: #0f766e;
-          font-size: 13px;
-        }
-
-        .ticket-title-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .ticket-main h3 {
-          margin: 0;
-          font-size: 14px;
-          color: #172033;
-        }
-
-        .ticket-main p {
-          margin: 5px 0 0;
-          color: #64748b;
-          font-size: 11px;
-        }
-
-        .status {
-          padding: 5px 8px;
-          border-radius: 999px;
-          font-size: 9px;
-          font-weight: 800;
-          white-space: nowrap;
-        }
-
-        .status-aberto {
-          background: #eaf4ff;
-          color: #2563eb;
-        }
-
-        .status-em_atendimento {
-          background: #e9f5f3;
-          color: #0f766e;
-        }
-
-        .status-aguardando_cliente {
-          background: #fff7ed;
-          color: #b45309;
-        }
-
-        .status-resolvido {
-          background: #eaf8ef;
-          color: #15803d;
-        }
-
-        .status-encerrado {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-
-        .priority {
-          font-size: 11px;
-        }
-
-        .priority-baixa {
-          color: #15803d;
-        }
-
-        .priority-normal {
-          color: #475569;
-        }
-
-        .priority-alta {
-          color: #c2410c;
-        }
-
-        .priority-urgente {
-          color: #b91c1c;
-        }
-
-        .ticket-arrow {
-          color: #94a3b8;
-          font-size: 20px;
-        }
-
-        .empty {
-          text-align: center;
-          padding: 70px 20px;
-        }
-
-        .empty-icon {
-          width: 60px;
-          height: 60px;
-          margin: 0 auto 16px;
-          border-radius: 16px;
-          background: #e9f5f3;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 24px;
-        }
-
-        .empty h3 {
-          margin: 0;
-          font-size: 17px;
-        }
-
-        .empty p {
-          margin: 7px 0 20px;
-          color: #64748b;
-          font-size: 13px;
-        }
-
-        .empty-button {
-          display: inline-block;
-          background: #0f766e;
-          color: #ffffff;
-          border-radius: 9px;
-          padding: 10px 15px;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .error {
-          margin: 20px;
-          padding: 14px;
-          border-radius: 10px;
-          background: #fef2f2;
-          color: #b91c1c;
-          font-size: 13px;
-        }
-
-        @media (max-width: 850px) {
-          .summary-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .ticket {
-            grid-template-columns: 80px minmax(0, 1fr) 25px;
-          }
-
-          .ticket-priority {
-            display: none;
-          }
-        }
-
-        @media (max-width: 600px) {
-          .container {
-            padding: 28px 16px 40px;
-          }
-
-          .top-area {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          h1 {
-            font-size: 25px;
-          }
-
-          .summary-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .card-header {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .filter {
-            width: 100%;
-          }
-
-          .ticket {
-            grid-template-columns: 1fr 25px;
-            gap: 8px;
-          }
-
-          .ticket-number {
-            display: none;
-          }
-
-          .ticket-title-row {
-            align-items: flex-start;
-            flex-direction: column;
-            gap: 5px;
-          }
-        }
-      `}</style>
-    </div>
+        <section style={styles.helpCard}>
+          <div style={styles.helpIcon}>?</div>
+
+          <div style={styles.helpContent}>
+            <h2 style={styles.helpTitle}>
+              Precisa abrir uma nova solicitação?
+            </h2>
+
+            <p style={styles.helpText}>
+              Nossa equipe está pronta para ajudar. Registre
+              um novo chamado e acompanhe o atendimento por
+              este portal.
+            </p>
+          </div>
+
+          <Link
+            href="/chamados/novo"
+            style={styles.helpButton}
+          >
+            + Novo chamado
+          </Link>
+        </section>
+
+        <footer style={styles.footer}>
+          <strong>ÁgilMed & Real Life</strong>
+          <span>Portal do Cliente</span>
+        </footer>
+      </div>
+    </main>
   )
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    background: '#f5f7fa',
+    color: '#172033',
+  },
+
+  header: {
+    background: '#ffffff',
+    borderBottom: '1px solid #e5e7eb',
+    position: 'sticky',
+    top: 0,
+    zIndex: 20,
+  },
+
+  headerInner: {
+    width: '100%',
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '16px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '24px',
+  },
+
+  logoArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    textDecoration: 'none',
+    color: '#172033',
+  },
+
+  logoMark: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '12px',
+    background: '#2563eb',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '21px',
+    fontWeight: 900,
+  },
+
+  logoTitle: {
+    fontSize: '16px',
+    fontWeight: 800,
+    lineHeight: 1.2,
+  },
+
+  logoSubtitle: {
+    color: '#64748b',
+    fontSize: '11px',
+    marginTop: '3px',
+  },
+
+  nav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '22px',
+  },
+
+  navLink: {
+    color: '#64748b',
+    textDecoration: 'none',
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+
+  navLinkActive: {
+    color: '#2563eb',
+    textDecoration: 'none',
+    fontSize: '13px',
+    fontWeight: 800,
+  },
+
+  navDisabled: {
+    color: '#cbd5e1',
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+
+  container: {
+    width: '100%',
+    maxWidth: '1280px',
+    margin: '0 auto',
+    padding: '30px 24px 60px',
+  },
+
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '7px',
+    color: '#94a3b8',
+    fontSize: '12px',
+    marginBottom: '25px',
+  },
+
+  breadcrumbLink: {
+    color: '#64748b',
+    textDecoration: 'none',
+    fontWeight: 600,
+  },
+
+  pageHeader: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: '25px',
+    marginBottom: '26px',
+  },
+
+  eyebrow: {
+    color: '#2563eb',
+    fontSize: '10px',
+    fontWeight: 900,
+    letterSpacing: '0.12em',
+    marginBottom: '8px',
+  },
+
+  title: {
+    margin: 0,
+    fontSize: '32px',
+    lineHeight: 1.15,
+    letterSpacing: '-0.03em',
+  },
+
+  subtitle: {
+    margin: '9px 0 0',
+    color: '#64748b',
+    fontSize: '14px',
+  },
+
+  primaryButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '7px',
+    background: '#2563eb',
+    color: '#ffffff',
+    borderRadius: '10px',
+    padding: '12px 17px',
+    fontSize: '13px',
+    fontWeight: 800,
+    textDecoration: 'none',
+    border: '1px solid #2563eb',
+    whiteSpace: 'nowrap',
+  },
+
+  buttonPlus: {
+    fontSize: '18px',
+    lineHeight: 1,
+    fontWeight: 400,
+  },
+
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: '15px',
+    marginBottom: '32px',
+  },
+
+  statCard: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '15px',
+    padding: '19px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '13px',
+  },
+
+  statIcon: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '11px',
+    background: '#f1f5f9',
+    color: '#64748b',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '17px',
+    fontWeight: 800,
+    flexShrink: 0,
+  },
+
+  statNumber: {
+    fontSize: '23px',
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+
+  statLabel: {
+    color: '#64748b',
+    fontSize: '11px',
+    marginTop: '5px',
+  },
+
+  errorBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    background: '#fef2f2',
+    border: '1px solid #fecaca',
+    color: '#991b1b',
+    borderRadius: '12px',
+    padding: '14px 16px',
+    marginBottom: '22px',
+    fontSize: '13px',
+  },
+
+  listSection: {
+    marginTop: '5px',
+  },
+
+  toolbar: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '15px',
+    padding: '15px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '15px',
+  },
+
+  searchBox: {
+    display: 'flex',
+    alignItems: 'center',
+    flex: 1,
+    maxWidth: '650px',
+    minWidth: 0,
+    border: '1px solid #e2e8f0',
+    borderRadius: '10px',
+    background: '#f8fafc',
+    padding: '0 12px',
+  },
+
+  searchIcon: {
+    color: '#94a3b8',
+    fontSize: '20px',
+    lineHeight: 1,
+    marginRight: '7px',
+  },
+
+  searchInput: {
+    width: '100%',
+    border: 0,
+    outline: 0,
+    background: 'transparent',
+    padding: '11px 0',
+    color: '#172033',
+    fontSize: '13px',
+  },
+
+  clearButton: {
+    border: 0,
+    background: 'transparent',
+    color: '#94a3b8',
+    fontSize: '19px',
+    cursor: 'pointer',
+    padding: '0 2px',
+  },
+
+  filterArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+
+  filterLabel: {
+    color: '#64748b',
+    fontSize: '12px',
+    fontWeight: 700,
+  },
+
+  select: {
+    border: '1px solid #e2e8f0',
+    borderRadius: '9px',
+    background: '#ffffff',
+    color: '#334155',
+    padding: '10px 30px 10px 11px',
+    fontSize: '12px',
+    fontWeight: 600,
+    outline: 0,
+  },
+
+  resultInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '15px',
+    margin: '17px 2px 12px',
+    color: '#64748b',
+    fontSize: '12px',
+  },
+
+  clearFilters: {
+    border: 0,
+    background: 'transparent',
+    color: '#2563eb',
+    fontSize: '12px',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+
+  ticketList: {
+    display: 'grid',
+    gap: '12px',
+  },
+
+  ticketCard: {
+    display: 'block',
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '15px',
+    padding: '20px',
+    textDecoration: 'none',
+    color: '#172033',
+    boxShadow: '0 3px 10px rgba(15, 23, 42, 0.025)',
+  },
+
+  ticketTop: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '15px',
+  },
+
+  ticketIdentification: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    minWidth: 0,
+  },
+
+  ticketNumber: {
+    color: '#2563eb',
+    fontSize: '12px',
+    fontWeight: 900,
+  },
+
+  ticketCategory: {
+    background: '#f1f5f9',
+    color: '#64748b',
+    borderRadius: '999px',
+    padding: '5px 9px',
+    fontSize: '10px',
+    fontWeight: 700,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+
+  statusBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    borderRadius: '999px',
+    padding: '6px 10px',
+    fontSize: '10px',
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+  },
+
+  statusDot: {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    background: 'currentColor',
+  },
+
+  ticketBody: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '20px',
+    marginTop: '15px',
+  },
+
+  ticketContent: {
+    minWidth: 0,
+  },
+
+  ticketTitle: {
+    margin: 0,
+    fontSize: '16px',
+    fontWeight: 800,
+    lineHeight: 1.35,
+  },
+
+  ticketDescription: {
+    margin: '7px 0 0',
+    color: '#64748b',
+    fontSize: '12px',
+    lineHeight: 1.5,
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
+  },
+
+  ticketArrow: {
+    color: '#2563eb',
+    fontSize: '24px',
+    fontWeight: 500,
+    flexShrink: 0,
+  },
+
+  ticketFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '15px',
+    borderTop: '1px solid #f1f5f9',
+    marginTop: '17px',
+    paddingTop: '14px',
+  },
+
+  ticketMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
+    color: '#94a3b8',
+    fontSize: '10px',
+  },
+
+  metaSeparator: {
+    color: '#cbd5e1',
+  },
+
+  priorityBadge: {
+    borderRadius: '999px',
+    padding: '5px 9px',
+    fontSize: '9px',
+    fontWeight: 800,
+    whiteSpace: 'nowrap',
+  },
+
+  emptyCard: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: '16px',
+    padding: '55px 25px',
+    textAlign: 'center',
+  },
+
+  emptyIcon: {
+    width: '52px',
+    height: '52px',
+    borderRadius: '15px',
+    background: '#eff6ff',
+    color: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 15px',
+    fontSize: '25px',
+    fontWeight: 800,
+  },
+
+  emptyTitle: {
+    margin: 0,
+    fontSize: '19px',
+  },
+
+  emptyText: {
+    color: '#64748b',
+    fontSize: '13px',
+    lineHeight: 1.6,
+    maxWidth: '500px',
+    margin: '9px auto 22px',
+  },
+
+  helpCard: {
+    marginTop: '30px',
+    background: '#172033',
+    color: '#ffffff',
+    borderRadius: '17px',
+    padding: '23px 25px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px',
+  },
+
+  helpIcon: {
+    width: '42px',
+    height: '42px',
+    borderRadius: '12px',
+    background: '#2563eb',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 900,
+    fontSize: '18px',
+    flexShrink: 0,
+  },
+
+  helpContent: {
+    flex: 1,
+  },
+
+  helpTitle: {
+    margin: 0,
+    fontSize: '15px',
+  },
+
+  helpText: {
+    margin: '5px 0 0',
+    color: '#cbd5e1',
+    fontSize: '11px',
+    lineHeight: 1.5,
+  },
+
+  helpButton: {
+    flexShrink: 0,
+    background: '#ffffff',
+    color: '#172033',
+    textDecoration: 'none',
+    borderRadius: '9px',
+    padding: '10px 14px',
+    fontSize: '12px',
+    fontWeight: 800,
+  },
+
+  footer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginTop: '30px',
+    paddingTop: '18px',
+    borderTop: '1px solid #e2e8f0',
+    color: '#94a3b8',
+    fontSize: '10px',
+  },
+
+  loading: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+    color: '#64748b',
+    fontSize: '13px',
+  },
+
+  loadingSpinner: {
+    width: '16px',
+    height: '16px',
+    borderRadius: '50%',
+    border: '2px solid #dbeafe',
+    borderTopColor: '#2563eb',
+  },
 }
