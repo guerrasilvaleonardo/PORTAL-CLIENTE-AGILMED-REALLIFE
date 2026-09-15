@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
+type Empresa = {
+  nome_fantasia: string
+  marca: string | null
+}
+
 type Chamado = {
   id: string
   numero: number | null
@@ -14,10 +19,7 @@ type Chamado = {
   status: string
   created_at: string
   updated_at: string
-  empresa?: {
-    nome: string
-    marca: string | null
-  } | null
+  empresa: Empresa | null
 }
 
 type FiltroStatus =
@@ -162,7 +164,7 @@ export default function AtendimentoPage() {
           created_at,
           updated_at,
           empresas (
-            nome,
+            nome_fantasia,
             marca
           )
         `)
@@ -171,17 +173,42 @@ export default function AtendimentoPage() {
         })
 
       if (error) {
-        console.error(error)
+        console.error(
+          'Erro Supabase ao carregar chamados:',
+          error
+        )
+
         throw error
       }
 
       const chamadosFormatados: Chamado[] =
-        (data || []).map((item: any) => ({
-          ...item,
-          empresa: Array.isArray(item.empresas)
-            ? item.empresas[0] || null
-            : item.empresas || null,
-        }))
+        (data || []).map((item: any) => {
+          const empresaRelacionada =
+            Array.isArray(item.empresas)
+              ? item.empresas[0] || null
+              : item.empresas || null
+
+          return {
+            id: item.id,
+            numero: item.numero,
+            empresa_id: item.empresa_id,
+            categoria: item.categoria,
+            assunto: item.assunto,
+            prioridade: item.prioridade,
+            status: item.status,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            empresa: empresaRelacionada
+              ? {
+                  nome_fantasia:
+                    empresaRelacionada.nome_fantasia ||
+                    'Empresa não identificada',
+                  marca:
+                    empresaRelacionada.marca || null,
+                }
+              : null,
+          }
+        })
 
       setChamados(chamadosFormatados)
     } catch (error) {
@@ -193,6 +220,8 @@ export default function AtendimentoPage() {
       setErro(
         'Não foi possível carregar os chamados. Verifique as permissões de acesso.'
       )
+
+      setChamados([])
     } finally {
       setCarregando(false)
     }
@@ -216,7 +245,8 @@ export default function AtendimentoPage() {
         chamado.numero?.toString() || '',
         chamado.assunto,
         chamado.categoria,
-        chamado.empresa?.nome || '',
+        chamado.empresa?.nome_fantasia || '',
+        chamado.empresa?.marca || '',
       ]
         .join(' ')
         .toLowerCase()
@@ -230,23 +260,38 @@ export default function AtendimentoPage() {
 
   const quantidadePorStatus = {
     todos: chamados.length,
+
     aberto: chamados.filter(
       (item) => item.status === 'aberto'
     ).length,
+
     em_atendimento: chamados.filter(
-      (item) => item.status === 'em_atendimento'
+      (item) =>
+        item.status === 'em_atendimento'
     ).length,
+
     aguardando_cliente: chamados.filter(
       (item) =>
         item.status === 'aguardando_cliente'
     ).length,
+
     resolvido: chamados.filter(
       (item) => item.status === 'resolvido'
     ).length,
+
     encerrado: chamados.filter(
       (item) => item.status === 'encerrado'
     ).length,
   }
+
+  const filtros: [FiltroStatus, string][] = [
+    ['todos', 'Todos'],
+    ['aberto', 'Abertos'],
+    ['em_atendimento', 'Em atendimento'],
+    ['aguardando_cliente', 'Aguardando cliente'],
+    ['resolvido', 'Resolvidos'],
+    ['encerrado', 'Encerrados'],
+  ]
 
   return (
     <main
@@ -313,23 +358,9 @@ export default function AtendimentoPage() {
             marginBottom: '24px',
           }}
         >
-          {(
-            [
-              ['todos', 'Todos'],
-              ['aberto', 'Abertos'],
-              [
-                'em_atendimento',
-                'Em atendimento',
-              ],
-              [
-                'aguardando_cliente',
-                'Aguardando cliente',
-              ],
-              ['resolvido', 'Resolvidos'],
-              ['encerrado', 'Encerrados'],
-            ] as [FiltroStatus, string][]
-          ).map(([status, label]) => {
-            const ativo = filtroStatus === status
+          {filtros.map(([status, label]) => {
+            const ativo =
+              filtroStatus === status
 
             return (
               <button
@@ -489,8 +520,7 @@ export default function AtendimentoPage() {
                 borderBottom:
                   '1px solid #e2e8f0',
                 display: 'flex',
-                justifyContent:
-                  'space-between',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: '12px',
               }}
@@ -542,8 +572,7 @@ export default function AtendimentoPage() {
               <table
                 style={{
                   width: '100%',
-                  borderCollapse:
-                    'collapse',
+                  borderCollapse: 'collapse',
                   minWidth: '900px',
                 }}
               >
@@ -567,15 +596,13 @@ export default function AtendimentoPage() {
                         key={titulo}
                         style={{
                           textAlign: 'left',
-                          padding:
-                            '13px 14px',
+                          padding: '13px 14px',
                           borderBottom:
                             '1px solid #e2e8f0',
                           color: '#64748b',
                           fontSize: '12px',
                           fontWeight: 700,
-                          whiteSpace:
-                            'nowrap',
+                          whiteSpace: 'nowrap',
                         }}
                       >
                         {titulo}
@@ -599,9 +626,7 @@ export default function AtendimentoPage() {
 
                       return (
                         <tr
-                          key={
-                            chamado.id
-                          }
+                          key={chamado.id}
                           style={{
                             borderBottom:
                               '1px solid #f1f5f9',
@@ -643,14 +668,12 @@ export default function AtendimentoPage() {
                                   '#0f172a',
                               }}
                             >
-                              {chamado
-                                .empresa
-                                ?.nome ||
+                              {chamado.empresa
+                                ?.nome_fantasia ||
                                 'Empresa não identificada'}
                             </div>
 
-                            {chamado
-                              .empresa
+                            {chamado.empresa
                               ?.marca && (
                               <div
                                 style={{
