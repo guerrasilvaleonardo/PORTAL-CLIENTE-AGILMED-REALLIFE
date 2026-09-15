@@ -71,11 +71,10 @@ export default function NovoChamadoPage() {
   const [carregando, setCarregando] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
-
   const [empresaId, setEmpresaId] = useState('');
   const [usuarioId, setUsuarioId] = useState('');
   const [marca, setMarca] = useState<Marca | null>(null);
-  
+
   const [categoria, setCategoria] = useState('');
   const [assunto, setAssunto] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -157,6 +156,27 @@ export default function NovoChamadoPage() {
     try {
       setEnviando(true);
 
+      /*
+       * SLA AUTOMÁTICO
+       *
+       * Baixa   = 48 horas
+       * Normal  = 24 horas
+       * Alta    = 8 horas
+       * Urgente = 4 horas
+       */
+      const horasSla: Record<string, number> = {
+        baixa: 48,
+        normal: 24,
+        alta: 8,
+        urgente: 4,
+      };
+
+      const horas = horasSla[prioridade] ?? 24;
+
+      const prazoSla = new Date(
+        Date.now() + horas * 60 * 60 * 1000
+      ).toISOString();
+
       const { data, error } = await supabase
         .from('chamados')
         .insert({
@@ -167,21 +187,25 @@ export default function NovoChamadoPage() {
           descricao: descricao.trim(),
           prioridade,
           status: 'aberto',
+          prazo_sla: prazoSla,
         })
-        .select('id, numero')
+        .select('id, numero, prazo_sla')
         .single();
 
       if (error) {
         console.error(error);
+
         setErro(
           'Não foi possível abrir o chamado. Tente novamente.'
         );
+
         return;
       }
 
       router.push(`/chamados/${data.id}`);
     } catch (error) {
       console.error(error);
+
       setErro(
         'Ocorreu um erro ao abrir o chamado. Tente novamente.'
       );
@@ -190,22 +214,23 @@ export default function NovoChamadoPage() {
     }
   }
 
- if (!marca) {
-  return (
-    <main style={styles.page}>
-      <section style={styles.loadingContainer}>
-        <div style={styles.spinner} />
-        <p style={styles.loadingText}>
-          Carregando seus dados...
-        </p>
-      </section>
-    </main>
-  );
-}
+  if (!marca) {
+    return (
+      <main style={styles.page}>
+        <section style={styles.loadingContainer}>
+          <div style={styles.spinner} />
 
-const tema = identidade[marca];
+          <p style={styles.loadingText}>
+            Carregando seus dados...
+          </p>
+        </section>
+      </main>
+    );
+  }
 
-if (carregando) {
+  const tema = identidade[marca];
+
+  if (carregando) {
     return (
       <main style={styles.page}>
         <div
@@ -510,7 +535,8 @@ if (carregando) {
                                 ...(selecionada
                                   ? {
                                       ...styles.radioSelected,
-                                      borderColor: tema.principal,
+                                      borderColor:
+                                        tema.principal,
                                     }
                                   : {}),
                               }}
@@ -532,7 +558,8 @@ if (carregando) {
                                 ...(selecionada
                                   ? {
                                       ...styles.priorityLabelSelected,
-                                      color: tema.principalEscura,
+                                      color:
+                                        tema.principalEscura,
                                     }
                                   : {}),
                               }}
@@ -1076,7 +1103,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   priorityOptionSelected: {
-    boxShadow: '0 0 0 3px rgba(37,99,235,0.08)',
+    boxShadow:
+      '0 0 0 3px rgba(37,99,235,0.08)',
   },
 
   priorityTop: {
