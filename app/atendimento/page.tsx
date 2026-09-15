@@ -35,7 +35,7 @@ type FiltroPrioridade =
   | 'todas'
   | 'urgente'
   | 'alta'
-  | 'media'
+  | 'normal'
   | 'baixa'
 
 const statusLabels: Record<string, string> = {
@@ -48,7 +48,7 @@ const statusLabels: Record<string, string> = {
 
 const prioridadeLabels: Record<string, string> = {
   baixa: 'Baixa',
-  media: 'Média',
+  normal: 'Normal',
   alta: 'Alta',
   urgente: 'Urgente',
 }
@@ -121,7 +121,7 @@ function corPrioridade(prioridade: string) {
         color: '#c2410c',
       }
 
-    case 'media':
+    case 'normal':
       return {
         background: '#fef3c7',
         color: '#a16207',
@@ -161,6 +161,36 @@ function chamadoEstaAtrasado(chamado: Chamado) {
   )
 }
 
+function chamadoEstaProximoDoVencimento(
+  chamado: Chamado
+) {
+  if (!chamado.prazo_sla) {
+    return false
+  }
+
+  const status = normalizarValor(chamado.status)
+
+  if (
+    status === 'resolvido' ||
+    status === 'encerrado'
+  ) {
+    return false
+  }
+
+  const agora = Date.now()
+  const prazo = new Date(
+    chamado.prazo_sla
+  ).getTime()
+
+  const duasHoras =
+    2 * 60 * 60 * 1000
+
+  return (
+    prazo > agora &&
+    prazo - agora <= duasHoras
+  )
+}
+
 function formatarPrazoSla(
   prazo: string | null
 ) {
@@ -186,6 +216,14 @@ export default function AtendimentoPage() {
 
   useEffect(() => {
     carregarChamados()
+
+    const intervalo = window.setInterval(() => {
+      carregarChamados()
+    }, 60 * 1000)
+
+    return () => {
+      window.clearInterval(intervalo)
+    }
   }, [])
 
   async function carregarChamados() {
@@ -332,10 +370,17 @@ export default function AtendimentoPage() {
       (item) => chamadoEstaAtrasado(item)
     ).length
 
+    const slaProximoVencimento =
+      chamados.filter(
+        (item) =>
+          chamadoEstaProximoDoVencimento(item)
+      ).length
+
     const slaNoPrazo = chamados.filter(
       (item) =>
         Boolean(item.prazo_sla) &&
         !chamadoEstaAtrasado(item) &&
+        !chamadoEstaProximoDoVencimento(item) &&
         normalizarValor(item.status) !==
           'resolvido' &&
         normalizarValor(item.status) !==
@@ -356,6 +401,7 @@ export default function AtendimentoPage() {
       urgentes,
       altos,
       slaAtrasado,
+      slaProximoVencimento,
       slaNoPrazo,
       semSla,
     }
@@ -624,6 +670,8 @@ export default function AtendimentoPage() {
             marginBottom: '20px',
           }}
         >
+          {/* SLA ATRASADO */}
+
           <div
             style={{
               background:
@@ -678,6 +726,64 @@ export default function AtendimentoPage() {
             </div>
           </div>
 
+          {/* SLA PRÓXIMO */}
+
+          <div
+            style={{
+              background:
+                indicadores.slaProximoVencimento > 0
+                  ? '#fff7ed'
+                  : '#ffffff',
+              border:
+                indicadores.slaProximoVencimento > 0
+                  ? '1px solid #fed7aa'
+                  : '1px solid #e2e8f0',
+              borderRadius: '14px',
+              padding: '18px',
+            }}
+          >
+            <div
+              style={{
+                color:
+                  indicadores.slaProximoVencimento > 0
+                    ? '#c2410c'
+                    : '#64748b',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              Próximo do vencimento
+            </div>
+
+            <div
+              style={{
+                marginTop: '7px',
+                color:
+                  indicadores.slaProximoVencimento > 0
+                    ? '#c2410c'
+                    : '#0f172a',
+                fontSize: '30px',
+                fontWeight: 800,
+              }}
+            >
+              {indicadores.slaProximoVencimento}
+            </div>
+
+            <div
+              style={{
+                marginTop: '5px',
+                color: '#64748b',
+                fontSize: '12px',
+              }}
+            >
+              Até 2 horas para vencer
+            </div>
+          </div>
+
+          {/* SLA NO PRAZO */}
+
           <div
             style={{
               background: '#eff6ff',
@@ -719,6 +825,8 @@ export default function AtendimentoPage() {
               Chamados dentro do prazo
             </div>
           </div>
+
+          {/* SEM SLA */}
 
           <div
             style={{
@@ -773,13 +881,32 @@ export default function AtendimentoPage() {
               color: '#991b1b',
               borderRadius: '12px',
               padding: '14px 16px',
-              marginBottom: '20px',
+              marginBottom: '12px',
               fontSize: '14px',
               fontWeight: 700,
             }}
           >
             ⚠ Existem {indicadores.slaAtrasado}{' '}
             chamado(s) fora do prazo de atendimento.
+          </div>
+        )}
+
+        {indicadores.slaProximoVencimento > 0 && (
+          <div
+            style={{
+              background: '#fff7ed',
+              border: '1px solid #fed7aa',
+              color: '#c2410c',
+              borderRadius: '12px',
+              padding: '14px 16px',
+              marginBottom: '20px',
+              fontSize: '14px',
+              fontWeight: 700,
+            }}
+          >
+            🟠 Atenção: existem{' '}
+            {indicadores.slaProximoVencimento}{' '}
+            chamado(s) com SLA próximo do vencimento.
           </div>
         )}
 
@@ -839,18 +966,23 @@ export default function AtendimentoPage() {
               <option value="todos">
                 Todos os status
               </option>
+
               <option value="aberto">
                 Abertos
               </option>
+
               <option value="em_atendimento">
                 Em atendimento
               </option>
+
               <option value="aguardando_cliente">
                 Aguardando cliente
               </option>
+
               <option value="resolvido">
                 Resolvidos
               </option>
+
               <option value="encerrado">
                 Encerrados
               </option>
@@ -875,15 +1007,19 @@ export default function AtendimentoPage() {
               <option value="todas">
                 Todas as prioridades
               </option>
+
               <option value="urgente">
                 Urgentes
               </option>
+
               <option value="alta">
                 Altas
               </option>
-              <option value="media">
-                Médias
+
+              <option value="normal">
+                Normais
               </option>
+
               <option value="baixa">
                 Baixas
               </option>
@@ -1136,6 +1272,11 @@ export default function AtendimentoPage() {
                           chamado
                         )
 
+                      const proximoDoVencimento =
+                        chamadoEstaProximoDoVencimento(
+                          chamado
+                        )
+
                       return (
                         <tr
                           key={chamado.id}
@@ -1296,11 +1437,15 @@ export default function AtendimentoPage() {
                                     background:
                                       atrasado
                                         ? '#fee2e2'
-                                        : '#dcfce7',
+                                        : proximoDoVencimento
+                                          ? '#ffedd5'
+                                          : '#dcfce7',
                                     color:
                                       atrasado
                                         ? '#b91c1c'
-                                        : '#15803d',
+                                        : proximoDoVencimento
+                                          ? '#c2410c'
+                                          : '#15803d',
                                     fontSize:
                                       '12px',
                                     fontWeight: 700,
@@ -1310,7 +1455,9 @@ export default function AtendimentoPage() {
                                 >
                                   {atrasado
                                     ? '🔴 Atrasado'
-                                    : '🟢 No prazo'}
+                                    : proximoDoVencimento
+                                      ? '🟠 Próximo do vencimento'
+                                      : '🟢 No prazo'}
                                 </span>
 
                                 <div
