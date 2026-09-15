@@ -26,6 +26,14 @@ export const marcas = {
 
 export function obterMarca(
   marca: string | null | undefined
-): Marca {
-  return marca === 'reallife' ? 'reallife' : 'agilmed'
+): Marca | null {
+  if (marca === 'agilmed') {
+    return 'agilmed'
+  }
+
+  if (marca === 'reallife') {
+    return 'reallife'
+  }
+
+  return null
 }
