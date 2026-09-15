@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { marcas, type Marca } from '@/lib/marca'
 
 export default function PortalHeader() {
-  const router = useRouter()
   const pathname = usePathname()
 
   const [marca, setMarca] = useState<Marca | null>(null)
@@ -26,6 +25,7 @@ export default function PortalHeader() {
         if (ativo) {
           setMarca(null)
         }
+
         return
       }
 
@@ -43,25 +43,34 @@ export default function PortalHeader() {
     }
   }, [])
 
- async function sair() {
-  if (saindo) {
-    return
+  async function sair() {
+    if (saindo) {
+      return
+    }
+
+    setSaindo(true)
+
+    try {
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise((resolve) =>
+          setTimeout(resolve, 3000)
+        ),
+      ])
+    } catch (erro) {
+      console.error(
+        'Erro ao encerrar sessão:',
+        erro
+      )
+    } finally {
+      window.location.replace('/login')
+    }
   }
 
-  setSaindo(true)
-
-  router.replace('/login')
-
-  await supabase.auth.signOut()
-  }
-
-  // Não exibe o cabeçalho na tela de login
   if (pathname === '/login') {
     return null
   }
 
-  // Enquanto a empresa ainda está sendo identificada,
-  // não mostra nenhuma marca para evitar o flash da ÁgilMed.
   if (!marca) {
     return null
   }
