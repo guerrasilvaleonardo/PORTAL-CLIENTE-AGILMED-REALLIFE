@@ -38,6 +38,23 @@ type FiltroPrioridade =
   | 'normal'
   | 'baixa'
 
+type Indicadores = {
+  total: number
+  abertos: number
+  emAtendimento: number
+  aguardandoCliente: number
+  resolvidos: number
+  encerrados: number
+  urgentes: number
+  altas: number
+  normais: number
+  baixas: number
+  slaAtrasado: number
+  slaProximo: number
+  slaNoPrazo: number
+  semSla: number
+}
+
 const SLA_ALERTA_HORAS = 2
 const SLA_ALERTA_MS =
   SLA_ALERTA_HORAS * 60 * 60 * 1000
@@ -147,8 +164,12 @@ function corPrioridade(prioridade: string) {
   }
 }
 
-function chamadoFinalizado(chamado: Chamado) {
-  const status = normalizarValor(chamado.status)
+function chamadoFinalizado(
+  chamado: Chamado
+) {
+  const status = normalizarValor(
+    chamado.status
+  )
 
   return (
     status === 'resolvido' ||
@@ -247,6 +268,393 @@ function tempoRestanteSla(
   return `${minutos}min restantes`
 }
 
+function calcularIndicadores(
+  lista: Chamado[],
+  agora: number
+): Indicadores {
+  const abertos = lista.filter(
+    (item) =>
+      normalizarValor(item.status) ===
+      'aberto'
+  ).length
+
+  const emAtendimento = lista.filter(
+    (item) =>
+      normalizarValor(item.status) ===
+      'em_atendimento'
+  ).length
+
+  const aguardandoCliente = lista.filter(
+    (item) =>
+      normalizarValor(item.status) ===
+      'aguardando_cliente'
+  ).length
+
+  const resolvidos = lista.filter(
+    (item) =>
+      normalizarValor(item.status) ===
+      'resolvido'
+  ).length
+
+  const encerrados = lista.filter(
+    (item) =>
+      normalizarValor(item.status) ===
+      'encerrado'
+  ).length
+
+  const urgentes = lista.filter(
+    (item) =>
+      normalizarValor(
+        item.prioridade
+      ) === 'urgente'
+  ).length
+
+  const altas = lista.filter(
+    (item) =>
+      normalizarValor(
+        item.prioridade
+      ) === 'alta'
+  ).length
+
+  const normais = lista.filter(
+    (item) =>
+      normalizarValor(
+        item.prioridade
+      ) === 'normal'
+  ).length
+
+  const baixas = lista.filter(
+    (item) =>
+      normalizarValor(
+        item.prioridade
+      ) === 'baixa'
+  ).length
+
+  const slaAtrasado = lista.filter(
+    (item) =>
+      chamadoEstaAtrasado(
+        item,
+        agora
+      )
+  ).length
+
+  const slaProximo = lista.filter(
+    (item) =>
+      chamadoEstaProximoDoVencimento(
+        item,
+        agora
+      )
+  ).length
+
+  const slaNoPrazo = lista.filter(
+    (item) =>
+      Boolean(item.prazo_sla) &&
+      !chamadoEstaAtrasado(
+        item,
+        agora
+      ) &&
+      !chamadoFinalizado(item)
+  ).length
+
+  const semSla = lista.filter(
+    (item) => !item.prazo_sla
+  ).length
+
+  return {
+    total: lista.length,
+    abertos,
+    emAtendimento,
+    aguardandoCliente,
+    resolvidos,
+    encerrados,
+    urgentes,
+    altas,
+    normais,
+    baixas,
+    slaAtrasado,
+    slaProximo,
+    slaNoPrazo,
+    semSla,
+  }
+}
+
+function CardIndicador({
+  titulo,
+  valor,
+  cor,
+  fundo,
+  borda,
+}: {
+  titulo: string
+  valor: number
+  cor: string
+  fundo: string
+  borda: string
+}) {
+  return (
+    <div
+      style={{
+        background: fundo,
+        border: `1px solid ${borda}`,
+        borderRadius: '14px',
+        padding: '18px',
+        minHeight: '92px',
+      }}
+    >
+      <div
+        style={{
+          color: '#64748b',
+          fontSize: '12px',
+          fontWeight: 700,
+          marginBottom: '7px',
+        }}
+      >
+        {titulo}
+      </div>
+
+      <div
+        style={{
+          color: cor,
+          fontSize: '28px',
+          lineHeight: 1,
+          fontWeight: 800,
+        }}
+      >
+        {valor}
+      </div>
+    </div>
+  )
+}
+
+function DashboardEmpresa({
+  nome,
+  subtitulo,
+  indicadores,
+  corPrincipal,
+  fundo,
+  borda,
+}: {
+  nome: string
+  subtitulo: string
+  indicadores: Indicadores
+  corPrincipal: string
+  fundo: string
+  borda: string
+}) {
+  return (
+    <section
+      style={{
+        background: '#ffffff',
+        border: `1px solid ${borda}`,
+        borderRadius: '18px',
+        padding: '20px',
+        marginBottom: '24px',
+        boxShadow:
+          '0 2px 8px rgba(15, 23, 42, 0.04)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+          marginBottom: '18px',
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: corPrincipal,
+              fontSize: '12px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: '5px',
+            }}
+          >
+            Dashboard da empresa
+          </div>
+
+          <h2
+            style={{
+              margin: 0,
+              color: '#0f172a',
+              fontSize: '22px',
+            }}
+          >
+            {nome}
+          </h2>
+
+          <p
+            style={{
+              margin: '5px 0 0',
+              color: '#64748b',
+              fontSize: '13px',
+            }}
+          >
+            {subtitulo}
+          </p>
+        </div>
+
+        <div
+          style={{
+            background: fundo,
+            border: `1px solid ${borda}`,
+            color: corPrincipal,
+            borderRadius: '999px',
+            padding: '8px 13px',
+            fontSize: '13px',
+            fontWeight: 800,
+          }}
+        >
+          {indicadores.total} chamado(s)
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(145px, 1fr))',
+          gap: '10px',
+        }}
+      >
+        <CardIndicador
+          titulo="Abertos"
+          valor={indicadores.abertos}
+          cor="#1d4ed8"
+          fundo="#eff6ff"
+          borda="#bfdbfe"
+        />
+
+        <CardIndicador
+          titulo="Em atendimento"
+          valor={indicadores.emAtendimento}
+          cor="#b45309"
+          fundo="#fffbeb"
+          borda="#fde68a"
+        />
+
+        <CardIndicador
+          titulo="Aguardando cliente"
+          valor={indicadores.aguardandoCliente}
+          cor="#7e22ce"
+          fundo="#faf5ff"
+          borda="#e9d5ff"
+        />
+
+        <CardIndicador
+          titulo="Resolvidos"
+          valor={indicadores.resolvidos}
+          cor="#15803d"
+          fundo="#f0fdf4"
+          borda="#bbf7d0"
+        />
+
+        <CardIndicador
+          titulo="Urgentes"
+          valor={indicadores.urgentes}
+          cor="#b91c1c"
+          fundo="#fef2f2"
+          borda="#fecaca"
+        />
+
+        <CardIndicador
+          titulo="Alta"
+          valor={indicadores.altas}
+          cor="#c2410c"
+          fundo="#fff7ed"
+          borda="#fed7aa"
+        />
+
+        <CardIndicador
+          titulo="Normal"
+          valor={indicadores.normais}
+          cor="#a16207"
+          fundo="#fefce8"
+          borda="#fde68a"
+        />
+
+        <CardIndicador
+          titulo="Baixa"
+          valor={indicadores.baixas}
+          cor="#15803d"
+          fundo="#f0fdf4"
+          borda="#bbf7d0"
+        />
+      </div>
+
+      <div
+        style={{
+          marginTop: '12px',
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(170px, 1fr))',
+          gap: '10px',
+        }}
+      >
+        <CardIndicador
+          titulo="SLA atrasado"
+          valor={indicadores.slaAtrasado}
+          cor={
+            indicadores.slaAtrasado > 0
+              ? '#b91c1c'
+              : '#15803d'
+          }
+          fundo={
+            indicadores.slaAtrasado > 0
+              ? '#fef2f2'
+              : '#f0fdf4'
+          }
+          borda={
+            indicadores.slaAtrasado > 0
+              ? '#fecaca'
+              : '#bbf7d0'
+          }
+        />
+
+        <CardIndicador
+          titulo="SLA próximo"
+          valor={indicadores.slaProximo}
+          cor={
+            indicadores.slaProximo > 0
+              ? '#b45309'
+              : '#64748b'
+          }
+          fundo={
+            indicadores.slaProximo > 0
+              ? '#fffbeb'
+              : '#f8fafc'
+          }
+          borda={
+            indicadores.slaProximo > 0
+              ? '#fcd34d'
+              : '#e2e8f0'
+          }
+        />
+
+        <CardIndicador
+          titulo="SLA no prazo"
+          valor={indicadores.slaNoPrazo}
+          cor="#1d4ed8"
+          fundo="#eff6ff"
+          borda="#bfdbfe"
+        />
+
+        <CardIndicador
+          titulo="Sem SLA"
+          valor={indicadores.semSla}
+          cor="#475569"
+          fundo="#f8fafc"
+          borda="#e2e8f0"
+        />
+      </div>
+    </section>
+  )
+}
+
 export default function AtendimentoPage() {
   const [chamados, setChamados] =
     useState<Chamado[]>([])
@@ -274,9 +682,10 @@ export default function AtendimentoPage() {
   }, [])
 
   useEffect(() => {
-    const intervalo = window.setInterval(() => {
-      setAgora(Date.now())
-    }, 60_000)
+    const intervalo =
+      window.setInterval(() => {
+        setAgora(Date.now())
+      }, 60_000)
 
     return () => {
       window.clearInterval(intervalo)
@@ -353,16 +762,17 @@ export default function AtendimentoPage() {
             updated_at: item.updated_at,
             prazo_sla:
               item.prazo_sla || null,
-            empresa: empresaRelacionada
-              ? {
-                  nome_fantasia:
-                    empresaRelacionada.nome_fantasia ||
-                    'Empresa não identificada',
-                  marca:
-                    empresaRelacionada.marca ||
-                    null,
-                }
-              : null,
+            empresa:
+              empresaRelacionada
+                ? {
+                    nome_fantasia:
+                      empresaRelacionada.nome_fantasia ||
+                      'Empresa não identificada',
+                    marca:
+                      empresaRelacionada.marca ||
+                      null,
+                  }
+                : null,
           }
         })
 
@@ -384,95 +794,42 @@ export default function AtendimentoPage() {
     }
   }
 
-  const indicadores = useMemo(() => {
-    const abertos = chamados.filter(
-      (item) =>
-        normalizarValor(item.status) ===
-        'aberto'
-    ).length
+  const indicadores = useMemo(
+    () =>
+      calcularIndicadores(
+        chamados,
+        agora
+      ),
+    [chamados, agora]
+  )
 
-    const emAtendimento = chamados.filter(
-      (item) =>
-        normalizarValor(item.status) ===
-        'em_atendimento'
-    ).length
-
-    const aguardandoCliente =
-      chamados.filter(
+  const indicadoresPorEmpresa =
+    useMemo(() => {
+      const agilmed = chamados.filter(
         (item) =>
-          normalizarValor(item.status) ===
-          'aguardando_cliente'
-      ).length
+          normalizarValor(
+            item.empresa?.marca
+          ) === 'agilmed'
+      )
 
-    const resolvidos = chamados.filter(
-      (item) =>
-        normalizarValor(item.status) ===
-        'resolvido'
-    ).length
+      const reallife = chamados.filter(
+        (item) =>
+          normalizarValor(
+            item.empresa?.marca
+          ) === 'reallife'
+      )
 
-    const encerrados = chamados.filter(
-      (item) =>
-        normalizarValor(item.status) ===
-        'encerrado'
-    ).length
-
-    const urgentes = chamados.filter(
-      (item) =>
-        normalizarValor(item.prioridade) ===
-        'urgente'
-    ).length
-
-    const altos = chamados.filter(
-      (item) =>
-        normalizarValor(item.prioridade) ===
-        'alta'
-    ).length
-
-    const slaAtrasado = chamados.filter(
-      (item) =>
-        chamadoEstaAtrasado(item, agora)
-    ).length
-
-    const slaProximo = chamados.filter(
-      (item) =>
-        chamadoEstaProximoDoVencimento(
-          item,
+      return {
+        agilmed: calcularIndicadores(
+          agilmed,
           agora
-        )
-    ).length
-
-    const slaNoPrazo = chamados.filter(
-      (item) =>
-        Boolean(item.prazo_sla) &&
-        !chamadoEstaAtrasado(
-          item,
+        ),
+        reallife: calcularIndicadores(
+          reallife,
           agora
-        ) &&
-        normalizarValor(item.status) !==
-          'resolvido' &&
-        normalizarValor(item.status) !==
-          'encerrado'
-    ).length
-
-    const semSla = chamados.filter(
-      (item) => !item.prazo_sla
-    ).length
-
-    return {
-      total: chamados.length,
-      abertos,
-      emAtendimento,
-      aguardandoCliente,
-      resolvidos,
-      encerrados,
-      urgentes,
-      altos,
-      slaAtrasado,
-      slaProximo,
-      slaNoPrazo,
-      semSla,
-    }
-  }, [chamados, agora])
+        ),
+      }
+    }, [chamados, agora])
 
   const chamadosFiltrados = useMemo(() => {
     const termo =
@@ -511,7 +868,8 @@ export default function AtendimentoPage() {
         chamado.numero?.toString() || '',
         chamado.assunto || '',
         chamado.categoria || '',
-        chamado.empresa?.nome_fantasia || '',
+        chamado.empresa?.nome_fantasia ||
+          '',
         chamado.empresa?.marca || '',
         statusNormalizado,
         prioridadeNormalizada,
@@ -519,7 +877,9 @@ export default function AtendimentoPage() {
         .join(' ')
         .toLowerCase()
 
-      return textoPesquisa.includes(termo)
+      return textoPesquisa.includes(
+        termo
+      )
     })
   }, [
     chamados,
@@ -527,62 +887,6 @@ export default function AtendimentoPage() {
     filtroPrioridade,
     busca,
   ])
-
-  const cards = [
-    {
-      titulo: 'Total',
-      valor: indicadores.total,
-      filtro: 'todos' as FiltroStatus,
-      fundo: '#ffffff',
-      borda: '#e2e8f0',
-      cor: '#0f172a',
-    },
-    {
-      titulo: 'Abertos',
-      valor: indicadores.abertos,
-      filtro: 'aberto' as FiltroStatus,
-      fundo: '#eff6ff',
-      borda: '#bfdbfe',
-      cor: '#1d4ed8',
-    },
-    {
-      titulo: 'Em atendimento',
-      valor:
-        indicadores.emAtendimento,
-      filtro:
-        'em_atendimento' as FiltroStatus,
-      fundo: '#fffbeb',
-      borda: '#fde68a',
-      cor: '#b45309',
-    },
-    {
-      titulo: 'Aguardando cliente',
-      valor:
-        indicadores.aguardandoCliente,
-      filtro:
-        'aguardando_cliente' as FiltroStatus,
-      fundo: '#faf5ff',
-      borda: '#e9d5ff',
-      cor: '#7e22ce',
-    },
-    {
-      titulo: 'Resolvidos',
-      valor: indicadores.resolvidos,
-      filtro:
-        'resolvido' as FiltroStatus,
-      fundo: '#f0fdf4',
-      borda: '#bbf7d0',
-      cor: '#15803d',
-    },
-    {
-      titulo: 'Urgentes',
-      valor: indicadores.urgentes,
-      filtro: null,
-      fundo: '#fef2f2',
-      borda: '#fecaca',
-      cor: '#b91c1c',
-    },
-  ]
 
   return (
     <main
@@ -595,11 +899,12 @@ export default function AtendimentoPage() {
     >
       <div
         style={{
-          maxWidth: '1250px',
+          maxWidth: '1350px',
           margin: '0 auto',
         }}
       >
         {/* CABEÇALHO */}
+
         <div
           style={{
             marginBottom: '28px',
@@ -678,278 +983,224 @@ export default function AtendimentoPage() {
           </div>
         </div>
 
-        {/* INDICADORES */}
-        <div
+        {/* DASHBOARD GERAL */}
+
+        <section
           style={{
-            display: 'grid',
-            gridTemplateColumns:
-              'repeat(auto-fit, minmax(165px, 1fr))',
-            gap: '12px',
+            background: '#ffffff',
+            border:
+              '1px solid #e2e8f0',
+            borderRadius: '18px',
+            padding: '20px',
             marginBottom: '24px',
+            boxShadow:
+              '0 2px 8px rgba(15, 23, 42, 0.04)',
           }}
         >
-          {cards.map((card) => (
-            <button
-              key={card.titulo}
-              type="button"
-              onClick={() => {
-                if (card.filtro) {
-                  setFiltroStatus(
-                    card.filtro
-                  )
-                  setFiltroPrioridade(
-                    'todas'
-                  )
-                }
-              }}
-              style={{
-                textAlign: 'left',
-                border:
-                  `1px solid ${card.borda}`,
-                background: card.fundo,
-                borderRadius: '14px',
-                padding: '18px',
-                cursor: card.filtro
-                  ? 'pointer'
-                  : 'default',
-              }}
-            >
-              <div
-                style={{
-                  color: '#64748b',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  marginBottom: '7px',
-                }}
-              >
-                {card.titulo}
-              </div>
-
-              <div
-                style={{
-                  color: card.cor,
-                  fontSize: '28px',
-                  lineHeight: 1,
-                  fontWeight: 800,
-                }}
-              >
-                {card.valor}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {/* INDICADORES SLA */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns:
-              'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-            marginBottom: '20px',
-          }}
-        >
-          {/* SLA ATRASADO */}
           <div
             style={{
-              background:
+              marginBottom: '18px',
+            }}
+          >
+            <div
+              style={{
+                color: '#0f766e',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}
+            >
+              Visão consolidada
+            </div>
+
+            <h2
+              style={{
+                margin:
+                  '5px 0 0',
+                color: '#0f172a',
+                fontSize: '22px',
+              }}
+            >
+              ÁgilMed + Real Life
+            </h2>
+
+            <p
+              style={{
+                margin:
+                  '5px 0 0',
+                color: '#64748b',
+                fontSize: '13px',
+              }}
+            >
+              Visão geral de todos os
+              chamados disponíveis para o
+              atendimento interno.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(145px, 1fr))',
+              gap: '10px',
+            }}
+          >
+            <CardIndicador
+              titulo="Total"
+              valor={indicadores.total}
+              cor="#0f172a"
+              fundo="#ffffff"
+              borda="#e2e8f0"
+            />
+
+            <CardIndicador
+              titulo="Abertos"
+              valor={indicadores.abertos}
+              cor="#1d4ed8"
+              fundo="#eff6ff"
+              borda="#bfdbfe"
+            />
+
+            <CardIndicador
+              titulo="Em atendimento"
+              valor={indicadores.emAtendimento}
+              cor="#b45309"
+              fundo="#fffbeb"
+              borda="#fde68a"
+            />
+
+            <CardIndicador
+              titulo="Aguardando cliente"
+              valor={
+                indicadores.aguardandoCliente
+              }
+              cor="#7e22ce"
+              fundo="#faf5ff"
+              borda="#e9d5ff"
+            />
+
+            <CardIndicador
+              titulo="Resolvidos"
+              valor={indicadores.resolvidos}
+              cor="#15803d"
+              fundo="#f0fdf4"
+              borda="#bbf7d0"
+            />
+
+            <CardIndicador
+              titulo="Urgentes"
+              valor={indicadores.urgentes}
+              cor="#b91c1c"
+              fundo="#fef2f2"
+              borda="#fecaca"
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop: '12px',
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '10px',
+            }}
+          >
+            <CardIndicador
+              titulo="SLA atrasado"
+              valor={
+                indicadores.slaAtrasado
+              }
+              cor={
+                indicadores.slaAtrasado > 0
+                  ? '#b91c1c'
+                  : '#15803d'
+              }
+              fundo={
                 indicadores.slaAtrasado > 0
                   ? '#fef2f2'
-                  : '#f0fdf4',
-              border:
+                  : '#f0fdf4'
+              }
+              borda={
                 indicadores.slaAtrasado > 0
-                  ? '1px solid #fecaca'
-                  : '1px solid #bbf7d0',
-              borderRadius: '14px',
-              padding: '18px',
-            }}
-          >
-            <div
-              style={{
-                color:
-                  indicadores.slaAtrasado > 0
-                    ? '#b91c1c'
-                    : '#15803d',
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              SLA atrasado
-            </div>
+                  ? '#fecaca'
+                  : '#bbf7d0'
+              }
+            />
 
-            <div
-              style={{
-                marginTop: '7px',
-                color:
-                  indicadores.slaAtrasado > 0
-                    ? '#b91c1c'
-                    : '#15803d',
-                fontSize: '30px',
-                fontWeight: 800,
-              }}
-            >
-              {indicadores.slaAtrasado}
-            </div>
-
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#64748b',
-                fontSize: '12px',
-              }}
-            >
-              Chamados fora do prazo
-            </div>
-          </div>
-
-          {/* SLA PRÓXIMO */}
-          <div
-            style={{
-              background:
+            <CardIndicador
+              titulo="SLA próximo"
+              valor={
+                indicadores.slaProximo
+              }
+              cor={
+                indicadores.slaProximo > 0
+                  ? '#b45309'
+                  : '#64748b'
+              }
+              fundo={
                 indicadores.slaProximo > 0
                   ? '#fffbeb'
-                  : '#ffffff',
-              border:
+                  : '#f8fafc'
+              }
+              borda={
                 indicadores.slaProximo > 0
-                  ? '1px solid #fcd34d'
-                  : '1px solid #e2e8f0',
-              borderRadius: '14px',
-              padding: '18px',
-            }}
-          >
-            <div
-              style={{
-                color:
-                  indicadores.slaProximo > 0
-                    ? '#92400e'
-                    : '#64748b',
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              SLA próximo
-            </div>
+                  ? '#fcd34d'
+                  : '#e2e8f0'
+              }
+            />
 
-            <div
-              style={{
-                marginTop: '7px',
-                color:
-                  indicadores.slaProximo > 0
-                    ? '#b45309'
-                    : '#0f172a',
-                fontSize: '30px',
-                fontWeight: 800,
-              }}
-            >
-              {indicadores.slaProximo}
-            </div>
+            <CardIndicador
+              titulo="SLA no prazo"
+              valor={
+                indicadores.slaNoPrazo
+              }
+              cor="#1d4ed8"
+              fundo="#eff6ff"
+              borda="#bfdbfe"
+            />
 
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#64748b',
-                fontSize: '12px',
-              }}
-            >
-              Vencimento em até{' '}
-              {SLA_ALERTA_HORAS} horas
-            </div>
+            <CardIndicador
+              titulo="Sem SLA"
+              valor={
+                indicadores.semSla
+              }
+              cor="#475569"
+              fundo="#f8fafc"
+              borda="#e2e8f0"
+            />
           </div>
+        </section>
 
-          {/* SLA NO PRAZO */}
-          <div
-            style={{
-              background: '#eff6ff',
-              border:
-                '1px solid #bfdbfe',
-              borderRadius: '14px',
-              padding: '18px',
-            }}
-          >
-            <div
-              style={{
-                color: '#1d4ed8',
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              SLA no prazo
-            </div>
+        {/* DASHBOARD ÁGILMED */}
 
-            <div
-              style={{
-                marginTop: '7px',
-                color: '#1d4ed8',
-                fontSize: '30px',
-                fontWeight: 800,
-              }}
-            >
-              {indicadores.slaNoPrazo}
-            </div>
+        <DashboardEmpresa
+          nome="ÁgilMed Ocupacional"
+          subtitulo="Indicadores exclusivos dos chamados da ÁgilMed."
+          indicadores={
+            indicadoresPorEmpresa.agilmed
+          }
+          corPrincipal="#2563eb"
+          fundo="#eff6ff"
+          borda="#bfdbfe"
+        />
 
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#64748b',
-                fontSize: '12px',
-              }}
-            >
-              Chamados dentro do prazo
-            </div>
-          </div>
+        {/* DASHBOARD REAL LIFE */}
 
-          {/* SEM SLA */}
-          <div
-            style={{
-              background: '#ffffff',
-              border:
-                '1px solid #e2e8f0',
-              borderRadius: '14px',
-              padding: '18px',
-            }}
-          >
-            <div
-              style={{
-                color: '#64748b',
-                fontSize: '12px',
-                fontWeight: 800,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}
-            >
-              Sem SLA
-            </div>
+        <DashboardEmpresa
+          nome="Real Life SSMA"
+          subtitulo="Indicadores exclusivos dos chamados da Real Life."
+          indicadores={
+            indicadoresPorEmpresa.reallife
+          }
+          corPrincipal="#0f766e"
+          fundo="#f0fdfa"
+          borda="#ccfbf1"
+        />
 
-            <div
-              style={{
-                marginTop: '7px',
-                color: '#0f172a',
-                fontSize: '30px',
-                fontWeight: 800,
-              }}
-            >
-              {indicadores.semSla}
-            </div>
+        {/* ALERTAS SLA */}
 
-            <div
-              style={{
-                marginTop: '5px',
-                color: '#64748b',
-                fontSize: '12px',
-              }}
-            >
-              Chamados sem prazo definido
-            </div>
-          </div>
-        </div>
-
-        {/* ALERTA SLA ATRASADO */}
         {indicadores.slaAtrasado > 0 && (
           <div
             style={{
@@ -971,7 +1222,6 @@ export default function AtendimentoPage() {
           </div>
         )}
 
-        {/* ALERTA SLA PRÓXIMO */}
         {indicadores.slaProximo > 0 && (
           <div
             style={{
@@ -995,6 +1245,7 @@ export default function AtendimentoPage() {
         )}
 
         {/* FILTROS */}
+
         <div
           style={{
             background: '#ffffff',
@@ -1169,6 +1420,7 @@ export default function AtendimentoPage() {
         </div>
 
         {/* ERRO */}
+
         {erro && (
           <div
             style={{
@@ -1197,7 +1449,8 @@ export default function AtendimentoPage() {
           </div>
         )}
 
-        {/* LISTAGEM */}
+        {/* TABELA UNIFICADA */}
+
         {carregando ? (
           <div
             style={{
@@ -1285,7 +1538,7 @@ export default function AtendimentoPage() {
                     fontSize: '16px',
                   }}
                 >
-                  Chamados
+                  Todos os chamados
                 </strong>
 
                 <div
@@ -1421,13 +1674,14 @@ export default function AtendimentoPage() {
 
                       return (
                         <tr
-                          key={chamado.id}
+                          key={
+                            chamado.id
+                          }
                           style={{
                             borderBottom:
                               '1px solid #f1f5f9',
                           }}
                         >
-                          {/* CHAMADO */}
                           <td
                             style={{
                               padding:
@@ -1451,7 +1705,6 @@ export default function AtendimentoPage() {
                             </strong>
                           </td>
 
-                          {/* EMPRESA */}
                           <td
                             style={{
                               padding:
@@ -1480,21 +1733,28 @@ export default function AtendimentoPage() {
                                   marginTop:
                                     '3px',
                                   color:
-                                    '#64748b',
+                                    chamado
+                                      .empresa
+                                      .marca ===
+                                    'reallife'
+                                      ? '#0f766e'
+                                      : '#2563eb',
                                   fontSize:
                                     '12px',
+                                  fontWeight:
+                                    700,
                                 }}
                               >
-                                {
-                                  chamado
-                                    .empresa
-                                    .marca
-                                }
+                                {chamado
+                                  .empresa
+                                  .marca ===
+                                'reallife'
+                                  ? 'Real Life'
+                                  : 'ÁgilMed'}
                               </div>
                             )}
                           </td>
 
-                          {/* ASSUNTO */}
                           <td
                             style={{
                               padding:
@@ -1517,7 +1777,6 @@ export default function AtendimentoPage() {
                             </div>
                           </td>
 
-                          {/* CATEGORIA */}
                           <td
                             style={{
                               padding:
@@ -1535,7 +1794,6 @@ export default function AtendimentoPage() {
                             }
                           </td>
 
-                          {/* PRIORIDADE */}
                           <td
                             style={{
                               padding:
@@ -1569,7 +1827,6 @@ export default function AtendimentoPage() {
                             </span>
                           </td>
 
-                          {/* STATUS */}
                           <td
                             style={{
                               padding:
@@ -1605,7 +1862,6 @@ export default function AtendimentoPage() {
                             </span>
                           </td>
 
-                          {/* SLA */}
                           <td
                             style={{
                               padding:
@@ -1696,7 +1952,6 @@ export default function AtendimentoPage() {
                             )}
                           </td>
 
-                          {/* ABERTURA */}
                           <td
                             style={{
                               padding:
@@ -1714,7 +1969,6 @@ export default function AtendimentoPage() {
                             )}
                           </td>
 
-                          {/* AÇÃO */}
                           <td
                             style={{
                               padding:
@@ -1731,7 +1985,12 @@ export default function AtendimentoPage() {
                                 textDecoration:
                                   'none',
                                 background:
-                                  '#0f766e',
+                                  chamado
+                                    .empresa
+                                    ?.marca ===
+                                  'reallife'
+                                    ? '#0f766e'
+                                    : '#2563eb',
                                 color:
                                   '#ffffff',
                                 padding:
