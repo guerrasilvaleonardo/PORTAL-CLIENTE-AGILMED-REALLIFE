@@ -11,28 +11,49 @@ export default function PortalHeader() {
   const pathname = usePathname()
 
   const [marca, setMarca] = useState<Marca | null>(null)
+  const [carregando, setCarregando] = useState(true)
   const [saindo, setSaindo] = useState(false)
 
   useEffect(() => {
     let ativo = true
 
     async function carregarMarca() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      try {
+        setCarregando(true)
 
-      if (!user) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          if (ativo) {
+            setMarca(null)
+            setCarregando(false)
+          }
+
+          return
+        }
+
+        const marcaEmpresa = await obterMarcaDaEmpresa()
+
+        if (!ativo) {
+          return
+        }
+
+        setMarca(marcaEmpresa)
+      } catch (erro) {
+        console.error(
+          'Erro ao carregar marca da empresa:',
+          erro
+        )
+
         if (ativo) {
           setMarca(null)
         }
-
-        return
-      }
-
-      const marcaEmpresa = await obterMarcaDaEmpresa()
-
-      if (ativo) {
-        setMarca(marcaEmpresa)
+      } finally {
+        if (ativo) {
+          setCarregando(false)
+        }
       }
     }
 
@@ -51,19 +72,16 @@ export default function PortalHeader() {
     setSaindo(true)
 
     try {
-      await Promise.race([
-        supabase.auth.signOut({ scope: 'local' }),
-        new Promise((resolve) =>
-          setTimeout(resolve, 3000)
-        ),
-      ])
+      await supabase.auth.signOut({
+        scope: 'local',
+      })
     } catch (erro) {
       console.error(
         'Erro ao encerrar sessão:',
         erro
       )
     } finally {
-      window.location.replace('/login')
+      window.location.href = '/login'
     }
   }
 
@@ -71,7 +89,7 @@ export default function PortalHeader() {
     return null
   }
 
-  if (!marca) {
+  if (carregando || !marca) {
     return null
   }
 
@@ -191,6 +209,7 @@ export default function PortalHeader() {
               fontSize: '14px',
               fontWeight: 600,
               cursor: saindo ? 'wait' : 'pointer',
+              opacity: saindo ? 0.6 : 1,
             }}
           >
             {saindo ? 'Saindo...' : 'Sair'}
