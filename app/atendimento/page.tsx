@@ -275,13 +275,61 @@ export default function AtendimentoPage() {
     }
   }, [chamados])
 
-  const chamadosFiltrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase()
+ const chamadosFiltrados = useMemo(() => {
+  const termo = busca.trim().toLowerCase()
 
-    return chamados.filter((chamado) => {
-      const correspondeStatus =
-        filtroStatus === 'todos' ||
-        chamado.status === filtroStatus
+  return chamados.filter((chamado) => {
+    const statusNormalizado = String(chamado.status || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+
+    const prioridadeNormalizada = String(
+      chamado.prioridade || ''
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+
+    const correspondeStatus =
+      filtroStatus === 'todos' ||
+      statusNormalizado === filtroStatus
+
+    const correspondePrioridade =
+      filtroPrioridade === 'todas' ||
+      prioridadeNormalizada === filtroPrioridade
+
+    if (
+      !correspondeStatus ||
+      !correspondePrioridade
+    ) {
+      return false
+    }
+
+    if (!termo) {
+      return true
+    }
+
+    const textoPesquisa = [
+      chamado.numero?.toString() || '',
+      chamado.assunto || '',
+      chamado.categoria || '',
+      chamado.empresa?.nome_fantasia || '',
+      chamado.empresa?.marca || '',
+      statusNormalizado,
+      prioridadeNormalizada,
+    ]
+      .join(' ')
+      .toLowerCase()
+
+    return textoPesquisa.includes(termo)
+  })
+}, [
+  chamados,
+  filtroStatus,
+  filtroPrioridade,
+  busca,
+])
 
       const correspondePrioridade =
         filtroPrioridade === 'todas' ||
