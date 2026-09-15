@@ -598,7 +598,5 @@ Olá, {perfil?.nome || 'Cliente'}! </h1>
     </section>
   </div>
 </main>
-```
-
 )
 }
