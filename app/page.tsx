@@ -260,15 +260,41 @@ export default function HomePage() {
           return
         }
 
-        const marcaEmpresa = await obterMarcaDaEmpresa()
+       const { data: perfilData, error: perfilError } = await supabase
+  .from('profiles')
+  .select('nome, email, empresa_id, perfil')
+  .eq('id', user.id)
+  .single()
 
-        if (!ativo) {
-          return
-        }
+if (perfilError) {
+  throw perfilError
+}
 
-        setMarca(marcaEmpresa)
+if (!perfilData?.empresa_id) {
+  throw new Error('Empresa do usuário não encontrada.')
+}
 
-        const { data: perfilData, error: perfilError } = await supabase
+const { data: empresaData, error: empresaError } = await supabase
+  .from('empresas')
+  .select('marca')
+  .eq('id', perfilData.empresa_id)
+  .single()
+
+if (empresaError) {
+  throw empresaError
+}
+
+if (!empresaData?.marca) {
+  throw new Error('Marca da empresa não encontrada.')
+}
+
+const marcaEmpresa = obterMarca(empresaData.marca)
+
+if (!ativo) {
+  return
+}
+
+setMarca(marcaEmpresa)
           .from('profiles')
           .select('nome, email, empresa_id, perfil')
           .eq('id', user.id)
