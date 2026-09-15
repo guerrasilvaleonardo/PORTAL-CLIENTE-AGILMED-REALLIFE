@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { marcas, obterMarca, type Marca } from '@/lib/marca'
+import { marcas, type Marca } from '@/lib/marca'
+import { obterMarcaDaEmpresa } from '@/lib/empresa'
 
 type Perfil = {
   nome: string | null
@@ -256,15 +257,10 @@ export default function HomePage() {
             setError('Usuário não autenticado.')
             setLoading(false)
           }
+
           return
         }
 
-        /*
-         * 1. Busca o perfil do usuário autenticado.
-         * 2. Descobre a empresa vinculada ao perfil.
-         * 3. Busca a marca da empresa.
-         * 4. Define o tema correto do portal.
-         */
         const { data: perfilData, error: perfilError } =
           await supabase
             .from('profiles')
@@ -282,24 +278,17 @@ export default function HomePage() {
           )
         }
 
-        const { data: empresaData, error: empresaError } =
-          await supabase
-            .from('empresas')
-            .select('marca')
-            .eq('id', perfilData.empresa_id)
-            .single()
+        /*
+         * A marca da empresa é obtida pela mesma função
+         * utilizada pelo cabeçalho do portal.
+         */
+        const marcaEmpresa = await obterMarcaDaEmpresa()
 
-        if (empresaError) {
-          throw empresaError
-        }
-
-        if (!empresaData) {
+        if (!marcaEmpresa) {
           throw new Error(
-            'Dados da empresa não encontrados.'
+            'Não foi possível identificar a marca da empresa.'
           )
         }
-
-        const marcaEmpresa = obterMarca(empresaData.marca)
 
         if (!ativo) {
           return
@@ -362,7 +351,9 @@ export default function HomePage() {
   if (loading || !marca) {
     return (
       <div style={styles.loading}>
-        Carregando portal...
+        {error
+          ? error
+          : 'Carregando portal...'}
       </div>
     )
   }
