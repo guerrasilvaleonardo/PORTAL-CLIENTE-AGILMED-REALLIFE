@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
@@ -29,6 +29,13 @@ type FiltroStatus =
   | 'aguardando_cliente'
   | 'resolvido'
   | 'encerrado'
+
+type FiltroPrioridade =
+  | 'todas'
+  | 'urgente'
+  | 'alta'
+  | 'media'
+  | 'baixa'
 
 const statusLabels: Record<string, string> = {
   aberto: 'Aberto',
@@ -124,8 +131,13 @@ export default function AtendimentoPage() {
   const [chamados, setChamados] = useState<Chamado[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
+
   const [filtroStatus, setFiltroStatus] =
     useState<FiltroStatus>('todos')
+
+  const [filtroPrioridade, setFiltroPrioridade] =
+    useState<FiltroPrioridade>('todas')
+
   const [busca, setBusca] = useState('')
 
   useEffect(() => {
@@ -151,15 +163,7 @@ export default function AtendimentoPage() {
         return
       }
 
-      /*
-       * 1. Busca os chamados sem relacionamento embutido.
-       * Isso evita problemas de relacionamento/PostgREST
-       * entre chamados e empresas.
-       */
-      const {
-        data: chamadosData,
-        error: chamadosError,
-      } = await supabase
+      const { data, error } = await supabase
         .from('chamados')
         .select(`
           id,
@@ -170,120 +174,64 @@ export default function AtendimentoPage() {
           prioridade,
           status,
           created_at,
-          updated_at
+          updated_at,
+          empresas (
+            nome_fantasia,
+            marca
+          )
         `)
         .order('created_at', {
           ascending: false,
         })
 
-      if (chamadosError) {
+      if (error) {
         console.error(
-          'Erro ao consultar chamados:',
-          chamadosError
+          'Erro Supabase ao carregar chamados:',
+          error
         )
 
-        throw new Error(
-          chamadosError.message ||
-            'Erro ao consultar chamados.'
-        )
+        throw error
       }
 
-      const chamadosBrutos = chamadosData || []
-
-      /*
-       * 2. Descobre quais empresas estão relacionadas
-       * aos chamados encontrados.
-       */
-      const empresaIds = Array.from(
-        new Set(
-          chamadosBrutos
-            .map((chamado) => chamado.empresa_id)
-            .filter(Boolean)
-        )
-      )
-
-      let empresasMap = new Map<
-        string,
-        Empresa
-      >()
-
-      /*
-       * 3. Busca as empresas separadamente.
-       */
-      if (empresaIds.length > 0) {
-        const {
-          data: empresasData,
-          error: empresasError,
-        } = await supabase
-          .from('empresas')
-          .select(`
-            id,
-            nome_fantasia,
-            marca
-          `)
-          .in('id', empresaIds)
-
-        if (empresasError) {
-          console.error(
-            'Erro ao consultar empresas:',
-            empresasError
-          )
-
-          throw new Error(
-            empresasError.message ||
-              'Erro ao consultar empresas.'
-          )
-        }
-
-        empresasMap = new Map(
-          (empresasData || []).map(
-            (empresa: any) => [
-              empresa.id,
-              {
-                nome_fantasia:
-                  empresa.nome_fantasia ||
-                  'Empresa não identificada',
-                marca:
-                  empresa.marca || null,
-              },
-            ]
-          )
-        )
-      }
-
-      /*
-       * 4. Monta a estrutura final usada pela tela.
-       */
       const chamadosFormatados: Chamado[] =
-        chamadosBrutos.map((item: any) => ({
-          id: item.id,
-          numero: item.numero,
-          empresa_id: item.empresa_id,
-          categoria: item.categoria,
-          assunto: item.assunto,
-          prioridade: item.prioridade,
-          status: item.status,
-          created_at: item.created_at,
-          updated_at: item.updated_at,
-          empresa:
-            empresasMap.get(item.empresa_id) ||
-            null,
-        }))
+        (data || []).map((item: any) => {
+          const empresaRelacionada =
+            Array.isArray(item.empresas)
+              ? item.empresas[0] || null
+              : item.empresas || null
+
+          return {
+            id: item.id,
+            numero: item.numero,
+            empresa_id: item.empresa_id,
+            categoria: item.categoria,
+            assunto: item.assunto,
+            prioridade: item.prioridade,
+            status: item.status,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+            empresa: empresaRelacionada
+              ? {
+                  nome_fantasia:
+                    empresaRelacionada.nome_fantasia ||
+                    'Empresa não identificada',
+                  marca:
+                    empresaRelacionada.marca || null,
+                }
+              : null,
+          }
+        })
 
       setChamados(chamadosFormatados)
-    } catch (error) {
+    } catch (error: any) {
       console.error(
-        'Erro ao carregar Central de Atendimento:',
+        'Erro ao carregar chamados:',
         error
       )
 
-      const mensagem =
-        error instanceof Error
-          ? error.message
-          : 'Erro desconhecido.'
-
       setErro(
-        `Não foi possível carregar os chamados. ${mensagem}`
+        error?.message ||
+          'Não foi possível carregar os chamados.'
       )
 
       setChamados([])
@@ -292,18 +240,59 @@ export default function AtendimentoPage() {
     }
   }
 
-  const chamadosFiltrados = chamados.filter(
-    (chamado) => {
+  const indicadores = useMemo(() => {
+    return {
+      total: chamados.length,
+
+      abertos: chamados.filter(
+        (item) => item.status === 'aberto'
+      ).length,
+
+      emAtendimento: chamados.filter(
+        (item) => item.status === 'em_atendimento'
+      ).length,
+
+      aguardandoCliente: chamados.filter(
+        (item) =>
+          item.status === 'aguardando_cliente'
+      ).length,
+
+      resolvidos: chamados.filter(
+        (item) => item.status === 'resolvido'
+      ).length,
+
+      encerrados: chamados.filter(
+        (item) => item.status === 'encerrado'
+      ).length,
+
+      urgentes: chamados.filter(
+        (item) => item.prioridade === 'urgente'
+      ).length,
+
+      altas: chamados.filter(
+        (item) => item.prioridade === 'alta'
+      ).length,
+    }
+  }, [chamados])
+
+  const chamadosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+
+    return chamados.filter((chamado) => {
       const correspondeStatus =
         filtroStatus === 'todos' ||
         chamado.status === filtroStatus
 
-      const termo = busca
-        .trim()
-        .toLowerCase()
+      const correspondePrioridade =
+        filtroPrioridade === 'todas' ||
+        chamado.prioridade === filtroPrioridade
+
+      if (!correspondeStatus || !correspondePrioridade) {
+        return false
+      }
 
       if (!termo) {
-        return correspondeStatus
+        return true
       }
 
       const textoPesquisa = [
@@ -316,46 +305,64 @@ export default function AtendimentoPage() {
         .join(' ')
         .toLowerCase()
 
-      return (
-        correspondeStatus &&
-        textoPesquisa.includes(termo)
-      )
-    }
-  )
+      return textoPesquisa.includes(termo)
+    })
+  }, [
+    chamados,
+    filtroStatus,
+    filtroPrioridade,
+    busca,
+  ])
 
-  const quantidadePorStatus = {
-    todos: chamados.length,
-
-    aberto: chamados.filter(
-      (item) => item.status === 'aberto'
-    ).length,
-
-    em_atendimento: chamados.filter(
-      (item) =>
-        item.status === 'em_atendimento'
-    ).length,
-
-    aguardando_cliente: chamados.filter(
-      (item) =>
-        item.status === 'aguardando_cliente'
-    ).length,
-
-    resolvido: chamados.filter(
-      (item) => item.status === 'resolvido'
-    ).length,
-
-    encerrado: chamados.filter(
-      (item) => item.status === 'encerrado'
-    ).length,
-  }
-
-  const filtros: [FiltroStatus, string][] = [
-    ['todos', 'Todos'],
-    ['aberto', 'Abertos'],
-    ['em_atendimento', 'Em atendimento'],
-    ['aguardando_cliente', 'Aguardando cliente'],
-    ['resolvido', 'Resolvidos'],
-    ['encerrado', 'Encerrados'],
+  const cards = [
+    {
+      titulo: 'Total',
+      valor: indicadores.total,
+      filtro: 'todos' as FiltroStatus,
+      fundo: '#ffffff',
+      borda: '#e2e8f0',
+      cor: '#0f172a',
+    },
+    {
+      titulo: 'Abertos',
+      valor: indicadores.abertos,
+      filtro: 'aberto' as FiltroStatus,
+      fundo: '#eff6ff',
+      borda: '#bfdbfe',
+      cor: '#1d4ed8',
+    },
+    {
+      titulo: 'Em atendimento',
+      valor: indicadores.emAtendimento,
+      filtro: 'em_atendimento' as FiltroStatus,
+      fundo: '#fffbeb',
+      borda: '#fde68a',
+      cor: '#b45309',
+    },
+    {
+      titulo: 'Aguardando cliente',
+      valor: indicadores.aguardandoCliente,
+      filtro: 'aguardando_cliente' as FiltroStatus,
+      fundo: '#faf5ff',
+      borda: '#e9d5ff',
+      cor: '#7e22ce',
+    },
+    {
+      titulo: 'Resolvidos',
+      valor: indicadores.resolvidos,
+      filtro: 'resolvido' as FiltroStatus,
+      fundo: '#f0fdf4',
+      borda: '#bbf7d0',
+      cor: '#15803d',
+    },
+    {
+      titulo: 'Urgentes',
+      valor: indicadores.urgentes,
+      filtro: null,
+      fundo: '#fef2f2',
+      borda: '#fecaca',
+      cor: '#b91c1c',
+    },
   ]
 
   return (
@@ -368,10 +375,12 @@ export default function AtendimentoPage() {
     >
       <div
         style={{
-          maxWidth: '1200px',
+          maxWidth: '1250px',
           margin: '0 auto',
         }}
       >
+        {/* CABEÇALHO */}
+
         <div
           style={{
             marginBottom: '28px',
@@ -381,98 +390,150 @@ export default function AtendimentoPage() {
             style={{
               color: '#0f766e',
               fontSize: '13px',
-              fontWeight: 700,
+              fontWeight: 800,
               textTransform: 'uppercase',
-              letterSpacing: '0.06em',
+              letterSpacing: '0.07em',
               marginBottom: '8px',
             }}
           >
             Atendimento interno
           </div>
 
-          <h1
+          <div
             style={{
-              margin: 0,
-              color: '#0f172a',
-              fontSize: '32px',
-              lineHeight: 1.2,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end',
+              gap: '20px',
+              flexWrap: 'wrap',
             }}
           >
-            Central de Chamados
-          </h1>
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  color: '#0f172a',
+                  fontSize: '32px',
+                  lineHeight: 1.2,
+                }}
+              >
+                Central de Atendimento
+              </h1>
 
-          <p
-            style={{
-              marginTop: '10px',
-              marginBottom: 0,
-              color: '#64748b',
-              fontSize: '15px',
-            }}
-          >
-            Acompanhe e gerencie as solicitações dos
-            clientes ÁgilMed e Real Life.
-          </p>
+              <p
+                style={{
+                  marginTop: '10px',
+                  marginBottom: 0,
+                  color: '#64748b',
+                  fontSize: '15px',
+                }}
+              >
+                Acompanhe e gerencie as solicitações
+                dos clientes ÁgilMed e Real Life.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={carregarChamados}
+              disabled={carregando}
+              style={{
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#334155',
+                borderRadius: '10px',
+                padding: '11px 16px',
+                cursor: carregando
+                  ? 'not-allowed'
+                  : 'pointer',
+                fontWeight: 700,
+              }}
+            >
+              {carregando
+                ? 'Atualizando...'
+                : '↻ Atualizar'}
+            </button>
+          </div>
         </div>
+
+        {/* INDICADORES */}
 
         <div
           style={{
             display: 'grid',
             gridTemplateColumns:
-              'repeat(auto-fit, minmax(150px, 1fr))',
+              'repeat(auto-fit, minmax(165px, 1fr))',
             gap: '12px',
             marginBottom: '24px',
           }}
         >
-          {filtros.map(([status, label]) => {
-            const ativo =
-              filtroStatus === status
-
-            return (
-              <button
-                key={status}
-                type="button"
-                onClick={() =>
-                  setFiltroStatus(status)
+          {cards.map((card) => (
+            <button
+              key={card.titulo}
+              type="button"
+              onClick={() => {
+                if (card.filtro) {
+                  setFiltroStatus(card.filtro)
+                  setFiltroPrioridade('todas')
                 }
+              }}
+              style={{
+                textAlign: 'left',
+                border: `1px solid ${card.borda}`,
+                background: card.fundo,
+                borderRadius: '14px',
+                padding: '18px',
+                cursor: card.filtro
+                  ? 'pointer'
+                  : 'default',
+              }}
+            >
+              <div
                 style={{
-                  border: ativo
-                    ? '2px solid #0f766e'
-                    : '1px solid #e2e8f0',
-                  background: ativo
-                    ? '#f0fdfa'
-                    : '#ffffff',
-                  borderRadius: '12px',
-                  padding: '15px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
+                  color: '#64748b',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  marginBottom: '7px',
                 }}
               >
-                <div
-                  style={{
-                    color: '#64748b',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    marginBottom: '5px',
-                  }}
-                >
-                  {label}
-                </div>
+                {card.titulo}
+              </div>
 
-                <div
-                  style={{
-                    color: ativo
-                      ? '#0f766e'
-                      : '#0f172a',
-                    fontSize: '24px',
-                    fontWeight: 800,
-                  }}
-                >
-                  {quantidadePorStatus[status]}
-                </div>
-              </button>
-            )
-          })}
+              <div
+                style={{
+                  color: card.cor,
+                  fontSize: '28px',
+                  lineHeight: 1,
+                  fontWeight: 800,
+                }}
+              >
+                {card.valor}
+              </div>
+            </button>
+          ))}
         </div>
+
+        {/* ALERTA DE URGENTES */}
+
+        {indicadores.urgentes > 0 && (
+          <div
+            style={{
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#991b1b',
+              borderRadius: '12px',
+              padding: '14px 16px',
+              marginBottom: '20px',
+              fontSize: '14px',
+              fontWeight: 700,
+            }}
+          >
+            ⚠ Existem {indicadores.urgentes}{' '}
+            chamado(s) com prioridade urgente.
+          </div>
+        )}
+
+        {/* FILTROS */}
 
         <div
           style={{
@@ -483,24 +544,149 @@ export default function AtendimentoPage() {
             marginBottom: '20px',
           }}
         >
-          <input
-            type="search"
-            value={busca}
-            onChange={(event) =>
-              setBusca(event.target.value)
-            }
-            placeholder="Pesquisar por número, assunto, categoria ou empresa..."
+          <div
             style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              border: '1px solid #cbd5e1',
-              borderRadius: '10px',
-              padding: '12px 14px',
-              fontSize: '14px',
-              outline: 'none',
+              display: 'grid',
+              gridTemplateColumns:
+                'minmax(280px, 1fr) 190px 190px',
+              gap: '12px',
             }}
-          />
+          >
+            <input
+              type="search"
+              value={busca}
+              onChange={(event) =>
+                setBusca(event.target.value)
+              }
+              placeholder="Pesquisar por chamado, assunto, empresa ou categoria..."
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                fontSize: '14px',
+                outline: 'none',
+              }}
+            />
+
+            <select
+              value={filtroStatus}
+              onChange={(event) =>
+                setFiltroStatus(
+                  event.target.value as FiltroStatus
+                )
+              }
+              style={{
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '12px',
+                background: '#ffffff',
+                color: '#334155',
+                fontSize: '14px',
+              }}
+            >
+              <option value="todos">
+                Todos os status
+              </option>
+              <option value="aberto">
+                Abertos
+              </option>
+              <option value="em_atendimento">
+                Em atendimento
+              </option>
+              <option value="aguardando_cliente">
+                Aguardando cliente
+              </option>
+              <option value="resolvido">
+                Resolvidos
+              </option>
+              <option value="encerrado">
+                Encerrados
+              </option>
+            </select>
+
+            <select
+              value={filtroPrioridade}
+              onChange={(event) =>
+                setFiltroPrioridade(
+                  event.target.value as FiltroPrioridade
+                )
+              }
+              style={{
+                border: '1px solid #cbd5e1',
+                borderRadius: '10px',
+                padding: '12px',
+                background: '#ffffff',
+                color: '#334155',
+                fontSize: '14px',
+              }}
+            >
+              <option value="todas">
+                Todas as prioridades
+              </option>
+              <option value="urgente">
+                Urgentes
+              </option>
+              <option value="alta">
+                Altas
+              </option>
+              <option value="media">
+                Médias
+              </option>
+              <option value="baixa">
+                Baixas
+              </option>
+            </select>
+          </div>
+
+          {(busca ||
+            filtroStatus !== 'todos' ||
+            filtroPrioridade !== 'todas') && (
+            <div
+              style={{
+                marginTop: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span
+                style={{
+                  color: '#64748b',
+                  fontSize: '13px',
+                }}
+              >
+                Filtros ativos —{' '}
+                {chamadosFiltrados.length}{' '}
+                resultado(s)
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBusca('')
+                  setFiltroStatus('todos')
+                  setFiltroPrioridade('todas')
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#0f766e',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                }}
+              >
+                Limpar filtros
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* ERRO */}
 
         {erro && (
           <div
@@ -513,9 +699,22 @@ export default function AtendimentoPage() {
               marginBottom: '20px',
             }}
           >
-            {erro}
+            <strong>
+              Não foi possível carregar os chamados.
+            </strong>
+
+            <div
+              style={{
+                marginTop: '5px',
+                fontSize: '13px',
+              }}
+            >
+              {erro}
+            </div>
           </div>
         )}
+
+        {/* CARREGANDO */}
 
         {carregando ? (
           <div
@@ -523,7 +722,7 @@ export default function AtendimentoPage() {
               background: '#ffffff',
               border: '1px solid #e2e8f0',
               borderRadius: '14px',
-              padding: '40px',
+              padding: '50px',
               textAlign: 'center',
               color: '#64748b',
             }}
@@ -536,7 +735,7 @@ export default function AtendimentoPage() {
               background: '#ffffff',
               border: '1px solid #e2e8f0',
               borderRadius: '14px',
-              padding: '50px 30px',
+              padding: '55px 30px',
               textAlign: 'center',
             }}
           >
@@ -571,6 +770,8 @@ export default function AtendimentoPage() {
             </p>
           </div>
         ) : (
+          /* TABELA */
+
           <div
             style={{
               background: '#ffffff',
@@ -588,6 +789,7 @@ export default function AtendimentoPage() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: '12px',
+                flexWrap: 'wrap',
               }}
             >
               <div>
@@ -612,21 +814,14 @@ export default function AtendimentoPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={carregarChamados}
+              <span
                 style={{
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#334155',
-                  borderRadius: '9px',
-                  padding: '9px 12px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
+                  color: '#64748b',
+                  fontSize: '13px',
                 }}
               >
-                Atualizar
-              </button>
+                Total carregado: {chamados.length}
+              </span>
             </div>
 
             <div
@@ -638,7 +833,7 @@ export default function AtendimentoPage() {
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  minWidth: '900px',
+                  minWidth: '950px',
                 }}
               >
                 <thead>
@@ -656,9 +851,9 @@ export default function AtendimentoPage() {
                       'Status',
                       'Abertura',
                       '',
-                    ].map((titulo) => (
+                    ].map((titulo, index) => (
                       <th
-                        key={titulo}
+                        key={`${titulo}-${index}`}
                         style={{
                           textAlign: 'left',
                           padding: '13px 14px',
@@ -680,9 +875,7 @@ export default function AtendimentoPage() {
                   {chamadosFiltrados.map(
                     (chamado) => {
                       const statusStyle =
-                        corStatus(
-                          chamado.status
-                        )
+                        corStatus(chamado.status)
 
                       const prioridadeStyle =
                         corPrioridade(
@@ -699,16 +892,13 @@ export default function AtendimentoPage() {
                         >
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
-                              whiteSpace:
-                                'nowrap',
+                              padding: '15px 14px',
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             <strong
                               style={{
-                                color:
-                                  '#0f172a',
+                                color: '#0f172a',
                               }}
                             >
                               #
@@ -722,15 +912,13 @@ export default function AtendimentoPage() {
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
+                              padding: '15px 14px',
                             }}
                           >
                             <div
                               style={{
                                 fontWeight: 700,
-                                color:
-                                  '#0f172a',
+                                color: '#0f172a',
                               }}
                             >
                               {chamado.empresa
@@ -738,91 +926,67 @@ export default function AtendimentoPage() {
                                 'Empresa não identificada'}
                             </div>
 
-                            {chamado.empresa
-                              ?.marca && (
+                            {chamado.empresa?.marca && (
                               <div
                                 style={{
-                                  marginTop:
-                                    '3px',
-                                  color:
-                                    '#64748b',
-                                  fontSize:
-                                    '12px',
+                                  marginTop: '3px',
+                                  color: '#64748b',
+                                  fontSize: '12px',
                                 }}
                               >
-                                {
-                                  chamado
-                                    .empresa
-                                    .marca
-                                }
+                                {chamado.empresa.marca}
                               </div>
                             )}
                           </td>
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
-                              maxWidth:
-                                '280px',
+                              padding: '15px 14px',
+                              maxWidth: '300px',
                             }}
                           >
                             <div
                               style={{
-                                color:
-                                  '#0f172a',
+                                color: '#0f172a',
                                 fontWeight: 600,
                               }}
                             >
-                              {
-                                chamado.assunto
-                              }
+                              {chamado.assunto}
                             </div>
                           </td>
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
-                              color:
-                                '#475569',
-                              fontSize:
-                                '13px',
-                              whiteSpace:
-                                'nowrap',
+                              padding: '15px 14px',
+                              color: '#475569',
+                              fontSize: '13px',
+                              whiteSpace: 'nowrap',
                             }}
                           >
-                            {
-                              chamado.categoria
-                            }
+                            {chamado.categoria}
                           </td>
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
+                              padding: '15px 14px',
                             }}
                           >
                             <span
                               style={{
                                 display:
                                   'inline-block',
-                                padding:
-                                  '5px 9px',
-                                borderRadius:
-                                  '999px',
+                                padding: '5px 9px',
+                                borderRadius: '999px',
                                 background:
                                   prioridadeStyle.background,
                                 color:
                                   prioridadeStyle.color,
-                                fontSize:
-                                  '12px',
+                                fontSize: '12px',
                                 fontWeight: 700,
                               }}
                             >
                               {prioridadeLabels[
-                                chamado
-                                  .prioridade
+                                chamado.prioridade
                               ] ||
                                 chamado.prioridade}
                             </span>
@@ -830,24 +994,20 @@ export default function AtendimentoPage() {
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
+                              padding: '15px 14px',
                             }}
                           >
                             <span
                               style={{
                                 display:
                                   'inline-block',
-                                padding:
-                                  '5px 9px',
-                                borderRadius:
-                                  '999px',
+                                padding: '5px 9px',
+                                borderRadius: '999px',
                                 background:
                                   statusStyle.background,
                                 color:
                                   statusStyle.color,
-                                fontSize:
-                                  '12px',
+                                fontSize: '12px',
                                 fontWeight: 700,
                                 whiteSpace:
                                   'nowrap',
@@ -862,14 +1022,10 @@ export default function AtendimentoPage() {
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
-                              color:
-                                '#64748b',
-                              fontSize:
-                                '13px',
-                              whiteSpace:
-                                'nowrap',
+                              padding: '15px 14px',
+                              color: '#64748b',
+                              fontSize: '13px',
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             {formatarData(
@@ -879,10 +1035,8 @@ export default function AtendimentoPage() {
 
                           <td
                             style={{
-                              padding:
-                                '15px 14px',
-                              textAlign:
-                                'right',
+                              padding: '15px 14px',
+                              textAlign: 'right',
                             }}
                           >
                             <Link
@@ -894,14 +1048,10 @@ export default function AtendimentoPage() {
                                   'none',
                                 background:
                                   '#0f766e',
-                                color:
-                                  '#ffffff',
-                                padding:
-                                  '8px 12px',
-                                borderRadius:
-                                  '8px',
-                                fontSize:
-                                  '13px',
+                                color: '#ffffff',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                fontSize: '13px',
                                 fontWeight: 700,
                                 whiteSpace:
                                   'nowrap',
