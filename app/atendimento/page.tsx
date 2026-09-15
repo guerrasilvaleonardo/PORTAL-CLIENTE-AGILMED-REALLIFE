@@ -19,6 +19,7 @@ type Chamado = {
   status: string
   created_at: string
   updated_at: string
+  prazo_sla: string | null
   empresa: Empresa | null
 }
 
@@ -52,6 +53,13 @@ const prioridadeLabels: Record<string, string> = {
   urgente: 'Urgente',
 }
 
+function normalizarValor(valor: string | null | undefined) {
+  return String(valor || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+}
+
 function formatarData(data: string) {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -60,7 +68,7 @@ function formatarData(data: string) {
 }
 
 function corStatus(status: string) {
-  switch (status) {
+  switch (normalizarValor(status)) {
     case 'aberto':
       return {
         background: '#dbeafe',
@@ -100,7 +108,7 @@ function corStatus(status: string) {
 }
 
 function corPrioridade(prioridade: string) {
-  switch (prioridade) {
+  switch (normalizarValor(prioridade)) {
     case 'urgente':
       return {
         background: '#fee2e2',
@@ -119,12 +127,48 @@ function corPrioridade(prioridade: string) {
         color: '#a16207',
       }
 
-    default:
+    case 'baixa':
       return {
         background: '#dcfce7',
         color: '#15803d',
       }
+
+    default:
+      return {
+        background: '#f1f5f9',
+        color: '#475569',
+      }
   }
+}
+
+function chamadoEstaAtrasado(chamado: Chamado) {
+  if (!chamado.prazo_sla) {
+    return false
+  }
+
+  const status = normalizarValor(chamado.status)
+
+  if (
+    status === 'resolvido' ||
+    status === 'encerrado'
+  ) {
+    return false
+  }
+
+  return (
+    new Date(chamado.prazo_sla).getTime() <
+    Date.now()
+  )
+}
+
+function formatarPrazoSla(
+  prazo: string | null
+) {
+  if (!prazo) {
+    return 'Sem SLA'
+  }
+
+  return formatarData(prazo)
 }
 
 export default function AtendimentoPage() {
@@ -175,6 +219,7 @@ export default function AtendimentoPage() {
           status,
           created_at,
           updated_at,
+          prazo_sla,
           empresas (
             nome_fantasia,
             marca
@@ -210,6 +255,7 @@ export default function AtendimentoPage() {
             status: item.status,
             created_at: item.created_at,
             updated_at: item.updated_at,
+            prazo_sla: item.prazo_sla || null,
             empresa: empresaRelacionada
               ? {
                   nome_fantasia:
@@ -241,101 +287,103 @@ export default function AtendimentoPage() {
   }
 
   const indicadores = useMemo(() => {
+    const abertos = chamados.filter(
+      (item) =>
+        normalizarValor(item.status) === 'aberto'
+    ).length
+
+    const emAtendimento = chamados.filter(
+      (item) =>
+        normalizarValor(item.status) ===
+        'em_atendimento'
+    ).length
+
+    const aguardandoCliente = chamados.filter(
+      (item) =>
+        normalizarValor(item.status) ===
+        'aguardando_cliente'
+    ).length
+
+    const resolvidos = chamados.filter(
+      (item) =>
+        normalizarValor(item.status) ===
+        'resolvido'
+    ).length
+
+    const encerrados = chamados.filter(
+      (item) =>
+        normalizarValor(item.status) ===
+        'encerrado'
+    ).length
+
+    const urgentes = chamados.filter(
+      (item) =>
+        normalizarValor(item.prioridade) ===
+        'urgente'
+    ).length
+
+    const altos = chamados.filter(
+      (item) =>
+        normalizarValor(item.prioridade) ===
+        'alta'
+    ).length
+
+    const slaAtrasado = chamados.filter(
+      (item) => chamadoEstaAtrasado(item)
+    ).length
+
+    const slaNoPrazo = chamados.filter(
+      (item) =>
+        Boolean(item.prazo_sla) &&
+        !chamadoEstaAtrasado(item) &&
+        normalizarValor(item.status) !==
+          'resolvido' &&
+        normalizarValor(item.status) !==
+          'encerrado'
+    ).length
+
+    const semSla = chamados.filter(
+      (item) => !item.prazo_sla
+    ).length
+
     return {
       total: chamados.length,
-
-      abertos: chamados.filter(
-        (item) => item.status === 'aberto'
-      ).length,
-
-      emAtendimento: chamados.filter(
-        (item) => item.status === 'em_atendimento'
-      ).length,
-
-      aguardandoCliente: chamados.filter(
-        (item) =>
-          item.status === 'aguardando_cliente'
-      ).length,
-
-      resolvidos: chamados.filter(
-        (item) => item.status === 'resolvido'
-      ).length,
-
-      encerrados: chamados.filter(
-        (item) => item.status === 'encerrado'
-      ).length,
-
-      urgentes: chamados.filter(
-        (item) => item.prioridade === 'urgente'
-      ).length,
-
-      altas: chamados.filter(
-        (item) => item.prioridade === 'alta'
-      ).length,
+      abertos,
+      emAtendimento,
+      aguardandoCliente,
+      resolvidos,
+      encerrados,
+      urgentes,
+      altos,
+      slaAtrasado,
+      slaNoPrazo,
+      semSla,
     }
   }, [chamados])
 
- const chamadosFiltrados = useMemo(() => {
-  const termo = busca.trim().toLowerCase()
+  const chamadosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
 
-  return chamados.filter((chamado) => {
-    const statusNormalizado = String(chamado.status || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
+    return chamados.filter((chamado) => {
+      const statusNormalizado =
+        normalizarValor(chamado.status)
 
-    const prioridadeNormalizada = String(
-      chamado.prioridade || ''
-    )
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
+      const prioridadeNormalizada =
+        normalizarValor(chamado.prioridade)
 
-    const correspondeStatus =
-      filtroStatus === 'todos' ||
-      statusNormalizado === filtroStatus
-
-    const correspondePrioridade =
-      filtroPrioridade === 'todas' ||
-      prioridadeNormalizada === filtroPrioridade
-
-    if (
-      !correspondeStatus ||
-      !correspondePrioridade
-    ) {
-      return false
-    }
-
-    if (!termo) {
-      return true
-    }
-
-    const textoPesquisa = [
-      chamado.numero?.toString() || '',
-      chamado.assunto || '',
-      chamado.categoria || '',
-      chamado.empresa?.nome_fantasia || '',
-      chamado.empresa?.marca || '',
-      statusNormalizado,
-      prioridadeNormalizada,
-    ]
-      .join(' ')
-      .toLowerCase()
-
-    return textoPesquisa.includes(termo)
-  })
-}, [
-  chamados,
-  filtroStatus,
-  filtroPrioridade,
-  busca,
-])
+      const correspondeStatus =
+        filtroStatus === 'todos' ||
+        statusNormalizado === filtroStatus
 
       const correspondePrioridade =
         filtroPrioridade === 'todas' ||
-        chamado.prioridade === filtroPrioridade
+        prioridadeNormalizada ===
+          filtroPrioridade
 
-      if (!correspondeStatus || !correspondePrioridade) {
+      if (
+        !correspondeStatus ||
+        !correspondePrioridade
+      ) {
         return false
       }
 
@@ -345,10 +393,12 @@ export default function AtendimentoPage() {
 
       const textoPesquisa = [
         chamado.numero?.toString() || '',
-        chamado.assunto,
-        chamado.categoria,
+        chamado.assunto || '',
+        chamado.categoria || '',
         chamado.empresa?.nome_fantasia || '',
         chamado.empresa?.marca || '',
+        statusNormalizado,
+        prioridadeNormalizada,
       ]
         .join(' ')
         .toLowerCase()
@@ -382,7 +432,8 @@ export default function AtendimentoPage() {
     {
       titulo: 'Em atendimento',
       valor: indicadores.emAtendimento,
-      filtro: 'em_atendimento' as FiltroStatus,
+      filtro:
+        'em_atendimento' as FiltroStatus,
       fundo: '#fffbeb',
       borda: '#fde68a',
       cor: '#b45309',
@@ -390,7 +441,8 @@ export default function AtendimentoPage() {
     {
       titulo: 'Aguardando cliente',
       valor: indicadores.aguardandoCliente,
-      filtro: 'aguardando_cliente' as FiltroStatus,
+      filtro:
+        'aguardando_cliente' as FiltroStatus,
       fundo: '#faf5ff',
       borda: '#e9d5ff',
       cor: '#7e22ce',
@@ -561,9 +613,159 @@ export default function AtendimentoPage() {
           ))}
         </div>
 
-        {/* ALERTA DE URGENTES */}
+        {/* SLA */}
 
-        {indicadores.urgentes > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px',
+            marginBottom: '20px',
+          }}
+        >
+          <div
+            style={{
+              background:
+                indicadores.slaAtrasado > 0
+                  ? '#fef2f2'
+                  : '#f0fdf4',
+              border:
+                indicadores.slaAtrasado > 0
+                  ? '1px solid #fecaca'
+                  : '1px solid #bbf7d0',
+              borderRadius: '14px',
+              padding: '18px',
+            }}
+          >
+            <div
+              style={{
+                color:
+                  indicadores.slaAtrasado > 0
+                    ? '#b91c1c'
+                    : '#15803d',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              SLA atrasado
+            </div>
+
+            <div
+              style={{
+                marginTop: '7px',
+                color:
+                  indicadores.slaAtrasado > 0
+                    ? '#b91c1c'
+                    : '#15803d',
+                fontSize: '30px',
+                fontWeight: 800,
+              }}
+            >
+              {indicadores.slaAtrasado}
+            </div>
+
+            <div
+              style={{
+                marginTop: '5px',
+                color: '#64748b',
+                fontSize: '12px',
+              }}
+            >
+              Chamados fora do prazo
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '14px',
+              padding: '18px',
+            }}
+          >
+            <div
+              style={{
+                color: '#1d4ed8',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              SLA no prazo
+            </div>
+
+            <div
+              style={{
+                marginTop: '7px',
+                color: '#1d4ed8',
+                fontSize: '30px',
+                fontWeight: 800,
+              }}
+            >
+              {indicadores.slaNoPrazo}
+            </div>
+
+            <div
+              style={{
+                marginTop: '5px',
+                color: '#64748b',
+                fontSize: '12px',
+              }}
+            >
+              Chamados dentro do prazo
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '14px',
+              padding: '18px',
+            }}
+          >
+            <div
+              style={{
+                color: '#64748b',
+                fontSize: '12px',
+                fontWeight: 800,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              Sem SLA
+            </div>
+
+            <div
+              style={{
+                marginTop: '7px',
+                color: '#0f172a',
+                fontSize: '30px',
+                fontWeight: 800,
+              }}
+            >
+              {indicadores.semSla}
+            </div>
+
+            <div
+              style={{
+                marginTop: '5px',
+                color: '#64748b',
+                fontSize: '12px',
+              }}
+            >
+              Chamados sem prazo definido
+            </div>
+          </div>
+        </div>
+
+        {/* ALERTA SLA */}
+
+        {indicadores.slaAtrasado > 0 && (
           <div
             style={{
               background: '#fef2f2',
@@ -576,8 +778,8 @@ export default function AtendimentoPage() {
               fontWeight: 700,
             }}
           >
-            ⚠ Existem {indicadores.urgentes}{' '}
-            chamado(s) com prioridade urgente.
+            ⚠ Existem {indicadores.slaAtrasado}{' '}
+            chamado(s) fora do prazo de atendimento.
           </div>
         )}
 
@@ -606,7 +808,7 @@ export default function AtendimentoPage() {
               onChange={(event) =>
                 setBusca(event.target.value)
               }
-              placeholder="Pesquisar por chamado, assunto, empresa ou categoria..."
+              placeholder="Pesquisar por número, assunto, categoria ou empresa..."
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
@@ -762,7 +964,7 @@ export default function AtendimentoPage() {
           </div>
         )}
 
-        {/* CARREGANDO */}
+        {/* LISTAGEM */}
 
         {carregando ? (
           <div
@@ -818,8 +1020,6 @@ export default function AtendimentoPage() {
             </p>
           </div>
         ) : (
-          /* TABELA */
-
           <div
             style={{
               background: '#ffffff',
@@ -881,7 +1081,7 @@ export default function AtendimentoPage() {
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  minWidth: '950px',
+                  minWidth: '1050px',
                 }}
               >
                 <thead>
@@ -897,6 +1097,7 @@ export default function AtendimentoPage() {
                       'Categoria',
                       'Prioridade',
                       'Status',
+                      'SLA',
                       'Abertura',
                       '',
                     ].map((titulo, index) => (
@@ -928,6 +1129,11 @@ export default function AtendimentoPage() {
                       const prioridadeStyle =
                         corPrioridade(
                           chamado.prioridade
+                        )
+
+                      const atrasado =
+                        chamadoEstaAtrasado(
+                          chamado
                         )
 
                       return (
@@ -1034,7 +1240,9 @@ export default function AtendimentoPage() {
                               }}
                             >
                               {prioridadeLabels[
-                                chamado.prioridade
+                                normalizarValor(
+                                  chamado.prioridade
+                                )
                               ] ||
                                 chamado.prioridade}
                             </span>
@@ -1062,10 +1270,78 @@ export default function AtendimentoPage() {
                               }}
                             >
                               {statusLabels[
-                                chamado.status
+                                normalizarValor(
+                                  chamado.status
+                                )
                               ] ||
                                 chamado.status}
                             </span>
+                          </td>
+
+                          <td
+                            style={{
+                              padding: '15px 14px',
+                            }}
+                          >
+                            {chamado.prazo_sla ? (
+                              <div>
+                                <span
+                                  style={{
+                                    display:
+                                      'inline-block',
+                                    padding:
+                                      '5px 9px',
+                                    borderRadius:
+                                      '999px',
+                                    background:
+                                      atrasado
+                                        ? '#fee2e2'
+                                        : '#dcfce7',
+                                    color:
+                                      atrasado
+                                        ? '#b91c1c'
+                                        : '#15803d',
+                                    fontSize:
+                                      '12px',
+                                    fontWeight: 700,
+                                    whiteSpace:
+                                      'nowrap',
+                                  }}
+                                >
+                                  {atrasado
+                                    ? '🔴 Atrasado'
+                                    : '🟢 No prazo'}
+                                </span>
+
+                                <div
+                                  style={{
+                                    marginTop:
+                                      '5px',
+                                    color:
+                                      '#64748b',
+                                    fontSize:
+                                      '11px',
+                                    whiteSpace:
+                                      'nowrap',
+                                  }}
+                                >
+                                  {formatarPrazoSla(
+                                    chamado.prazo_sla
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span
+                                style={{
+                                  color: '#94a3b8',
+                                  fontSize: '12px',
+                                  whiteSpace:
+                                    'nowrap',
+                                }}
+                              >
+                                Sem SLA
+                              </span>
+                            )}
                           </td>
 
                           <td
@@ -1097,7 +1373,8 @@ export default function AtendimentoPage() {
                                 background:
                                   '#0f766e',
                                 color: '#ffffff',
-                                padding: '8px 12px',
+                                padding:
+                                  '8px 12px',
                                 borderRadius: '8px',
                                 fontSize: '13px',
                                 fontWeight: 700,
