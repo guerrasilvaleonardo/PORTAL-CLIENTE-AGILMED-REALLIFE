@@ -151,7 +151,15 @@ export default function AtendimentoPage() {
         return
       }
 
-      const { data, error } = await supabase
+      /*
+       * 1. Busca os chamados sem relacionamento embutido.
+       * Isso evita problemas de relacionamento/PostgREST
+       * entre chamados e empresas.
+       */
+      const {
+        data: chamadosData,
+        error: chamadosError,
+      } = await supabase
         .from('chamados')
         .select(`
           id,
@@ -162,63 +170,120 @@ export default function AtendimentoPage() {
           prioridade,
           status,
           created_at,
-          updated_at,
-          empresas (
-            nome_fantasia,
-            marca
-          )
+          updated_at
         `)
         .order('created_at', {
           ascending: false,
         })
 
-      if (error) {
+      if (chamadosError) {
         console.error(
-          'Erro Supabase ao carregar chamados:',
-          error
+          'Erro ao consultar chamados:',
+          chamadosError
         )
 
-        throw error
+        throw new Error(
+          chamadosError.message ||
+            'Erro ao consultar chamados.'
+        )
       }
 
-      const chamadosFormatados: Chamado[] =
-        (data || []).map((item: any) => {
-          const empresaRelacionada =
-            Array.isArray(item.empresas)
-              ? item.empresas[0] || null
-              : item.empresas || null
+      const chamadosBrutos = chamadosData || []
 
-          return {
-            id: item.id,
-            numero: item.numero,
-            empresa_id: item.empresa_id,
-            categoria: item.categoria,
-            assunto: item.assunto,
-            prioridade: item.prioridade,
-            status: item.status,
-            created_at: item.created_at,
-            updated_at: item.updated_at,
-            empresa: empresaRelacionada
-              ? {
-                  nome_fantasia:
-                    empresaRelacionada.nome_fantasia ||
-                    'Empresa não identificada',
-                  marca:
-                    empresaRelacionada.marca || null,
-                }
-              : null,
-          }
-        })
+      /*
+       * 2. Descobre quais empresas estão relacionadas
+       * aos chamados encontrados.
+       */
+      const empresaIds = Array.from(
+        new Set(
+          chamadosBrutos
+            .map((chamado) => chamado.empresa_id)
+            .filter(Boolean)
+        )
+      )
+
+      let empresasMap = new Map<
+        string,
+        Empresa
+      >()
+
+      /*
+       * 3. Busca as empresas separadamente.
+       */
+      if (empresaIds.length > 0) {
+        const {
+          data: empresasData,
+          error: empresasError,
+        } = await supabase
+          .from('empresas')
+          .select(`
+            id,
+            nome_fantasia,
+            marca
+          `)
+          .in('id', empresaIds)
+
+        if (empresasError) {
+          console.error(
+            'Erro ao consultar empresas:',
+            empresasError
+          )
+
+          throw new Error(
+            empresasError.message ||
+              'Erro ao consultar empresas.'
+          )
+        }
+
+        empresasMap = new Map(
+          (empresasData || []).map(
+            (empresa: any) => [
+              empresa.id,
+              {
+                nome_fantasia:
+                  empresa.nome_fantasia ||
+                  'Empresa não identificada',
+                marca:
+                  empresa.marca || null,
+              },
+            ]
+          )
+        )
+      }
+
+      /*
+       * 4. Monta a estrutura final usada pela tela.
+       */
+      const chamadosFormatados: Chamado[] =
+        chamadosBrutos.map((item: any) => ({
+          id: item.id,
+          numero: item.numero,
+          empresa_id: item.empresa_id,
+          categoria: item.categoria,
+          assunto: item.assunto,
+          prioridade: item.prioridade,
+          status: item.status,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          empresa:
+            empresasMap.get(item.empresa_id) ||
+            null,
+        }))
 
       setChamados(chamadosFormatados)
     } catch (error) {
       console.error(
-        'Erro ao carregar chamados:',
+        'Erro ao carregar Central de Atendimento:',
         error
       )
 
+      const mensagem =
+        error instanceof Error
+          ? error.message
+          : 'Erro desconhecido.'
+
       setErro(
-        'Não foi possível carregar os chamados. Verifique as permissões de acesso.'
+        `Não foi possível carregar os chamados. ${mensagem}`
       )
 
       setChamados([])
