@@ -215,10 +215,16 @@ export async function POST(request: Request) {
 
     const usuarioId = authData.user.id
 
+    /*
+     * O banco tem o gatilho on_auth_user_created, que já cria a linha
+     * em profiles assim que o usuário nasce na autenticação. Um insert
+     * puro aqui batia em chave duplicada, o perfil não era gravado e a
+     * rota desfazia tudo. O upsert completa a linha que o gatilho criou.
+     */
     const { data: profile, error: profileError } =
       await supabaseAdmin
         .from('profiles')
-        .insert({
+        .upsert({
           id: usuarioId,
           nome,
           email,
@@ -227,7 +233,7 @@ export async function POST(request: Request) {
           perfil,
           empresa_id: empresaId,
           ativo: true,
-        })
+        }, { onConflict: 'id' })
         .select(`
           id,
           nome,
