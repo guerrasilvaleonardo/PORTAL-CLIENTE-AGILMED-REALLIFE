@@ -10,7 +10,7 @@ type Perfil = {
   nome: string | null
   email: string | null
   empresa_id: string | null
-  perfil: 'cliente' | 'gestor' | 'admin'
+  perfil: 'cliente' | 'gestor' | 'atendimento' | 'admin'
 }
 
 type Chamado = {
@@ -496,6 +496,7 @@ export default function HomePage() {
         </div>
 
         {perfil?.perfil === 'gestor' ||
+        perfil?.perfil === 'atendimento' ||
         perfil?.perfil === 'admin' ? (
           <div style={{ marginBottom: '28px' }}>
             <Link
