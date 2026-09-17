@@ -81,7 +81,7 @@ export default function UsuariosPage() {
         await supabase
           .from('empresas')
           .select('id,nome_fantasia,marca')
-          .eq('ativo', true)
+          .eq('status', 'ativo')
           .order('nome_fantasia')
 
       if (empresasError) {
