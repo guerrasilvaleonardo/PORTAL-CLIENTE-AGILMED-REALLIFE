@@ -196,6 +196,27 @@ export default function PortalHeader() {
             Chamados
           </Link>
 
+          <Link
+            href="/certificados"
+            style={{
+              padding: '9px 12px',
+              borderRadius: '9px',
+              color: pathname.startsWith('/certificados')
+                ? tema.principal
+                : '#475569',
+              background: pathname.startsWith('/certificados')
+                ? tema.fundo
+                : 'transparent',
+              fontSize: '14px',
+              fontWeight: pathname.startsWith('/certificados')
+                ? 700
+                : 500,
+              textDecoration: 'none',
+            }}
+          >
+            Certificados
+          </Link>
+
           <button
             type="button"
             onClick={sair}
