@@ -1,0 +1,116 @@
+/*
+ * Quadro de atendimento — colunas, cartões e Modo TV.
+ * Vive aqui e não no globals.css porque só esta tela usa.
+ */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.col {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 120px;
+}
+
+.col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+
+.col-head h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--ink-muted);
+}
+
+.col-count {
+  font-family: 'IBM Plex Mono';
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 8px;
+  border-radius: 20px;
+  color: var(--ink-muted);
+}
+
+.col-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 40px;
+}
+
+.col.dragover {
+  outline: 2px dashed var(--primary);
+  outline-offset: -4px;
+}
+
+.qcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 12px 13px;
+  box-shadow: var(--shadow);
+  cursor: grab;
+  border-left: 4px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: inherit;
+}
+
+.qcard:active { cursor: grabbing; }
+.qcard.pri-urgente { border-left-color: var(--danger); }
+.qcard.pri-alta { border-left-color: var(--amber); }
+.qcard.pri-normal { border-left-color: var(--primary); }
+.qcard.pri-baixa { border-left-color: var(--ink-faint); }
+.qcard.atrasado { background: var(--danger-tint); }
+
+.card-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.card-code { font-family: 'IBM Plex Mono'; font-size: 11px; color: var(--ink-faint); }
+.card-title { font-weight: 700; font-size: 13.5px; line-height: 1.3; }
+.card-client { font-size: 12px; color: var(--ink-muted); }
+.card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+
+.avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--primary-tint); color: var(--primary-strong);
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex: none; font-family: 'IBM Plex Mono';
+}
+
+.due { font-size: 11px; color: var(--ink-muted); font-family: 'IBM Plex Mono'; }
+.due.bad { color: var(--danger); font-weight: 600; }
+
+.badge-atraso {
+  font-size: 10px; font-weight: 700; background: var(--danger); color: #fff;
+  padding: 2px 7px; border-radius: 20px; letter-spacing: .02em;
+}
+
+.empty-col { color: var(--ink-faint); font-size: 12px; text-align: center; padding: 16px 6px; }
+
+.tv .stats,
+.tv .filters,
+.tv .footnote { display: none !important; }
+.tv .board { gap: 18px; }
+.tv .col-head h3 { font-size: 16px; }
+.tv .card-title { font-size: 16px; }
+.tv .card-client { font-size: 14px; }
+.tv .qcard { padding: 16px; cursor: default; }
+
+@media (max-width: 1300px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 980px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .board { grid-template-columns: 1fr; } }
