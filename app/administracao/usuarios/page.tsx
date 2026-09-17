@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 type Empresa = {
@@ -219,6 +220,37 @@ export default function UsuariosPage() {
           >
             Gerencie usuários, perfis e empresas do Portal do Cliente.
           </p>
+
+          <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+            <span
+              style={{
+                padding: '9px 15px',
+                borderRadius: 10,
+                background: '#0f766e',
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 700,
+              }}
+            >
+              Usuários
+            </span>
+
+            <Link
+              href="/administracao/empresas"
+              style={{
+                padding: '9px 15px',
+                borderRadius: 10,
+                background: '#fff',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                fontSize: 14,
+                fontWeight: 700,
+                textDecoration: 'none',
+              }}
+            >
+              Empresas
+            </Link>
+          </div>
         </div>
 
         {erro && (
