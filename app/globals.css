@@ -1,0 +1,234 @@
+/*
+ * Sistema visual do Portal do Cliente.
+ * Tokens e componentes portados do protótipo TiCheck.
+ *
+ * Só o tema claro por enquanto: as telas que ainda não foram
+ * migradas usam estilo inline com cor fixa e ficariam ilegíveis
+ * no escuro. O bloco escuro entra quando a migração terminar.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root {
+  color-scheme: light;
+
+  --bg: #F1F5F3;
+  --surface: #FFFFFF;
+  --surface-sunken: #E7EEEB;
+  --ink: #0F211F;
+  --ink-muted: #4E625D;
+  --ink-faint: #8A9C97;
+  --border: #D8E3DF;
+  --primary: #136269;
+  --primary-strong: #0B4448;
+  --primary-tint: #DEEEEF;
+  --amber: #B96A12;
+  --amber-tint: #F8E6CE;
+  --success: #1C8556;
+  --success-tint: #DBF0E3;
+  --danger: #B93B2C;
+  --danger-tint: #F8DEDA;
+  --shadow: 0 1px 2px rgba(15, 33, 31, 0.06), 0 8px 24px -12px rgba(15, 33, 31, 0.18);
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 20px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Archivo', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--primary-tint);
+}
+
+.app {
+  min-height: 100vh;
+  padding-block: 18px 40px;
+  padding-inline: clamp(14px, 3vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.topbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: linear-gradient(155deg, var(--primary), var(--primary-strong));
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-family: 'Archivo'; font-weight: 800; font-size: 16px;
+  flex: none; box-shadow: var(--shadow);
+}
+.brand-text h1 { font-size: 19px; font-weight: 800; }
+.brand-text span { font-size: 12px; color: var(--ink-muted); }
+.topbar-spacer { flex: 1; }
+
+.btn {
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  font-weight: 600; font-size: 13px; padding: 9px 14px; border-radius: 10px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+}
+.btn:hover { border-color: var(--primary); }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-strong); border-color: var(--primary-strong); }
+.btn-ghost { border-color: transparent; background: transparent; }
+.btn-ghost:hover { background: var(--surface-sunken); border-color: transparent; }
+.btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.modtabs {
+  display: flex; gap: 4px; background: var(--surface-sunken);
+  border: 1px solid var(--border); border-radius: 12px; padding: 4px;
+  width: fit-content; flex-wrap: wrap;
+}
+.modtabs a, .modtabs button {
+  border: none; background: transparent; color: var(--ink-muted);
+  font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 9px;
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+}
+.modtabs a.active, .modtabs button.active {
+  background: var(--surface); color: var(--primary-strong); box-shadow: var(--shadow);
+}
+
+.banner {
+  display: flex; align-items: center; gap: 10px; background: var(--primary-tint);
+  border: 1px solid var(--border); color: var(--primary-strong);
+  padding: 10px 14px; border-radius: var(--radius-m); font-size: 13px; font-weight: 600;
+}
+.banner.bad { background: var(--danger-tint); color: var(--danger); }
+.banner.good { background: var(--success-tint); color: var(--success); }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-m); padding: 14px 16px; box-shadow: var(--shadow);
+}
+.stat .num { font-family: 'IBM Plex Mono'; font-weight: 600; font-size: 26px; line-height: 1; }
+.stat .lbl { font-size: 12px; color: var(--ink-muted); margin-top: 6px; font-weight: 600; }
+.stat.warn .num { color: var(--amber); }
+.stat.bad .num { color: var(--danger); }
+.stat.good .num { color: var(--success); }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filters select, .filters input[type='search'], .filters input[type='text'] {
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  padding: 8px 10px; border-radius: 9px; font-size: 13px; font-family: inherit; min-width: 0;
+}
+.filters input[type='search'] { width: 200px; }
+
+.field-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.field { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 180px; }
+.field label {
+  font-size: 11px; font-weight: 700; color: var(--ink-muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.field select, .field input, .field textarea {
+  border: 1px solid var(--border); background: var(--surface-sunken); color: var(--ink);
+  padding: 8px 9px; border-radius: 8px; font-size: 13.5px; font-family: inherit; width: 100%;
+}
+.field textarea { resize: vertical; min-height: 56px; }
+
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-l); box-shadow: var(--shadow);
+}
+.panel-head {
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.panel-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.section-title {
+  font-size: 12px; font-weight: 700; color: var(--ink-muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+.mod-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.mod-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-l); padding: 18px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--primary);
+}
+.mod-card:hover { border-color: var(--primary); }
+.mod-card h3 { font-size: 16px; }
+.mod-card p { margin: 0; font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+.mod-card .mod-go { font-size: 12.5px; font-weight: 700; color: var(--primary-strong); margin-top: 4px; }
+
+.table-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-l); overflow: hidden;
+}
+.table-scroll { overflow-x: auto; }
+.trow {
+  display: grid; gap: 10px; align-items: center; padding: 11px 14px;
+  font-size: 13px; border-bottom: 1px solid var(--border); min-width: 660px;
+}
+.trow:last-child { border-bottom: none; }
+.trow.thead {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink-muted); font-weight: 700; background: var(--surface-sunken);
+}
+.trow .tcode { font-family: 'IBM Plex Mono'; font-size: 12px; color: var(--ink-faint); }
+.trow .tname { font-weight: 700; }
+.trow .tmuted { color: var(--ink-muted); }
+.trow-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+.pill {
+  display: inline-flex; align-items: center; width: fit-content;
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+}
+.pill.good { background: var(--success-tint); color: var(--success); }
+.pill.warn { background: var(--amber-tint); color: var(--amber); }
+.pill.bad { background: var(--danger-tint); color: var(--danger); }
+.pill.flat { background: var(--surface-sunken); color: var(--ink-muted); }
+
+.empty-state { padding: 34px 16px; text-align: center; color: var(--ink-faint); font-size: 13px; }
+.footnote { font-size: 11.5px; color: var(--ink-faint); text-align: center; padding-top: 6px; }
+
+@media (max-width: 980px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
