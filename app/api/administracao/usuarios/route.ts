@@ -57,18 +57,30 @@ async function verificarAdministrador(request: Request) {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (
-    error ||
-    !profile ||
-    profile.perfil !== 'admin' ||
-    profile.ativo !== true
-  ) {
+  /*
+   * Cada motivo de recusa ganha sua própria frase: uma tarja que só
+   * diz "acesso restrito" não distingue chave errada de perfil errado,
+   * e era isso que travava o diagnóstico.
+   */
+  let motivo = ''
+
+  if (error) {
+    motivo = 'Não foi possível ler seu perfil no banco: ' + error.message
+  } else if (!profile) {
+    motivo = 'Seu usuário não possui perfil cadastrado no portal.'
+  } else if (profile.perfil !== 'admin') {
+    motivo =
+      'Acesso restrito a administradores. Seu perfil atual é "' +
+      String(profile.perfil) +
+      '".'
+  } else if (profile.ativo !== true) {
+    motivo = 'Seu usuário está inativo no portal.'
+  }
+
+  if (motivo) {
     return {
       autorizado: false,
-      resposta: NextResponse.json(
-        { erro: 'Acesso restrito a administradores.' },
-        { status: 403 }
-      ),
+      resposta: NextResponse.json({ erro: motivo }, { status: 403 }),
     }
   }
 
