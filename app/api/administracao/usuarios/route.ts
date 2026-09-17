@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!['admin', 'atendimento', 'cliente'].includes(perfil)) {
+    if (!['admin', 'gestor', 'atendimento', 'cliente'].includes(perfil)) {
       return NextResponse.json(
         {
           erro: 'Perfil de usuário inválido.',
