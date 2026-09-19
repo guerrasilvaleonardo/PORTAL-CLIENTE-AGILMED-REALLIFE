@@ -290,3 +290,169 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export async function PATCH(request: Request) {
+  const verificacao = await verificarAdministrador(request)
+
+  if (!verificacao.autorizado) {
+    return verificacao.resposta
+  }
+
+  try {
+    const body = await request.json()
+
+    const id = String(body.id ?? '').trim()
+
+    if (!id) {
+      return NextResponse.json(
+        { erro: 'Usuário não informado.' },
+        { status: 400 }
+      )
+    }
+
+    const nome = String(body.nome ?? '').trim()
+    const telefone = String(body.telefone ?? '').trim()
+    const cargo = String(body.cargo ?? '').trim()
+    const perfil = String(body.perfil ?? '').trim()
+    const senha = String(body.senha ?? '')
+    const empresaId = body.empresa_id || null
+    const ativo = body.ativo !== false
+
+    if (!nome) {
+      return NextResponse.json(
+        { erro: 'O nome é obrigatório.' },
+        { status: 400 }
+      )
+    }
+
+    if (!['admin', 'gestor', 'atendimento', 'cliente'].includes(perfil)) {
+      return NextResponse.json(
+        { erro: 'Perfil de usuário inválido.' },
+        { status: 400 }
+      )
+    }
+
+    if (perfil === 'cliente' && !empresaId) {
+      return NextResponse.json(
+        { erro: 'Usuários clientes precisam estar vinculados a uma empresa.' },
+        { status: 400 }
+      )
+    }
+
+    if (senha && senha.length < 6) {
+      return NextResponse.json(
+        { erro: 'A nova senha deve possuir pelo menos 6 caracteres.' },
+        { status: 400 }
+      )
+    }
+
+    /*
+     * Trava contra o administrador se trancar do lado de fora: ninguém
+     * tira o próprio acesso, e o último administrador ativo não pode
+     * ser rebaixado nem desativado por outro.
+     */
+    if (id === verificacao.user?.id && (perfil !== 'admin' || !ativo)) {
+      return NextResponse.json(
+        {
+          erro: 'Você não pode remover o seu próprio acesso de administrador.',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (perfil !== 'admin' || !ativo) {
+      const { count } = await supabaseAdmin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('perfil', 'admin')
+        .eq('ativo', true)
+
+      const { data: atual } = await supabaseAdmin
+        .from('profiles')
+        .select('perfil, ativo')
+        .eq('id', id)
+        .maybeSingle()
+
+      const eraAdminAtivo = atual?.perfil === 'admin' && atual?.ativo === true
+
+      if (eraAdminAtivo && (count ?? 0) <= 1) {
+        return NextResponse.json(
+          {
+            erro: 'Este é o único administrador ativo. Promova outro antes de alterar este.',
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (empresaId) {
+      const { data: empresa, error: empresaError } = await supabaseAdmin
+        .from('empresas')
+        .select('id')
+        .eq('id', empresaId)
+        .maybeSingle()
+
+      if (empresaError || !empresa) {
+        return NextResponse.json(
+          { erro: 'Empresa não encontrada.' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        nome,
+        telefone: telefone || null,
+        cargo: cargo || null,
+        perfil,
+        empresa_id: empresaId,
+        ativo,
+      })
+      .eq('id', id)
+      .select('id, nome, email, telefone, cargo, perfil, empresa_id, ativo')
+      .single()
+
+    if (profileError) {
+      return NextResponse.json(
+        {
+          erro: 'Não foi possível salvar as alterações.',
+          detalhe: profileError.message,
+        },
+        { status: 500 }
+      )
+    }
+
+    if (senha) {
+      const { error: senhaError } =
+        await supabaseAdmin.auth.admin.updateUserById(id, { password: senha })
+
+      if (senhaError) {
+        return NextResponse.json(
+          {
+            erro:
+              'Os dados foram salvos, mas a senha não pôde ser alterada: ' +
+              senhaError.message,
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    return NextResponse.json({
+      sucesso: true,
+      usuario: profile,
+      senha_alterada: Boolean(senha),
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        erro: 'Erro inesperado ao salvar o usuário.',
+        detalhe:
+          error instanceof Error ? error.message : 'Erro desconhecido.',
+      },
+      { status: 500 }
+    )
+  }
+}
