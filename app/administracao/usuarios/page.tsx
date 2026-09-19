@@ -31,6 +31,7 @@ type Usuario = {
 
 const perfilLabels: Record<string, string> = {
   admin: 'Administrador',
+  gestor: 'Gestor',
   atendimento: 'Atendimento',
   cliente: 'Cliente',
 }
@@ -39,8 +40,12 @@ export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [mensagem, setMensagem] = useState('')
+
+  /* Quando tem id aqui, o mesmo formulário vira tela de edição. */
+  const [editandoId, setEditandoId] = useState<string | null>(null)
 
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
@@ -49,6 +54,39 @@ export default function UsuariosPage() {
   const [cargo, setCargo] = useState('')
   const [perfil, setPerfil] = useState('cliente')
   const [empresaId, setEmpresaId] = useState('')
+  const [ativo, setAtivo] = useState(true)
+
+  const editando = editandoId !== null
+
+  function limparFormulario() {
+    setEditandoId(null)
+    setNome('')
+    setEmail('')
+    setSenha('')
+    setTelefone('')
+    setCargo('')
+    setPerfil('cliente')
+    setEmpresaId('')
+    setAtivo(true)
+  }
+
+  function editarUsuario(usuario: Usuario) {
+    setErro('')
+    setMensagem('')
+    setEditandoId(usuario.id)
+    setNome(usuario.nome || '')
+    setEmail(usuario.email || '')
+    setSenha('')
+    setTelefone(usuario.telefone || '')
+    setCargo(usuario.cargo || '')
+    setPerfil(usuario.perfil || 'cliente')
+    setEmpresaId(usuario.empresa_id || '')
+    setAtivo(usuario.ativo !== false)
+
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
 
   async function carregar() {
     try {
@@ -66,7 +104,7 @@ export default function UsuariosPage() {
 
       const resposta = await fetch('/api/administracao/usuarios', {
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: 'Bearer ' + session.access_token,
         },
       })
 
@@ -101,19 +139,29 @@ export default function UsuariosPage() {
     carregar()
   }, [])
 
-  async function criarUsuario(event: FormEvent) {
+  async function salvar(event: FormEvent) {
     event.preventDefault()
 
     try {
       setErro('')
       setMensagem('')
 
-      if (!nome.trim() || !email.trim() || !senha.trim()) {
-        setErro('Preencha nome, e-mail e senha.')
+      if (!nome.trim()) {
+        setErro('Preencha o nome.')
         return
       }
 
-      if (senha.length < 6) {
+      if (!editando && !email.trim()) {
+        setErro('Preencha o e-mail.')
+        return
+      }
+
+      if (!editando && !senha.trim()) {
+        setErro('Defina a senha inicial.')
+        return
+      }
+
+      if (senha && senha.length < 6) {
         setErro('A senha deve possuir pelo menos 6 caracteres.')
         return
       }
@@ -132,21 +180,36 @@ export default function UsuariosPage() {
         return
       }
 
+      setSalvando(true)
+
+      const corpo = editando
+        ? {
+            id: editandoId,
+            nome: nome.trim(),
+            telefone: telefone.trim(),
+            cargo: cargo.trim(),
+            perfil,
+            empresa_id: empresaId || null,
+            ativo,
+            senha: senha || '',
+          }
+        : {
+            nome: nome.trim(),
+            email: email.trim(),
+            senha,
+            telefone: telefone.trim(),
+            cargo: cargo.trim(),
+            perfil,
+            empresa_id: empresaId || null,
+          }
+
       const resposta = await fetch('/api/administracao/usuarios', {
-        method: 'POST',
+        method: editando ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: 'Bearer ' + session.access_token,
         },
-        body: JSON.stringify({
-          nome: nome.trim(),
-          email: email.trim(),
-          senha,
-          telefone: telefone.trim(),
-          cargo: cargo.trim(),
-          perfil,
-          empresa_id: empresaId || null,
-        }),
+        body: JSON.stringify(corpo),
       })
 
       const resultado = await resposta.json()
@@ -155,23 +218,25 @@ export default function UsuariosPage() {
         throw new Error(
           resultado.erro ||
             resultado.detalhe ||
-            'Não foi possível criar o usuário.'
+            'Não foi possível salvar o usuário.'
         )
       }
 
-      setNome('')
-      setEmail('')
-      setSenha('')
-      setTelefone('')
-      setCargo('')
-      setPerfil('cliente')
-      setEmpresaId('')
+      setMensagem(
+        editando
+          ? resultado.senha_alterada
+            ? 'Usuário atualizado e senha redefinida.'
+            : 'Usuário atualizado com sucesso.'
+          : 'Usuário criado com sucesso.'
+      )
 
-      setMensagem('Usuário criado com sucesso.')
+      limparFormulario()
 
       await carregar()
     } catch (e: any) {
-      setErro(e?.message || 'Erro ao criar usuário.')
+      setErro(e?.message || 'Erro ao salvar usuário.')
+    } finally {
+      setSalvando(false)
     }
   }
 
@@ -288,7 +353,7 @@ export default function UsuariosPage() {
         <section
           style={{
             background: '#fff',
-            border: '1px solid #e2e8f0',
+            border: editando ? '2px solid #0f766e' : '1px solid #e2e8f0',
             borderRadius: 18,
             padding: 22,
             marginBottom: 24,
@@ -296,15 +361,27 @@ export default function UsuariosPage() {
         >
           <h2
             style={{
-              margin: '0 0 18px',
+              margin: '0 0 6px',
               color: '#0f172a',
               fontSize: 20,
             }}
           >
-            Novo usuário
+            {editando ? 'Editar usuário' : 'Novo usuário'}
           </h2>
 
-          <form onSubmit={criarUsuario}>
+          <p
+            style={{
+              margin: '0 0 18px',
+              color: '#64748b',
+              fontSize: 14,
+            }}
+          >
+            {editando
+              ? 'O e-mail não muda. Deixe a senha em branco para manter a atual.'
+              : 'A senha definida aqui é a senha inicial de acesso.'}
+          </p>
+
+          <form onSubmit={salvar}>
             <div
               style={{
                 display: 'grid',
@@ -325,14 +402,23 @@ export default function UsuariosPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="E-mail"
-                style={inputStyle}
+                disabled={editando}
+                style={
+                  editando
+                    ? { ...inputStyle, background: '#f1f5f9', color: '#64748b' }
+                    : inputStyle
+                }
               />
 
               <input
                 type="password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
-                placeholder="Senha inicial"
+                placeholder={
+                  editando
+                    ? 'Nova senha (opcional)'
+                    : 'Senha inicial'
+                }
                 style={inputStyle}
               />
 
@@ -357,6 +443,7 @@ export default function UsuariosPage() {
               >
                 <option value="cliente">Cliente</option>
                 <option value="atendimento">Atendimento</option>
+                <option value="gestor">Gestor</option>
                 <option value="admin">Administrador</option>
               </select>
 
@@ -373,23 +460,59 @@ export default function UsuariosPage() {
                   </option>
                 ))}
               </select>
+
+              {editando && (
+                <select
+                  value={ativo ? 'ativo' : 'inativo'}
+                  onChange={(e) => setAtivo(e.target.value === 'ativo')}
+                  style={inputStyle}
+                >
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo (sem acesso)</option>
+                </select>
+              )}
             </div>
 
-            <button
-              type="submit"
-              style={{
-                marginTop: 16,
-                border: 0,
-                background: '#0f766e',
-                color: '#fff',
-                borderRadius: 10,
-                padding: '12px 18px',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              Criar usuário
-            </button>
+            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+              <button
+                type="submit"
+                disabled={salvando}
+                style={{
+                  border: 0,
+                  background: '#0f766e',
+                  color: '#fff',
+                  borderRadius: 10,
+                  padding: '12px 18px',
+                  fontWeight: 800,
+                  cursor: salvando ? 'default' : 'pointer',
+                  opacity: salvando ? 0.6 : 1,
+                }}
+              >
+                {salvando
+                  ? 'Salvando...'
+                  : editando
+                    ? 'Salvar alterações'
+                    : 'Criar usuário'}
+              </button>
+
+              {editando && (
+                <button
+                  type="button"
+                  onClick={limparFormulario}
+                  style={{
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    color: '#334155',
+                    borderRadius: 10,
+                    padding: '12px 18px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
           </form>
         </section>
 
@@ -476,7 +599,7 @@ export default function UsuariosPage() {
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  minWidth: 850,
+                  minWidth: 950,
                 }}
               >
                 <thead>
@@ -486,12 +609,20 @@ export default function UsuariosPage() {
                     <th style={thStyle}>Perfil</th>
                     <th style={thStyle}>Cargo</th>
                     <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Ações</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {usuarios.map((usuario) => (
-                    <tr key={usuario.id}>
+                    <tr
+                      key={usuario.id}
+                      style={
+                        editandoId === usuario.id
+                          ? { background: '#f0fdfa' }
+                          : undefined
+                      }
+                    >
                       <td style={tdStyle}>
                         <strong>{usuario.nome}</strong>
                         <div
@@ -556,6 +687,25 @@ export default function UsuariosPage() {
                             ? 'Ativo'
                             : 'Inativo'}
                         </span>
+                      </td>
+
+                      <td style={tdStyle}>
+                        <button
+                          type="button"
+                          onClick={() => editarUsuario(usuario)}
+                          style={{
+                            border: '1px solid #cbd5e1',
+                            background: '#fff',
+                            color: '#0f766e',
+                            borderRadius: 8,
+                            padding: '7px 13px',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Editar
+                        </button>
                       </td>
                     </tr>
                   ))}
