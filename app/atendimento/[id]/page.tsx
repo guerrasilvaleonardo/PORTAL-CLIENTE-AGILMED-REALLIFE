@@ -17,10 +17,83 @@ type Chamado = {
   status: string
   responsavel_id: string | null
   prazo_sla: string | null
+  sla_pausado_em: string | null
+  sla_pausa_total: string | null
+  primeira_resposta_em: string | null
   resolvido_em: string | null
   encerrado_em: string | null
   created_at: string
   updated_at: string
+}
+
+type Evento = {
+  id: string
+  tipo: string
+  de: string | null
+  para: string | null
+  observacao: string | null
+  created_at: string
+  autor?: { nome: string | null } | null
+}
+
+const rotuloStatus: Record<string, string> = {
+  aberto: 'Aberto',
+  em_atendimento: 'Em atendimento',
+  aguardando_cliente: 'Aguardando cliente',
+  resolvido: 'Resolvido',
+  encerrado: 'Encerrado',
+}
+
+/* O Postgres devolve interval como "1 day 02:30:00". */
+function horasDoIntervalo(valor: string | null) {
+  if (!valor) return 0
+
+  const dias = /(\d+)\s+day/.exec(valor)
+  const hora = /(\d+):(\d+):/.exec(valor)
+
+  return (
+    (dias ? Number(dias[1]) * 24 : 0) +
+    (hora ? Number(hora[1]) + Number(hora[2]) / 60 : 0)
+  )
+}
+
+function duracao(de: string | null, ate: string | null) {
+  if (!de || !ate) return null
+
+  const h = (new Date(ate).getTime() - new Date(de).getTime()) / 3600000
+
+  if (h < 1) return Math.max(1, Math.round(h * 60)) + ' min'
+  if (h < 48) return h.toFixed(1).replace('.0', '') + ' h'
+
+  return Math.round(h / 24) + ' dias'
+}
+
+function descreverEvento(e: Evento) {
+  if (e.tipo === 'abertura') return 'Chamado aberto'
+
+  if (e.tipo === 'status') {
+    return (
+      'Situação: ' +
+      (e.de ? (rotuloStatus[e.de] || e.de) + ' → ' : '') +
+      (rotuloStatus[e.para || ''] || e.para)
+    )
+  }
+
+  if (e.tipo === 'prioridade') {
+    return 'Prioridade: ' + (e.de || '—') + ' → ' + (e.para || '—')
+  }
+
+  if (e.tipo === 'responsavel') {
+    return 'Responsável: ' + (e.de || '—') + ' → ' + (e.para || '—')
+  }
+
+  if (e.tipo === 'sla') {
+    return e.para === 'pausado'
+      ? 'SLA pausado'
+      : 'SLA retomado'
+  }
+
+  return e.tipo
 }
 
 type Agente = {
@@ -236,6 +309,8 @@ export default function AtendimentoChamadoPage() {
   const [agentes, setAgentes] =
     useState<Agente[]>([])
 
+  const [eventos, setEventos] = useState<Evento[]>([])
+
   const [novoResponsavel, setNovoResponsavel] =
     useState('')
 
@@ -310,6 +385,9 @@ export default function AtendimentoChamadoPage() {
           status,
           responsavel_id,
           prazo_sla,
+          sla_pausado_em,
+          sla_pausa_total,
+          primeira_resposta_em,
           resolvido_em,
           encerrado_em,
           created_at,
@@ -357,6 +435,21 @@ export default function AtendimentoChamadoPage() {
         .order('nome')
 
       setAgentes((agentesData || []) as Agente[])
+
+      const { data: eventosData } = await supabase
+        .from('chamado_eventos')
+        .select(
+          'id, tipo, de, para, observacao, created_at, autor:profiles(nome)'
+        )
+        .eq('chamado_id', chamadoId)
+        .order('created_at')
+
+      setEventos(
+        ((eventosData || []) as any[]).map((e) => ({
+          ...e,
+          autor: Array.isArray(e.autor) ? e.autor[0] : e.autor,
+        })) as Evento[]
+      )
 
       const {
         data: empresaData,
@@ -595,6 +688,9 @@ export default function AtendimentoChamadoPage() {
           status,
           responsavel_id,
           prazo_sla,
+          sla_pausado_em,
+          sla_pausa_total,
+          primeira_resposta_em,
           resolvido_em,
           encerrado_em,
           created_at,
@@ -675,6 +771,9 @@ export default function AtendimentoChamadoPage() {
           status,
           responsavel_id,
           prazo_sla,
+          sla_pausado_em,
+          sla_pausa_total,
+          primeira_resposta_em,
           resolvido_em,
           encerrado_em,
           created_at,
@@ -748,6 +847,9 @@ export default function AtendimentoChamadoPage() {
           status,
           responsavel_id,
           prazo_sla,
+          sla_pausado_em,
+          sla_pausa_total,
+          primeira_resposta_em,
           resolvido_em,
           encerrado_em,
           created_at,
@@ -2165,6 +2267,136 @@ export default function AtendimentoChamadoPage() {
                 </div>
               )}
             </section>
+
+            <section style={cardStyle}>
+              <h2 style={cardTitleStyle}>Histórico e SLA</h2>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'repeat(auto-fit,minmax(150px,1fr))',
+                  gap: 12,
+                  margin: '16px 0 22px',
+                }}
+              >
+                <BlocoSla
+                  rotulo="Primeira resposta"
+                  valor={
+                    duracao(
+                      chamado.created_at,
+                      chamado.primeira_resposta_em
+                    ) || 'ainda não'
+                  }
+                  alerta={!chamado.primeira_resposta_em}
+                />
+
+                <BlocoSla
+                  rotulo="Tempo até resolver"
+                  valor={
+                    duracao(
+                      chamado.created_at,
+                      chamado.resolvido_em || chamado.encerrado_em
+                    ) || 'em andamento'
+                  }
+                />
+
+                <BlocoSla
+                  rotulo="Espera do cliente"
+                  valor={
+                    horasDoIntervalo(chamado.sla_pausa_total) > 0
+                      ? horasDoIntervalo(chamado.sla_pausa_total)
+                          .toFixed(1)
+                          .replace('.0', '') + ' h'
+                      : '—'
+                  }
+                />
+
+                <BlocoSla
+                  rotulo="Prazo"
+                  valor={
+                    chamado.sla_pausado_em
+                      ? 'pausado'
+                      : chamado.prazo_sla
+                        ? new Date(chamado.prazo_sla).toLocaleString('pt-BR')
+                        : 'sem SLA'
+                  }
+                  alerta={
+                    !chamado.sla_pausado_em &&
+                    Boolean(chamado.prazo_sla) &&
+                    new Date(chamado.prazo_sla as string).getTime() <
+                      Date.now() &&
+                    !chamado.resolvido_em &&
+                    !chamado.encerrado_em
+                  }
+                />
+              </div>
+
+              {eventos.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>
+                  Nenhum movimento registrado ainda.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    borderLeft: '2px solid #e2e8f0',
+                    paddingLeft: 16,
+                    display: 'grid',
+                    gap: 14,
+                  }}
+                >
+                  {eventos.map((e) => (
+                    <div key={e.id} style={{ position: 'relative' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          left: -22,
+                          top: 5,
+                          width: 9,
+                          height: 9,
+                          borderRadius: 999,
+                          background:
+                            e.tipo === 'sla' ? '#b45309' : '#0f766e',
+                        }}
+                      />
+
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: '#0f172a',
+                        }}
+                      >
+                        {descreverEvento(e)}
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: '#64748b',
+                          marginTop: 2,
+                        }}
+                      >
+                        {new Date(e.created_at).toLocaleString('pt-BR')}
+                        {e.autor?.nome ? ' · ' + e.autor.nome : ''}
+                      </div>
+
+                      {e.observacao && (
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: '#475569',
+                            marginTop: 3,
+                          }}
+                        >
+                          {e.observacao}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
 
           <aside
@@ -2613,4 +2845,48 @@ const saveButtonStyle: React.CSSProperties = {
     'pointer',
   marginTop:
     '9px',
+}
+
+function BlocoSla({
+  rotulo,
+  valor,
+  alerta,
+}: {
+  rotulo: string
+  valor: string
+  alerta?: boolean
+}) {
+  return (
+    <div
+      style={{
+        border: '1px solid ' + (alerta ? '#fecaca' : '#e2e8f0'),
+        background: alerta ? '#fef2f2' : '#f8fafc',
+        borderRadius: 12,
+        padding: '12px 14px',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          letterSpacing: '.06em',
+          textTransform: 'uppercase',
+          color: '#64748b',
+          fontWeight: 700,
+        }}
+      >
+        {rotulo}
+      </div>
+
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 800,
+          color: alerta ? '#b91c1c' : '#0f172a',
+          marginTop: 4,
+        }}
+      >
+        {valor}
+      </div>
+    </div>
+  )
 }
