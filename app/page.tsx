@@ -272,9 +272,24 @@ export default function HomePage() {
           throw perfilError
         }
 
+        /*
+         * Esta é a home do cliente. Quem é da equipe interna não tem
+         * empresa e nada aqui faz sentido para essa pessoa: o lugar
+         * dela é o painel. Antes disso, a tela quebrava e mostrava
+         * apenas 'não foi possível carregar'.
+         */
+        if (
+          ['admin', 'gestor', 'atendimento'].includes(
+            perfilData?.perfil || ''
+          )
+        ) {
+          window.location.href = '/painel'
+          return
+        }
+
         if (!perfilData?.empresa_id) {
           throw new Error(
-            'Empresa do usuário não encontrada.'
+            'Seu usuário ainda não está vinculado a uma empresa. Peça ao administrador para fazer o vínculo.'
           )
         }
 
@@ -331,7 +346,9 @@ export default function HomePage() {
 
         if (ativo) {
           setError(
-            'Não foi possível carregar os dados do portal.'
+            err instanceof Error && err.message
+              ? err.message
+              : 'Não foi possível carregar os dados do portal.'
           )
         }
       } finally {
