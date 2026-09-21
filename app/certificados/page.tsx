@@ -19,7 +19,17 @@ type Certificado = {
   emissao: string | null
   validade: string | null
   observacoes: string | null
+  email_colaborador: string | null
+  curso: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
+}
+
+type Progresso = {
+  email: string
+  curso: string
+  progresso: number
+  situacao: string | null
+  atualizado_em: string
 }
 
 const TIPOS = [
@@ -37,12 +47,41 @@ const TIPOS = [
   'Outro',
 ]
 
+/*
+ * Cursos do EAD. A lista e apenas uma sugestao: o campo aceita
+ * qualquer texto e grava sempre em MAIUSCULAS.
+ */
+const CURSOS = [
+  'NR 05 | CIPA',
+  'NR 06 | EPI',
+  'NR 10 | BÁSICO',
+  'NR 10 | COMPLEMENTAR SEP',
+  'NR 10 | RECICLAGEM',
+  'NR 11 | OPERAÇÃO DE EMPILHADEIRA',
+  'NR 12 | SEGURANÇA EM MÁQUINAS E EQUIPAMENTOS',
+  'NR 13 | CALDEIRAS E VASOS DE PRESSÃO',
+  'NR 17 | ERGONOMIA',
+  'NR 18 | CONSTRUÇÃO CIVIL',
+  'NR 20 | INFLAMÁVEIS E COMBUSTÍVEIS',
+  'NR 23 | PREVENÇÃO E COMBATE A INCÊNDIO',
+  'NR 33 | ESPAÇOS CONFINADOS',
+  'NR 33 | SUPERVISOR DE ENTRADA',
+  'NR 34 | INDÚSTRIA NAVAL',
+  'NR 35 | TRABALHO EM ALTURA',
+  'NR 35 | SUPERVISOR DE TRABALHO EM ALTURA',
+  'BRIGADA DE INCÊNDIO',
+  'PRIMEIROS SOCORROS',
+  'INTEGRAÇÃO DE SEGURANÇA',
+]
+
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
 const formVazio = {
   id: '',
   empresa_id: '',
   colaborador: '',
+  email_colaborador: '',
+  curso: '',
   funcao: '',
   tipo: '',
   emissao: '',
@@ -90,6 +129,7 @@ export default function CertificadosPage() {
   const [minhaEmpresa, setMinhaEmpresa] = useState('')
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [certificados, setCertificados] = useState<Certificado[]>([])
+  const [progressos, setProgressos] = useState<Progresso[]>([])
 
   const [busca, setBusca] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
@@ -100,7 +140,53 @@ export default function CertificadosPage() {
   const editando = form.id !== ''
 
   function alterar(campo: keyof typeof formVazio, valor: string) {
-    setForm((atual) => ({ ...atual, [campo]: valor }))
+    /*
+     * O curso e sempre gravado em MAIUSCULAS, mesmo quando digitado
+     * a mao. O e-mail e sempre em minusculas, para casar com o EAD.
+     */
+    const tratado =
+      campo === 'curso'
+        ? valor.toUpperCase()
+        : campo === 'email_colaborador'
+          ? valor.toLowerCase().trim()
+          : valor
+
+    setForm((atual) => ({ ...atual, [campo]: tratado }))
+  }
+
+  function progressoDe(c: Certificado) {
+    if (!c.email_colaborador) return null
+
+    const email = c.email_colaborador.toLowerCase().trim()
+
+    const doColaborador = progressos.filter(
+      (p) => p.email.toLowerCase().trim() === email
+    )
+
+    if (doColaborador.length === 0) return null
+
+    if (c.curso) {
+      const curso = c.curso.toUpperCase().trim()
+
+      const exato = doColaborador.find(
+        (p) => p.curso.toUpperCase().trim() === curso
+      )
+
+      if (exato) return exato
+
+      const parcial = doColaborador.find((p) => {
+        const a = p.curso.toUpperCase().replace(/[^A-Z0-9]/g, '')
+        const b = curso.replace(/[^A-Z0-9]/g, '')
+
+        return a.includes(b) || b.includes(a)
+      })
+
+      if (parcial) return parcial
+
+      return null
+    }
+
+    return doColaborador.sort((a, b) => b.progresso - a.progresso)[0]
   }
 
   async function carregar() {
@@ -141,7 +227,7 @@ export default function CertificadosPage() {
       const { data, error } = await supabase
         .from('certificados')
         .select(
-          'id, numero, empresa_id, colaborador, funcao, tipo, emissao, validade, observacoes, empresas(nome_fantasia, razao_social)'
+          'id, numero, empresa_id, colaborador, funcao, tipo, emissao, validade, observacoes, email_colaborador, curso, empresas(nome_fantasia, razao_social)'
         )
         .order('validade', { ascending: true, nullsFirst: false })
 
@@ -153,6 +239,12 @@ export default function CertificadosPage() {
           empresas: Array.isArray(item.empresas) ? item.empresas[0] : item.empresas,
         }))
       )
+
+      const { data: progressoData } = await supabase
+        .from('treinamentos_progresso')
+        .select('email, curso, progresso, situacao, atualizado_em')
+
+      setProgressos((progressoData || []) as Progresso[])
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível carregar os certificados.')
@@ -194,6 +286,8 @@ export default function CertificadosPage() {
       const registro = {
         empresa_id: form.empresa_id,
         colaborador: form.colaborador.trim(),
+        email_colaborador: form.email_colaborador.trim().toLowerCase() || null,
+        curso: form.curso.trim().toUpperCase() || null,
         funcao: form.funcao.trim() || null,
         tipo: form.tipo,
         emissao: form.emissao || null,
@@ -241,6 +335,8 @@ export default function CertificadosPage() {
       id: c.id,
       empresa_id: c.empresa_id,
       colaborador: c.colaborador,
+      email_colaborador: c.email_colaborador || '',
+      curso: c.curso || '',
       funcao: c.funcao || '',
       tipo: c.tipo,
       emissao: c.emissao || '',
@@ -283,7 +379,15 @@ export default function CertificadosPage() {
 
       if (!termo) return true
 
-      return [c.colaborador, c.funcao, c.tipo, c.empresas?.nome_fantasia, c.empresas?.razao_social]
+      return [
+        c.colaborador,
+        c.email_colaborador,
+        c.curso,
+        c.funcao,
+        c.tipo,
+        c.empresas?.nome_fantasia,
+        c.empresas?.razao_social,
+      ]
         .join(' ')
         .toLowerCase()
         .includes(termo)
@@ -402,6 +506,16 @@ export default function CertificadosPage() {
                 />
 
                 <input
+                  type="email"
+                  value={form.email_colaborador}
+                  onChange={(e) =>
+                    alterar('email_colaborador', e.target.value)
+                  }
+                  placeholder="E-mail do colaborador"
+                  style={inputStyle}
+                />
+
+                <input
                   value={form.funcao}
                   onChange={(e) => alterar('funcao', e.target.value)}
                   placeholder="Função"
@@ -420,6 +534,20 @@ export default function CertificadosPage() {
                     </option>
                   ))}
                 </select>
+
+                <input
+                  list="lista-cursos"
+                  value={form.curso}
+                  onChange={(e) => alterar('curso', e.target.value)}
+                  placeholder="Curso (ex.: NR 10 | COMPLEMENTAR SEP)"
+                  style={{ ...inputStyle, textTransform: 'uppercase' }}
+                />
+
+                <datalist id="lista-cursos">
+                  {CURSOS.map((curso) => (
+                    <option key={curso} value={curso} />
+                  ))}
+                </datalist>
 
                 <label style={rotuloCampo}>
                   Emissão
@@ -554,6 +682,8 @@ export default function CertificadosPage() {
                     <th style={thStyle}>Colaborador</th>
                     {interno && <th style={thStyle}>Empresa</th>}
                     <th style={thStyle}>Tipo</th>
+                    <th style={thStyle}>Curso (EAD)</th>
+                    <th style={thStyle}>Progresso</th>
                     <th style={thStyle}>Emissão</th>
                     <th style={thStyle}>Validade</th>
                     <th style={thStyle}>Situação</th>
@@ -572,6 +702,11 @@ export default function CertificadosPage() {
                           {c.funcao && (
                             <div style={{ fontSize: 13, color: '#64748b' }}>{c.funcao}</div>
                           )}
+                          {c.email_colaborador && (
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                              {c.email_colaborador}
+                            </div>
+                          )}
                         </td>
 
                         {interno && (
@@ -581,6 +716,21 @@ export default function CertificadosPage() {
                         )}
 
                         <td style={tdStyle}>{c.tipo}</td>
+
+                        <td style={tdStyle}>
+                          {c.curso ? (
+                            <span style={{ fontSize: 13, color: '#0f172a' }}>
+                              {c.curso}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#cbd5e1' }}>—</span>
+                          )}
+                        </td>
+
+                        <td style={tdStyle}>
+                          <BarraProgresso registro={progressoDe(c)} />
+                        </td>
+
                         <td style={tdStyle}>{formatarData(c.emissao)}</td>
                         <td style={tdStyle}>{formatarData(c.validade)}</td>
 
@@ -627,6 +777,59 @@ export default function CertificadosPage() {
         </section>
       </div>
     </main>
+  )
+}
+
+function BarraProgresso({ registro }: { registro: Progresso | null }) {
+  if (!registro) {
+    return (
+      <span style={{ fontSize: 12, color: '#cbd5e1' }}>
+        sem dados
+      </span>
+    )
+  }
+
+  const valor = Math.max(0, Math.min(100, registro.progresso))
+
+  const cor =
+    valor >= 100 ? '#15803d' : valor >= 50 ? '#0f766e' : '#c2410c'
+
+  return (
+    <div style={{ minWidth: 110 }}>
+      <div
+        style={{
+          height: 8,
+          borderRadius: 999,
+          background: '#e2e8f0',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: valor + '%',
+            height: '100%',
+            background: cor,
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          fontSize: 12,
+          color: '#64748b',
+          marginTop: 4,
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <strong style={{ color: cor }}>{valor}%</strong>
+
+        <span title={'Atualizado em ' + new Date(registro.atualizado_em).toLocaleString('pt-BR')}>
+          {new Date(registro.atualizado_em).toLocaleDateString('pt-BR')}
+        </span>
+      </div>
+    </div>
   )
 }
 
