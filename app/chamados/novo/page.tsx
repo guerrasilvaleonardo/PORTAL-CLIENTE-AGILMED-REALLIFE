@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { obterMarcaDaEmpresa } from '@/lib/empresa';
+import { avisar } from '@/lib/avisar';
 import type { Marca } from '@/lib/marca';
 
 const categorias = [
@@ -201,6 +202,8 @@ export default function NovoChamadoPage() {
 
         return;
       }
+
+      await avisar('chamado_criado', data.id);
 
       router.push(`/chamados/${data.id}`);
     } catch (error) {
