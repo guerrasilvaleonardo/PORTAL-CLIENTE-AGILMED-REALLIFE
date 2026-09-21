@@ -16,7 +16,13 @@ type Chamado = {
   prioridade: string
   created_at: string
   updated_at: string | null
+  empresas?: {
+    nome_fantasia: string | null
+    razao_social: string | null
+  } | null
 }
+
+const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
 const statusLabels: Record<string, string> = {
   aberto: 'Aberto',
@@ -307,6 +313,7 @@ export default function ChamadosPage() {
   const [chamados, setChamados] = useState<Chamado[]>([])
   const [statusFiltro, setStatusFiltro] = useState('todos')
   const [error, setError] = useState<string | null>(null)
+  const [interno, setInterno] = useState(false)
 
   useEffect(() => {
     let ativo = true
@@ -334,7 +341,7 @@ export default function ChamadosPage() {
         const { data: perfil, error: perfilError } =
           await supabase
             .from('profiles')
-            .select('empresa_id')
+            .select('empresa_id, perfil')
             .eq('id', user.id)
             .single()
 
@@ -342,9 +349,19 @@ export default function ChamadosPage() {
           throw perfilError
         }
 
-        if (!perfil?.empresa_id) {
+        /*
+         * A equipe interna não tem empresa e precisa enxergar os
+         * chamados de todos os clientes. Antes esta tela filtrava
+         * sempre pela empresa do usuário, então para administrador
+         * ela vinha vazia.
+         */
+        const ehInterno = PERFIS_INTERNOS.includes(
+          perfil?.perfil || ''
+        )
+
+        if (!ehInterno && !perfil?.empresa_id) {
           throw new Error(
-            'Empresa do usuário não encontrada.'
+            'Seu usuário ainda não está vinculado a uma empresa. Peça ao administrador para fazer o vínculo.'
           )
         }
 
@@ -353,35 +370,29 @@ export default function ChamadosPage() {
 
         if (!marcaEmpresa) {
           throw new Error(
-            'Não foi possível identificar a empresa do usuário.'
+            'Não foi possível identificar a marca do portal.'
+          )
+        }
+
+        let consulta = supabase
+          .from('chamados')
+          .select(
+            'id, numero, categoria, assunto, descricao, status, prioridade, created_at, updated_at, empresas(nome_fantasia, razao_social)'
+          )
+
+        if (!ehInterno) {
+          consulta = consulta.eq(
+            'empresa_id',
+            perfil.empresa_id
           )
         }
 
         const {
           data: chamadosData,
           error: chamadosError,
-        } = await supabase
-          .from('chamados')
-          .select(
-            `
-              id,
-              numero,
-              categoria,
-              assunto,
-              descricao,
-              status,
-              prioridade,
-              created_at,
-              updated_at
-            `
-          )
-          .eq(
-            'empresa_id',
-            perfil.empresa_id
-          )
-          .order('created_at', {
-            ascending: false,
-          })
+        } = await consulta.order('created_at', {
+          ascending: false,
+        })
 
         if (chamadosError) {
           throw chamadosError
@@ -391,9 +402,15 @@ export default function ChamadosPage() {
           return
         }
 
+        setInterno(ehInterno)
         setMarca(marcaEmpresa)
         setChamados(
-          (chamadosData || []) as Chamado[]
+          ((chamadosData || []) as any[]).map((item) => ({
+            ...item,
+            empresas: Array.isArray(item.empresas)
+              ? item.empresas[0]
+              : item.empresas,
+          })) as Chamado[]
         )
       } catch (err) {
         console.error(
@@ -403,7 +420,9 @@ export default function ChamadosPage() {
 
         if (ativo) {
           setError(
-            'Não foi possível carregar os chamados da sua empresa.'
+            err instanceof Error && err.message
+              ? err.message
+              : 'Não foi possível carregar os chamados.'
           )
         }
       } finally {
@@ -444,24 +463,27 @@ export default function ChamadosPage() {
         <div style={styles.header}>
           <div>
             <h1 style={styles.title}>
-              Meus chamados
+              {interno ? 'Todos os chamados' : 'Meus chamados'}
             </h1>
 
             <p style={styles.subtitle}>
-              Acompanhe as solicitações de atendimento
-              da sua empresa.
+              {interno
+                ? 'Chamados de todas as empresas atendidas.'
+                : 'Acompanhe as solicitações de atendimento da sua empresa.'}
             </p>
           </div>
 
-          <Link
-            href="/chamados/novo"
-            style={{
-              ...styles.newButton,
-              background: tema.principal,
-            }}
-          >
-            + Novo chamado
-          </Link>
+          {!interno && (
+            <Link
+              href="/chamados/novo"
+              style={{
+                ...styles.newButton,
+                background: tema.principal,
+              }}
+            >
+              + Novo chamado
+            </Link>
+          )}
         </div>
 
         {error && (
@@ -536,11 +558,13 @@ export default function ChamadosPage() {
 
               <p style={styles.emptyText}>
                 {chamados.length === 0
-                  ? 'Sua empresa ainda não possui chamados registrados no portal.'
+                  ? interno
+                    ? 'Ainda não há chamados registrados no portal.'
+                    : 'Sua empresa ainda não possui chamados registrados no portal.'
                   : 'Não existem chamados com o filtro selecionado.'}
               </p>
 
-              {chamados.length === 0 && (
+              {chamados.length === 0 && !interno && (
                 <Link
                   href="/chamados/novo"
                   style={{
@@ -596,7 +620,15 @@ export default function ChamadosPage() {
                             styles.category
                           }
                         >
-                          {chamado.categoria}
+                          {interno
+                            ? (chamado.empresas
+                                ?.nome_fantasia ||
+                                chamado.empresas
+                                  ?.razao_social ||
+                                'Empresa') +
+                              ' · ' +
+                              chamado.categoria
+                            : chamado.categoria}
                         </p>
                       </div>
 
