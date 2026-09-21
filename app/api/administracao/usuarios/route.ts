@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import {
+  enderecoDoPortal,
+  enviarEmail,
+  escapar,
+  marcaDaEmpresa,
+  montarEmail,
+} from '@/lib/email'
+import type { Marca } from '@/lib/marca'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabasePublishableKey =
@@ -269,6 +277,47 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    /*
+     * Boas-vindas: a pessoa recebe o endereço do portal e a senha que
+     * o administrador definiu, em vez de ficar esperando um aviso por
+     * fora. A falha do e-mail não desfaz o cadastro.
+     */
+    let marca: Marca = 'reallife'
+
+    if (empresaId) {
+      const { data: empresaMarca } = await supabaseAdmin
+        .from('empresas')
+        .select('marca')
+        .eq('id', empresaId)
+        .maybeSingle()
+
+      marca = marcaDaEmpresa(empresaMarca?.marca)
+    } else {
+      const host = request.headers.get('host') || ''
+      marca = host.includes('agilmed') ? 'agilmed' : 'reallife'
+    }
+
+    const portal = enderecoDoPortal(marca)
+
+    await enviarEmail({
+      para: [email],
+      assunto: 'Seu acesso ao Portal do Cliente',
+      marca,
+      html: montarEmail(
+        marca,
+        'Seu acesso está pronto',
+        [
+          'Olá, ' + escapar(nome) + '.',
+          'Criamos o seu acesso ao Portal do Cliente. Entre com estes dados:',
+          '<strong>Endereço:</strong> ' + portal,
+          '<strong>E-mail:</strong> ' + escapar(email),
+          '<strong>Senha inicial:</strong> ' + escapar(senha),
+          'Troque a senha no seu perfil assim que entrar.',
+        ],
+        { rotulo: 'Entrar no portal', url: portal + '/login' }
+      ),
+    })
 
     return NextResponse.json(
       {
