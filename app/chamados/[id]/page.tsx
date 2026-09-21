@@ -6,6 +6,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { avisar } from '@/lib/avisar'
+import { normalizarUrl, rotuloDoLink } from '@/lib/links'
+import type { ChamadoLink } from '@/lib/links'
 import type { Marca } from '@/lib/marca'
 
 type Chamado = {
@@ -146,6 +148,14 @@ export default function DetalhesChamadoPage() {
   const [chamado, setChamado] = useState<Chamado | null>(null)
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [anexos, setAnexos] = useState<Anexo[]>([])
+  const [links, setLinks] = useState<ChamadoLink[]>([])
+
+  const [usuarioId, setUsuarioId] = useState('')
+
+  const [novoLinkTitulo, setNovoLinkTitulo] = useState('')
+  const [novoLinkUrl, setNovoLinkUrl] = useState('')
+  const [salvandoLink, setSalvandoLink] = useState(false)
+  const [erroLink, setErroLink] = useState('')
 
   const [novaMensagem, setNovaMensagem] = useState('')
 
@@ -176,6 +186,8 @@ export default function DetalhesChamadoPage() {
         router.push('/login')
         return
       }
+
+      setUsuarioId(user.id)
 
       const { data: chamadoData, error: chamadoError } = await supabase
         .from('chamados')
@@ -267,6 +279,19 @@ export default function DetalhesChamadoPage() {
         setAnexos([])
       } else {
         setAnexos((anexosData ?? []) as Anexo[])
+      }
+
+      const { data: linksData, error: linksError } = await supabase
+        .from('chamado_links')
+        .select('id, chamado_id, criado_por, titulo, url, created_at')
+        .eq('chamado_id', chamadoId)
+        .order('created_at', { ascending: true })
+
+      if (linksError) {
+        console.error(linksError)
+        setLinks([])
+      } else {
+        setLinks((linksData ?? []) as ChamadoLink[])
       }
 
       setLoading(false)
@@ -428,6 +453,46 @@ export default function DetalhesChamadoPage() {
     } finally {
       setEnviandoAnexo(false)
     }
+  }
+
+  async function adicionarLink(event: React.FormEvent) {
+    event.preventDefault()
+
+    setErroLink('')
+
+    const url = normalizarUrl(novoLinkUrl)
+
+    if (!url) {
+      setErroLink(
+        'Informe um endereço válido. Exemplo: https://exemplo.com.br/pasta'
+      )
+      return
+    }
+
+    setSalvandoLink(true)
+
+    const { data, error } = await supabase
+      .from('chamado_links')
+      .insert({
+        chamado_id: chamadoId,
+        criado_por: usuarioId,
+        titulo: novoLinkTitulo.trim() || null,
+        url,
+      })
+      .select('id, chamado_id, criado_por, titulo, url, created_at')
+      .single()
+
+    setSalvandoLink(false)
+
+    if (error) {
+      console.error(error)
+      setErroLink('Não foi possível salvar o link. Tente novamente.')
+      return
+    }
+
+    setLinks((atual) => [...atual, data as ChamadoLink])
+    setNovoLinkTitulo('')
+    setNovoLinkUrl('')
   }
 
   async function abrirAnexo(anexo: Anexo) {
@@ -811,6 +876,113 @@ export default function DetalhesChamadoPage() {
                           ? 'Abrindo...'
                           : 'Abrir'}
                       </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h2 style={styles.cardTitle}>
+                  Links de acesso
+                </h2>
+
+                <span style={styles.messageCount}>
+                  {links.length}{' '}
+                  {links.length === 1 ? 'link' : 'links'}
+                </span>
+              </div>
+
+              <p style={styles.uploadText}>
+                Endereços de pastas compartilhadas, sistemas ou
+                sites relacionados ao chamado. Campo opcional.
+              </p>
+
+              <form
+                onSubmit={adicionarLink}
+                style={styles.linkForm}
+              >
+                <input
+                  type="text"
+                  value={novoLinkTitulo}
+                  onChange={(event) =>
+                    setNovoLinkTitulo(event.target.value)
+                  }
+                  placeholder="Nome do link (opcional)"
+                  maxLength={120}
+                  style={styles.linkInput}
+                />
+
+                <input
+                  type="text"
+                  value={novoLinkUrl}
+                  onChange={(event) =>
+                    setNovoLinkUrl(event.target.value)
+                  }
+                  placeholder="https://..."
+                  maxLength={500}
+                  inputMode="url"
+                  style={styles.linkInput}
+                />
+
+                <button
+                  type="submit"
+                  disabled={salvandoLink || !novoLinkUrl.trim()}
+                  style={{
+                    ...styles.linkButton,
+                    background: tema.principal,
+                    ...(salvandoLink || !novoLinkUrl.trim()
+                      ? styles.disabledButton
+                      : {}),
+                  }}
+                >
+                  {salvandoLink ? 'Salvando...' : 'Adicionar'}
+                </button>
+              </form>
+
+              {erroLink && (
+                <div style={styles.attachmentError}>
+                  {erroLink}
+                </div>
+              )}
+
+              {links.length === 0 ? (
+                <div style={styles.emptyAttachments}>
+                  Nenhum link cadastrado neste chamado.
+                </div>
+              ) : (
+                <div style={styles.attachmentList}>
+                  {links.map((link) => (
+                    <div
+                      key={link.id}
+                      style={styles.attachmentItem}
+                    >
+                      <div style={styles.fileIcon}>⛓</div>
+
+                      <div style={styles.fileInfo}>
+                        <strong style={styles.fileName}>
+                          {rotuloDoLink(link)}
+                        </strong>
+
+                        <span style={styles.fileMeta}>
+                          {formatarData(link.created_at)}
+                        </span>
+                      </div>
+
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: tema.borda,
+                          color: tema.principal,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Abrir
+                      </a>
                     </div>
                   ))}
                 </div>
@@ -1381,6 +1553,35 @@ const styles: Record<
     borderRadius: '12px',
     color: '#64748b',
     fontSize: '13px',
+  },
+
+  linkForm: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.3fr) auto',
+    gap: '8px',
+    margin: '14px 0',
+  },
+
+  linkInput: {
+    border: '1px solid #e2e8f0',
+    borderRadius: '10px',
+    padding: '10px 12px',
+    fontSize: '14px',
+    color: '#0f172a',
+    outline: 'none',
+    background: '#ffffff',
+    width: '100%',
+  },
+
+  linkButton: {
+    border: 'none',
+    borderRadius: '10px',
+    padding: '10px 18px',
+    color: '#ffffff',
+    fontWeight: 700,
+    fontSize: '14px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
 
   attachmentList: {
