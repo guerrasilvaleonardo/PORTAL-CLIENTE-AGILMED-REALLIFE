@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
+import { avisar } from '@/lib/avisar'
 import type { Marca } from '@/lib/marca'
 
 type Chamado = {
@@ -327,6 +328,11 @@ export default function DetalhesChamadoPage() {
     }
 
     setMensagens((atual) => [...atual, mensagemFormatada])
+
+    avisar('mensagem_nova', String(chamadoId), {
+      mensagem: data.mensagem,
+    })
+
     setNovaMensagem('')
     setEnviando(false)
   }
