@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
+import { normalizarUrl, rotuloDoLink } from '@/lib/links'
+import type { ChamadoLink } from '@/lib/links'
 
 type Chamado = {
   id: string
@@ -344,6 +346,15 @@ export default function AtendimentoChamadoPage() {
   const [erroAnexo, setErroAnexo] =
     useState('')
 
+  const [links, setLinks] = useState<ChamadoLink[]>([])
+
+  const [meuId, setMeuId] = useState('')
+
+  const [novoLinkTitulo, setNovoLinkTitulo] = useState('')
+  const [novoLinkUrl, setNovoLinkUrl] = useState('')
+  const [salvandoLink, setSalvandoLink] = useState(false)
+  const [erroLink, setErroLink] = useState('')
+
   useEffect(() => {
     if (!chamadoId) return
 
@@ -368,6 +379,8 @@ export default function AtendimentoChamadoPage() {
         router.push('/login')
         return
       }
+
+      setMeuId(user.id)
 
       const {
         data: chamadoData,
@@ -614,6 +627,28 @@ export default function AtendimentoChamadoPage() {
           (anexosData || []) as Anexo[]
         )
       }
+
+      const {
+        data: linksData,
+        error: linksError,
+      } = await supabase
+        .from('chamado_links')
+        .select(
+          'id, chamado_id, criado_por, titulo, url, created_at'
+        )
+        .eq('chamado_id', chamadoId)
+        .order('created_at', {
+          ascending: true,
+        })
+
+      if (linksError) {
+        console.error(
+          'Erro ao carregar links:',
+          linksError
+        )
+      } else {
+        setLinks((linksData || []) as ChamadoLink[])
+      }
     } catch (error) {
       console.error(
         'Erro na Central de Atendimento:',
@@ -628,6 +663,56 @@ export default function AtendimentoChamadoPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function adicionarLink(
+    event: React.FormEvent
+  ) {
+    event.preventDefault()
+
+    setErroLink('')
+
+    const url = normalizarUrl(novoLinkUrl)
+
+    if (!url) {
+      setErroLink(
+        'Informe um endereço válido. Exemplo: https://exemplo.com.br/pasta'
+      )
+      return
+    }
+
+    setSalvandoLink(true)
+
+    const { data, error } = await supabase
+      .from('chamado_links')
+      .insert({
+        chamado_id: String(chamadoId),
+        criado_por: meuId,
+        titulo: novoLinkTitulo.trim() || null,
+        url,
+      })
+      .select(
+        'id, chamado_id, criado_por, titulo, url, created_at'
+      )
+      .single()
+
+    setSalvandoLink(false)
+
+    if (error) {
+      console.error(error)
+      setErroLink(
+        'Não foi possível salvar o link. Tente novamente.'
+      )
+      return
+    }
+
+    setLinks((atual) => [
+      ...atual,
+      data as ChamadoLink,
+    ])
+
+    setNovoLinkTitulo('')
+    setNovoLinkUrl('')
   }
 
   async function salvarStatus() {
@@ -2264,6 +2349,216 @@ export default function AtendimentoChamadoPage() {
                       </div>
                     )
                   )}
+                </div>
+              )}
+            </section>
+
+            <section style={cardStyle}>
+              <div style={cardHeaderStyle}>
+                <h2 style={cardTitleStyle}>
+                  Links de acesso
+                </h2>
+
+                <span
+                  style={{
+                    color: '#64748b',
+                    fontSize: '13px',
+                  }}
+                >
+                  {links.length} link(s)
+                </span>
+              </div>
+
+              <p
+                style={{
+                  color: '#64748b',
+                  fontSize: '13px',
+                  margin: '4px 0 14px',
+                }}
+              >
+                Pastas compartilhadas, sistemas ou sites
+                ligados a este chamado. Campo opcional.
+              </p>
+
+              <form
+                onSubmit={adicionarLink}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'minmax(0,1fr) minmax(0,1.3fr) auto',
+                  gap: 8,
+                  marginBottom: 14,
+                }}
+              >
+                <input
+                  type="text"
+                  value={novoLinkTitulo}
+                  onChange={(event) =>
+                    setNovoLinkTitulo(event.target.value)
+                  }
+                  placeholder="Nome do link (opcional)"
+                  maxLength={120}
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 14,
+                    color: '#0f172a',
+                    outline: 'none',
+                    width: '100%',
+                  }}
+                />
+
+                <input
+                  type="text"
+                  value={novoLinkUrl}
+                  onChange={(event) =>
+                    setNovoLinkUrl(event.target.value)
+                  }
+                  placeholder="https://..."
+                  maxLength={500}
+                  inputMode="url"
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 14,
+                    color: '#0f172a',
+                    outline: 'none',
+                    width: '100%',
+                  }}
+                />
+
+                <button
+                  type="submit"
+                  disabled={
+                    salvandoLink || !novoLinkUrl.trim()
+                  }
+                  style={{
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '10px 18px',
+                    background: '#0f766e',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: 14,
+                    whiteSpace: 'nowrap',
+                    opacity:
+                      salvandoLink || !novoLinkUrl.trim()
+                        ? 0.6
+                        : 1,
+                    cursor:
+                      salvandoLink || !novoLinkUrl.trim()
+                        ? 'not-allowed'
+                        : 'pointer',
+                  }}
+                >
+                  {salvandoLink
+                    ? 'Salvando...'
+                    : 'Adicionar'}
+                </button>
+              </form>
+
+              {erroLink && (
+                <div
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#b91c1c',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    fontSize: 13,
+                    marginBottom: 12,
+                  }}
+                >
+                  {erroLink}
+                </div>
+              )}
+
+              {links.length === 0 ? (
+                <div
+                  style={{
+                    color: '#94a3b8',
+                    fontSize: 14,
+                    padding: '12px 0',
+                  }}
+                >
+                  Nenhum link cadastrado neste chamado.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: 10,
+                  }}
+                >
+                  {links.map((link) => (
+                    <div
+                      key={link.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>
+                        ⛓
+                      </span>
+
+                      <div
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        <strong
+                          style={{
+                            display: 'block',
+                            fontSize: 14,
+                            color: '#0f172a',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {rotuloDoLink(link)}
+                        </strong>
+
+                        <span
+                          style={{
+                            fontSize: 12,
+                            color: '#64748b',
+                          }}
+                        >
+                          {new Date(
+                            link.created_at
+                          ).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        style={{
+                          border: '1px solid #99f6e4',
+                          background: '#ffffff',
+                          color: '#0f766e',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontWeight: 700,
+                          fontSize: 13,
+                          textDecoration: 'none',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Abrir
+                      </a>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
