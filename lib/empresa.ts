@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { obterMarca, type Marca } from '@/lib/marca'
+import { marcaDoDominio, obterMarca, type Marca } from '@/lib/marca'
 
 export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
   const {
@@ -36,12 +36,11 @@ export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
     return null
   }
 
+  /*
+   * Sem empresa vinculada (equipe interna), a marca vem do domínio.
+   */
   if (!perfil?.empresa_id) {
-    console.error(
-      'Usuário não possui empresa vinculada.'
-    )
-
-    return null
+    return marcaDoDominio()
   }
 
   const { data: empresa, error: empresaError } =
@@ -61,22 +60,13 @@ export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
   }
 
   if (!empresa?.marca) {
-    console.error(
-      'Empresa não possui marca configurada.'
-    )
-
-    return null
+    return marcaDoDominio()
   }
 
   const marca = obterMarca(empresa.marca)
 
   if (!marca) {
-    console.error(
-      'Marca da empresa não reconhecida:',
-      empresa.marca
-    )
-
-    return null
+    return marcaDoDominio()
   }
 
   return marca
