@@ -14,11 +14,18 @@ type Chamado = {
   descricao: string
   prioridade: string
   status: string
+  responsavel_id: string | null
   prazo_sla: string | null
   resolvido_em: string | null
   encerrado_em: string | null
   created_at: string
   updated_at: string
+}
+
+type Agente = {
+  id: string
+  nome: string | null
+  perfil: string
 }
 
 type Empresa = {
@@ -225,6 +232,15 @@ export default function AtendimentoChamadoPage() {
 
   const [erro, setErro] = useState('')
 
+  const [agentes, setAgentes] =
+    useState<Agente[]>([])
+
+  const [novoResponsavel, setNovoResponsavel] =
+    useState('')
+
+  const [salvandoResponsavel, setSalvandoResponsavel] =
+    useState(false)
+
   const [novaMensagem, setNovaMensagem] =
     useState('')
 
@@ -291,6 +307,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          responsavel_id,
           prazo_sla,
           resolvido_em,
           encerrado_em,
@@ -321,6 +338,24 @@ export default function AtendimentoChamadoPage() {
       setNovaPrioridade(
         chamadoAtual.prioridade
       )
+
+      setNovoResponsavel(
+        chamadoAtual.responsavel_id || ''
+      )
+
+      /*
+       * Lista de quem pode receber o chamado: a equipe interna
+       * ativa. É por aqui que o administrador transfere o
+       * atendimento de uma pessoa para outra.
+       */
+      const { data: agentesData } = await supabase
+        .from('profiles')
+        .select('id, nome, perfil')
+        .in('perfil', ['atendimento', 'gestor', 'admin'])
+        .eq('ativo', true)
+        .order('nome')
+
+      setAgentes((agentesData || []) as Agente[])
 
       const {
         data: empresaData,
@@ -557,6 +592,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          responsavel_id,
           prazo_sla,
           resolvido_em,
           encerrado_em,
@@ -634,6 +670,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          responsavel_id,
           prazo_sla,
           resolvido_em,
           encerrado_em,
@@ -674,6 +711,70 @@ export default function AtendimentoChamadoPage() {
       setSalvandoPrioridade(
         false
       )
+    }
+  }
+
+  async function salvarResponsavel() {
+    if (!chamado) return
+
+    if (
+      (novoResponsavel || null) ===
+      (chamado.responsavel_id || null)
+    ) {
+      return
+    }
+
+    try {
+      setSalvandoResponsavel(true)
+      setErro('')
+
+      const { data, error } = await supabase
+        .from('chamados')
+        .update({
+          responsavel_id: novoResponsavel || null,
+        })
+        .eq('id', chamado.id)
+        .select(`
+          id,
+          numero,
+          empresa_id,
+          categoria,
+          assunto,
+          descricao,
+          prioridade,
+          status,
+          responsavel_id,
+          prazo_sla,
+          resolvido_em,
+          encerrado_em,
+          created_at,
+          updated_at
+        `)
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      setChamado(data as Chamado)
+
+      setNovoResponsavel(
+        (data as Chamado).responsavel_id || ''
+      )
+    } catch (error) {
+      console.error(error)
+
+      setErro(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível transferir o chamado.'
+      )
+
+      setNovoResponsavel(
+        chamado.responsavel_id || ''
+      )
+    } finally {
+      setSalvandoResponsavel(false)
     }
   }
 
@@ -2223,6 +2324,64 @@ export default function AtendimentoChamadoPage() {
                 {salvandoPrioridade
                   ? 'Salvando...'
                   : 'Salvar prioridade'}
+              </button>
+
+              <div
+                style={{
+                  height: '1px',
+                  background: '#e2e8f0',
+                  margin: '20px 0',
+                }}
+              />
+
+              <label style={labelStyle}>
+                Responsável
+              </label>
+
+              <select
+                value={novoResponsavel}
+                onChange={(event) =>
+                  setNovoResponsavel(
+                    event.target.value
+                  )
+                }
+                style={selectStyle}
+              >
+                <option value="">
+                  Sem responsável
+                </option>
+
+                {agentes.map((agente) => (
+                  <option
+                    key={agente.id}
+                    value={agente.id}
+                  >
+                    {agente.nome || 'Sem nome'}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={salvarResponsavel}
+                disabled={
+                  salvandoResponsavel ||
+                  (novoResponsavel || null) ===
+                    (chamado.responsavel_id || null)
+                }
+                style={{
+                  ...saveButtonStyle,
+                  opacity:
+                    salvandoResponsavel ||
+                    (novoResponsavel || null) ===
+                      (chamado.responsavel_id || null)
+                      ? 0.55
+                      : 1,
+                }}
+              >
+                {salvandoResponsavel
+                  ? 'Transferindo...'
+                  : 'Transferir chamado'}
               </button>
             </section>
 
