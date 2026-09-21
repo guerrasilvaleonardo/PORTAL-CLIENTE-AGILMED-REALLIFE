@@ -28,6 +28,7 @@ type Chamado = {
   status: string
   created_at: string
   prazo_sla: string | null
+  responsavel_id: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string; marca: string | null } | null
   responsavel?: { nome: string | null } | null
 }
@@ -66,6 +67,10 @@ export default function AtendimentoPage() {
   const [busca, setBusca] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [filtroPrioridade, setFiltroPrioridade] = useState('')
+  const [filtroResponsavel, setFiltroResponsavel] = useState('')
+
+  const [meuId, setMeuId] = useState('')
+  const [agentes, setAgentes] = useState<{ id: string; nome: string }[]>([])
 
   const [arrastando, setArrastando] = useState<string | null>(null)
   const [sobre, setSobre] = useState<string | null>(null)
@@ -95,10 +100,26 @@ export default function AtendimentoPage() {
         return
       }
 
+      setMeuId(user.id)
+
+      const { data: equipe } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .in('perfil', PERFIS_INTERNOS)
+        .eq('ativo', true)
+        .order('nome')
+
+      setAgentes(
+        ((equipe || []) as any[]).map((p) => ({
+          id: p.id,
+          nome: p.nome || 'Sem nome',
+        }))
+      )
+
       const { data, error } = await supabase
         .from('chamados')
         .select(
-          'id, numero, empresa_id, categoria, assunto, prioridade, status, created_at, prazo_sla, empresas(nome_fantasia, razao_social, marca), responsavel:profiles!chamados_responsavel_id_fkey(nome)'
+          'id, numero, empresa_id, categoria, assunto, prioridade, status, created_at, prazo_sla, responsavel_id, empresas(nome_fantasia, razao_social, marca), responsavel:profiles!chamados_responsavel_id_fkey(nome)'
         )
         .order('created_at', { ascending: false })
 
@@ -150,6 +171,18 @@ export default function AtendimentoPage() {
     return chamados.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
       if (filtroPrioridade && c.prioridade !== filtroPrioridade) return false
+
+      if (filtroResponsavel === 'meus' && c.responsavel_id !== meuId) return false
+      if (filtroResponsavel === 'sem' && c.responsavel_id) return false
+
+      if (
+        filtroResponsavel &&
+        filtroResponsavel !== 'meus' &&
+        filtroResponsavel !== 'sem' &&
+        c.responsavel_id !== filtroResponsavel
+      ) {
+        return false
+      }
       if (!termo) return true
 
       return [c.numero, c.assunto, c.categoria, c.empresas?.nome_fantasia, c.empresas?.razao_social]
@@ -157,7 +190,7 @@ export default function AtendimentoPage() {
         .toLowerCase()
         .includes(termo)
     })
-  }, [chamados, busca, filtroEmpresa, filtroPrioridade])
+  }, [chamados, busca, filtroEmpresa, filtroPrioridade, filtroResponsavel, meuId])
 
   const indicadores = useMemo(() => {
     const abertos = chamados.filter((c) => EM_ABERTO.includes(c.status))
@@ -293,6 +326,21 @@ export default function AtendimentoPage() {
           <option value="alta">Alta</option>
           <option value="normal">Normal</option>
           <option value="baixa">Baixa</option>
+        </select>
+
+        <select
+          value={filtroResponsavel}
+          onChange={(e) => setFiltroResponsavel(e.target.value)}
+        >
+          <option value="">Todos os responsáveis</option>
+          <option value="meus">Meus atendimentos</option>
+          <option value="sem">Sem responsável</option>
+
+          {agentes.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.nome}
+            </option>
+          ))}
         </select>
       </div>
 
