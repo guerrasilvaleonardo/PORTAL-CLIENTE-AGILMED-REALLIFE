@@ -3,6 +3,7 @@
 import { DragEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { avisar } from '@/lib/avisar'
 import './quadro.css'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -199,6 +200,8 @@ export default function AtendimentoPage() {
       return
     }
 
+    avisar('status_alterado', id)
+
     setAviso(
       'Chamado #' +
         atual.numero +
@@ -353,7 +356,7 @@ export default function AtendimentoPage() {
 
                         <div className="card-meta">
                           <span className={'due' + (atrasado ? ' bad' : '')}>
-                            {aberto ? prazo.texto : '—'}
+                            {prazo.texto}
                           </span>
 
                           <span className="avatar" title={c.responsavel?.nome || 'Sem responsável'}>
