@@ -141,6 +141,18 @@ export default function AtendimentoPage() {
   }
 
   useEffect(() => {
+    /*
+     * O painel manda para cá com ?responsavel=meus ou o id de alguém,
+     * então o atalho do dashboard já cai no quadro filtrado.
+     */
+    const alvo = new URLSearchParams(window.location.search).get(
+      'responsavel'
+    )
+
+    if (alvo) {
+      setFiltroResponsavel(alvo)
+    }
+
     carregar()
   }, [])
 
