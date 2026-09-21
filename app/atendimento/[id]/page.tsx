@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { avisar } from '@/lib/avisar'
 
 type Chamado = {
   id: string
@@ -617,6 +618,8 @@ export default function AtendimentoChamadoPage() {
       setNovoStatus(
         data.status
       )
+
+      avisar('status_alterado', chamado.id)
     } catch (error) {
       console.error(error)
 
@@ -761,6 +764,8 @@ export default function AtendimentoChamadoPage() {
       setNovoResponsavel(
         (data as Chamado).responsavel_id || ''
       )
+
+      avisar('chamado_transferido', chamado.id)
     } catch (error) {
       console.error(error)
 
@@ -792,6 +797,8 @@ export default function AtendimentoChamadoPage() {
     try {
       setEnviando(true)
       setErro('')
+
+      const texto = novaMensagem.trim()
 
       const {
         data: { user },
@@ -867,6 +874,10 @@ export default function AtendimentoChamadoPage() {
       )
 
       setNovaMensagem('')
+
+      avisar('mensagem_nova', String(chamadoId), {
+        mensagem: texto,
+      })
 
       /*
        * Se o chamado ainda estiver aberto,
