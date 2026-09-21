@@ -30,6 +30,22 @@ type CargaAtendente = {
   urgentes: number
 }
 
+const rotuloSituacao: Record<string, string> = {
+  aberto: 'Aberto',
+  em_atendimento: 'Em atendimento',
+  aguardando_cliente: 'Aguardando cliente',
+  resolvido: 'Resolvido',
+  encerrado: 'Encerrado',
+}
+
+function iniciais(nome: string) {
+  const p = nome.trim().split(/\s+/)
+
+  return (
+    (p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')
+  ).toUpperCase()
+}
+
 function estaAtrasado(prazo: string | null) {
   return Boolean(prazo) && new Date(prazo as string).getTime() < Date.now()
 }
@@ -247,6 +263,8 @@ export default function PainelPage() {
 
   const meusAtrasados = meus.filter((c) => estaAtrasado(c.prazo_sla)).length
 
+  const maiorCarga = carga.reduce((m, a) => Math.max(m, a.abertos), 0)
+
   const modulos = [
     {
       href: '/atendimento',
@@ -357,12 +375,13 @@ export default function PainelPage() {
       <div className="panel">
         <div className="panel-head">
           <div className="section-title">Meus atendimentos</div>
-          <Link href="/atendimento" className="btn btn-sm">
-            Abrir o quadro
+
+          <Link href="/atendimento?responsavel=meus" className="btn btn-sm">
+            Ver no quadro
           </Link>
         </div>
 
-        <div className="panel-body">
+        <div className="panel-body" style={{ gap: 0 }}>
           {carregando ? (
             <div className="empty-state">Carregando...</div>
           ) : meus.length === 0 ? (
@@ -371,66 +390,87 @@ export default function PainelPage() {
               transferir um chamado para você, ele aparece aqui.
             </div>
           ) : (
-            <div className="table-wrap">
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  {meus.map((c) => (
-                    <tr key={c.id} className="trow">
-                      <td style={{ padding: '10px 6px', width: 70 }}>
-                        <span className="mono">#{c.numero ?? ''}</span>
-                      </td>
+            meus.map((c, indice) => {
+              const atrasado = estaAtrasado(c.prazo_sla)
 
-                      <td style={{ padding: '10px 6px' }}>
-                        <Link
-                          href={'/atendimento/' + c.id}
-                          style={{ fontWeight: 600, color: 'var(--ink)' }}
-                        >
-                          {c.assunto}
-                        </Link>
+              return (
+                <Link
+                  key={c.id}
+                  href={'/atendimento/' + c.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '54px 1fr auto',
+                    gap: 12,
+                    alignItems: 'center',
+                    padding: '12px 2px',
+                    borderTop:
+                      indice === 0 ? 'none' : '1px solid var(--border)',
+                    color: 'inherit',
+                  }}
+                >
+                  <span
+                    className="mono"
+                    style={{ fontSize: 12, color: 'var(--ink-faint)' }}
+                  >
+                    #{c.numero ?? ''}
+                  </span>
 
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: 'var(--ink-muted)',
-                            marginTop: 2,
-                          }}
-                        >
-                          {c.empresas?.nome_fantasia ||
-                            c.empresas?.razao_social ||
-                            'Empresa'}
-                        </div>
-                      </td>
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontWeight: 600,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {c.assunto}
+                    </span>
 
-                      <td style={{ padding: '10px 6px', width: 110 }}>
-                        <span
-                          className={
-                            'pill' +
-                            (c.prioridade === 'urgente' ? ' bad' : '')
-                          }
-                        >
-                          {c.prioridade}
-                        </span>
-                      </td>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        color: 'var(--ink-muted)',
+                        marginTop: 2,
+                      }}
+                    >
+                      {c.empresas?.nome_fantasia ||
+                        c.empresas?.razao_social ||
+                        'Empresa'}
+                      {' · '}
+                      {rotuloSituacao[c.status] || c.status}
+                    </span>
+                  </span>
 
-                      <td
-                        style={{
-                          padding: '10px 6px',
-                          width: 140,
-                          textAlign: 'right',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          color: estaAtrasado(c.prazo_sla)
-                            ? 'var(--danger)'
-                            : 'var(--ink-muted)',
-                        }}
-                      >
-                        {textoPrazo(c.prazo_sla)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  <span
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.prioridade === 'urgente' && (
+                      <span className="pill bad">urgente</span>
+                    )}
+
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        color: atrasado
+                          ? 'var(--danger)'
+                          : 'var(--ink-muted)',
+                      }}
+                    >
+                      {textoPrazo(c.prazo_sla)}
+                    </span>
+                  </span>
+                </Link>
+              )
+            })
           )}
         </div>
       </div>
@@ -439,69 +479,110 @@ export default function PainelPage() {
         <div className="panel">
           <div className="panel-head">
             <div className="section-title">Carga por atendente</div>
+
             {semDono > 0 && (
-              <span className="pill bad">{semDono} sem responsável</span>
+              <Link href="/atendimento?responsavel=sem" className="pill bad">
+                {semDono} sem responsável
+              </Link>
             )}
           </div>
 
-          <div className="panel-body">
+          <div className="panel-body" style={{ gap: 0 }}>
             {carregando ? (
               <div className="empty-state">Carregando...</div>
             ) : carga.length === 0 ? (
               <div className="empty-state">Nenhum atendente cadastrado.</div>
             ) : (
-              <div className="table-wrap">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <th style={thPainel}>Atendente</th>
-                      <th style={{ ...thPainel, textAlign: 'right' }}>
-                        Em aberto
-                      </th>
-                      <th style={{ ...thPainel, textAlign: 'right' }}>
-                        Atrasados
-                      </th>
-                      <th style={{ ...thPainel, textAlign: 'right' }}>
-                        Urgentes
-                      </th>
-                    </tr>
-                  </thead>
+              <>
+                <div style={cabecalhoCarga}>
+                  <span>Atendente</span>
+                  <span />
+                  <span style={{ textAlign: 'right' }}>Aberto</span>
+                  <span style={{ textAlign: 'right' }}>Atraso</span>
+                  <span style={{ textAlign: 'right' }}>Urgente</span>
+                </div>
 
-                  <tbody>
-                    {carga.map((a) => (
-                      <tr key={a.id} className="trow">
-                        <td style={{ padding: '10px 6px', fontWeight: 600 }}>
-                          {a.nome}
-                        </td>
+                {carga.map((a, indice) => (
+                  <Link
+                    key={a.id}
+                    href={'/atendimento?responsavel=' + a.id}
+                    style={{
+                      ...linhaCarga,
+                      borderTop:
+                        indice === 0 ? 'none' : '1px solid var(--border)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span style={avatarCarga}>{iniciais(a.nome)}</span>
 
-                        <td style={tdNumero}>{a.abertos}</td>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {a.nome}
+                      </span>
+                    </span>
 
-                        <td
-                          style={{
-                            ...tdNumero,
-                            color: a.atrasados
-                              ? 'var(--danger)'
-                              : 'var(--ink-muted)',
-                          }}
-                        >
-                          {a.atrasados}
-                        </td>
+                    <span
+                      style={{
+                        height: 6,
+                        borderRadius: 999,
+                        background: 'var(--surface-sunken)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'block',
+                          height: '100%',
+                          width:
+                            (maiorCarga
+                              ? Math.round((a.abertos / maiorCarga) * 100)
+                              : 0) + '%',
+                          background: a.atrasados
+                            ? 'var(--danger)'
+                            : 'var(--primary)',
+                        }}
+                      />
+                    </span>
 
-                        <td
-                          style={{
-                            ...tdNumero,
-                            color: a.urgentes
-                              ? 'var(--amber)'
-                              : 'var(--ink-muted)',
-                          }}
-                        >
-                          {a.urgentes}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    <span style={numeroCarga}>{a.abertos}</span>
+
+                    <span
+                      style={{
+                        ...numeroCarga,
+                        color: a.atrasados
+                          ? 'var(--danger)'
+                          : 'var(--ink-faint)',
+                      }}
+                    >
+                      {a.atrasados}
+                    </span>
+
+                    <span
+                      style={{
+                        ...numeroCarga,
+                        color: a.urgentes
+                          ? 'var(--amber)'
+                          : 'var(--ink-faint)',
+                      }}
+                    >
+                      {a.urgentes}
+                    </span>
+                  </Link>
+                ))}
+              </>
             )}
           </div>
         </div>
@@ -538,19 +619,48 @@ export default function PainelPage() {
   )
 }
 
-const thPainel = {
-  padding: '8px 6px',
-  textAlign: 'left' as const,
-  fontSize: 11,
-  letterSpacing: '.06em',
+const gradeCarga = '1fr minmax(60px,120px) 64px 64px 68px'
+
+const cabecalhoCarga = {
+  display: 'grid',
+  gridTemplateColumns: gradeCarga,
+  gap: 12,
+  alignItems: 'center',
+  padding: '0 2px 8px',
+  fontSize: 10.5,
+  letterSpacing: '.05em',
   textTransform: 'uppercase' as const,
   color: 'var(--ink-faint)',
-  borderBottom: '1px solid var(--border)',
+  fontWeight: 700,
 }
 
-const tdNumero = {
-  padding: '10px 6px',
+const linhaCarga = {
+  display: 'grid',
+  gridTemplateColumns: gradeCarga,
+  gap: 12,
+  alignItems: 'center',
+  padding: '11px 2px',
+  color: 'inherit',
+  fontSize: 13.5,
+}
+
+const avatarCarga = {
+  width: 26,
+  height: 26,
+  flex: '0 0 26px',
+  borderRadius: 999,
+  background: 'var(--primary-tint)',
+  color: 'var(--primary-strong)',
+  fontSize: 10.5,
+  fontWeight: 800,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+const numeroCarga = {
   textAlign: 'right' as const,
   fontWeight: 700,
   fontVariantNumeric: 'tabular-nums' as const,
 }
+
