@@ -15,6 +15,93 @@ const supabasePublishableKey =
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
+function semAcento(texto: string) {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+/*
+ * A equipe já escrevia "@Danielle" nas conversas sem que isso fizesse
+ * nada. Agora quem é citado recebe o aviso com o link do chamado.
+ */
+async function avisarCitados(
+  texto: string,
+  autorId: string,
+  dados: {
+    marca: any
+    portal: string
+    codigo: string
+    assunto: string
+    nomeAutor: string
+    nomeEmpresa: string
+    chamadoId: string
+  }
+) {
+  const apelidos = [
+    ...texto.matchAll(/@([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ.'-]{1,40})/g),
+  ].map((m) => semAcento(m[1]))
+
+  if (!apelidos.length) {
+    return 0
+  }
+
+  const { data: pessoas } = await supabaseAdmin
+    .from('profiles')
+    .select('id, nome, email, perfil')
+    .eq('ativo', true)
+
+  const citados = (pessoas || []).filter((p) => {
+    if (p.id === autorId || !p.email) {
+      return false
+    }
+
+    const nome = semAcento(p.nome || '')
+    const primeiro = nome.split(' ')[0]
+
+    return apelidos.some((a) => a === primeiro || nome.startsWith(a))
+  })
+
+  let enviados = 0
+
+  for (const pessoa of citados) {
+    const interno = PERFIS_INTERNOS.includes(pessoa.perfil || '')
+
+    const link =
+      dados.portal +
+      (interno ? '/atendimento/' : '/chamados/') +
+      dados.chamadoId
+
+    const r = await enviarEmail({
+      para: [pessoa.email as string],
+      assunto:
+        dados.nomeAutor + ' citou você no chamado ' + dados.codigo,
+      marca: dados.marca,
+      html: montarEmail(
+        dados.marca,
+        'Você foi citado em um chamado',
+        [
+          escapar(dados.nomeAutor) +
+            ' mencionou você no chamado ' +
+            dados.codigo +
+            ' — ' +
+            escapar(dados.assunto) +
+            '.',
+          '<strong>Cliente:</strong> ' + escapar(dados.nomeEmpresa),
+          '<em>' + escapar(texto.slice(0, 400)) + '</em>',
+        ],
+        { rotulo: 'Abrir o chamado', url: link }
+      ),
+    })
+
+    if (r.enviado) enviados++
+  }
+
+  return enviados
+}
+
 async function usuarioDoPedido(request: Request) {
   const authorization = request.headers.get('authorization')
 
@@ -248,7 +335,21 @@ export async function POST(request: Request) {
 
     const resultado = await enviarEmail({ para, assunto, html, marca })
 
-    return NextResponse.json({ sucesso: true, ...resultado })
+    let citados = 0
+
+    if (evento === 'mensagem_nova') {
+      citados = await avisarCitados(String(body.mensagem ?? ''), user.id, {
+        marca,
+        portal,
+        codigo,
+        assunto: chamado.assunto,
+        nomeAutor: nomeAutor,
+        nomeEmpresa,
+        chamadoId: chamado.id,
+      })
+    }
+
+    return NextResponse.json({ sucesso: true, citados, ...resultado })
   } catch (erro) {
     console.error('Erro ao disparar notificação:', erro)
 
