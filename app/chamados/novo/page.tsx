@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { obterMarcaDaEmpresa } from '@/lib/empresa';
 import { avisar } from '@/lib/avisar';
+import { normalizarUrl } from '@/lib/links';
 import type { Marca } from '@/lib/marca';
 
 const categorias = [
@@ -80,6 +81,8 @@ export default function NovoChamadoPage() {
   const [assunto, setAssunto] = useState('');
   const [descricao, setDescricao] = useState('');
   const [prioridade, setPrioridade] = useState('normal');
+  const [linkTitulo, setLinkTitulo] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
 
   useEffect(() => {
     async function carregarUsuario() {
@@ -154,6 +157,15 @@ export default function NovoChamadoPage() {
       return;
     }
 
+    const linkNormalizado = normalizarUrl(linkUrl);
+
+    if (linkUrl.trim() && !linkNormalizado) {
+      setErro(
+        'O link de acesso informado não é válido. Exemplo: https://exemplo.com.br/documento'
+      );
+      return;
+    }
+
     try {
       setEnviando(true);
 
@@ -201,6 +213,21 @@ export default function NovoChamadoPage() {
         );
 
         return;
+      }
+
+      if (linkNormalizado) {
+        const { error: linkError } = await supabase
+          .from('chamado_links')
+          .insert({
+            chamado_id: data.id,
+            criado_por: usuarioId,
+            titulo: linkTitulo.trim() || null,
+            url: linkNormalizado,
+          });
+
+        if (linkError) {
+          console.error(linkError);
+        }
       }
 
       await avisar('chamado_criado', data.id);
@@ -580,6 +607,47 @@ export default function NovoChamadoPage() {
                       );
                     })}
                   </div>
+                </div>
+
+                <div style={styles.field}>
+                  <label style={styles.label}>
+                    Link de acesso{' '}
+                    <span style={styles.optional}>
+                      (opcional)
+                    </span>
+                  </label>
+
+                  <div style={styles.linkRow}>
+                    <input
+                      type="text"
+                      value={linkTitulo}
+                      onChange={(event) =>
+                        setLinkTitulo(event.target.value)
+                      }
+                      placeholder="Nome do link (ex.: Planilha de exames)"
+                      style={styles.input}
+                      maxLength={120}
+                    />
+
+                    <input
+                      type="text"
+                      value={linkUrl}
+                      onChange={(event) =>
+                        setLinkUrl(event.target.value)
+                      }
+                      placeholder="https://..."
+                      style={styles.input}
+                      maxLength={500}
+                      inputMode="url"
+                    />
+                  </div>
+
+                  <span style={styles.helper}>
+                    Use quando o material estiver em uma pasta
+                    compartilhada, sistema externo ou site.
+                    Você poderá acrescentar outros links depois
+                    de abrir o chamado.
+                  </span>
                 </div>
 
                 <div style={styles.attachmentBox}>
@@ -1063,6 +1131,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#0f172a',
     fontSize: '14px',
     outline: 'none',
+  },
+
+  optional: {
+    color: '#94a3b8',
+    fontWeight: 500,
+  },
+
+  linkRow: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.4fr)',
+    gap: '10px',
   },
 
   textarea: {
