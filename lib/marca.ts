@@ -37,3 +37,18 @@ export function obterMarca(
 
   return null
 }
+
+/*
+ * Quem é da equipe interna não tem empresa vinculada, então não há
+ * marca para herdar. Nesse caso o endereço decide: cada marca tem o
+ * seu próprio domínio, e é essa a identidade que a pessoa espera ver.
+ */
+export function marcaDoDominio(): Marca {
+  if (typeof window === 'undefined') {
+    return 'reallife'
+  }
+
+  return window.location.hostname.includes('agilmed')
+    ? 'agilmed'
+    : 'reallife'
+}
