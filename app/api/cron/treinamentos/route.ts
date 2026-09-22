@@ -384,7 +384,17 @@ export async function GET(request: Request) {
     const unicos = new Map<string, Linha>()
 
     for (const linha of encontrados) {
-      unicos.set(linha.email + '|' + linha.curso.toUpperCase(), linha)
+      const chave = linha.email + '|' + linha.curso.toUpperCase()
+
+      const anterior = unicos.get(chave)
+
+      /*
+       * O mesmo curso pode aparecer em mais de uma matricula do aluno.
+       * Guardamos sempre a de maior andamento.
+       */
+      if (!anterior || linha.progresso > anterior.progresso) {
+        unicos.set(chave, linha)
+      }
     }
 
     const registros = [...unicos.values()].map((l) => ({
