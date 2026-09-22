@@ -111,6 +111,47 @@ function situacao(validade: string | null) {
   return { texto: 'Válido', cor: '#15803d', fundo: '#f0fdf4', ordem: 3 }
 }
 
+/*
+ * Deixa o nome do curso comparavel: sem acento, sem pontuacao e em
+ * MAIUSCULAS. "NR |10 | Reciclagem" vira "NR 10 RECICLAGEM".
+ */
+function normalizarCurso(texto: string) {
+  return texto
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function numeroDaNr(texto: string) {
+  const achado = normalizarCurso(texto).match(/\bNR 0?(\d{1,2})\b/)
+
+  return achado ? achado[1] : null
+}
+
+const QUALIFICADORES = [
+  'COMPLEMENTAR',
+  'SEP',
+  'RECICLAGEM',
+  'SUPERVISOR',
+  'BASICO',
+  'AVANCADO',
+  'INTERMEDIARIO',
+  'VIGIA',
+  'AUTORIZADO',
+  'ENTRADA',
+  'FORMACAO',
+  'INICIAL',
+]
+
+function qualificadores(texto: string) {
+  const normalizado = normalizarCurso(texto)
+
+  return QUALIFICADORES.filter((q) => normalizado.includes(q))
+}
+
 function formatarData(valor: string | null) {
   if (!valor) return '—'
 
@@ -165,28 +206,58 @@ export default function CertificadosPage() {
 
     if (doColaborador.length === 0) return null
 
-    if (c.curso) {
-      const curso = c.curso.toUpperCase().trim()
-
-      const exato = doColaborador.find(
-        (p) => p.curso.toUpperCase().trim() === curso
-      )
-
-      if (exato) return exato
-
-      const parcial = doColaborador.find((p) => {
-        const a = p.curso.toUpperCase().replace(/[^A-Z0-9]/g, '')
-        const b = curso.replace(/[^A-Z0-9]/g, '')
-
-        return a.includes(b) || b.includes(a)
-      })
-
-      if (parcial) return parcial
-
-      return null
+    if (!c.curso) {
+      return [...doColaborador].sort((a, b) => b.progresso - a.progresso)[0]
     }
 
-    return doColaborador.sort((a, b) => b.progresso - a.progresso)[0]
+    const alvo = normalizarCurso(c.curso)
+
+    const exato = doColaborador.find((p) => normalizarCurso(p.curso) === alvo)
+
+    if (exato) return exato
+
+    /*
+     * O nome do curso no EAD raramente e igual ao que digitamos aqui
+     * ("NR 18 | CONSTRUCAO CIVIL" x "NR | 18 | - Condicoes de Seguranca...").
+     * Entao casamos pelo numero da NR e pelos qualificadores
+     * (COMPLEMENTAR, SEP, RECICLAGEM, SUPERVISOR...).
+     */
+    const nr = numeroDaNr(c.curso)
+
+    if (nr) {
+      const mesmaNr = doColaborador.filter((p) => numeroDaNr(p.curso) === nr)
+
+      if (mesmaNr.length === 0) return null
+
+      const quaisCert = qualificadores(c.curso)
+
+      const compativeis = mesmaNr.filter((p) => {
+        const quaisEad = qualificadores(p.curso)
+
+        if (quaisCert.length > 0) {
+          return quaisCert.every((q) => quaisEad.includes(q))
+        }
+
+        return quaisEad.length === 0
+      })
+
+      const lista = compativeis.length > 0 ? compativeis : mesmaNr
+
+      return [...lista].sort((a, b) => b.progresso - a.progresso)[0]
+    }
+
+    /* Cursos sem NR: Brigada de Incendio, Primeiros Socorros... */
+    const palavras = alvo.split(' ').filter((t) => t.length > 3)
+
+    const porPalavra = doColaborador.filter((p) => {
+      const texto = normalizarCurso(p.curso)
+
+      return palavras.length > 0 && palavras.every((t) => texto.includes(t))
+    })
+
+    if (porPalavra.length === 0) return null
+
+    return [...porPalavra].sort((a, b) => b.progresso - a.progresso)[0]
   }
 
   async function carregar() {
@@ -828,6 +899,21 @@ function BarraProgresso({ registro }: { registro: Progresso | null }) {
         <span title={'Atualizado em ' + new Date(registro.atualizado_em).toLocaleString('pt-BR')}>
           {new Date(registro.atualizado_em).toLocaleDateString('pt-BR')}
         </span>
+      </div>
+
+      <div
+        title={registro.curso + (registro.situacao ? ' (' + registro.situacao + ')' : '')}
+        style={{
+          fontSize: 11,
+          color: '#94a3b8',
+          marginTop: 2,
+          maxWidth: 170,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {registro.curso}
       </div>
     </div>
   )
