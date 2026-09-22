@@ -106,6 +106,18 @@ type Linha = {
 
 const SITUACOES = ['ativo', 'inativo', 'expirado', 'cancelado', 'trancado']
 
+function ehAtiva(linha: { situacao: string | null }) {
+  return (linha.situacao || '').toLowerCase() === 'ativo'
+}
+
+function melhorLinha(nova: Linha, atual: Linha) {
+  if (ehAtiva(nova) !== ehAtiva(atual)) {
+    return ehAtiva(nova) ? nova : atual
+  }
+
+  return nova.progresso > atual.progresso ? nova : atual
+}
+
 function paraDataIso(texto: string | null) {
   if (!texto) return null
 
@@ -143,13 +155,21 @@ function lerLinhas(conteudo: string): Linha[] {
 
     if (!curso) continue
 
-    const percentuais = [...bloco.matchAll(/(\d{1,3})\s*%/g)].map((m) =>
-      Number(m[1])
+    /*
+     * A coluna Progresso e a primeira celula depois do e-mail cujo texto
+     * e apenas um percentual ("47%"). Procurar o percentual no bloco
+     * inteiro pegava por engano a largura da barra de outra linha.
+     */
+    const indiceProgresso = celulas.findIndex(
+      (c, i) => i > indiceEmail && /^\d{1,3}\s*%$/.test(c)
     )
 
-    const progresso = percentuais.length
-      ? Math.max(0, Math.min(100, percentuais[percentuais.length - 1]))
-      : 0
+    const numero =
+      indiceProgresso >= 0
+        ? Number((celulas[indiceProgresso].match(/\d{1,3}/) || ['0'])[0])
+        : 0
+
+    const progresso = Math.max(0, Math.min(100, numero))
 
     const situacao =
       celulas.find((c) => SITUACOES.includes(c.toLowerCase())) || null
@@ -390,9 +410,10 @@ export async function GET(request: Request) {
 
       /*
        * O mesmo curso pode aparecer em mais de uma matricula do aluno.
-       * Guardamos sempre a de maior andamento.
+       * Fica valendo a matricula ativa e, entre iguais, a de maior
+       * andamento.
        */
-      if (!anterior || linha.progresso > anterior.progresso) {
+      if (!anterior || melhorLinha(linha, anterior) === linha) {
         unicos.set(chave, linha)
       }
     }
