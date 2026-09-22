@@ -20,12 +20,39 @@ export const maxDuration = 300
 
 const PADRAO_URL = 'https://reallifessma.maestrus.com'
 
-function autorizado(request: Request) {
+const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
+
+/*
+ * Aceita a chamada do agendador da Vercel (CRON_SECRET) e tambem o
+ * botao "Atualizar agora" da tela de Certificados, usado por quem e da
+ * equipe interna.
+ */
+async function autorizado(request: Request) {
+  const cabecalho = request.headers.get('authorization') || ''
+
   const segredo = process.env.CRON_SECRET
 
   if (!segredo) return true
 
-  return request.headers.get('authorization') === 'Bearer ' + segredo
+  if (cabecalho === 'Bearer ' + segredo) return true
+
+  const token = cabecalho.replace(/^Bearer /i, '').trim()
+
+  if (!token) return false
+
+  const { data, error } = await supabaseAdmin.auth.getUser(token)
+
+  if (error || !data?.user) return false
+
+  const { data: perfil } = await supabaseAdmin
+    .from('profiles')
+    .select('perfil, ativo')
+    .eq('id', data.user.id)
+    .single()
+
+  return Boolean(
+    perfil && perfil.ativo === true && PERFIS_INTERNOS.includes(perfil.perfil)
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -189,7 +216,7 @@ function lerLinhas(conteudo: string): Linha[] {
 /* ------------------------------------------------------------------ */
 
 export async function GET(request: Request) {
-  if (!autorizado(request)) {
+  if (!(await autorizado(request))) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
 
