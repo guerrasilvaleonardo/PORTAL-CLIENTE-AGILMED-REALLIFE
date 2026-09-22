@@ -171,6 +171,7 @@ export default function CertificadosPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [certificados, setCertificados] = useState<Certificado[]>([])
   const [progressos, setProgressos] = useState<Progresso[]>([])
+  const [atualizandoEad, setAtualizandoEad] = useState(false)
 
   const [busca, setBusca] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
@@ -258,6 +259,49 @@ export default function CertificadosPage() {
     if (porPalavra.length === 0) return null
 
     return [...porPalavra].sort((a, b) => b.progresso - a.progresso)[0]
+  }
+
+  async function atualizarEad() {
+    if (atualizandoEad) return
+
+    setErro('')
+    setMensagem('')
+    setAtualizandoEad(true)
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const resposta = await fetch('/api/cron/treinamentos', {
+        headers: { Authorization: 'Bearer ' + (session?.access_token || '') },
+      })
+
+      const corpo = await resposta.json()
+
+      if (!resposta.ok || corpo?.sucesso === false) {
+        setErro(corpo?.erro || 'Não foi possível ler a plataforma de ensino.')
+        return
+      }
+
+      const semCadastro: string[] = corpo?.sem_cadastro_no_ead || []
+
+      setMensagem(
+        'Progresso atualizado: ' +
+          (corpo?.registros ?? 0) +
+          ' matrícula(s).' +
+          (semCadastro.length
+            ? ' Sem matrícula no EAD: ' + semCadastro.join(', ') + '.'
+            : '')
+      )
+
+      await carregar()
+    } catch (e: any) {
+      console.error(e)
+      setErro('Não foi possível falar com a plataforma de ensino.')
+    } finally {
+      setAtualizandoEad(false)
+    }
   }
 
   async function carregar() {
@@ -515,6 +559,30 @@ export default function CertificadosPage() {
               ? 'Tudo que vence, por empresa e por colaborador — antes de virar problema.'
               : 'Os treinamentos e exames da sua equipe, com o que vence primeiro no topo.'}
           </p>
+
+          {interno && (
+            <div style={{ marginTop: 14 }}>
+              <button
+                type="button"
+                onClick={atualizarEad}
+                disabled={atualizandoEad}
+                style={{
+                  ...botaoSecundario,
+                  ...(atualizandoEad ? { opacity: 0.6, cursor: 'wait' } : {}),
+                }}
+              >
+                {atualizandoEad
+                  ? 'Lendo a plataforma de ensino...'
+                  : 'Atualizar progresso do EAD'}
+              </button>
+
+              <span
+                style={{ marginLeft: 10, fontSize: 13, color: '#94a3b8' }}
+              >
+                A leitura automática acontece todo dia às 06h.
+              </span>
+            </div>
+          )}
         </div>
 
         {erro && <div style={avisoErro}>{erro}</div>}
