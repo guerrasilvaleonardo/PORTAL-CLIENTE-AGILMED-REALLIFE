@@ -8,7 +8,8 @@
  * e não no sábado de madrugada.
  */
 
-const FUSO_MINUTOS = -180 // America/Sao_Paulo (UTC-3, sem horário de verão)
+/* Fuso fixo: o Brasil nao usa mais horario de verao. */
+const FUSO_MINUTOS = -180 // America/Sao_Paulo (UTC-3)
 
 const MANHA_INICIO = 8 * 60
 const MANHA_FIM = 12 * 60
