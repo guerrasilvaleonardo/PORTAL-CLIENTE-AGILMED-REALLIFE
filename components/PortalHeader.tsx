@@ -126,6 +126,7 @@ export default function PortalHeader() {
         { href: '/atendimento', rotulo: 'Atendimento' },
         { href: '/chamados', rotulo: 'Chamados' },
         { href: '/certificados', rotulo: 'Certificados' },
+        { href: '/equipe', rotulo: 'Chat da equipe' },
       ]
     : [
         { href: '/', rotulo: 'Início' },
