@@ -4,6 +4,7 @@ import { DragEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
+import { horasUteisAte, textoPrazoUtil } from '@/lib/prazo'
 import './quadro.css'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -41,20 +42,17 @@ function iniciais(nome?: string | null) {
   return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase()
 }
 
+/*
+ * O prazo conta apenas horas úteis: 8 por dia, de segunda a sexta.
+ */
 function horasAte(prazo: string | null) {
-  if (!prazo) return null
+  const h = horasUteisAte(prazo)
 
-  return Math.round((new Date(prazo).getTime() - Date.now()) / 3600000)
+  return h === null ? null : Math.round(h)
 }
 
 function textoPrazo(prazo: string | null) {
-  const h = horasAte(prazo)
-
-  if (h === null) return { texto: 'sem SLA', atrasado: false }
-  if (h < 0) return { texto: Math.abs(h) + 'h em atraso', atrasado: true }
-  if (h < 24) return { texto: h + 'h restantes', atrasado: false }
-
-  return { texto: Math.round(h / 24) + 'd restantes', atrasado: false }
+  return textoPrazoUtil(prazo)
 }
 
 export default function AtendimentoPage() {
