@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
+import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
 
 type Chamado = {
   id: string
@@ -901,6 +902,17 @@ export default function AtendimentoChamadoPage() {
       setSalvandoPrioridade(true)
       setErro('')
 
+      /*
+       * Trocar a prioridade refaz o prazo, contado em horas uteis a
+       * partir da abertura do chamado: 8 horas por dia, de segunda a
+       * sexta.
+       */
+      const prazoRefeito = prazoEmHorasUteis(
+        HORAS_SLA[novaPrioridade] ??
+          HORAS_SLA.normal,
+        new Date(chamado.created_at)
+      ).toISOString()
+
       const {
         data,
         error,
@@ -909,6 +921,7 @@ export default function AtendimentoChamadoPage() {
         .update({
           prioridade:
             novaPrioridade,
+          prazo_sla: prazoRefeito,
         })
         .eq(
           'id',
