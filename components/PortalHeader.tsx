@@ -127,13 +127,14 @@ export default function PortalHeader() {
         { href: '/chamados', rotulo: 'Chamados' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
-        { href: '/equipe', rotulo: 'Chat da equipe' },
+        { href: '/equipe', rotulo: 'Conversas' },
       ]
     : [
         { href: '/', rotulo: 'Início' },
         { href: '/chamados', rotulo: 'Chamados' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
+        { href: '/equipe', rotulo: 'Conversas' },
       ]
 
   const ativo = (href: string) =>
