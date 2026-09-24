@@ -8,7 +8,7 @@
  * e não no sábado de madrugada.
  */
 
-/* Fuso fixo: o Brasil nao usa mais horario de verao. */
+/* Fuso fixo: o Brasil nao usa mais horario de verao (UTC-3 o ano todo). */
 const FUSO_MINUTOS = -180 // America/Sao_Paulo (UTC-3)
 
 const MANHA_INICIO = 8 * 60
