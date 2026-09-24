@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { horasUteisEntre } from '@/lib/prazo'
 import {
   enderecoDoPortal,
   enviarEmail,
@@ -23,8 +24,9 @@ function autorizado(request: Request) {
   return request.headers.get('authorization') === 'Bearer ' + segredo
 }
 
+/* Atraso medido em horas úteis: 8 por dia, de segunda a sexta. */
 function horasDeAtraso(prazo: string) {
-  return Math.round((Date.now() - new Date(prazo).getTime()) / 3600000)
+  return Math.round(Math.abs(horasUteisEntre(new Date(), new Date(prazo))))
 }
 
 /*
