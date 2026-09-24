@@ -240,508 +240,332 @@ export default function UsuariosPage() {
     }
   }
 
+
+  const internos = usuarios.filter(
+    (u) => u.perfil !== 'cliente' && u.ativo
+  ).length
+
+  const clientes = usuarios.filter(
+    (u) => u.perfil === 'cliente' && u.ativo
+  ).length
+
+  const inativos = usuarios.filter((u) => !u.ativo).length
+
   return (
-    <main
-      style={{
-        minHeight: 'calc(100vh - 70px)',
-        background: '#f8fafc',
-        padding: '32px 24px 60px',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1250,
-          margin: '0 auto',
-        }}
-      >
-        <div style={{ marginBottom: 28 }}>
-          <div
-            style={{
-              color: '#0f766e',
-              fontSize: 13,
-              fontWeight: 900,
-              textTransform: 'uppercase',
-              letterSpacing: '.07em',
-            }}
-          >
-            Administração
-          </div>
+    <div className="app">
+      <div className="topbar">
+        <div>
+          <div className="section-title">Administração</div>
 
-          <h1
-            style={{
-              margin: '6px 0 0',
-              color: '#0f172a',
-              fontSize: 32,
-            }}
-          >
-            Usuários
-          </h1>
+          <h1 style={{ fontSize: 30, marginTop: 6 }}>Usuários</h1>
 
           <p
             style={{
-              margin: '9px 0 0',
-              color: '#64748b',
-            }}
-          >
-            Gerencie usuários, perfis e empresas do Portal do Cliente.
-          </p>
-
-          <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
-            <span
-              style={{
-                padding: '9px 15px',
-                borderRadius: 10,
-                background: '#0f766e',
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 700,
-              }}
-            >
-              Usuários
-            </span>
-
-            <Link
-              href="/administracao/empresas"
-              style={{
-                padding: '9px 15px',
-                borderRadius: 10,
-                background: '#fff',
-                border: '1px solid #cbd5e1',
-                color: '#334155',
-                fontSize: 14,
-                fontWeight: 700,
-                textDecoration: 'none',
-              }}
-            >
-              Empresas
-            </Link>
-          </div>
-        </div>
-
-        {erro && (
-          <div
-            style={{
-              marginBottom: 18,
-              padding: 14,
-              borderRadius: 10,
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#b91c1c',
-              fontWeight: 700,
-            }}
-          >
-            {erro}
-          </div>
-        )}
-
-        {mensagem && (
-          <div
-            style={{
-              marginBottom: 18,
-              padding: 14,
-              borderRadius: 10,
-              background: '#f0fdf4',
-              border: '1px solid #bbf7d0',
-              color: '#15803d',
-              fontWeight: 700,
-            }}
-          >
-            {mensagem}
-          </div>
-        )}
-
-        <section
-          style={{
-            background: '#fff',
-            border: editando ? '2px solid #0f766e' : '1px solid #e2e8f0',
-            borderRadius: 18,
-            padding: 22,
-            marginBottom: 24,
-          }}
-        >
-          <h2
-            style={{
-              margin: '0 0 6px',
-              color: '#0f172a',
-              fontSize: 20,
-            }}
-          >
-            {editando ? 'Editar usuário' : 'Novo usuário'}
-          </h2>
-
-          <p
-            style={{
-              margin: '0 0 18px',
-              color: '#64748b',
+              margin: '8px 0 0',
+              color: 'var(--ink-muted)',
               fontSize: 14,
             }}
           >
-            {editando
-              ? 'O e-mail não muda. Deixe a senha em branco para manter a atual.'
-              : 'A senha definida aqui é a senha inicial de acesso.'}
+            Acessos da equipe interna e dos clientes, por perfil.
           </p>
+        </div>
 
-          <form onSubmit={salvar}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns:
-                  'repeat(auto-fit,minmax(220px,1fr))',
-                gap: 14,
-              }}
+        <div className="topbar-spacer" />
+
+        <Link href="/administracao/empresas" className="btn">
+          Empresas
+        </Link>
+      </div>
+
+      {erro && <div className="banner bad">{erro}</div>}
+      {mensagem && <div className="banner good">{mensagem}</div>}
+
+      <div className="stats">
+        <div className="stat">
+          <div className="num">{carregando ? '—' : usuarios.length}</div>
+          <div className="lbl">Usuários</div>
+        </div>
+
+        <div className="stat">
+          <div className="num">{carregando ? '—' : internos}</div>
+          <div className="lbl">Equipe interna</div>
+        </div>
+
+        <div className="stat">
+          <div className="num">{carregando ? '—' : clientes}</div>
+          <div className="lbl">Clientes</div>
+        </div>
+
+        <div className={'stat' + (inativos > 0 ? ' warn' : '')}>
+          <div className="num">{carregando ? '—' : inativos}</div>
+          <div className="lbl">Inativos</div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">
+            {editando ? 'Editar usuário' : 'Novo usuário'}
+          </div>
+
+          {editando && (
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={limparFormulario}
             >
+              Cancelar edição
+            </button>
+          )}
+        </div>
+
+        <form onSubmit={salvar} className="panel-body">
+          <div className="field-row">
+            <div className="field">
+              <label>Nome completo *</label>
               <input
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                placeholder="Nome completo"
-                style={inputStyle}
+                placeholder="Nome de quem vai acessar"
               />
+            </div>
 
+            <div className="field">
+              <label>E-mail *</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="E-mail"
+                placeholder="pessoa@empresa.com.br"
                 disabled={editando}
-                style={
-                  editando
-                    ? { ...inputStyle, background: '#f1f5f9', color: '#64748b' }
-                    : inputStyle
-                }
               />
+            </div>
+          </div>
 
+          <div className="field-row">
+            <div className="field">
+              <label>
+                {editando ? 'Nova senha (opcional)' : 'Senha inicial *'}
+              </label>
               <input
                 type="password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder={
                   editando
-                    ? 'Nova senha (opcional)'
-                    : 'Senha inicial'
+                    ? 'Deixe em branco para manter a atual'
+                    : 'Mínimo de 6 caracteres'
                 }
-                style={inputStyle}
               />
+            </div>
 
+            <div className="field">
+              <label>Telefone</label>
               <input
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}
-                placeholder="Telefone"
-                style={inputStyle}
+                placeholder="(69) 90000-0000"
               />
+            </div>
 
+            <div className="field">
+              <label>Cargo</label>
               <input
                 value={cargo}
                 onChange={(e) => setCargo(e.target.value)}
-                placeholder="Cargo"
-                style={inputStyle}
+                placeholder="Função na empresa"
               />
+            </div>
+          </div>
 
+          <div className="field-row">
+            <div className="field">
+              <label>Perfil de acesso *</label>
               <select
                 value={perfil}
                 onChange={(e) => setPerfil(e.target.value)}
-                style={inputStyle}
               >
                 <option value="cliente">Cliente</option>
                 <option value="atendimento">Atendimento</option>
                 <option value="gestor">Gestor</option>
                 <option value="admin">Administrador</option>
               </select>
+            </div>
 
+            <div className="field">
+              <label>
+                Empresa {perfil === 'cliente' ? '*' : '(opcional)'}
+              </label>
               <select
                 value={empresaId}
                 onChange={(e) => setEmpresaId(e.target.value)}
-                style={inputStyle}
               >
-                <option value="">Selecione a empresa</option>
+                <option value="">
+                  {perfil === 'cliente'
+                    ? 'Selecione a empresa'
+                    : 'Sem vínculo'}
+                </option>
 
-                {empresas.map((empresa) => (
-                  <option key={empresa.id} value={empresa.id}>
-                    {empresa.nome_fantasia}
+                {empresas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nome_fantasia}
                   </option>
                 ))}
               </select>
+            </div>
 
-              {editando && (
+            {editando && (
+              <div className="field">
+                <label>Situação</label>
                 <select
                   value={ativo ? 'ativo' : 'inativo'}
                   onChange={(e) => setAtivo(e.target.value === 'ativo')}
-                  style={inputStyle}
                 >
                   <option value="ativo">Ativo</option>
-                  <option value="inativo">Inativo (sem acesso)</option>
+                  <option value="inativo">Inativo</option>
                 </select>
-              )}
-            </div>
-
-            <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
-              <button
-                type="submit"
-                disabled={salvando}
-                style={{
-                  border: 0,
-                  background: '#0f766e',
-                  color: '#fff',
-                  borderRadius: 10,
-                  padding: '12px 18px',
-                  fontWeight: 800,
-                  cursor: salvando ? 'default' : 'pointer',
-                  opacity: salvando ? 0.6 : 1,
-                }}
-              >
-                {salvando
-                  ? 'Salvando...'
-                  : editando
-                    ? 'Salvar alterações'
-                    : 'Criar usuário'}
-              </button>
-
-              {editando && (
-                <button
-                  type="button"
-                  onClick={limparFormulario}
-                  style={{
-                    border: '1px solid #cbd5e1',
-                    background: '#fff',
-                    color: '#334155',
-                    borderRadius: 10,
-                    padding: '12px 18px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-
-        <section
-          style={{
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: 18,
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              padding: 20,
-              borderBottom: '1px solid #e2e8f0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  margin: 0,
-                  color: '#0f172a',
-                  fontSize: 20,
-                }}
-              >
-                Usuários cadastrados
-              </h2>
-
-              <div
-                style={{
-                  marginTop: 5,
-                  color: '#64748b',
-                  fontSize: 14,
-                }}
-              >
-                {usuarios.length} usuário(s)
               </div>
-            </div>
+            )}
+          </div>
 
+          <div>
             <button
-              type="button"
-              onClick={carregar}
-              style={{
-                border: '1px solid #cbd5e1',
-                background: '#fff',
-                color: '#334155',
-                borderRadius: 10,
-                padding: '10px 15px',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
+              type="submit"
+              className="btn btn-primary"
+              disabled={salvando}
             >
-              ↻ Atualizar
+              {salvando
+                ? 'Salvando...'
+                : editando
+                  ? 'Salvar alterações'
+                  : 'Criar usuário'}
             </button>
           </div>
 
-          {carregando ? (
-            <div
+          {!editando && (
+            <p
               style={{
-                padding: 30,
-                textAlign: 'center',
-                color: '#64748b',
+                margin: 0,
+                fontSize: 12.5,
+                color: 'var(--ink-muted)',
               }}
             >
-              Carregando usuários...
-            </div>
-          ) : usuarios.length === 0 ? (
-            <div
-              style={{
-                padding: 30,
-                textAlign: 'center',
-                color: '#64748b',
-              }}
-            >
-              Nenhum usuário encontrado.
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  minWidth: 950,
-                }}
-              >
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={thStyle}>Usuário</th>
-                    <th style={thStyle}>Empresa</th>
-                    <th style={thStyle}>Perfil</th>
-                    <th style={thStyle}>Cargo</th>
-                    <th style={thStyle}>Status</th>
-                    <th style={thStyle}>Ações</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {usuarios.map((usuario) => (
-                    <tr
-                      key={usuario.id}
-                      style={
-                        editandoId === usuario.id
-                          ? { background: '#f0fdfa' }
-                          : undefined
-                      }
-                    >
-                      <td style={tdStyle}>
-                        <strong>{usuario.nome}</strong>
-                        <div
-                          style={{
-                            color: '#64748b',
-                            fontSize: 13,
-                            marginTop: 3,
-                          }}
-                        >
-                          {usuario.email || 'Sem e-mail'}
-                        </div>
-                      </td>
-
-                      <td style={tdStyle}>
-                        {usuario.empresas?.nome_fantasia ||
-                          'Sem empresa'}
-                      </td>
-
-                      <td style={tdStyle}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '5px 9px',
-                            borderRadius: 999,
-                            background:
-                              usuario.perfil === 'admin'
-                                ? '#ede9fe'
-                                : usuario.perfil ===
-                                    'atendimento'
-                                  ? '#ecfeff'
-                                  : '#eff6ff',
-                            color:
-                              usuario.perfil === 'admin'
-                                ? '#6d28d9'
-                                : usuario.perfil ===
-                                    'atendimento'
-                                  ? '#0e7490'
-                                  : '#1d4ed8',
-                            fontSize: 12,
-                            fontWeight: 800,
-                          }}
-                        >
-                          {perfilLabels[usuario.perfil] ||
-                            usuario.perfil}
-                        </span>
-                      </td>
-
-                      <td style={tdStyle}>
-                        {usuario.cargo || '—'}
-                      </td>
-
-                      <td style={tdStyle}>
-                        <span
-                          style={{
-                            color: usuario.ativo
-                              ? '#15803d'
-                              : '#b91c1c',
-                            fontWeight: 800,
-                          }}
-                        >
-                          {usuario.ativo
-                            ? 'Ativo'
-                            : 'Inativo'}
-                        </span>
-                      </td>
-
-                      <td style={tdStyle}>
-                        <button
-                          type="button"
-                          onClick={() => editarUsuario(usuario)}
-                          style={{
-                            border: '1px solid #cbd5e1',
-                            background: '#fff',
-                            color: '#0f766e',
-                            borderRadius: 8,
-                            padding: '7px 13px',
-                            fontWeight: 800,
-                            fontSize: 13,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              A pessoa recebe por e-mail o endereço do portal e a senha
+              inicial que você definiu aqui.
+            </p>
           )}
-        </section>
+        </form>
       </div>
-    </main>
+
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">Usuários cadastrados</div>
+
+          <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+            {usuarios.length} no total
+          </span>
+        </div>
+
+        <div className="panel-body">
+          <div className="table-wrap">
+            <div className="table-scroll">
+              <div
+                className="trow thead"
+                style={{ gridTemplateColumns: GRADE_USUARIO }}
+              >
+                <span>Pessoa</span>
+                <span>Perfil</span>
+                <span>Empresa</span>
+                <span>Contato</span>
+                <span>Situação</span>
+                <span />
+              </div>
+
+              {carregando ? (
+                <div className="empty-state">Carregando...</div>
+              ) : usuarios.length === 0 ? (
+                <div className="empty-state">
+                  Nenhum usuário cadastrado ainda.
+                </div>
+              ) : (
+                usuarios.map((u) => (
+                  <div
+                    key={u.id}
+                    className="trow"
+                    style={{ gridTemplateColumns: GRADE_USUARIO }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span className="tname">{u.nome || 'Sem nome'}</span>
+
+                      <span
+                        style={{
+                          display: 'block',
+                          fontSize: 11.5,
+                          color: 'var(--ink-faint)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {u.email || '—'}
+                      </span>
+                    </span>
+
+                    <span>
+                      <span
+                        className={
+                          u.perfil === 'cliente' ? 'pill flat' : 'pill'
+                        }
+                      >
+                        {perfilLabels[u.perfil] || u.perfil}
+                      </span>
+                    </span>
+
+                    <span className="tmuted" style={{ minWidth: 0 }}>
+                      {u.empresas?.nome_fantasia || '—'}
+                    </span>
+
+                    <span className="tmuted" style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block' }}>
+                        {u.telefone || '—'}
+                      </span>
+
+                      {u.cargo && (
+                        <span
+                          style={{ display: 'block', fontSize: 11.5 }}
+                        >
+                          {u.cargo}
+                        </span>
+                      )}
+                    </span>
+
+                    <span>
+                      <span
+                        className={u.ativo ? 'pill good' : 'pill bad'}
+                      >
+                        {u.ativo ? 'ativo' : 'inativo'}
+                      </span>
+                    </span>
+
+                    <span className="trow-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => editarUsuario(u)}
+                      >
+                        Editar
+                      </button>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
-const inputStyle = {
-  width: '100%',
-  boxSizing: 'border-box' as const,
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
-  padding: '12px 13px',
-  background: '#fff',
-  color: '#0f172a',
-  fontSize: 14,
-}
-
-const thStyle = {
-  padding: '13px 15px',
-  textAlign: 'left' as const,
-  fontSize: 12,
-  color: '#64748b',
-  textTransform: 'uppercase' as const,
-  borderBottom: '1px solid #e2e8f0',
-}
-
-const tdStyle = {
-  padding: '15px',
-  borderBottom: '1px solid #f1f5f9',
-  color: '#334155',
-  fontSize: 14,
-}
+const GRADE_USUARIO =
+  'minmax(180px,1.5fr) 130px minmax(130px,1fr) minmax(130px,1fr) 100px 84px'
