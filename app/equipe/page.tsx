@@ -164,53 +164,38 @@ export default function ChatEquipePage() {
 
   if (carregando) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-        Carregando...
+      <div className="app">
+        <div className="empty-state">Carregando...</div>
       </div>
     )
   }
 
   return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: 900,
-        margin: '0 auto',
-        padding: 'clamp(16px, 3vw, 32px)',
-      }}
-    >
-      <h1 style={{ margin: '0 0 6px', fontSize: 24, color: '#0f172a' }}>
-        Chat da equipe
-      </h1>
+    <div className="app" style={{ maxWidth: 900, margin: '0 auto', width: '100%' }}>
+      <div>
+        <div className="section-title">Uso interno</div>
 
-      <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: 14 }}>
-        Conversa interna entre atendimento, gestão e administração. Os
-        clientes não veem este espaço.
-      </p>
+        <h1 style={{ fontSize: 30, marginTop: 6 }}>Chat da equipe</h1>
 
-      {erro && (
-        <div
+        <p
           style={{
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#b91c1c',
-            borderRadius: 10,
-            padding: '10px 14px',
-            marginBottom: 14,
+            margin: '8px 0 0',
+            color: 'var(--ink-muted)',
             fontSize: 14,
           }}
         >
-          {erro}
-        </div>
-      )}
+          Conversa interna entre atendimento, gestão e administração. Os
+          clientes não veem este espaço.
+        </p>
+      </div>
+
+      {erro && <div className="banner bad">{erro}</div>}
 
       {meuId && (
         <>
           <div
+            className="panel"
             style={{
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 14,
               padding: 16,
               height: '58vh',
               overflowY: 'auto',
@@ -223,7 +208,7 @@ export default function ChatEquipePage() {
               <div
                 style={{
                   margin: 'auto',
-                  color: '#94a3b8',
+                  color: 'var(--ink-faint)',
                   fontSize: 14,
                   textAlign: 'center',
                 }}
@@ -249,8 +234,10 @@ export default function ChatEquipePage() {
                         width: 34,
                         height: 34,
                         borderRadius: '50%',
-                        background: meu ? '#2563eb' : '#e2e8f0',
-                        color: meu ? '#ffffff' : '#334155',
+                        background: meu
+                          ? 'var(--primary)'
+                          : 'var(--surface-sunken)',
+                        color: meu ? '#ffffff' : 'var(--ink-muted)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -266,7 +253,7 @@ export default function ChatEquipePage() {
                       <div
                         style={{
                           fontSize: 11,
-                          color: '#94a3b8',
+                          color: 'var(--ink-faint)',
                           marginBottom: 3,
                           textAlign: meu ? 'right' : 'left',
                         }}
@@ -278,13 +265,14 @@ export default function ChatEquipePage() {
 
                       <div
                         style={{
-                          background: meu ? '#eff6ff' : '#f8fafc',
-                          border:
-                            '1px solid ' + (meu ? '#dbeafe' : '#e2e8f0'),
+                          background: meu
+                            ? 'var(--primary-tint)'
+                            : 'var(--surface-sunken)',
+                          border: '1px solid var(--border)',
                           borderRadius: 12,
                           padding: '9px 13px',
                           fontSize: 14,
-                          color: '#0f172a',
+                          color: 'var(--ink)',
                           lineHeight: 1.5,
                           whiteSpace: 'pre-wrap',
                           wordBreak: 'break-word',
@@ -311,7 +299,9 @@ export default function ChatEquipePage() {
               placeholder="Escreva uma mensagem para a equipe"
               style={{
                 flex: 1,
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--ink)',
                 borderRadius: 10,
                 padding: '11px 14px',
                 fontSize: 14,
@@ -321,17 +311,8 @@ export default function ChatEquipePage() {
 
             <button
               type="submit"
+              className="btn btn-primary"
               disabled={enviando || !texto.trim()}
-              style={{
-                border: 'none',
-                borderRadius: 10,
-                padding: '11px 20px',
-                background: texto.trim() ? '#2563eb' : '#cbd5e1',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: texto.trim() ? 'pointer' : 'default',
-              }}
             >
               {enviando ? 'Enviando...' : 'Enviar'}
             </button>
