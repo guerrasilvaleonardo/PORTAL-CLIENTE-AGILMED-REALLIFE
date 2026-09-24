@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { textoPrazoUtil } from '@/lib/prazo'
+import { AjudaSituacoes } from '@/lib/situacoes'
 import { Barras, Rosca } from '@/lib/graficos'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -467,9 +468,20 @@ export default function PainelPage() {
           <div className="panel-head">
             <div className="section-title">Chamados por situação</div>
 
-            <span style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>
-              últimos 90 dias
-            </span>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <AjudaSituacoes publico="equipe" rotulo="Legenda" />
+
+              <span style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>
+                últimos 90 dias
+              </span>
+            </div>
           </div>
 
           <div className="panel-body">
