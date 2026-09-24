@@ -1,0 +1,27 @@
+/*
+ * No computador a lista de conversas fica sempre visivel ao lado.
+ * No celular ela vira uma gaveta: o botao "Trocar de conversa" abre e
+ * fecha, para a conversa em si ocupar a tela inteira.
+ */
+
+[data-chat-alternar] {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  [data-chat-grade] {
+    grid-template-columns: 1fr !important;
+  }
+
+  [data-chat-alternar] {
+    display: inline-flex;
+  }
+
+  [data-chat-lista] {
+    display: none;
+  }
+
+  [data-chat-lista].aberta {
+    display: block;
+  }
+}
