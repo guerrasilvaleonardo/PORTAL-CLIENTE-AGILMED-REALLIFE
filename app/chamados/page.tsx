@@ -473,17 +473,15 @@ export default function ChamadosPage() {
             </p>
           </div>
 
-          {!interno && (
-            <Link
-              href="/chamados/novo"
-              style={{
-                ...styles.newButton,
-                background: tema.principal,
-              }}
-            >
-              + Novo chamado
-            </Link>
-          )}
+          <Link
+            href="/chamados/novo"
+            style={{
+              ...styles.newButton,
+              background: tema.principal,
+            }}
+          >
+            {interno ? '+ Abrir chamado para um cliente' : '+ Novo chamado'}
+          </Link>
         </div>
 
         {error && (
