@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { marcas, type Marca } from '@/lib/marca'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
+import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 
 type Perfil = {
   nome: string | null
@@ -557,15 +558,26 @@ export default function HomePage() {
               Chamados recentes
             </h2>
 
-            <Link
-              href="/chamados"
+            <div
               style={{
-                ...styles.sectionLink,
-                color: tema.principal,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
               }}
             >
-              Ver todos
-            </Link>
+              <AjudaSituacoes />
+
+              <Link
+                href="/chamados"
+                style={{
+                  ...styles.sectionLink,
+                  color: tema.principal,
+                }}
+              >
+                Ver todos
+              </Link>
+            </div>
           </div>
 
           {chamados.length === 0 ? (
@@ -631,6 +643,9 @@ export default function HomePage() {
 
                     <div>
                       <span
+                        title={
+                          EXPLICACAO_CLIENTE[chamado.status] || ''
+                        }
                         style={{
                           ...styles.badge,
                           background:
