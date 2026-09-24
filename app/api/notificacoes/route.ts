@@ -102,6 +102,26 @@ async function avisarCitados(
   return enviados
 }
 
+/*
+ * Quem abriu o chamado precisa ser avisado de qualquer alteracao, e
+ * nem sempre ele aparece na lista da empresa: um chamado aberto pela
+ * equipe interna em nome do cliente tem como autor uma pessoa de
+ * dentro. Por isso buscamos o autor pelo id, e nao pela empresa.
+ */
+async function autorDoChamado(criadoPor: string | null) {
+  if (!criadoPor) {
+    return null
+  }
+
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('id, nome, email, perfil')
+    .eq('id', criadoPor)
+    .maybeSingle()
+
+  return data && data.email ? data : null
+}
+
 async function usuarioDoPedido(request: Request) {
   const authorization = request.headers.get('authorization')
 
@@ -211,6 +231,14 @@ export async function POST(request: Request) {
     let assunto = ''
     let html = ''
 
+    /*
+     * Linhas do aviso que vai para quem abriu o chamado. Cada evento
+     * preenche do seu jeito, e quem abriu recebe sempre, mesmo quando
+     * o aviso principal foi para a equipe.
+     */
+    let resumoParaAutor: string[] = []
+    let tituloParaAutor = 'Seu chamado ' + codigo + ' foi atualizado'
+
     if (evento === 'chamado_criado') {
       para = await equipeInterna()
 
@@ -246,6 +274,12 @@ export async function POST(request: Request) {
           ],
           { rotulo: 'Ver o chamado', url: portal + '/chamados/' + chamado.id }
         )
+
+        tituloParaAutor = 'Nova resposta no chamado ' + codigo
+        resumoParaAutor = [
+          'A equipe respondeu o chamado ' + codigo + ' — ' + assuntoChamado + '.',
+          trecho ? '<em>' + escapar(trecho) + '</em>' : '',
+        ].filter(Boolean)
       } else {
         const { data: responsavel } = chamado.responsavel_id
           ? await supabaseAdmin
@@ -275,6 +309,17 @@ export async function POST(request: Request) {
           ].filter(Boolean),
           { rotulo: 'Responder', url: portal + '/atendimento/' + chamado.id }
         )
+
+        tituloParaAutor = 'Nova mensagem no chamado ' + codigo
+        resumoParaAutor = [
+          escapar(nomeAutor) +
+            ' escreveu no chamado ' +
+            codigo +
+            ' — ' +
+            assuntoChamado +
+            '.',
+          trecho ? '<em>' + escapar(trecho) + '</em>' : '',
+        ].filter(Boolean)
       }
     } else if (evento === 'status_alterado') {
       para = await clientesDaEmpresa(chamado.empresa_id)
@@ -303,6 +348,69 @@ export async function POST(request: Request) {
         ].filter(Boolean),
         { rotulo: 'Ver o chamado', url: portal + '/chamados/' + chamado.id }
       )
+
+      tituloParaAutor = 'Chamado ' + codigo + ': ' + rotulo
+      resumoParaAutor = [
+        'O chamado <strong>' + assuntoChamado + '</strong> mudou de situação.',
+        '<strong>Situação atual:</strong> ' + escapar(rotulo),
+        chamado.status === 'aguardando_cliente'
+          ? 'Estamos aguardando um retorno seu para continuar.'
+          : '',
+      ].filter(Boolean)
+    } else if (evento === 'prioridade_alterada') {
+      /*
+       * Mexer na prioridade refaz o prazo, entao quem abriu precisa
+       * saber. O aviso principal vai para a equipe; quem abriu recebe
+       * a versao em linguagem de cliente logo abaixo.
+       */
+      const rotulosPrioridade: Record<string, string> = {
+        baixa: 'Baixa',
+        normal: 'Normal',
+        alta: 'Alta',
+        urgente: 'Urgente',
+      }
+
+      const rotuloPrio =
+        rotulosPrioridade[chamado.prioridade] || chamado.prioridade
+
+      const emailDoAutorAcao = (autor?.email || '').toLowerCase()
+
+      para = (await equipeInterna()).filter(
+        (email) => email && email.toLowerCase() !== emailDoAutorAcao
+      )
+
+      assunto =
+        'Chamado ' + codigo + ' agora é prioridade ' + rotuloPrio
+
+      html = montarEmail(
+        marca,
+        'Prioridade alterada no chamado ' + codigo,
+        [
+          escapar(nomeAutor) +
+            ' mudou a prioridade do chamado ' +
+            codigo +
+            ' — ' +
+            assuntoChamado +
+            '.',
+          '<strong>Cliente:</strong> ' + escapar(nomeEmpresa),
+          '<strong>Prioridade agora:</strong> ' + escapar(rotuloPrio),
+        ],
+        {
+          rotulo: 'Abrir o chamado',
+          url: portal + '/atendimento/' + chamado.id,
+        }
+      )
+
+      tituloParaAutor =
+        'Chamado ' + codigo + ': prioridade ' + rotuloPrio
+
+      resumoParaAutor = [
+        'A prioridade do chamado <strong>' +
+          assuntoChamado +
+          '</strong> foi alterada.',
+        '<strong>Prioridade agora:</strong> ' + escapar(rotuloPrio),
+        'O prazo de atendimento foi recalculado de acordo com a nova prioridade.',
+      ]
     } else if (evento === 'chamado_transferido') {
       if (!chamado.responsavel_id) {
         return NextResponse.json({ sucesso: true, enviado: false })
@@ -329,11 +437,68 @@ export async function POST(request: Request) {
         ],
         { rotulo: 'Assumir o atendimento', url: portal + '/atendimento/' + chamado.id }
       )
+
+      tituloParaAutor = 'Chamado ' + codigo + ': novo responsável'
+      resumoParaAutor = [
+        'O chamado <strong>' +
+          assuntoChamado +
+          '</strong> passou a ser atendido por ' +
+          escapar(responsavel?.nome || 'nossa equipe') +
+          '.',
+      ]
     } else {
       return NextResponse.json({ erro: 'Evento desconhecido.' }, { status: 400 })
     }
 
     const resultado = await enviarEmail({ para, assunto, html, marca })
+
+    /*
+     * Quem abriu o chamado e avisado de qualquer alteracao: resposta,
+     * mudanca de situacao, de prioridade, de responsavel e
+     * encerramento. So nao recebe quando foi ele proprio quem fez a
+     * alteracao, ou quando ja entrou na lista do aviso principal.
+     */
+    let autorAvisado = false
+
+    if (evento !== 'chamado_criado' && resumoParaAutor.length > 0) {
+      const abriu = await autorDoChamado(chamado.criado_por)
+
+      const jaRecebeu = para.map((e) => (e || '').toLowerCase())
+
+      if (
+        abriu &&
+        abriu.id !== user.id &&
+        !jaRecebeu.includes((abriu.email || '').toLowerCase())
+      ) {
+        const autorEhDaCasa = PERFIS_INTERNOS.includes(abriu.perfil || '')
+
+        const linkAutor =
+          portal +
+          (autorEhDaCasa ? '/atendimento/' : '/chamados/') +
+          chamado.id
+
+        const avisoAutor = await enviarEmail({
+          para: [abriu.email as string],
+          assunto: tituloParaAutor,
+          marca,
+          html: montarEmail(
+            marca,
+            tituloParaAutor,
+            [
+              'Houve uma atualização no chamado ' +
+                codigo +
+                ' — ' +
+                assuntoChamado +
+                ', que você abriu.',
+              ...resumoParaAutor,
+            ],
+            { rotulo: 'Ver o chamado', url: linkAutor }
+          ),
+        })
+
+        autorAvisado = !!avisoAutor?.enviado
+      }
+    }
 
     /*
      * Toda mensagem nova tambem avisa a equipe interna, inclusive
@@ -405,6 +570,7 @@ export async function POST(request: Request) {
       sucesso: true,
       citados,
       equipe_avisada: equipeAvisada,
+      autor_avisado: autorAvisado,
       ...resultado,
     })
   } catch (erro) {
