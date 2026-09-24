@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
+import { AjudaSituacoes } from '@/lib/situacoes'
 
 type Chamado = {
   id: string
@@ -263,9 +264,20 @@ export default function ChamadosPage() {
         <div className="panel-head">
           <div className="section-title">Lista de chamados</div>
 
-          <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
-            {filtrados.length} de {chamados.length}
-          </span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            <AjudaSituacoes publico={interno ? 'equipe' : 'cliente'} />
+
+            <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+              {filtrados.length} de {chamados.length}
+            </span>
+          </div>
         </div>
 
         <div className="panel-body">
