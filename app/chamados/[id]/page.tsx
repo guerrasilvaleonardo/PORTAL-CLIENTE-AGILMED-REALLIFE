@@ -18,6 +18,7 @@ type Chamado = {
   descricao: string
   prioridade: string
   status: string
+  criado_por: string | null
   prazo_sla: string | null
   resolvido_em: string | null
   encerrado_em: string | null
@@ -149,6 +150,11 @@ export default function DetalhesChamadoPage() {
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [anexos, setAnexos] = useState<Anexo[]>([])
   const [links, setLinks] = useState<ChamadoLink[]>([])
+  const [solicitante, setSolicitante] = useState<{
+    nome: string | null
+    email: string | null
+  } | null>(null)
+  const [editandoLink, setEditandoLink] = useState<string | null>(null)
 
   const [usuarioId, setUsuarioId] = useState('')
 
@@ -192,7 +198,7 @@ export default function DetalhesChamadoPage() {
       const { data: chamadoData, error: chamadoError } = await supabase
         .from('chamados')
         .select(
-          'id, numero, categoria, assunto, descricao, prioridade, status, prazo_sla, resolvido_em, encerrado_em, avaliacao, comentario_avaliacao, created_at, updated_at'
+          'id, numero, categoria, assunto, descricao, prioridade, status, criado_por, prazo_sla, resolvido_em, encerrado_em, avaliacao, comentario_avaliacao, created_at, updated_at'
         )
         .eq('id', chamadoId)
         .single()
@@ -292,6 +298,24 @@ export default function DetalhesChamadoPage() {
         setLinks([])
       } else {
         setLinks((linksData ?? []) as ChamadoLink[])
+      }
+
+      /* Quem abriu o chamado, com nome e e-mail. */
+      if (chamadoData?.criado_por) {
+        const { data: autorData } = await supabase
+          .from('profiles')
+          .select('nome, email')
+          .eq('id', chamadoData.criado_por)
+          .maybeSingle()
+
+        setSolicitante(
+          (autorData || null) as {
+            nome: string | null
+            email: string | null
+          } | null
+        )
+      } else {
+        setSolicitante(null)
       }
 
       setLoading(false)
@@ -471,14 +495,23 @@ export default function DetalhesChamadoPage() {
 
     setSalvandoLink(true)
 
-    const { data, error } = await supabase
-      .from('chamado_links')
-      .insert({
-        chamado_id: chamadoId,
-        criado_por: usuarioId,
-        titulo: novoLinkTitulo.trim() || null,
-        url,
-      })
+    const campos = {
+      titulo: novoLinkTitulo.trim() || null,
+      url,
+    }
+
+    const consulta = editandoLink
+      ? supabase
+          .from('chamado_links')
+          .update(campos)
+          .eq('id', editandoLink)
+      : supabase.from('chamado_links').insert({
+          ...campos,
+          chamado_id: chamadoId,
+          criado_por: usuarioId,
+        })
+
+    const { data, error } = await consulta
       .select('id, chamado_id, criado_por, titulo, url, created_at')
       .single()
 
@@ -490,9 +523,50 @@ export default function DetalhesChamadoPage() {
       return
     }
 
-    setLinks((atual) => [...atual, data as ChamadoLink])
+    const salvo = data as ChamadoLink
+
+    setLinks((atual) =>
+      editandoLink
+        ? atual.map((l) => (l.id === salvo.id ? salvo : l))
+        : [...atual, salvo]
+    )
+
+    setEditandoLink(null)
     setNovoLinkTitulo('')
     setNovoLinkUrl('')
+  }
+
+  function editarLink(link: ChamadoLink) {
+    setErroLink('')
+    setEditandoLink(link.id)
+    setNovoLinkTitulo(link.titulo || '')
+    setNovoLinkUrl(link.url)
+  }
+
+  function cancelarEdicaoLink() {
+    setEditandoLink(null)
+    setNovoLinkTitulo('')
+    setNovoLinkUrl('')
+    setErroLink('')
+  }
+
+  async function removerLink(link: ChamadoLink) {
+    setErroLink('')
+
+    const { error } = await supabase
+      .from('chamado_links')
+      .delete()
+      .eq('id', link.id)
+
+    if (error) {
+      console.error(error)
+      setErroLink('Não foi possível remover o link.')
+      return
+    }
+
+    setLinks((atual) => atual.filter((l) => l.id !== link.id))
+
+    if (editandoLink === link.id) cancelarEdicaoLink()
   }
 
   async function abrirAnexo(anexo: Anexo) {
@@ -671,6 +745,20 @@ export default function DetalhesChamadoPage() {
                 <Info
                   label="Categoria"
                   value={chamado.categoria}
+                />
+
+                <Info
+                  label="Aberto por"
+                  value={
+                    solicitante?.nome ||
+                    solicitante?.email ||
+                    '—'
+                  }
+                  detalhe={
+                    solicitante?.nome
+                      ? solicitante?.email || undefined
+                      : undefined
+                  }
                 />
 
                 <Info
@@ -937,9 +1025,31 @@ export default function DetalhesChamadoPage() {
                       : {}),
                   }}
                 >
-                  {salvandoLink ? 'Salvando...' : 'Adicionar'}
+                  {salvandoLink
+                    ? 'Salvando...'
+                    : editandoLink
+                      ? 'Salvar'
+                      : 'Adicionar'}
                 </button>
               </form>
+
+              {editandoLink && (
+                <button
+                  type="button"
+                  onClick={cancelarEdicaoLink}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    color: '#64748b',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    padding: 0,
+                    marginBottom: 12,
+                  }}
+                >
+                  Cancelar edição
+                </button>
+              )}
 
               {erroLink && (
                 <div style={styles.attachmentError}>
@@ -983,6 +1093,32 @@ export default function DetalhesChamadoPage() {
                       >
                         Abrir
                       </a>
+
+                      <button
+                        type="button"
+                        onClick={() => editarLink(link)}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: '#e2e8f0',
+                          color: '#0f172a',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => removerLink(link)}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: '#fecaca',
+                          color: '#b91c1c',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remover
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1198,14 +1334,28 @@ export default function DetalhesChamadoPage() {
 function Info({
   label,
   value,
+  detalhe,
 }: {
   label: string
   value: string
+  detalhe?: string
 }) {
   return (
     <div>
       <div style={styles.label}>{label}</div>
       <div style={styles.infoValue}>{value}</div>
+      {detalhe && (
+        <div
+          style={{
+            color: '#64748b',
+            fontSize: '12px',
+            marginTop: '2px',
+            wordBreak: 'break-all',
+          }}
+        >
+          {detalhe}
+        </div>
+      )}
     </div>
   )
 }
