@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { textoPrazoUtil } from '@/lib/prazo'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -50,17 +51,9 @@ function estaAtrasado(prazo: string | null) {
   return Boolean(prazo) && new Date(prazo as string).getTime() < Date.now()
 }
 
+/* O prazo conta apenas horas úteis: 8 por dia, de segunda a sexta. */
 function textoPrazo(prazo: string | null) {
-  if (!prazo) return 'sem SLA'
-
-  const h = Math.round(
-    (new Date(prazo).getTime() - Date.now()) / 3600000
-  )
-
-  if (h < 0) return Math.abs(h) + 'h em atraso'
-  if (h < 24) return h + 'h restantes'
-
-  return Math.round(h / 24) + 'd restantes'
+  return textoPrazoUtil(prazo).texto
 }
 
 type Indicadores = {
