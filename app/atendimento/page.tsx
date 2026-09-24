@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
 import { horasUteisAte, textoPrazoUtil } from '@/lib/prazo'
+import { AjudaSituacoes, EXPLICACAO_EQUIPE } from '@/lib/situacoes'
 import './quadro.css'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -275,6 +276,8 @@ export default function AtendimentoPage() {
 
         <div className="topbar-spacer" />
 
+        {!tv && <AjudaSituacoes publico="equipe" rotulo="Legenda das colunas" />}
+
         <button
           type="button"
           className={'btn btn-sm' + (tv ? ' btn-primary' : '')}
@@ -369,7 +372,10 @@ export default function AtendimentoPage() {
               onDragLeave={() => setSobre((s) => (s === coluna.id ? null : s))}
               onDrop={(e) => aoSoltar(e, coluna.id)}
             >
-              <div className="col-head">
+              <div
+                className="col-head"
+                title={EXPLICACAO_EQUIPE[coluna.id] || coluna.rotulo}
+              >
                 <h3>{coluna.rotulo}</h3>
                 <span className="col-count">{daColuna.length}</span>
               </div>
