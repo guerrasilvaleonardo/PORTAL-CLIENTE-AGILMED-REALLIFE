@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { textoPrazoUtil } from '@/lib/prazo'
+import { Barras, Rosca } from '@/lib/graficos'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -56,6 +57,36 @@ function textoPrazo(prazo: string | null) {
   return textoPrazoUtil(prazo).texto
 }
 
+type Panorama = {
+  porStatus: { rotulo: string; valor: number; cor: string }[]
+  porEmpresa: { rotulo: string; valor: number; detalhe?: string }[]
+  noPrazo: number
+  atrasados: number
+  semPrazo: number
+  treinoConcluido: number
+  treinoAndamento: number
+  treinoNaoIniciado: number
+}
+
+const panoramaVazio: Panorama = {
+  porStatus: [],
+  porEmpresa: [],
+  noPrazo: 0,
+  atrasados: 0,
+  semPrazo: 0,
+  treinoConcluido: 0,
+  treinoAndamento: 0,
+  treinoNaoIniciado: 0,
+}
+
+const CORES_STATUS: Record<string, string> = {
+  aberto: 'var(--primary)',
+  em_atendimento: 'var(--amber)',
+  aguardando_cliente: 'var(--ink-faint)',
+  resolvido: 'var(--success)',
+  encerrado: 'var(--success)',
+}
+
 type Indicadores = {
   chamadosAbertos: number
   chamadosUrgentes: number
@@ -96,6 +127,8 @@ export default function PainelPage() {
   const [carga, setCarga] = useState<CargaAtendente[]>([])
 
   const [semDono, setSemDono] = useState(0)
+
+  const [panorama, setPanorama] = useState<Panorama>(panoramaVazio)
 
   useEffect(() => {
     let ativo = true
@@ -239,6 +272,76 @@ export default function PainelPage() {
             }
           })
         )
+
+        /*
+         * Panorama: a distribuicao dos chamados dos ultimos 90 dias e
+         * o andamento dos treinamentos. Le tudo de uma vez e conta
+         * aqui — sao poucas linhas e evita meia duzia de count().
+         */
+        const inicioJanela = new Date()
+        inicioJanela.setDate(inicioJanela.getDate() - 90)
+
+        const [{ data: janelaData }, { data: treinoData }] =
+          await Promise.all([
+            supabase
+              .from('chamados')
+              .select('id, status, empresa_id, empresas(nome_fantasia, razao_social)')
+              .gte('created_at', inicioJanela.toISOString()),
+            supabase.from('treinamentos_progresso').select('progresso'),
+          ])
+
+        if (!ativo) return
+
+        const janela = ((janelaData || []) as any[]).map((c) => ({
+          ...c,
+          empresas: Array.isArray(c.empresas) ? c.empresas[0] : c.empresas,
+        }))
+
+        const contaStatus: Record<string, number> = {}
+
+        janela.forEach((c) => {
+          contaStatus[c.status] = (contaStatus[c.status] || 0) + 1
+        })
+
+        const contaEmpresa: Record<string, number> = {}
+
+        fila.forEach((c) => {
+          const nomeDela =
+            c.empresas?.nome_fantasia ||
+            c.empresas?.razao_social ||
+            'Sem empresa'
+
+          contaEmpresa[nomeDela] = (contaEmpresa[nomeDela] || 0) + 1
+        })
+
+        const treinos = ((treinoData || []) as any[]).map((t) =>
+          Number(t.progresso) || 0
+        )
+
+        setPanorama({
+          porStatus: Object.entries(contaStatus)
+            .map(([chave, valor]) => ({
+              rotulo: rotuloSituacao[chave] || chave,
+              valor,
+              cor: CORES_STATUS[chave] || 'var(--ink-faint)',
+            }))
+            .sort((a, b) => b.valor - a.valor),
+
+          porEmpresa: Object.entries(contaEmpresa)
+            .map(([rotulo, valor]) => ({ rotulo, valor }))
+            .sort((a, b) => b.valor - a.valor)
+            .slice(0, 6),
+
+          noPrazo: fila.filter(
+            (c) => c.prazo_sla && !estaAtrasado(c.prazo_sla)
+          ).length,
+          atrasados: fila.filter((c) => estaAtrasado(c.prazo_sla)).length,
+          semPrazo: fila.filter((c) => !c.prazo_sla).length,
+
+          treinoConcluido: treinos.filter((v) => v >= 100).length,
+          treinoAndamento: treinos.filter((v) => v > 0 && v < 100).length,
+          treinoNaoIniciado: treinos.filter((v) => v <= 0).length,
+        })
       } catch (e: any) {
         console.error(e)
         if (ativo) setErro(e?.message || 'Não foi possível carregar o painel.')
@@ -270,6 +373,12 @@ export default function PainelPage() {
       titulo: 'Certificados',
       texto: 'Treinamentos e exames por colaborador, com o que vence primeiro no topo.',
       acao: 'Ver vencimentos',
+    },
+    {
+      href: '/treinamentos',
+      titulo: 'Treinamentos',
+      texto: 'O andamento de cada colaborador no EAD, por empresa e por curso.',
+      acao: 'Abrir relatório',
     },
     {
       href: '/administracao/empresas',
@@ -346,6 +455,133 @@ export default function PainelPage() {
           {i.chamadosUrgentes > 0 && `${i.chamadosUrgentes} chamado(s) urgente(s) na fila.`}
         </div>
       )}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 14,
+        }}
+      >
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Chamados por situação</div>
+
+            <span style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>
+              últimos 90 dias
+            </span>
+          </div>
+
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando...</div>
+            ) : panorama.porStatus.length === 0 ? (
+              <div className="empty-state">
+                Nenhum chamado nos últimos 90 dias.
+              </div>
+            ) : (
+              <Rosca fatias={panorama.porStatus} legendaCentro="chamados" />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Prazo da fila aberta</div>
+          </div>
+
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando...</div>
+            ) : panorama.noPrazo + panorama.atrasados + panorama.semPrazo ===
+              0 ? (
+              <div className="empty-state">Nenhum chamado em aberto.</div>
+            ) : (
+              <Rosca
+                legendaCentro="em aberto"
+                fatias={[
+                  {
+                    rotulo: 'Dentro do prazo',
+                    valor: panorama.noPrazo,
+                    cor: 'var(--success)',
+                  },
+                  {
+                    rotulo: 'Em atraso',
+                    valor: panorama.atrasados,
+                    cor: 'var(--danger)',
+                  },
+                  {
+                    rotulo: 'Sem prazo',
+                    valor: panorama.semPrazo,
+                    cor: 'var(--ink-faint)',
+                  },
+                ]}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Treinamentos no EAD</div>
+
+            <Link href="/treinamentos" className="btn btn-sm">
+              Ver relatório
+            </Link>
+          </div>
+
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando...</div>
+            ) : panorama.treinoConcluido +
+                panorama.treinoAndamento +
+                panorama.treinoNaoIniciado ===
+              0 ? (
+              <div className="empty-state">
+                Nenhuma matrícula lida do EAD ainda.
+              </div>
+            ) : (
+              <Rosca
+                legendaCentro="matrículas"
+                fatias={[
+                  {
+                    rotulo: 'Concluídos',
+                    valor: panorama.treinoConcluido,
+                    cor: 'var(--success)',
+                  },
+                  {
+                    rotulo: 'Em andamento',
+                    valor: panorama.treinoAndamento,
+                    cor: 'var(--amber)',
+                  },
+                  {
+                    rotulo: 'Não iniciados',
+                    valor: panorama.treinoNaoIniciado,
+                    cor: 'var(--danger)',
+                  },
+                ]}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Fila aberta por empresa</div>
+          </div>
+
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando...</div>
+            ) : (
+              <Barras
+                barras={panorama.porEmpresa}
+                vazio="Nenhum chamado em aberto."
+              />
+            )}
+          </div>
+        </div>
+      </div>
 
       <div>
         <div className="section-title" style={{ marginBottom: 10 }}>
