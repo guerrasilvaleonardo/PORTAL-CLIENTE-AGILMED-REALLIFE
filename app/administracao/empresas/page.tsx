@@ -186,378 +186,353 @@ export default function EmpresasPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+
+  const ativas = empresas.filter((e) => e.status === 'ativo').length
+  const usuarios = empresas.reduce((s, e) => s + (e.total_usuarios || 0), 0)
+  const chamados = empresas.reduce((s, e) => s + (e.total_chamados || 0), 0)
+
   return (
-    <main
-      style={{
-        minHeight: 'calc(100vh - 70px)',
-        background: '#f8fafc',
-        padding: '32px 24px 60px',
-      }}
-    >
-      <div style={{ maxWidth: 1250, margin: '0 auto' }}>
-        <div style={{ marginBottom: 28 }}>
-          <div
+    <div className="app">
+      <div className="topbar">
+        <div>
+          <div className="section-title">Administração</div>
+
+          <h1 style={{ fontSize: 30, marginTop: 6 }}>Empresas</h1>
+
+          <p
             style={{
-              color: '#0f766e',
-              fontSize: 13,
-              fontWeight: 900,
-              textTransform: 'uppercase',
-              letterSpacing: '.07em',
+              margin: '8px 0 0',
+              color: 'var(--ink-muted)',
+              fontSize: 14,
             }}
           >
-            Administração
-          </div>
-
-          <h1 style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 32 }}>
-            Empresas
-          </h1>
-
-          <p style={{ margin: '9px 0 0', color: '#64748b' }}>
-            Cadastre as empresas clientes e defina qual marca atende cada uma.
+            Cadastro das empresas clientes e a marca que atende cada uma.
           </p>
-
-          <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
-            <Link href="/administracao/usuarios" style={abaInativa}>
-              Usuários
-            </Link>
-            <span style={abaAtiva}>Empresas</span>
-          </div>
         </div>
 
-        {erro && <div style={avisoErro}>{erro}</div>}
-        {mensagem && <div style={avisoOk}>{mensagem}</div>}
+        <div className="topbar-spacer" />
 
-        <section
-          style={{
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: 18,
-            padding: 22,
-            marginBottom: 24,
-          }}
-        >
-          <h2 style={{ margin: '0 0 6px', color: '#0f172a', fontSize: 20 }}>
+        <Link href="/administracao/usuarios" className="btn">
+          Usuários
+        </Link>
+      </div>
+
+      {erro && <div className="banner bad">{erro}</div>}
+      {mensagem && <div className="banner good">{mensagem}</div>}
+
+      <div className="stats">
+        <div className="stat">
+          <div className="num">{carregando ? '—' : empresas.length}</div>
+          <div className="lbl">Empresas</div>
+        </div>
+
+        <div className="stat good">
+          <div className="num">{carregando ? '—' : ativas}</div>
+          <div className="lbl">Ativas</div>
+        </div>
+
+        <div className="stat">
+          <div className="num">{carregando ? '—' : usuarios}</div>
+          <div className="lbl">Usuários vinculados</div>
+        </div>
+
+        <div className="stat">
+          <div className="num">{carregando ? '—' : chamados}</div>
+          <div className="lbl">Chamados abertos</div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">
             {editando ? 'Editar empresa' : 'Nova empresa'}
-          </h2>
+          </div>
 
-          <p style={{ margin: '0 0 18px', color: '#64748b', fontSize: 14 }}>
-            A marca define as cores e o nome que o cliente vê ao entrar no portal.
-          </p>
-
-          <form onSubmit={salvar}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
-                gap: 14,
+          {editando && (
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                setForm(formVazio)
+                setErro('')
+                setMensagem('')
               }}
             >
+              Cancelar edição
+            </button>
+          )}
+        </div>
+
+        <form onSubmit={salvar} className="panel-body">
+          <div className="field-row">
+            <div className="field">
+              <label>Razão social *</label>
               <input
                 value={form.razao_social}
                 onChange={(e) => alterar('razao_social', e.target.value)}
-                placeholder="Razão social *"
-                style={inputStyle}
+                placeholder="Nome registrado da empresa"
               />
+            </div>
 
+            <div className="field">
+              <label>Nome fantasia</label>
               <input
                 value={form.nome_fantasia}
                 onChange={(e) => alterar('nome_fantasia', e.target.value)}
-                placeholder="Nome fantasia"
-                style={inputStyle}
+                placeholder="Como a empresa é conhecida"
               />
+            </div>
+          </div>
 
+          <div className="field-row">
+            <div className="field">
+              <label>CNPJ</label>
               <input
                 value={form.cnpj}
                 onChange={(e) => alterar('cnpj', e.target.value)}
-                placeholder="CNPJ"
-                style={inputStyle}
+                placeholder="00.000.000/0000-00"
               />
+            </div>
 
+            <div className="field">
+              <label>Marca que atende *</label>
               <select
                 value={form.marca}
                 onChange={(e) => alterar('marca', e.target.value)}
-                style={inputStyle}
               >
-                <option value="">Marca que atende *</option>
+                <option value="">Selecione</option>
                 <option value="agilmed">ÁgilMed Ocupacional</option>
                 <option value="reallife">Real Life SSMA</option>
               </select>
+            </div>
 
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => alterar('email', e.target.value)}
-                placeholder="E-mail de contato"
-                style={inputStyle}
-              />
-
-              <input
-                value={form.telefone}
-                onChange={(e) => alterar('telefone', e.target.value)}
-                placeholder="Telefone"
-                style={inputStyle}
-              />
-
-              <input
-                value={form.endereco}
-                onChange={(e) => alterar('endereco', e.target.value)}
-                placeholder="Endereço"
-                style={inputStyle}
-              />
-
-              <input
-                value={form.cidade}
-                onChange={(e) => alterar('cidade', e.target.value)}
-                placeholder="Cidade"
-                style={inputStyle}
-              />
-
-              <input
-                value={form.estado}
-                onChange={(e) => alterar('estado', e.target.value)}
-                placeholder="UF"
-                maxLength={2}
-                style={inputStyle}
-              />
-
-              <input
-                value={form.cep}
-                onChange={(e) => alterar('cep', e.target.value)}
-                placeholder="CEP"
-                style={inputStyle}
-              />
-
+            <div className="field">
+              <label>Situação</label>
               <select
                 value={form.status}
                 onChange={(e) => alterar('status', e.target.value)}
-                style={inputStyle}
               >
                 <option value="ativo">Ativa</option>
                 <option value="inativo">Inativa</option>
               </select>
             </div>
-
-            <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
-              <button type="submit" disabled={salvando} style={botaoPrimario}>
-                {salvando
-                  ? 'Salvando...'
-                  : editando
-                    ? 'Salvar alterações'
-                    : 'Cadastrar empresa'}
-              </button>
-
-              {editando && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForm(formVazio)
-                    setErro('')
-                    setMensagem('')
-                  }}
-                  style={botaoSecundario}
-                >
-                  Cancelar edição
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-
-        <section
-          style={{
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: 18,
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ padding: '20px 22px', borderBottom: '1px solid #e2e8f0' }}>
-            <h2 style={{ margin: 0, color: '#0f172a', fontSize: 20 }}>
-              Empresas cadastradas
-            </h2>
-            <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 14 }}>
-              {carregando
-                ? 'Carregando...'
-                : `${empresas.length} empresa(s)`}
-            </p>
           </div>
 
-          {!carregando && empresas.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-              Nenhuma empresa cadastrada ainda.
+          <div className="field-row">
+            <div className="field">
+              <label>E-mail</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => alterar('email', e.target.value)}
+                placeholder="contato@empresa.com.br"
+              />
             </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={thStyle}>Empresa</th>
-                    <th style={thStyle}>CNPJ</th>
-                    <th style={thStyle}>Marca</th>
-                    <th style={thStyle}>Usuários</th>
-                    <th style={thStyle}>Chamados</th>
-                    <th style={thStyle}>Situação</th>
-                    <th style={thStyle}></th>
-                  </tr>
-                </thead>
 
-                <tbody>
-                  {empresas.map((empresa) => (
-                    <tr key={empresa.id}>
-                      <td style={tdStyle}>
-                        <strong style={{ color: '#0f172a' }}>
-                          {empresa.nome_fantasia || empresa.razao_social}
-                        </strong>
-                        {empresa.nome_fantasia && (
-                          <div style={{ fontSize: 13, color: '#64748b' }}>
-                            {empresa.razao_social}
-                          </div>
-                        )}
-                      </td>
+            <div className="field">
+              <label>Telefone</label>
+              <input
+                value={form.telefone}
+                onChange={(e) => alterar('telefone', e.target.value)}
+                placeholder="(69) 90000-0000"
+              />
+            </div>
+          </div>
 
-                      <td style={tdStyle}>{formatarCnpj(empresa.cnpj)}</td>
+          <div className="field-row">
+            <div className="field">
+              <label>Endereço</label>
+              <input
+                value={form.endereco}
+                onChange={(e) => alterar('endereco', e.target.value)}
+                placeholder="Rua, número, bairro"
+              />
+            </div>
 
-                      <td style={tdStyle}>
-                        {empresa.marca ? (
-                          <span
-                            style={{
-                              padding: '5px 10px',
-                              borderRadius: 999,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: '#fff',
-                              background: marcaCores[empresa.marca] || '#64748b',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {marcaLabels[empresa.marca] || empresa.marca}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#b91c1c', fontWeight: 700 }}>
-                            sem marca
-                          </span>
-                        )}
-                      </td>
+            <div className="field">
+              <label>Cidade</label>
+              <input
+                value={form.cidade}
+                onChange={(e) => alterar('cidade', e.target.value)}
+              />
+            </div>
 
-                      <td style={tdStyle}>{empresa.total_usuarios}</td>
-                      <td style={tdStyle}>{empresa.total_chamados}</td>
+            <div className="field" style={{ maxWidth: 110, minWidth: 90 }}>
+              <label>UF</label>
+              <input
+                value={form.estado}
+                maxLength={2}
+                onChange={(e) =>
+                  alterar('estado', e.target.value.toUpperCase())
+                }
+              />
+            </div>
 
-                      <td style={tdStyle}>
+            <div className="field" style={{ maxWidth: 150, minWidth: 120 }}>
+              <label>CEP</label>
+              <input
+                value={form.cep}
+                onChange={(e) => alterar('cep', e.target.value)}
+                placeholder="00000-000"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={salvando}
+            >
+              {salvando
+                ? 'Salvando...'
+                : editando
+                  ? 'Salvar alterações'
+                  : 'Cadastrar empresa'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">Empresas cadastradas</div>
+
+          <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+            {empresas.length} no total
+          </span>
+        </div>
+
+        <div className="panel-body">
+          <div className="table-wrap">
+            <div className="table-scroll">
+              <div
+                className="trow thead"
+                style={{ gridTemplateColumns: GRADE_EMPRESA }}
+              >
+                <span>Empresa</span>
+                <span>CNPJ</span>
+                <span>Marca</span>
+                <span>Contato</span>
+                <span style={{ textAlign: 'right' }}>Usuários</span>
+                <span style={{ textAlign: 'right' }}>Chamados</span>
+                <span />
+              </div>
+
+              {carregando ? (
+                <div className="empty-state">Carregando...</div>
+              ) : empresas.length === 0 ? (
+                <div className="empty-state">
+                  Nenhuma empresa cadastrada ainda. Comece pelo formulário
+                  acima.
+                </div>
+              ) : (
+                empresas.map((empresa) => (
+                  <div
+                    key={empresa.id}
+                    className="trow"
+                    style={{ gridTemplateColumns: GRADE_EMPRESA }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span className="tname">
+                        {empresa.nome_fantasia || empresa.razao_social}
+                      </span>
+
+                      {empresa.nome_fantasia && (
                         <span
                           style={{
-                            fontWeight: 700,
-                            color:
-                              empresa.status === 'ativo' ? '#15803d' : '#b91c1c',
+                            display: 'block',
+                            fontSize: 11.5,
+                            color: 'var(--ink-faint)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {empresa.status === 'ativo' ? 'Ativa' : 'Inativa'}
+                          {empresa.razao_social}
                         </span>
-                      </td>
+                      )}
 
-                      <td style={tdStyle}>
-                        <button
-                          type="button"
-                          onClick={() => editar(empresa)}
-                          style={botaoSecundario}
+                      {empresa.status !== 'ativo' && (
+                        <span
+                          className="pill bad"
+                          style={{ marginTop: 4 }}
                         >
-                          Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          inativa
+                        </span>
+                      )}
+                    </span>
+
+                    <span className="tcode">
+                      {formatarCnpj(empresa.cnpj)}
+                    </span>
+
+                    <span>
+                      <span
+                        className={
+                          empresa.marca === 'agilmed'
+                            ? 'pill'
+                            : 'pill good'
+                        }
+                      >
+                        {marcaLabels[empresa.marca || ''] || '—'}
+                      </span>
+                    </span>
+
+                    <span className="tmuted" style={{ minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {empresa.email || '—'}
+                      </span>
+
+                      {empresa.telefone && (
+                        <span
+                          style={{ display: 'block', fontSize: 11.5 }}
+                        >
+                          {empresa.telefone}
+                        </span>
+                      )}
+                    </span>
+
+                    <span
+                      className="mono"
+                      style={{ textAlign: 'right', fontWeight: 600 }}
+                    >
+                      {empresa.total_usuarios ?? 0}
+                    </span>
+
+                    <span
+                      className="mono"
+                      style={{ textAlign: 'right', fontWeight: 600 }}
+                    >
+                      {empresa.total_chamados ?? 0}
+                    </span>
+
+                    <span className="trow-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => editar(empresa)}
+                      >
+                        Editar
+                      </button>
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
-          )}
-        </section>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   )
 }
 
-const inputStyle = {
-  width: '100%',
-  boxSizing: 'border-box' as const,
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
-  padding: '12px 13px',
-  background: '#fff',
-  color: '#0f172a',
-  fontSize: 14,
-}
-
-const thStyle = {
-  padding: '13px 15px',
-  textAlign: 'left' as const,
-  fontSize: 12,
-  color: '#64748b',
-  textTransform: 'uppercase' as const,
-  borderBottom: '1px solid #e2e8f0',
-}
-
-const tdStyle = {
-  padding: '15px',
-  borderBottom: '1px solid #f1f5f9',
-  color: '#334155',
-  fontSize: 14,
-}
-
-const botaoPrimario = {
-  border: 0,
-  borderRadius: 10,
-  padding: '12px 20px',
-  background: '#0f766e',
-  color: '#fff',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const botaoSecundario = {
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
-  padding: '10px 16px',
-  background: '#fff',
-  color: '#334155',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const abaAtiva = {
-  padding: '9px 15px',
-  borderRadius: 10,
-  background: '#0f766e',
-  color: '#fff',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const abaInativa = {
-  padding: '9px 15px',
-  borderRadius: 10,
-  background: '#fff',
-  border: '1px solid #cbd5e1',
-  color: '#334155',
-  fontSize: 14,
-  fontWeight: 700,
-  textDecoration: 'none',
-}
-
-const avisoErro = {
-  marginBottom: 18,
-  padding: 14,
-  borderRadius: 10,
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
-  color: '#b91c1c',
-  fontWeight: 700,
-}
-
-const avisoOk = {
-  marginBottom: 18,
-  padding: 14,
-  borderRadius: 10,
-  background: '#f0fdf4',
-  border: '1px solid #bbf7d0',
-  color: '#15803d',
-  fontWeight: 700,
-}
+const GRADE_EMPRESA =
+  'minmax(180px,1.5fr) 150px 140px minmax(150px,1.2fr) 80px 84px 84px'
