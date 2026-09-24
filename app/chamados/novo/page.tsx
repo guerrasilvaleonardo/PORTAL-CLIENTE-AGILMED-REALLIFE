@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { obterMarcaDaEmpresa } from '@/lib/empresa';
 import { avisar } from '@/lib/avisar';
 import { normalizarUrl } from '@/lib/links';
+import { HORAS_SLA, prazoEmHorasUteis, rotuloPrazo } from '@/lib/prazo';
 import type { Marca } from '@/lib/marca';
 
 const categorias = [
@@ -22,33 +23,34 @@ const categorias = [
 
 /*
  * O prazo de cada prioridade e o mesmo usado para calcular o SLA
- * mais abaixo. Deixamos visivel para quem abre o chamado saber o
- * que esperar.
+ * mais abaixo, sempre em HORAS UTEIS: 8 horas por dia, de segunda a
+ * sexta. Deixamos visivel para quem abre o chamado saber o que
+ * esperar.
  */
 const prioridades = [
   {
     value: 'baixa',
     label: 'Baixa',
     description: 'Solicitação sem urgência.',
-    prazo: 'Prazo de 48 horas',
+    prazo: rotuloPrazo('baixa'),
   },
   {
     value: 'normal',
     label: 'Normal',
     description: 'Atendimento dentro do prazo padrão.',
-    prazo: 'Prazo de 24 horas',
+    prazo: rotuloPrazo('normal'),
   },
   {
     value: 'alta',
     label: 'Alta',
     description: 'Necessita atenção prioritária.',
-    prazo: 'Prazo de 8 horas',
+    prazo: rotuloPrazo('alta'),
   },
   {
     value: 'urgente',
     label: 'Urgente',
     description: 'Situação que exige atendimento imediato.',
-    prazo: 'Prazo de 4 horas',
+    prazo: rotuloPrazo('urgente'),
   },
 ];
 
@@ -220,25 +222,19 @@ export default function NovoChamadoPage() {
       setEnviando(true);
 
       /*
-       * SLA AUTOMÁTICO
+       * SLA AUTOMÁTICO, EM HORAS ÚTEIS
        *
-       * Baixa   = 48 horas
-       * Normal  = 24 horas
-       * Alta    = 8 horas
-       * Urgente = 4 horas
+       * A jornada é de 8 horas por dia, de segunda a sexta. Fim de
+       * semana, madrugada e almoço não entram na conta.
+       *
+       * Baixa   = 48 horas úteis (6 dias úteis)
+       * Normal  = 24 horas úteis (3 dias úteis)
+       * Alta    = 8 horas úteis  (1 dia útil)
+       * Urgente = 4 horas úteis
        */
-      const horasSla: Record<string, number> = {
-        baixa: 48,
-        normal: 24,
-        alta: 8,
-        urgente: 4,
-      };
+      const horas = HORAS_SLA[prioridade] ?? HORAS_SLA.normal;
 
-      const horas = horasSla[prioridade] ?? 24;
-
-      const prazoSla = new Date(
-        Date.now() + horas * 60 * 60 * 1000
-      ).toISOString();
+      const prazoSla = prazoEmHorasUteis(horas).toISOString();
 
       const { data, error } = await supabase
         .from('chamados')
