@@ -9,6 +9,7 @@ import { avisar } from '@/lib/avisar'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import type { Marca } from '@/lib/marca'
+import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 
 type Chamado = {
   id: string
@@ -730,16 +731,52 @@ export default function DetalhesChamadoPage() {
                   Detalhes do chamado
                 </h2>
 
-                <span
+                <div
                   style={{
-                    ...styles.statusBadge,
-                    ...statusStyle(chamado.status),
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  {statusLabels[chamado.status] ||
-                    chamado.status}
-                </span>
+                  <span
+                    title={
+                      EXPLICACAO_CLIENTE[chamado.status] || ''
+                    }
+                    style={{
+                      ...styles.statusBadge,
+                      ...statusStyle(chamado.status),
+                    }}
+                  >
+                    {statusLabels[chamado.status] ||
+                      chamado.status}
+                  </span>
+
+                  <AjudaSituacoes rotulo="O que isso significa?" />
+                </div>
               </div>
+
+              {/*
+                * A explicacao da situacao atual fica visivel sem
+                * precisar clicar: e a duvida numero um de quem abre
+                * um chamado e nao sabe se a bola esta com ele.
+                */}
+              {EXPLICACAO_CLIENTE[chamado.status] && (
+                <p
+                  style={{
+                    margin: '10px 0 0',
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    color: '#475569',
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  {EXPLICACAO_CLIENTE[chamado.status]}
+                </p>
+              )}
 
               <div style={styles.infoGrid}>
                 <Info
