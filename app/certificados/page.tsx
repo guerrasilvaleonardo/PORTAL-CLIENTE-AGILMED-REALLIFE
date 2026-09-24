@@ -1,7 +1,17 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { Progresso as BarraProgressoUi } from '@/lib/graficos'
+import {
+  acharProgresso,
+  corDoProgresso,
+  CURSOS,
+  formatarDataHora,
+  normalizarCurso,
+  type Progresso,
+} from '@/lib/treinamentos'
 
 type Empresa = {
   id: string
@@ -25,14 +35,6 @@ type Certificado = {
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
 }
 
-type Progresso = {
-  email: string
-  curso: string
-  progresso: number
-  situacao: string | null
-  atualizado_em: string
-}
-
 const TIPOS = [
   'NR-35 — Trabalho em Altura',
   'NR-33 — Espaços Confinados',
@@ -48,32 +50,6 @@ const TIPOS = [
   'Outro',
 ]
 
-/*
- * Cursos do EAD. A lista e apenas uma sugestao: o campo aceita
- * qualquer texto e grava sempre em MAIUSCULAS.
- */
-const CURSOS = [
-  'NR 05 | CIPA',
-  'NR 06 | EPI',
-  'NR 10 | BÁSICO',
-  'NR 10 | COMPLEMENTAR SEP',
-  'NR 10 | RECICLAGEM',
-  'NR 11 | OPERAÇÃO DE EMPILHADEIRA',
-  'NR 12 | SEGURANÇA EM MÁQUINAS E EQUIPAMENTOS',
-  'NR 13 | CALDEIRAS E VASOS DE PRESSÃO',
-  'NR 17 | ERGONOMIA',
-  'NR 18 | CONSTRUÇÃO CIVIL',
-  'NR 20 | INFLAMÁVEIS E COMBUSTÍVEIS',
-  'NR 23 | PREVENÇÃO E COMBATE A INCÊNDIO',
-  'NR 33 | ESPAÇOS CONFINADOS',
-  'NR 33 | SUPERVISOR DE ENTRADA',
-  'NR 34 | INDÚSTRIA NAVAL',
-  'NR 35 | TRABALHO EM ALTURA',
-  'NR 35 | SUPERVISOR DE TRABALHO EM ALTURA',
-  'BRIGADA DE INCÊNDIO',
-  'PRIMEIROS SOCORROS',
-  'INTEGRAÇÃO DE SEGURANÇA',
-]
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -117,53 +93,12 @@ function diasAte(validade: string | null) {
 function situacao(validade: string | null) {
   const d = diasAte(validade)
 
-  if (d === null) return { texto: 'Sem validade', cor: '#64748b', fundo: '#f1f5f9', ordem: 4 }
-  if (d < 0) return { texto: `Vencido há ${Math.abs(d)}d`, cor: '#b91c1c', fundo: '#fef2f2', ordem: 0 }
-  if (d <= 30) return { texto: `Vence em ${d}d`, cor: '#c2410c', fundo: '#fff7ed', ordem: 1 }
-  if (d <= 90) return { texto: `Vence em ${d}d`, cor: '#a16207', fundo: '#fefce8', ordem: 2 }
+  if (d === null) return { texto: 'Sem validade', pill: 'pill flat' }
+  if (d < 0) return { texto: 'Vencido há ' + Math.abs(d) + 'd', pill: 'pill bad' }
+  if (d <= 30) return { texto: 'Vence em ' + d + 'd', pill: 'pill bad' }
+  if (d <= 90) return { texto: 'Vence em ' + d + 'd', pill: 'pill warn' }
 
-  return { texto: 'Válido', cor: '#15803d', fundo: '#f0fdf4', ordem: 3 }
-}
-
-/*
- * Deixa o nome do curso comparavel: sem acento, sem pontuacao e em
- * MAIUSCULAS. "NR |10 | Reciclagem" vira "NR 10 RECICLAGEM".
- */
-function normalizarCurso(texto: string) {
-  return texto
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function numeroDaNr(texto: string) {
-  const achado = normalizarCurso(texto).match(/\bNR 0?(\d{1,2})\b/)
-
-  return achado ? achado[1] : null
-}
-
-const QUALIFICADORES = [
-  'COMPLEMENTAR',
-  'SEP',
-  'RECICLAGEM',
-  'SUPERVISOR',
-  'BASICO',
-  'AVANCADO',
-  'INTERMEDIARIO',
-  'VIGIA',
-  'AUTORIZADO',
-  'ENTRADA',
-  'FORMACAO',
-  'INICIAL',
-]
-
-function qualificadores(texto: string) {
-  const normalizado = normalizarCurso(texto)
-
-  return QUALIFICADORES.filter((q) => normalizado.includes(q))
+  return { texto: 'Válido', pill: 'pill good' }
 }
 
 function formatarData(valor: string | null) {
@@ -210,69 +145,9 @@ export default function CertificadosPage() {
     setForm((atual) => ({ ...atual, [campo]: tratado }))
   }
 
+  /* A mesma regra usada no relatorio de Treinamentos. */
   function progressoDe(c: Certificado) {
-    if (!c.email_colaborador) return null
-
-    const email = c.email_colaborador.toLowerCase().trim()
-
-    const doColaborador = progressos.filter(
-      (p) => p.email.toLowerCase().trim() === email
-    )
-
-    if (doColaborador.length === 0) return null
-
-    if (!c.curso) {
-      return [...doColaborador].sort((a, b) => b.progresso - a.progresso)[0]
-    }
-
-    const alvo = normalizarCurso(c.curso)
-
-    const exato = doColaborador.find((p) => normalizarCurso(p.curso) === alvo)
-
-    if (exato) return exato
-
-    /*
-     * O nome do curso no EAD raramente e igual ao que digitamos aqui
-     * ("NR 18 | CONSTRUCAO CIVIL" x "NR | 18 | - Condicoes de Seguranca...").
-     * Entao casamos pelo numero da NR e pelos qualificadores
-     * (COMPLEMENTAR, SEP, RECICLAGEM, SUPERVISOR...).
-     */
-    const nr = numeroDaNr(c.curso)
-
-    if (nr) {
-      const mesmaNr = doColaborador.filter((p) => numeroDaNr(p.curso) === nr)
-
-      if (mesmaNr.length === 0) return null
-
-      const quaisCert = qualificadores(c.curso)
-
-      const compativeis = mesmaNr.filter((p) => {
-        const quaisEad = qualificadores(p.curso)
-
-        if (quaisCert.length > 0) {
-          return quaisCert.every((q) => quaisEad.includes(q))
-        }
-
-        return quaisEad.length === 0
-      })
-
-      const lista = compativeis.length > 0 ? compativeis : mesmaNr
-
-      return [...lista].sort((a, b) => b.progresso - a.progresso)[0]
-    }
-
-    /* Cursos sem NR: Brigada de Incendio, Primeiros Socorros... */
-    const palavras = alvo.split(' ').filter((t) => t.length > 3)
-
-    const porPalavra = doColaborador.filter((p) => {
-      const texto = normalizarCurso(p.curso)
-
-      return palavras.length > 0 && palavras.every((t) => texto.includes(t))
-    })
-
-    if (porPalavra.length === 0) return null
-
-    return [...porPalavra].sort((a, b) => b.progresso - a.progresso)[0]
+    return acharProgresso(c.email_colaborador, c.curso, progressos)
   }
 
   async function atualizarEad() {
@@ -544,158 +419,161 @@ export default function CertificadosPage() {
     return { vencidos, em30, em90, validos }
   }, [certificados])
 
+
+  const grade = interno ? GRADE_CERT_INTERNO : GRADE_CERT_CLIENTE
+
   return (
-    <main
-      style={{
-        minHeight: 'calc(100vh - 70px)',
-        background: '#f8fafc',
-        padding: '32px 24px 60px',
-      }}
-    >
-      <div style={{ maxWidth: 1250, margin: '0 auto' }}>
-        <div style={{ marginBottom: 24 }}>
-          <div
-            style={{
-              color: '#0f766e',
-              fontSize: 13,
-              fontWeight: 900,
-              textTransform: 'uppercase',
-              letterSpacing: '.07em',
-            }}
-          >
-            Saúde e segurança
+    <div className="app">
+      <div className="topbar">
+        <div>
+          <div className="section-title">
+            {interno ? 'Todos os clientes' : 'Sua empresa'}
           </div>
 
-          <h1 style={{ margin: '6px 0 0', color: '#0f172a', fontSize: 32 }}>
-            Certificados e treinamentos
-          </h1>
+          <h1 style={{ fontSize: 30, marginTop: 6 }}>Certificados</h1>
 
-          <p style={{ margin: '9px 0 0', color: '#64748b' }}>
-            {interno
-              ? 'Tudo que vence, por empresa e por colaborador — antes de virar problema.'
-              : 'Os treinamentos e exames da sua equipe, com o que vence primeiro no topo.'}
+          <p
+            style={{
+              margin: '8px 0 0',
+              color: 'var(--ink-muted)',
+              fontSize: 14,
+            }}
+          >
+            Treinamentos e exames por colaborador, com o que vence primeiro
+            no topo.
           </p>
+        </div>
 
-          {interno && (
-            <div style={{ marginTop: 14 }}>
+        <div className="topbar-spacer" />
+
+        <Link href="/treinamentos" className="btn">
+          Relatório de treinamentos
+        </Link>
+      </div>
+
+      {erro && <div className="banner bad">{erro}</div>}
+      {mensagem && <div className="banner good">{mensagem}</div>}
+
+      <div className="stats">
+        <div
+          className={'stat' + (indicadores.vencidos > 0 ? ' bad' : '')}
+        >
+          <div className="num">
+            {carregando ? '—' : indicadores.vencidos}
+          </div>
+          <div className="lbl">Vencidos</div>
+        </div>
+
+        <div className={'stat' + (indicadores.em30 > 0 ? ' bad' : '')}>
+          <div className="num">{carregando ? '—' : indicadores.em30}</div>
+          <div className="lbl">Vencem em 30 dias</div>
+        </div>
+
+        <div className={'stat' + (indicadores.em90 > 0 ? ' warn' : '')}>
+          <div className="num">{carregando ? '—' : indicadores.em90}</div>
+          <div className="lbl">Vencem em 90 dias</div>
+        </div>
+
+        <div className="stat good">
+          <div className="num">
+            {carregando ? '—' : indicadores.validos}
+          </div>
+          <div className="lbl">Em dia</div>
+        </div>
+      </div>
+
+      {interno && (
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">
+              {editando ? 'Editar certificado' : 'Novo certificado'}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
+                className="btn btn-sm"
                 onClick={atualizarEad}
                 disabled={atualizandoEad}
-                style={{
-                  ...botaoSecundario,
-                  ...(atualizandoEad ? { opacity: 0.6, cursor: 'wait' } : {}),
-                }}
               >
                 {atualizandoEad
-                  ? 'Lendo a plataforma de ensino...'
+                  ? 'Atualizando...'
                   : 'Atualizar progresso do EAD'}
               </button>
 
-              <span
-                style={{ marginLeft: 10, fontSize: 13, color: '#94a3b8' }}
-              >
-                A leitura automática acontece todo dia às 06h.
-              </span>
+              {editando && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    setForm(formVazio)
+                    setErro('')
+                    setMensagem('')
+                  }}
+                >
+                  Cancelar edição
+                </button>
+              )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {erro && <div style={avisoErro}>{erro}</div>}
-        {mensagem && <div style={avisoOk}>{mensagem}</div>}
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))',
-            gap: 14,
-            marginBottom: 24,
-          }}
-        >
-          <Indicador titulo="Vencidos" valor={indicadores.vencidos} cor="#b91c1c" fundo="#fef2f2" borda="#fecaca" />
-          <Indicador titulo="Vencem em 30 dias" valor={indicadores.em30} cor="#c2410c" fundo="#fff7ed" borda="#fed7aa" />
-          <Indicador titulo="Vencem em 90 dias" valor={indicadores.em90} cor="#a16207" fundo="#fefce8" borda="#fde68a" />
-          <Indicador titulo="Em dia" valor={indicadores.validos} cor="#15803d" fundo="#f0fdf4" borda="#bbf7d0" />
-        </div>
-
-        {interno && (
-          <section
-            style={{
-              background: '#fff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 18,
-              padding: 22,
-              marginBottom: 24,
-            }}
-          >
-            <h2 style={{ margin: '0 0 18px', color: '#0f172a', fontSize: 20 }}>
-              {editando ? 'Editar certificado' : 'Novo certificado'}
-            </h2>
-
-            <form onSubmit={salvar}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
-                  gap: 14,
-                }}
-              >
+          <form onSubmit={salvar} className="panel-body">
+            <div className="field-row">
+              <div className="field">
+                <label>Empresa *</label>
                 <select
                   value={form.empresa_id}
                   onChange={(e) => alterar('empresa_id', e.target.value)}
-                  style={inputStyle}
                 >
-                  <option value="">Empresa *</option>
+                  <option value="">Selecione</option>
+
                   {empresas.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.nome_fantasia || e.razao_social}
                     </option>
                   ))}
                 </select>
+              </div>
 
+              <div className="field">
+                <label>Colaborador *</label>
                 <input
                   value={form.colaborador}
                   onChange={(e) => alterar('colaborador', e.target.value)}
-                  placeholder="Colaborador *"
-                  style={inputStyle}
+                  placeholder="Nome de quem fez o treinamento"
                 />
+              </div>
 
+              <div className="field">
+                <label>Função</label>
+                <input
+                  value={form.funcao}
+                  onChange={(e) => alterar('funcao', e.target.value)}
+                  placeholder="Cargo na empresa"
+                />
+              </div>
+            </div>
+
+            <div className="field-row">
+              <div className="field">
+                <label>E-mail do colaborador</label>
                 <input
                   type="email"
                   value={form.email_colaborador}
                   onChange={(e) =>
                     alterar('email_colaborador', e.target.value)
                   }
-                  placeholder="E-mail do colaborador"
-                  style={inputStyle}
+                  placeholder="É por ele que buscamos o progresso no EAD"
                 />
+              </div>
 
-                <input
-                  value={form.funcao}
-                  onChange={(e) => alterar('funcao', e.target.value)}
-                  placeholder="Função"
-                  style={inputStyle}
-                />
-
-                <select
-                  value={form.tipo}
-                  onChange={(e) => alterar('tipo', e.target.value)}
-                  style={inputStyle}
-                >
-                  <option value="">Tipo *</option>
-                  {TIPOS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-
+              <div className="field">
+                <label>Curso no EAD</label>
                 <input
                   list="lista-cursos"
                   value={form.curso}
                   onChange={(e) => alterar('curso', e.target.value)}
-                  placeholder="Curso (ex.: NR 10 | COMPLEMENTAR SEP)"
-                  style={{ ...inputStyle, textTransform: 'uppercase' }}
+                  placeholder="Escolha ou digite — grava em MAIÚSCULAS"
                 />
 
                 <datalist id="lista-cursos">
@@ -703,97 +581,109 @@ export default function CertificadosPage() {
                     <option key={curso} value={curso} />
                   ))}
                 </datalist>
+              </div>
+            </div>
 
-                <label style={rotuloCampo}>
-                  Emissão
-                  <input
-                    type="date"
-                    value={form.emissao}
-                    onChange={(e) => alterar('emissao', e.target.value)}
-                    style={inputStyle}
-                  />
-                </label>
+            <div className="field-row">
+              <div className="field">
+                <label>Tipo *</label>
+                <select
+                  value={form.tipo}
+                  onChange={(e) => alterar('tipo', e.target.value)}
+                >
+                  <option value="">Selecione</option>
 
-                <label style={rotuloCampo}>
-                  Validade
-                  <input
-                    type="date"
-                    value={form.validade}
-                    onChange={(e) => alterar('validade', e.target.value)}
-                    style={inputStyle}
-                  />
-                </label>
+                  {TIPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
+              <div className="field">
+                <label>Emissão</label>
+                <input
+                  type="date"
+                  value={form.emissao}
+                  onChange={(e) => alterar('emissao', e.target.value)}
+                />
+              </div>
+
+              <div className="field">
+                <label>Validade</label>
+                <input
+                  type="date"
+                  value={form.validade}
+                  onChange={(e) => alterar('validade', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="field-row">
+              <div className="field">
+                <label>Observações</label>
                 <input
                   value={form.observacoes}
                   onChange={(e) => alterar('observacoes', e.target.value)}
-                  placeholder="Observações"
-                  style={inputStyle}
+                  placeholder="Anotação livre"
                 />
+              </div>
 
+              <div className="field">
+                <label>Link do certificado</label>
                 <input
                   value={form.link_certificado}
-                  onChange={(e) => alterar('link_certificado', e.target.value)}
-                  placeholder="Link do certificado (opcional)"
-                  style={inputStyle}
+                  onChange={(e) =>
+                    alterar('link_certificado', e.target.value)
+                  }
+                  placeholder="Endereço do arquivo, se houver"
                 />
               </div>
+            </div>
 
-              <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
-                <button type="submit" disabled={salvando} style={botaoPrimario}>
-                  {salvando ? 'Salvando...' : editando ? 'Salvar alterações' : 'Registrar certificado'}
-                </button>
+            <div>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={salvando}
+              >
+                {salvando
+                  ? 'Salvando...'
+                  : editando
+                    ? 'Salvar alterações'
+                    : 'Registrar certificado'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
-                {editando && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm(formVazio)
-                      setErro('')
-                      setMensagem('')
-                    }}
-                    style={botaoSecundario}
-                  >
-                    Cancelar edição
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-        )}
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">Certificados</div>
 
-        <section
-          style={{
-            background: '#fff',
-            border: '1px solid #e2e8f0',
-            borderRadius: 18,
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              padding: '18px 22px',
-              borderBottom: '1px solid #e2e8f0',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
-              gap: 12,
-            }}
-          >
+          <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+            {filtrados.length} de {certificados.length}
+          </span>
+        </div>
+
+        <div className="panel-body">
+          <div className="filters">
             <input
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar colaborador, função ou tipo"
-              style={inputStyle}
+              placeholder="Buscar colaborador, função ou curso"
             />
 
             {interno && (
               <select
                 value={filtroEmpresa}
                 onChange={(e) => setFiltroEmpresa(e.target.value)}
-                style={inputStyle}
               >
                 <option value="">Todas as empresas</option>
+
                 {empresas.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.nome_fantasia || e.razao_social}
@@ -805,9 +695,9 @@ export default function CertificadosPage() {
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
-              style={inputStyle}
             >
               <option value="">Todos os tipos</option>
+
               {TIPOS.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -818,7 +708,6 @@ export default function CertificadosPage() {
             <select
               value={filtroSituacao}
               onChange={(e) => setFiltroSituacao(e.target.value)}
-              style={inputStyle}
             >
               <option value="">Todas as situações</option>
               <option value="vencidos">Vencidos</option>
@@ -828,307 +717,193 @@ export default function CertificadosPage() {
             </select>
           </div>
 
-          {carregando ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Carregando...</div>
-          ) : filtrados.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
-              {certificados.length === 0
-                ? 'Nenhum certificado cadastrado ainda.'
-                : 'Nenhum certificado com esses filtros.'}
-            </div>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc' }}>
-                    <th style={thStyle}>Colaborador</th>
-                    {interno && <th style={thStyle}>Empresa</th>}
-                    <th style={thStyle}>Tipo</th>
-                    <th style={thStyle}>Curso (EAD)</th>
-                    <th style={thStyle}>Progresso</th>
-                    <th style={thStyle}>Emissão</th>
-                    <th style={thStyle}>Validade</th>
-                    <th style={thStyle}>Situação</th>
-                    {interno && <th style={thStyle}></th>}
-                  </tr>
-                </thead>
+          <div className="table-wrap">
+            <div className="table-scroll">
+              <div
+                className="trow thead"
+                style={{ gridTemplateColumns: grade }}
+              >
+                <span>Colaborador</span>
+                {interno && <span>Empresa</span>}
+                <span>Tipo</span>
+                <span>Curso no EAD</span>
+                <span>Progresso</span>
+                <span>Validade</span>
+                <span>Situação</span>
+                {interno && <span />}
+              </div>
 
-                <tbody>
-                  {filtrados.map((c) => {
-                    const s = situacao(c.validade)
+              {carregando ? (
+                <div className="empty-state">Carregando...</div>
+              ) : filtrados.length === 0 ? (
+                <div className="empty-state">
+                  {certificados.length === 0
+                    ? 'Nenhum certificado cadastrado ainda.'
+                    : 'Nenhum certificado com esses filtros.'}
+                </div>
+              ) : (
+                filtrados.map((c) => {
+                  const s = situacao(c.validade)
+                  const registro = progressoDe(c)
 
-                    return (
-                      <tr key={c.id}>
-                        <td style={tdStyle}>
-                          <strong style={{ color: '#0f172a' }}>{c.colaborador}</strong>
-                          {c.funcao && (
-                            <div style={{ fontSize: 13, color: '#64748b' }}>{c.funcao}</div>
-                          )}
-                          {c.email_colaborador && (
-                            <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                              {c.email_colaborador}
-                            </div>
-                          )}
-                          {c.link_certificado && (
-                            <a
-                              href={c.link_certificado}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: 'inline-block',
-                                marginTop: 4,
-                                fontSize: 12,
-                                fontWeight: 700,
-                                color: '#2563eb',
-                                textDecoration: 'none',
-                              }}
-                            >
-                              Abrir certificado
-                            </a>
-                          )}
-                        </td>
+                  return (
+                    <div
+                      key={c.id}
+                      className="trow"
+                      style={{ gridTemplateColumns: grade }}
+                    >
+                      <span style={{ minWidth: 0 }}>
+                        <span className="tname">{c.colaborador}</span>
 
-                        {interno && (
-                          <td style={tdStyle}>
-                            {c.empresas?.nome_fantasia || c.empresas?.razao_social || '—'}
-                          </td>
-                        )}
-
-                        <td style={tdStyle}>{c.tipo}</td>
-
-                        <td style={tdStyle}>
-                          {c.curso ? (
-                            <span style={{ fontSize: 13, color: '#0f172a' }}>
-                              {c.curso}
-                            </span>
-                          ) : (
-                            <span style={{ color: '#cbd5e1' }}>—</span>
-                          )}
-                        </td>
-
-                        <td style={tdStyle}>
-                          <BarraProgresso registro={progressoDe(c)} />
-                        </td>
-
-                        <td style={tdStyle}>{formatarData(c.emissao)}</td>
-                        <td style={tdStyle}>{formatarData(c.validade)}</td>
-
-                        <td style={tdStyle}>
+                        {c.funcao && (
                           <span
                             style={{
-                              display: 'inline-block',
-                              padding: '6px 11px',
-                              borderRadius: 999,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              color: s.cor,
-                              background: s.fundo,
+                              display: 'block',
+                              fontSize: 11.5,
+                              color: 'var(--ink-muted)',
+                            }}
+                          >
+                            {c.funcao}
+                          </span>
+                        )}
+
+                        {c.email_colaborador && (
+                          <span
+                            style={{
+                              display: 'block',
+                              fontSize: 11.5,
+                              color: 'var(--ink-faint)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {s.texto}
+                            {c.email_colaborador}
                           </span>
-                        </td>
-
-                        {interno && (
-                          <td style={tdStyle}>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              <button type="button" onClick={() => editar(c)} style={botaoSecundario}>
-                                Editar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => remover(c)}
-                                style={{ ...botaoSecundario, color: '#b91c1c', borderColor: '#fecaca' }}
-                              >
-                                Remover
-                              </button>
-                            </div>
-                          </td>
                         )}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+
+                        {c.link_certificado && (
+                          <a
+                            href={c.link_certificado}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              display: 'inline-block',
+                              marginTop: 3,
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              color: 'var(--primary)',
+                            }}
+                          >
+                            Abrir certificado
+                          </a>
+                        )}
+                      </span>
+
+                      {interno && (
+                        <span className="tmuted" style={{ minWidth: 0 }}>
+                          {c.empresas?.nome_fantasia ||
+                            c.empresas?.razao_social ||
+                            '—'}
+                        </span>
+                      )}
+
+                      <span className="tmuted" style={{ minWidth: 0 }}>
+                        {c.tipo}
+                      </span>
+
+                      <span style={{ minWidth: 0 }}>
+                        {c.curso ? (
+                          <span style={{ display: 'block' }}>{c.curso}</span>
+                        ) : (
+                          <span style={{ color: 'var(--ink-faint)' }}>—</span>
+                        )}
+
+                        {registro && (
+                          <span
+                            style={{
+                              display: 'block',
+                              fontSize: 11,
+                              color: 'var(--ink-faint)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {formatarDataHora(registro.atualizado_em)}
+                          </span>
+                        )}
+                      </span>
+
+                      <span>
+                        {registro ? (
+                          <BarraProgressoUi
+                            valor={registro.progresso}
+                            cor={corDoProgresso(registro.progresso)}
+                            largura={70}
+                          />
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: 'var(--ink-faint)',
+                            }}
+                          >
+                            sem dados
+                          </span>
+                        )}
+                      </span>
+
+                      <span className="tmuted">
+                        {formatarData(c.validade)}
+                      </span>
+
+                      <span>
+                        <span className={s.pill}>{s.texto}</span>
+                      </span>
+
+                      {interno && (
+                        <span className="trow-actions">
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => editar(c)}
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={() => remover(c)}
+                            style={{
+                              borderColor: 'var(--danger)',
+                              color: 'var(--danger)',
+                            }}
+                          >
+                            Remover
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
-          )}
-        </section>
-      </div>
-    </main>
-  )
-}
-
-function BarraProgresso({ registro }: { registro: Progresso | null }) {
-  if (!registro) {
-    return (
-      <span style={{ fontSize: 12, color: '#cbd5e1' }}>
-        sem dados
-      </span>
-    )
-  }
-
-  const valor = Math.max(0, Math.min(100, registro.progresso))
-
-  const cor =
-    valor >= 100 ? '#15803d' : valor >= 50 ? '#0f766e' : '#c2410c'
-
-  return (
-    <div style={{ minWidth: 110 }}>
-      <div
-        style={{
-          height: 8,
-          borderRadius: 999,
-          background: '#e2e8f0',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            width: valor + '%',
-            height: '100%',
-            background: cor,
-          }}
-        />
-      </div>
-
-      <div
-        style={{
-          fontSize: 12,
-          color: '#64748b',
-          marginTop: 4,
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <strong style={{ color: cor }}>{valor}%</strong>
-
-        <span title={'Atualizado em ' + new Date(registro.atualizado_em).toLocaleString('pt-BR')}>
-          {new Date(registro.atualizado_em).toLocaleDateString('pt-BR')}
-        </span>
-      </div>
-
-      <div
-        title={registro.curso + (registro.situacao ? ' (' + registro.situacao + ')' : '')}
-        style={{
-          fontSize: 11,
-          color: '#94a3b8',
-          marginTop: 2,
-          maxWidth: 170,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {registro.curso}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
-function Indicador({
-  titulo,
-  valor,
-  cor,
-  fundo,
-  borda,
-}: {
-  titulo: string
-  valor: number
-  cor: string
-  fundo: string
-  borda: string
-}) {
-  return (
-    <div
-      style={{
-        background: fundo,
-        border: `1px solid ${borda}`,
-        borderRadius: 16,
-        padding: 18,
-      }}
-    >
-      <p style={{ margin: 0, fontSize: 13, color: '#64748b', fontWeight: 600 }}>{titulo}</p>
-      <p style={{ margin: '6px 0 0', fontSize: 30, fontWeight: 800, color: cor }}>{valor}</p>
-    </div>
-  )
-}
+/*
+ * O cliente nao ve a coluna de empresa nem os botoes de acao, entao
+ * a grade precisa ter exatamente as colunas que foram renderizadas —
+ * senao a tabela desalinha do cabecalho.
+ */
+const GRADE_CERT_INTERNO =
+  'minmax(180px,1.4fr) minmax(120px,1fr) minmax(140px,1.1fr) minmax(130px,1.1fr) 130px 100px 120px 150px'
 
-const inputStyle = {
-  width: '100%',
-  boxSizing: 'border-box' as const,
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
-  padding: '12px 13px',
-  background: '#fff',
-  color: '#0f172a',
-  fontSize: 14,
-}
-
-const rotuloCampo = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: 6,
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#64748b',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '.04em',
-}
-
-const thStyle = {
-  padding: '13px 15px',
-  textAlign: 'left' as const,
-  fontSize: 12,
-  color: '#64748b',
-  textTransform: 'uppercase' as const,
-  borderBottom: '1px solid #e2e8f0',
-}
-
-const tdStyle = {
-  padding: '15px',
-  borderBottom: '1px solid #f1f5f9',
-  color: '#334155',
-  fontSize: 14,
-}
-
-const botaoPrimario = {
-  border: 0,
-  borderRadius: 10,
-  padding: '12px 20px',
-  background: '#0f766e',
-  color: '#fff',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const botaoSecundario = {
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
-  padding: '10px 16px',
-  background: '#fff',
-  color: '#334155',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const avisoErro = {
-  marginBottom: 18,
-  padding: 14,
-  borderRadius: 10,
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
-  color: '#b91c1c',
-  fontWeight: 700,
-}
-
-const avisoOk = {
-  marginBottom: 18,
-  padding: 14,
-  borderRadius: 10,
-  background: '#f0fdf4',
-  border: '1px solid #bbf7d0',
-  color: '#15803d',
-  fontWeight: 700,
-}
+const GRADE_CERT_CLIENTE =
+  'minmax(180px,1.4fr) minmax(140px,1.1fr) minmax(130px,1.1fr) 130px 100px 120px'
