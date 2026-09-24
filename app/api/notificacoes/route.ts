@@ -197,7 +197,7 @@ export async function POST(request: Request) {
 
     const { data: autor } = await supabaseAdmin
       .from('profiles')
-      .select('nome, perfil')
+      .select('nome, perfil, email')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -335,6 +335,58 @@ export async function POST(request: Request) {
 
     const resultado = await enviarEmail({ para, assunto, html, marca })
 
+    /*
+     * Toda mensagem nova tambem avisa a equipe interna, inclusive
+     * quando quem escreveu foi a propria equipe. Assim ninguem
+     * descobre a conversa so ao abrir o chamado. O autor nao recebe
+     * copia, e quem ja recebeu o aviso principal tambem nao.
+     */
+    let equipeAvisada = 0
+
+    if (evento === 'mensagem_nova') {
+      const emailAutor = (autor?.email || '').toLowerCase()
+
+      const jaAvisados = para.map((e) => (e || '').toLowerCase())
+
+      const equipe = (await equipeInterna()).filter(
+        (email) =>
+          email &&
+          email.toLowerCase() !== emailAutor &&
+          !jaAvisados.includes(email.toLowerCase())
+      )
+
+      if (equipe.length > 0) {
+        const trechoEquipe = String(body.mensagem ?? '').slice(0, 400)
+
+        const copia = await enviarEmail({
+          para: equipe,
+          assunto: 'Nova mensagem no chamado ' + codigo + ' — ' + nomeEmpresa,
+          html: montarEmail(
+            marca,
+            'Nova mensagem no chamado ' + codigo,
+            [
+              escapar(nomeAutor) +
+                ' escreveu no chamado ' +
+                codigo +
+                ' — ' +
+                assuntoChamado +
+                ' (' +
+                escapar(nomeEmpresa) +
+                ').',
+              trechoEquipe ? '<em>' + escapar(trechoEquipe) + '</em>' : '',
+            ].filter(Boolean),
+            {
+              rotulo: 'Abrir o chamado',
+              url: portal + '/atendimento/' + chamado.id,
+            }
+          ),
+          marca,
+        })
+
+        equipeAvisada = copia?.enviado ? equipe.length : 0
+      }
+    }
+
     let citados = 0
 
     if (evento === 'mensagem_nova') {
@@ -349,7 +401,12 @@ export async function POST(request: Request) {
       })
     }
 
-    return NextResponse.json({ sucesso: true, citados, ...resultado })
+    return NextResponse.json({
+      sucesso: true,
+      citados,
+      equipe_avisada: equipeAvisada,
+      ...resultado,
+    })
   } catch (erro) {
     console.error('Erro ao disparar notificação:', erro)
 
