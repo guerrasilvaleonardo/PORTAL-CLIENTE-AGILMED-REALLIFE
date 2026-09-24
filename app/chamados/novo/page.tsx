@@ -20,28 +20,45 @@ const categorias = [
   'Outros',
 ];
 
+/*
+ * O prazo de cada prioridade e o mesmo usado para calcular o SLA
+ * mais abaixo. Deixamos visivel para quem abre o chamado saber o
+ * que esperar.
+ */
 const prioridades = [
   {
     value: 'baixa',
     label: 'Baixa',
     description: 'Solicitação sem urgência.',
+    prazo: 'Prazo de 48 horas',
   },
   {
     value: 'normal',
     label: 'Normal',
     description: 'Atendimento dentro do prazo padrão.',
+    prazo: 'Prazo de 24 horas',
   },
   {
     value: 'alta',
     label: 'Alta',
     description: 'Necessita atenção prioritária.',
+    prazo: 'Prazo de 8 horas',
   },
   {
     value: 'urgente',
     label: 'Urgente',
     description: 'Situação que exige atendimento imediato.',
+    prazo: 'Prazo de 4 horas',
   },
 ];
+
+const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin'];
+
+type Empresa = {
+  id: string;
+  razao_social: string;
+  nome_fantasia: string | null;
+};
 
 const identidade = {
   agilmed: {
@@ -83,6 +100,8 @@ export default function NovoChamadoPage() {
   const [prioridade, setPrioridade] = useState('normal');
   const [linkTitulo, setLinkTitulo] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [interno, setInterno] = useState(false);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
 
   useEffect(() => {
     async function carregarUsuario() {
@@ -102,22 +121,46 @@ export default function NovoChamadoPage() {
 
         const { data: perfil, error: perfilError } = await supabase
           .from('profiles')
-          .select('id, empresa_id')
+          .select('id, perfil, empresa_id')
           .eq('id', user.id)
           .single();
 
         if (perfilError || !perfil) {
           setErro(
-            'Não foi possível identificar o perfil da sua empresa. Entre em contato com o atendimento.'
+            'Não foi possível identificar o seu perfil. Entre em contato com o atendimento.'
           );
           return;
         }
 
+        const ehInterno = PERFIS_INTERNOS.includes(perfil.perfil || '');
+
         const marcaEmpresa = await obterMarcaDaEmpresa();
 
         setMarca(marcaEmpresa);
+        setInterno(ehInterno);
         setUsuarioId(perfil.id);
-        setEmpresaId(perfil.empresa_id);
+
+        /*
+         * Cliente abre sempre para a propria empresa. A equipe interna
+         * nao tem empresa, entao escolhe para quem esta abrindo.
+         */
+        if (ehInterno) {
+          const { data: lista } = await supabase
+            .from('empresas')
+            .select('id, razao_social, nome_fantasia')
+            .order('razao_social');
+
+          setEmpresas((lista || []) as Empresa[]);
+        } else {
+          if (!perfil.empresa_id) {
+            setErro(
+              'Seu usuário ainda não está vinculado a uma empresa. Peça ao administrador para fazer o vínculo.'
+            );
+            return;
+          }
+
+          setEmpresaId(perfil.empresa_id);
+        }
       } catch {
         setErro(
           'Ocorreu um erro ao carregar seus dados. Tente novamente.'
@@ -150,10 +193,17 @@ export default function NovoChamadoPage() {
       return;
     }
 
-    if (!empresaId || !usuarioId) {
+    if (!empresaId) {
       setErro(
-        'Não foi possível identificar sua empresa ou seu usuário.'
+        interno
+          ? 'Selecione para qual empresa o chamado está sendo aberto.'
+          : 'Não foi possível identificar a sua empresa.'
       );
+      return;
+    }
+
+    if (!usuarioId) {
+      setErro('Não foi possível identificar o seu usuário.');
       return;
     }
 
@@ -456,6 +506,39 @@ export default function NovoChamadoPage() {
               </div>
 
               <div style={styles.formContent}>
+                {interno && (
+                  <div style={styles.field}>
+                    <label style={styles.label}>
+                      Empresa{' '}
+                      <span style={styles.required}>*</span>
+                    </label>
+
+                    <select
+                      value={empresaId}
+                      onChange={(event) =>
+                        setEmpresaId(event.target.value)
+                      }
+                      style={styles.input}
+                      required
+                    >
+                      <option value="">
+                        Selecione a empresa
+                      </option>
+
+                      {empresas.map((empresa) => (
+                        <option key={empresa.id} value={empresa.id}>
+                          {empresa.nome_fantasia ||
+                            empresa.razao_social}
+                        </option>
+                      ))}
+                    </select>
+
+                    <span style={styles.helper}>
+                      Você está abrindo um chamado em nome do cliente.
+                    </span>
+                  </div>
+                )}
+
                 <div style={styles.field}>
                   <label style={styles.label}>
                     Categoria{' '}
@@ -602,6 +685,17 @@ export default function NovoChamadoPage() {
                             style={styles.priorityDescription}
                           >
                             {item.description}
+                          </span>
+
+                          <span
+                            style={{
+                              ...styles.priorityDeadline,
+                              ...(selecionada
+                                ? { color: tema.principalEscura }
+                                : {}),
+                            }}
+                          >
+                            {item.prazo}
                           </span>
                         </button>
                       );
@@ -1131,6 +1225,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#0f172a',
     fontSize: '14px',
     outline: 'none',
+  },
+
+  priorityDeadline: {
+    display: 'block',
+    marginTop: '6px',
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#64748b',
   },
 
   optional: {
