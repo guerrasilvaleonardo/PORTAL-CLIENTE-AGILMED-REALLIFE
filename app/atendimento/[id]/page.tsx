@@ -964,6 +964,12 @@ export default function AtendimentoChamadoPage() {
       setNovaPrioridade(
         data.prioridade
       )
+
+      /*
+       * Mudar a prioridade refaz o prazo, entao quem abriu o chamado
+       * e a equipe precisam saber.
+       */
+      avisar('prioridade_alterada', chamado.id)
     } catch (error) {
       console.error(error)
 
