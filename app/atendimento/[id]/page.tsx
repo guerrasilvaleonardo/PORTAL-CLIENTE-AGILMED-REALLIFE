@@ -17,6 +17,7 @@ type Chamado = {
   descricao: string
   prioridade: string
   status: string
+  criado_por: string | null
   responsavel_id: string | null
   prazo_sla: string | null
   sla_pausado_em: string | null
@@ -102,6 +103,11 @@ type Agente = {
   id: string
   nome: string | null
   perfil: string
+}
+
+type Solicitante = {
+  nome: string | null
+  email: string | null
 }
 
 type Empresa = {
@@ -297,6 +303,9 @@ export default function AtendimentoChamadoPage() {
   const [empresa, setEmpresa] =
     useState<Empresa | null>(null)
 
+  const [solicitante, setSolicitante] =
+    useState<Solicitante | null>(null)
+
   const [mensagens, setMensagens] =
     useState<Mensagem[]>([])
 
@@ -354,6 +363,7 @@ export default function AtendimentoChamadoPage() {
   const [novoLinkUrl, setNovoLinkUrl] = useState('')
   const [salvandoLink, setSalvandoLink] = useState(false)
   const [erroLink, setErroLink] = useState('')
+  const [editandoLink, setEditandoLink] = useState<string | null>(null)
 
   useEffect(() => {
     if (!chamadoId) return
@@ -489,6 +499,19 @@ export default function AtendimentoChamadoPage() {
         setEmpresa(
           empresaData as Empresa
         )
+      }
+
+      /* Quem abriu o chamado, para aparecer com nome e e-mail. */
+      if (chamadoAtual.criado_por) {
+        const { data: autorData } = await supabase
+          .from('profiles')
+          .select('nome, email')
+          .eq('id', chamadoAtual.criado_por)
+          .maybeSingle()
+
+        setSolicitante((autorData || null) as Solicitante | null)
+      } else {
+        setSolicitante(null)
       }
 
       const {
@@ -683,14 +706,23 @@ export default function AtendimentoChamadoPage() {
 
     setSalvandoLink(true)
 
-    const { data, error } = await supabase
-      .from('chamado_links')
-      .insert({
-        chamado_id: String(chamadoId),
-        criado_por: meuId,
-        titulo: novoLinkTitulo.trim() || null,
-        url,
-      })
+    const campos = {
+      titulo: novoLinkTitulo.trim() || null,
+      url,
+    }
+
+    const consulta = editandoLink
+      ? supabase
+          .from('chamado_links')
+          .update(campos)
+          .eq('id', editandoLink)
+      : supabase.from('chamado_links').insert({
+          ...campos,
+          chamado_id: String(chamadoId),
+          criado_por: meuId,
+        })
+
+    const { data, error } = await consulta
       .select(
         'id, chamado_id, criado_por, titulo, url, created_at'
       )
@@ -706,13 +738,50 @@ export default function AtendimentoChamadoPage() {
       return
     }
 
-    setLinks((atual) => [
-      ...atual,
-      data as ChamadoLink,
-    ])
+    const salvo = data as ChamadoLink
 
+    setLinks((atual) =>
+      editandoLink
+        ? atual.map((l) => (l.id === salvo.id ? salvo : l))
+        : [...atual, salvo]
+    )
+
+    setEditandoLink(null)
     setNovoLinkTitulo('')
     setNovoLinkUrl('')
+  }
+
+  function editarLink(link: ChamadoLink) {
+    setErroLink('')
+    setEditandoLink(link.id)
+    setNovoLinkTitulo(link.titulo || '')
+    setNovoLinkUrl(link.url)
+  }
+
+  function cancelarEdicaoLink() {
+    setEditandoLink(null)
+    setNovoLinkTitulo('')
+    setNovoLinkUrl('')
+    setErroLink('')
+  }
+
+  async function removerLink(link: ChamadoLink) {
+    setErroLink('')
+
+    const { error } = await supabase
+      .from('chamado_links')
+      .delete()
+      .eq('id', link.id)
+
+    if (error) {
+      console.error(error)
+      setErroLink('Não foi possível remover o link.')
+      return
+    }
+
+    setLinks((atual) => atual.filter((l) => l.id !== link.id))
+
+    if (editandoLink === link.id) cancelarEdicaoLink()
   }
 
   async function salvarStatus() {
@@ -1678,6 +1747,20 @@ export default function AtendimentoChamadoPage() {
                 />
 
                 <Info
+                  label="Aberto por"
+                  value={
+                    solicitante?.nome ||
+                    solicitante?.email ||
+                    '—'
+                  }
+                  detalhe={
+                    solicitante?.nome
+                      ? solicitante?.email || undefined
+                      : undefined
+                  }
+                />
+
+                <Info
                   label="Categoria"
                   value={
                     chamado.categoria
@@ -2455,9 +2538,29 @@ export default function AtendimentoChamadoPage() {
                 >
                   {salvandoLink
                     ? 'Salvando...'
-                    : 'Adicionar'}
+                    : editandoLink
+                      ? 'Salvar'
+                      : 'Adicionar'}
                 </button>
               </form>
+
+              {editandoLink && (
+                <button
+                  type="button"
+                  onClick={cancelarEdicaoLink}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    color: '#64748b',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    padding: 0,
+                    marginBottom: 12,
+                  }}
+                >
+                  Cancelar edição
+                </button>
+              )}
 
               {erroLink && (
                 <div
@@ -2557,6 +2660,42 @@ export default function AtendimentoChamadoPage() {
                       >
                         Abrir
                       </a>
+
+                      <button
+                        type="button"
+                        onClick={() => editarLink(link)}
+                        style={{
+                          border: '1px solid #e2e8f0',
+                          background: '#ffffff',
+                          color: '#0f172a',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => removerLink(link)}
+                        style={{
+                          border: '1px solid #fecaca',
+                          background: '#ffffff',
+                          color: '#b91c1c',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Remover
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -3013,9 +3152,11 @@ export default function AtendimentoChamadoPage() {
 function Info({
   label,
   value,
+  detalhe,
 }: {
   label: string
   value: string
+  detalhe?: string
 }) {
   return (
     <div>
@@ -3050,6 +3191,19 @@ function Info({
       >
         {value}
       </div>
+
+      {detalhe && (
+        <div
+          style={{
+            color: '#64748b',
+            fontSize: '12px',
+            marginTop: '2px',
+            wordBreak: 'break-all',
+          }}
+        >
+          {detalhe}
+        </div>
+      )}
     </div>
   )
 }
