@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { marcas, type Marca } from '@/lib/marca'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 
 type Chamado = {
@@ -24,7 +23,7 @@ type Chamado = {
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
-const statusLabels: Record<string, string> = {
+const ROTULO_STATUS: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
@@ -32,332 +31,86 @@ const statusLabels: Record<string, string> = {
   encerrado: 'Encerrado',
 }
 
-const prioridadeLabels: Record<string, string> = {
+const PILL_STATUS: Record<string, string> = {
+  aberto: 'pill warn',
+  em_atendimento: 'pill',
+  aguardando_cliente: 'pill flat',
+  resolvido: 'pill good',
+  encerrado: 'pill flat',
+}
+
+const ROTULO_PRIORIDADE: Record<string, string> = {
   baixa: 'Baixa',
   normal: 'Normal',
   alta: 'Alta',
   urgente: 'Urgente',
 }
 
-const styles = {
-  page: {
-    minHeight: '100vh',
-    background: '#f5f7fa',
-  },
-
-  container: {
-    width: '100%',
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '32px 24px 60px',
-  },
-
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: '20px',
-    marginBottom: '28px',
-    flexWrap: 'wrap' as const,
-  },
-
-  title: {
-    margin: 0,
-    fontSize: '32px',
-    lineHeight: 1.2,
-    fontWeight: 700,
-    color: '#172033',
-  },
-
-  subtitle: {
-    margin: '8px 0 0',
-    fontSize: '16px',
-    color: '#64748b',
-    lineHeight: 1.5,
-  },
-
-  newButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '12px 18px',
-    borderRadius: '10px',
-    color: '#ffffff',
-    fontSize: '14px',
-    fontWeight: 700,
-    textDecoration: 'none',
-    whiteSpace: 'nowrap' as const,
-  },
-
-  section: {
-    background: '#ffffff',
-    border: '1px solid #e5e7eb',
-    borderRadius: '18px',
-    overflow: 'hidden',
-    boxShadow: '0 5px 15px rgba(15, 23, 42, 0.05)',
-  },
-
-  sectionHeader: {
-    padding: '20px 24px',
-    borderBottom: '1px solid #e5e7eb',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '16px',
-    flexWrap: 'wrap' as const,
-  },
-
-  sectionTitle: {
-    margin: 0,
-    fontSize: '18px',
-    fontWeight: 700,
-    color: '#172033',
-  },
-
-  count: {
-    fontSize: '13px',
-    color: '#64748b',
-  },
-
-  ticketRow: {
-    display: 'grid',
-    gridTemplateColumns:
-      '100px minmax(260px, 1fr) 160px 150px 130px',
-    gap: '18px',
-    alignItems: 'center',
-    padding: '18px 24px',
-    borderBottom: '1px solid #eef0f3',
-    textDecoration: 'none',
-    transition: 'background 0.15s ease',
-  },
-
-  ticketNumber: {
-    fontSize: '14px',
-    fontWeight: 700,
-  },
-
-  subject: {
-    margin: 0,
-    fontSize: '15px',
-    fontWeight: 600,
-    color: '#172033',
-    lineHeight: 1.4,
-  },
-
-  category: {
-    margin: '5px 0 0',
-    fontSize: '13px',
-    color: '#64748b',
-  },
-
-  badge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 700,
-    whiteSpace: 'nowrap' as const,
-  },
-
-  priority: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-
-  date: {
-    fontSize: '13px',
-    color: '#64748b',
-    lineHeight: 1.4,
-  },
-
-  empty: {
-    padding: '60px 24px',
-    textAlign: 'center' as const,
-  },
-
-  emptyTitle: {
-    margin: 0,
-    fontSize: '18px',
-    fontWeight: 700,
-    color: '#172033',
-  },
-
-  emptyText: {
-    margin: '8px 0 20px',
-    fontSize: '14px',
-    color: '#64748b',
-  },
-
-  loading: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#f5f7fa',
-    color: '#64748b',
-    fontSize: '16px',
-  },
-
-  error: {
-    padding: '18px 20px',
-    borderRadius: '12px',
-    background: '#fef2f2',
-    border: '1px solid #fecaca',
-    color: '#991b1b',
-    marginBottom: '20px',
-    fontSize: '14px',
-  },
-
-  filters: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    flexWrap: 'wrap' as const,
-  },
-
-  filterLabel: {
-    fontSize: '13px',
-    color: '#64748b',
-    fontWeight: 600,
-  },
-
-  select: {
-    border: '1px solid #dbe1e8',
-    borderRadius: '9px',
-    padding: '9px 12px',
-    background: '#ffffff',
-    color: '#334155',
-    fontSize: '13px',
-    outline: 'none',
-  },
+const COR_PRIORIDADE: Record<string, string> = {
+  urgente: 'var(--danger)',
+  alta: 'var(--amber)',
+  normal: 'var(--ink-muted)',
+  baixa: 'var(--ink-faint)',
 }
 
-function formatarData(data: string) {
-  const valor = new Date(data)
+const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
 
-  if (Number.isNaN(valor.getTime())) {
-    return '-'
-  }
+const GRADE = '72px minmax(240px, 1fr) 150px 110px 110px'
 
-  return valor.toLocaleDateString('pt-BR', {
+function formatarData(iso: string) {
+  const d = new Date(iso)
+
+  if (Number.isNaN(d.getTime())) return '—'
+
+  return d.toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
+    year: '2-digit',
   })
 }
 
-function obterEstiloStatus(status: string) {
-  switch (status) {
-    case 'aberto':
-      return {
-        background: '#eff6ff',
-        color: '#1d4ed8',
-      }
-
-    case 'em_atendimento':
-      return {
-        background: '#fff7ed',
-        color: '#c2410c',
-      }
-
-    case 'aguardando_cliente':
-      return {
-        background: '#fefce8',
-        color: '#a16207',
-      }
-
-    case 'resolvido':
-      return {
-        background: '#f0fdf4',
-        color: '#15803d',
-      }
-
-    case 'encerrado':
-      return {
-        background: '#f1f5f9',
-        color: '#475569',
-      }
-
-    default:
-      return {
-        background: '#f1f5f9',
-        color: '#475569',
-      }
-  }
-}
-
-function obterCorPrioridade(prioridade: string) {
-  switch (prioridade) {
-    case 'urgente':
-      return '#dc2626'
-
-    case 'alta':
-      return '#ea580c'
-
-    case 'normal':
-      return '#64748b'
-
-    case 'baixa':
-      return '#64748b'
-
-    default:
-      return '#64748b'
-  }
-}
-
 export default function ChamadosPage() {
-  const [loading, setLoading] = useState(true)
-  const [marca, setMarca] = useState<Marca | null>(null)
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState('')
   const [chamados, setChamados] = useState<Chamado[]>([])
-  const [statusFiltro, setStatusFiltro] = useState('todos')
-  const [error, setError] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState('todos')
+  const [busca, setBusca] = useState('')
   const [interno, setInterno] = useState(false)
 
   useEffect(() => {
     let ativo = true
 
-    async function carregarDados() {
+    async function carregar() {
       try {
-        setLoading(true)
-        setError(null)
+        setCarregando(true)
+        setErro('')
 
         const {
           data: { user },
-          error: usuarioError,
+          error: usuarioErro,
         } = await supabase.auth.getUser()
 
-        if (usuarioError) {
-          throw usuarioError
-        }
+        if (usuarioErro) throw usuarioErro
 
         if (!user) {
-          throw new Error(
-            'Usuário não autenticado.'
-          )
+          window.location.href = '/login'
+          return
         }
 
-        const { data: perfil, error: perfilError } =
-          await supabase
-            .from('profiles')
-            .select('empresa_id, perfil')
-            .eq('id', user.id)
-            .single()
+        const { data: perfil, error: perfilErro } = await supabase
+          .from('profiles')
+          .select('empresa_id, perfil')
+          .eq('id', user.id)
+          .single()
 
-        if (perfilError) {
-          throw perfilError
-        }
+        if (perfilErro) throw perfilErro
 
         /*
          * A equipe interna não tem empresa e precisa enxergar os
-         * chamados de todos os clientes. Antes esta tela filtrava
-         * sempre pela empresa do usuário, então para administrador
-         * ela vinha vazia.
+         * chamados de todos os clientes. O cliente só vê os da
+         * própria empresa.
          */
-        const ehInterno = PERFIS_INTERNOS.includes(
-          perfil?.perfil || ''
-        )
+        const ehInterno = PERFIS_INTERNOS.includes(perfil?.perfil || '')
 
         if (!ehInterno && !perfil?.empresa_id) {
           throw new Error(
@@ -365,14 +118,8 @@ export default function ChamadosPage() {
           )
         }
 
-        const marcaEmpresa =
-          await obterMarcaDaEmpresa()
-
-        if (!marcaEmpresa) {
-          throw new Error(
-            'Não foi possível identificar a marca do portal.'
-          )
-        }
+        /* Mantém a marca em dia para o cabeçalho do portal. */
+        await obterMarcaDaEmpresa()
 
         let consulta = supabase
           .from('chamados')
@@ -381,302 +128,264 @@ export default function ChamadosPage() {
           )
 
         if (!ehInterno) {
-          consulta = consulta.eq(
-            'empresa_id',
-            perfil.empresa_id
-          )
+          consulta = consulta.eq('empresa_id', perfil.empresa_id)
         }
 
-        const {
-          data: chamadosData,
-          error: chamadosError,
-        } = await consulta.order('created_at', {
+        const { data, error } = await consulta.order('created_at', {
           ascending: false,
         })
 
-        if (chamadosError) {
-          throw chamadosError
-        }
+        if (error) throw error
 
-        if (!ativo) {
-          return
-        }
+        if (!ativo) return
 
         setInterno(ehInterno)
-        setMarca(marcaEmpresa)
+
         setChamados(
-          ((chamadosData || []) as any[]).map((item) => ({
+          ((data || []) as any[]).map((item) => ({
             ...item,
             empresas: Array.isArray(item.empresas)
               ? item.empresas[0]
               : item.empresas,
           })) as Chamado[]
         )
-      } catch (err) {
-        console.error(
-          'Erro ao carregar chamados:',
-          err
-        )
+      } catch (e: any) {
+        console.error('Erro ao carregar chamados:', e)
 
         if (ativo) {
-          setError(
-            err instanceof Error && err.message
-              ? err.message
-              : 'Não foi possível carregar os chamados.'
-          )
+          setErro(e?.message || 'Não foi possível carregar os chamados.')
         }
       } finally {
-        if (ativo) {
-          setLoading(false)
-        }
+        if (ativo) setCarregando(false)
       }
     }
 
-    carregarDados()
+    carregar()
 
     return () => {
       ativo = false
     }
   }, [])
 
-  if (loading || !marca) {
-    return (
-      <div style={styles.loading}>
-        {error || 'Carregando chamados...'}
-      </div>
-    )
-  }
+  const resumo = useMemo(() => {
+    const emAberto = chamados.filter((c) => EM_ABERTO.includes(c.status))
 
-  const tema = marcas[marca]
+    return {
+      total: chamados.length,
+      abertos: emAberto.length,
+      urgentes: emAberto.filter((c) => c.prioridade === 'urgente').length,
+      resolvidos: chamados.filter((c) =>
+        ['resolvido', 'encerrado'].includes(c.status)
+      ).length,
+    }
+  }, [chamados])
 
-  const chamadosFiltrados =
-    statusFiltro === 'todos'
-      ? chamados
-      : chamados.filter(
-          (chamado) =>
-            chamado.status === statusFiltro
-        )
+  const filtrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+
+    return chamados.filter((c) => {
+      if (filtro === 'abertos' && !EM_ABERTO.includes(c.status)) return false
+      if (filtro !== 'todos' && filtro !== 'abertos' && c.status !== filtro) {
+        return false
+      }
+
+      if (!termo) return true
+
+      const alvo = (
+        c.assunto +
+        ' ' +
+        c.categoria +
+        ' ' +
+        String(c.numero) +
+        ' ' +
+        (c.empresas?.nome_fantasia || c.empresas?.razao_social || '')
+      ).toLowerCase()
+
+      return alvo.includes(termo)
+    })
+  }, [chamados, filtro, busca])
 
   return (
-    <main style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <div>
-            <h1 style={styles.title}>
-              {interno ? 'Todos os chamados' : 'Meus chamados'}
-            </h1>
-
-            <p style={styles.subtitle}>
-              {interno
-                ? 'Chamados de todas as empresas atendidas.'
-                : 'Acompanhe as solicitações de atendimento da sua empresa.'}
-            </p>
+    <div className="app">
+      <div className="topbar">
+        <div>
+          <div className="section-title">
+            {interno ? 'Todos os clientes' : 'Sua empresa'}
           </div>
 
-          <Link
-            href="/chamados/novo"
+          <h1 style={{ fontSize: 30, marginTop: 6 }}>Chamados</h1>
+
+          <p
             style={{
-              ...styles.newButton,
-              background: tema.principal,
+              margin: '8px 0 0',
+              color: 'var(--ink-muted)',
+              fontSize: 14,
             }}
           >
-            {interno ? '+ Abrir chamado para um cliente' : '+ Novo chamado'}
-          </Link>
+            {interno
+              ? 'Todos os chamados abertos no portal, das duas marcas.'
+              : 'Acompanhe as solicitações da sua empresa e abra novas quando precisar.'}
+          </p>
         </div>
 
-        {error && (
-          <div style={styles.error}>
-            {error}
+        <div className="topbar-spacer" />
+
+        <Link href="/chamados/novo" className="btn btn-primary">
+          {interno ? 'Abrir chamado para um cliente' : 'Novo chamado'}
+        </Link>
+      </div>
+
+      {erro && <div className="banner bad">{erro}</div>}
+
+      <div className="stats">
+        <div className="stat">
+          <div className="num">{carregando ? '—' : resumo.total}</div>
+          <div className="lbl">Total</div>
+        </div>
+
+        <div className="stat">
+          <div className="num">{carregando ? '—' : resumo.abertos}</div>
+          <div className="lbl">Em aberto</div>
+        </div>
+
+        <div className={'stat' + (resumo.urgentes > 0 ? ' bad' : '')}>
+          <div className="num">{carregando ? '—' : resumo.urgentes}</div>
+          <div className="lbl">Urgentes</div>
+        </div>
+
+        <div className="stat good">
+          <div className="num">{carregando ? '—' : resumo.resolvidos}</div>
+          <div className="lbl">Resolvidos</div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">Lista de chamados</div>
+
+          <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+            {filtrados.length} de {chamados.length}
+          </span>
+        </div>
+
+        <div className="panel-body">
+          <div className="filters">
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar assunto, número ou categoria"
+            />
+
+            <select
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+            >
+              <option value="todos">Todos</option>
+              <option value="abertos">Só os em aberto</option>
+              <option value="aberto">Aberto</option>
+              <option value="em_atendimento">Em atendimento</option>
+              <option value="aguardando_cliente">Aguardando cliente</option>
+              <option value="resolvido">Resolvido</option>
+              <option value="encerrado">Encerrado</option>
+            </select>
           </div>
-        )}
 
-        <section style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <div>
-              <h2 style={styles.sectionTitle}>
-                Solicitações
-              </h2>
-
-              <span style={styles.count}>
-                {chamadosFiltrados.length}{' '}
-                {chamadosFiltrados.length === 1
-                  ? 'chamado'
-                  : 'chamados'}
-              </span>
-            </div>
-
-            <div style={styles.filters}>
-              <span style={styles.filterLabel}>
-                Status:
-              </span>
-
-              <select
-                value={statusFiltro}
-                onChange={(event) =>
-                  setStatusFiltro(
-                    event.target.value
-                  )
-                }
-                style={styles.select}
+          <div className="table-wrap">
+            <div className="table-scroll">
+              <div
+                className="trow thead"
+                style={{ gridTemplateColumns: GRADE }}
               >
-                <option value="todos">
-                  Todos
-                </option>
+                <span>Nº</span>
+                <span>Assunto</span>
+                <span>Situação</span>
+                <span>Prioridade</span>
+                <span>Aberto em</span>
+              </div>
 
-                <option value="aberto">
-                  Abertos
-                </option>
+              {carregando ? (
+                <div className="empty-state">Carregando chamados...</div>
+              ) : filtrados.length === 0 ? (
+                <div className="empty-state">
+                  {chamados.length === 0
+                    ? 'Nenhum chamado ainda. Abra o primeiro quando precisar de algo.'
+                    : 'Nenhum chamado com esses filtros.'}
+                </div>
+              ) : (
+                filtrados.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={'/chamados/' + c.id}
+                    className="trow"
+                    style={{
+                      gridTemplateColumns: GRADE,
+                      color: 'inherit',
+                    }}
+                  >
+                    <span className="tcode">#{c.numero}</span>
 
-                <option value="em_atendimento">
-                  Em atendimento
-                </option>
+                    <span style={{ minWidth: 0 }}>
+                      <span
+                        className="tname"
+                        style={{
+                          display: 'block',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {c.assunto}
+                      </span>
 
-                <option value="aguardando_cliente">
-                  Aguardando cliente
-                </option>
+                      <span
+                        style={{
+                          display: 'block',
+                          fontSize: 12,
+                          color: 'var(--ink-muted)',
+                          marginTop: 2,
+                        }}
+                      >
+                        {c.categoria}
+                        {interno &&
+                          (c.empresas?.nome_fantasia ||
+                            c.empresas?.razao_social) &&
+                          ' · ' +
+                            (c.empresas?.nome_fantasia ||
+                              c.empresas?.razao_social)}
+                      </span>
+                    </span>
 
-                <option value="resolvido">
-                  Resolvidos
-                </option>
+                    <span>
+                      <span
+                        className={PILL_STATUS[c.status] || 'pill flat'}
+                      >
+                        {ROTULO_STATUS[c.status] || c.status}
+                      </span>
+                    </span>
 
-                <option value="encerrado">
-                  Encerrados
-                </option>
-              </select>
-            </div>
-          </div>
-
-          {chamadosFiltrados.length === 0 ? (
-            <div style={styles.empty}>
-              <h3 style={styles.emptyTitle}>
-                {chamados.length === 0
-                  ? 'Nenhum chamado registrado'
-                  : 'Nenhum chamado encontrado'}
-              </h3>
-
-              <p style={styles.emptyText}>
-                {chamados.length === 0
-                  ? interno
-                    ? 'Ainda não há chamados registrados no portal.'
-                    : 'Sua empresa ainda não possui chamados registrados no portal.'
-                  : 'Não existem chamados com o filtro selecionado.'}
-              </p>
-
-              {chamados.length === 0 && !interno && (
-                <Link
-                  href="/chamados/novo"
-                  style={{
-                    ...styles.newButton,
-                    background:
-                      tema.principal,
-                  }}
-                >
-                  Abrir primeiro chamado
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div>
-              {chamadosFiltrados.map(
-                (chamado) => {
-                  const estiloStatus =
-                    obterEstiloStatus(
-                      chamado.status
-                    )
-
-                  return (
-                    <Link
-                      key={chamado.id}
-                      href={`/chamados/${chamado.id}`}
+                    <span
                       style={{
-                        ...styles.ticketRow,
-                        borderBottom:
-                          '1px solid #eef0f3',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color:
+                          COR_PRIORIDADE[c.prioridade] ||
+                          'var(--ink-muted)',
                       }}
                     >
-                      <div
-                        style={{
-                          ...styles.ticketNumber,
-                          color:
-                            tema.principal,
-                        }}
-                      >
-                        #{chamado.numero}
-                      </div>
+                      {ROTULO_PRIORIDADE[c.prioridade] || c.prioridade}
+                    </span>
 
-                      <div>
-                        <p
-                          style={
-                            styles.subject
-                          }
-                        >
-                          {chamado.assunto}
-                        </p>
-
-                        <p
-                          style={
-                            styles.category
-                          }
-                        >
-                          {interno
-                            ? (chamado.empresas
-                                ?.nome_fantasia ||
-                                chamado.empresas
-                                  ?.razao_social ||
-                                'Empresa') +
-                              ' · ' +
-                              chamado.categoria
-                            : chamado.categoria}
-                        </p>
-                      </div>
-
-                      <div>
-                        <span
-                          style={{
-                            ...styles.badge,
-                            background:
-                              estiloStatus.background,
-                            color:
-                              estiloStatus.color,
-                          }}
-                        >
-                          {statusLabels[
-                            chamado.status
-                          ] ||
-                            chamado.status}
-                        </span>
-                      </div>
-
-                      <div
-                        style={{
-                          ...styles.priority,
-                          color:
-                            obterCorPrioridade(
-                              chamado.prioridade
-                            ),
-                        }}
-                      >
-                        {prioridadeLabels[
-                          chamado.prioridade
-                        ] ||
-                          chamado.prioridade}
-                      </div>
-
-                      <div
-                        style={styles.date}
-                      >
-                        {formatarData(
-                          chamado.created_at
-                        )}
-                      </div>
-                    </Link>
-                  )
-                }
+                    <span className="tmuted" style={{ fontSize: 12.5 }}>
+                      {formatarData(c.created_at)}
+                    </span>
+                  </Link>
+                ))
               )}
             </div>
-          )}
-        </section>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   )
 }
