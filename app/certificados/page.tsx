@@ -19,6 +19,7 @@ type Certificado = {
   emissao: string | null
   validade: string | null
   observacoes: string | null
+  link_certificado: string | null
   email_colaborador: string | null
   curso: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
@@ -87,6 +88,19 @@ const formVazio = {
   emissao: '',
   validade: '',
   observacoes: '',
+  link_certificado: '',
+}
+
+/*
+ * O link chega de varias formas. Guardamos sempre com http(s) na
+ * frente para o navegador abrir em vez de tratar como caminho interno.
+ */
+function normalizarLink(texto: string) {
+  const limpo = (texto || '').trim()
+
+  if (!limpo) return null
+
+  return /^https?:\/\//i.test(limpo) ? limpo : 'https://' + limpo
 }
 
 function diasAte(validade: string | null) {
@@ -342,7 +356,7 @@ export default function CertificadosPage() {
       const { data, error } = await supabase
         .from('certificados')
         .select(
-          'id, numero, empresa_id, colaborador, funcao, tipo, emissao, validade, observacoes, email_colaborador, curso, empresas(nome_fantasia, razao_social)'
+          'id, numero, empresa_id, colaborador, funcao, tipo, emissao, validade, observacoes, link_certificado, email_colaborador, curso, empresas(nome_fantasia, razao_social)'
         )
         .order('validade', { ascending: true, nullsFirst: false })
 
@@ -408,6 +422,7 @@ export default function CertificadosPage() {
         emissao: form.emissao || null,
         validade: form.validade || null,
         observacoes: form.observacoes.trim() || null,
+        link_certificado: normalizarLink(form.link_certificado),
       }
 
       if (editando) {
@@ -457,6 +472,7 @@ export default function CertificadosPage() {
       emissao: c.emissao || '',
       validade: c.validade || '',
       observacoes: c.observacoes || '',
+      link_certificado: c.link_certificado || '',
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -714,6 +730,13 @@ export default function CertificadosPage() {
                   placeholder="Observações"
                   style={inputStyle}
                 />
+
+                <input
+                  value={form.link_certificado}
+                  onChange={(e) => alterar('link_certificado', e.target.value)}
+                  placeholder="Link do certificado (opcional)"
+                  style={inputStyle}
+                />
               </div>
 
               <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
@@ -845,6 +868,23 @@ export default function CertificadosPage() {
                             <div style={{ fontSize: 12, color: '#94a3b8' }}>
                               {c.email_colaborador}
                             </div>
+                          )}
+                          {c.link_certificado && (
+                            <a
+                              href={c.link_certificado}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-block',
+                                marginTop: 4,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: '#2563eb',
+                                textDecoration: 'none',
+                              }}
+                            >
+                              Abrir certificado
+                            </a>
                           )}
                         </td>
 
