@@ -132,6 +132,7 @@ export async function GET(request: Request) {
       empresas (
         id,
         nome_fantasia,
+        razao_social,
         marca
       )
     `)
