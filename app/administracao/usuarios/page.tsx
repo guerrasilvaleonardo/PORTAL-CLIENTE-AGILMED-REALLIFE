@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { nomeDaEmpresa } from '@/lib/empresa'
 
 type Empresa = {
   id: string
@@ -23,7 +24,8 @@ type Usuario = {
   empresas:
     | {
         id: string
-        nome_fantasia: string
+        nome_fantasia: string | null
+        razao_social?: string | null
         marca: string | null
       }
     | null
@@ -119,7 +121,7 @@ export default function UsuariosPage() {
       const { data: empresasData, error: empresasError } =
         await supabase
           .from('empresas')
-          .select('id,nome_fantasia,marca')
+          .select('id,nome_fantasia,razao_social,marca')
           .eq('status', 'ativo')
           .order('nome_fantasia')
 
@@ -408,7 +410,7 @@ export default function UsuariosPage() {
 
                 {empresas.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.nome_fantasia}
+                    {nomeDaEmpresa(e)}
                   </option>
                 ))}
               </select>
@@ -522,7 +524,7 @@ export default function UsuariosPage() {
                     </span>
 
                     <span className="tmuted" style={{ minWidth: 0 }}>
-                      {u.empresas?.nome_fantasia || '—'}
+                      {u.empresas ? nomeDaEmpresa(u.empresas) : '—'}
                     </span>
 
                     <span className="tmuted" style={{ minWidth: 0 }}>
