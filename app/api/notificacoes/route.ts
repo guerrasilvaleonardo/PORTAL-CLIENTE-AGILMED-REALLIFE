@@ -153,14 +153,34 @@ async function equipeInterna() {
   return (data || []).map((p) => p.email || '')
 }
 
-async function clientesDaEmpresa(empresaId: string) {
+/*
+ * O "lado do cliente" de um chamado sao duas coisas: o e-mail que ficou
+ * gravado no cadastro da empresa, que costuma ser a caixa que a empresa
+ * acompanha de verdade, e os usuarios que aquela empresa tem no portal.
+ * Os dois recebem, sem repetir quem aparece nas duas listas.
+ */
+async function ladoDoCliente(empresaId: string, emailDaEmpresa?: string | null) {
   const { data } = await supabaseAdmin
     .from('profiles')
     .select('email')
     .eq('empresa_id', empresaId)
     .eq('ativo', true)
 
-  return (data || []).map((p) => p.email || '')
+  const lista = [emailDaEmpresa || '', ...(data || []).map((p) => p.email || '')]
+
+  const vistos = new Set<string>()
+  const limpa: string[] = []
+
+  for (const email of lista) {
+    const chave = (email || '').trim().toLowerCase()
+
+    if (!chave || vistos.has(chave)) continue
+
+    vistos.add(chave)
+    limpa.push(email.trim())
+  }
+
+  return limpa
 }
 
 /*
@@ -205,7 +225,7 @@ export async function POST(request: Request) {
 
     const { data: empresa } = await supabaseAdmin
       .from('empresas')
-      .select('nome_fantasia, razao_social, marca')
+      .select('nome_fantasia, razao_social, marca, email')
       .eq('id', chamado.empresa_id)
       .maybeSingle()
 
@@ -239,6 +259,14 @@ export async function POST(request: Request) {
     let resumoParaAutor: string[] = []
     let tituloParaAutor = 'Seu chamado ' + codigo + ' foi atualizado'
 
+    /*
+     * Linhas do aviso que vai para o lado do cliente: o e-mail do
+     * cadastro da empresa e os usuarios dela. A empresa acompanha o
+     * chamado do inicio ao fim, entao todo evento preenche isto.
+     */
+    let resumoParaCliente: string[] = []
+    let tituloParaCliente = 'Chamado ' + codigo + ' foi atualizado'
+
     if (evento === 'chamado_criado') {
       para = await equipeInterna()
 
@@ -255,11 +283,19 @@ export async function POST(request: Request) {
         ],
         { rotulo: 'Abrir no quadro', url: portal + '/atendimento/' + chamado.id }
       )
+
+      tituloParaCliente = 'Recebemos o chamado ' + codigo
+      resumoParaCliente = [
+        'O chamado <strong>' + assuntoChamado + '</strong> foi aberto e já está na nossa fila.',
+        '<strong>Categoria:</strong> ' + escapar(chamado.categoria),
+        '<strong>Prioridade:</strong> ' + escapar(chamado.prioridade),
+        'Você será avisado a cada movimentação.',
+      ]
     } else if (evento === 'mensagem_nova') {
       const trecho = String(body.mensagem ?? '').slice(0, 400)
 
       if (autorEhInterno) {
-        para = await clientesDaEmpresa(chamado.empresa_id)
+        para = await ladoDoCliente(chamado.empresa_id, empresa?.email)
 
         assunto = 'Resposta no chamado ' + codigo
 
@@ -310,6 +346,17 @@ export async function POST(request: Request) {
           { rotulo: 'Responder', url: portal + '/atendimento/' + chamado.id }
         )
 
+        tituloParaCliente = 'Nova mensagem no chamado ' + codigo
+        resumoParaCliente = [
+          escapar(nomeAutor) +
+            ' escreveu no chamado ' +
+            codigo +
+            ' — ' +
+            assuntoChamado +
+            '.',
+          trecho ? '<em>' + escapar(trecho) + '</em>' : '',
+        ].filter(Boolean)
+
         tituloParaAutor = 'Nova mensagem no chamado ' + codigo
         resumoParaAutor = [
           escapar(nomeAutor) +
@@ -322,7 +369,7 @@ export async function POST(request: Request) {
         ].filter(Boolean)
       }
     } else if (evento === 'status_alterado') {
-      para = await clientesDaEmpresa(chamado.empresa_id)
+      para = await ladoDoCliente(chamado.empresa_id, empresa?.email)
 
       const rotulos: Record<string, string> = {
         aberto: 'Aberto',
@@ -401,6 +448,17 @@ export async function POST(request: Request) {
         }
       )
 
+      tituloParaCliente =
+        'Chamado ' + codigo + ': prioridade ' + rotuloPrio
+
+      resumoParaCliente = [
+        'A prioridade do chamado <strong>' +
+          assuntoChamado +
+          '</strong> foi alterada.',
+        '<strong>Prioridade agora:</strong> ' + escapar(rotuloPrio),
+        'O prazo de atendimento foi recalculado de acordo com a nova prioridade.',
+      ]
+
       tituloParaAutor =
         'Chamado ' + codigo + ': prioridade ' + rotuloPrio
 
@@ -438,6 +496,15 @@ export async function POST(request: Request) {
         { rotulo: 'Assumir o atendimento', url: portal + '/atendimento/' + chamado.id }
       )
 
+      tituloParaCliente = 'Chamado ' + codigo + ': novo responsável'
+      resumoParaCliente = [
+        'O chamado <strong>' +
+          assuntoChamado +
+          '</strong> passou a ser atendido por ' +
+          escapar(responsavel?.nome || 'nossa equipe') +
+          '.',
+      ]
+
       tituloParaAutor = 'Chamado ' + codigo + ': novo responsável'
       resumoParaAutor = [
         'O chamado <strong>' +
@@ -453,6 +520,20 @@ export async function POST(request: Request) {
     const resultado = await enviarEmail({ para, assunto, html, marca })
 
     /*
+     * Uma pessoa pode caber em mais de uma lista: ser dona da empresa,
+     * ter aberto o chamado e ainda estar no cadastro. Este conjunto
+     * guarda quem ja recebeu para ninguem levar o mesmo aviso duas
+     * vezes. O autor da acao tambem entra: ele acabou de fazer.
+     */
+    const jaAvisados = new Set<string>(
+      para.map((e) => (e || '').trim().toLowerCase()).filter(Boolean)
+    )
+
+    if (autor?.email) {
+      jaAvisados.add(autor.email.trim().toLowerCase())
+    }
+
+    /*
      * Quem abriu o chamado e avisado de qualquer alteracao: resposta,
      * mudanca de situacao, de prioridade, de responsavel e
      * encerramento. So nao recebe quando foi ele proprio quem fez a
@@ -463,12 +544,10 @@ export async function POST(request: Request) {
     if (evento !== 'chamado_criado' && resumoParaAutor.length > 0) {
       const abriu = await autorDoChamado(chamado.criado_por)
 
-      const jaRecebeu = para.map((e) => (e || '').toLowerCase())
-
       if (
         abriu &&
         abriu.id !== user.id &&
-        !jaRecebeu.includes((abriu.email || '').toLowerCase())
+        !jaAvisados.has((abriu.email || '').trim().toLowerCase())
       ) {
         const autorEhDaCasa = PERFIS_INTERNOS.includes(abriu.perfil || '')
 
@@ -497,6 +576,39 @@ export async function POST(request: Request) {
         })
 
         autorAvisado = !!avisoAutor?.enviado
+
+        jaAvisados.add((abriu.email as string).trim().toLowerCase())
+      }
+    }
+
+    /*
+     * E por fim o lado do cliente: o e-mail do cadastro da empresa e os
+     * usuarios dela recebem todo evento, inclusive os que nasceram
+     * dentro da equipe, como troca de prioridade ou de responsavel.
+     */
+    let clienteAvisado = 0
+
+    if (resumoParaCliente.length > 0) {
+      const doCliente = (
+        await ladoDoCliente(chamado.empresa_id, empresa?.email)
+      ).filter((email) => !jaAvisados.has(email.trim().toLowerCase()))
+
+      if (doCliente.length > 0) {
+        const aviso = await enviarEmail({
+          para: doCliente,
+          assunto: tituloParaCliente,
+          marca,
+          html: montarEmail(marca, tituloParaCliente, resumoParaCliente, {
+            rotulo: 'Ver o chamado',
+            url: portal + '/chamados/' + chamado.id,
+          }),
+        })
+
+        clienteAvisado = aviso?.enviado ? doCliente.length : 0
+
+        for (const email of doCliente) {
+          jaAvisados.add(email.trim().toLowerCase())
+        }
       }
     }
 
@@ -509,15 +621,8 @@ export async function POST(request: Request) {
     let equipeAvisada = 0
 
     if (evento === 'mensagem_nova') {
-      const emailAutor = (autor?.email || '').toLowerCase()
-
-      const jaAvisados = para.map((e) => (e || '').toLowerCase())
-
       const equipe = (await equipeInterna()).filter(
-        (email) =>
-          email &&
-          email.toLowerCase() !== emailAutor &&
-          !jaAvisados.includes(email.toLowerCase())
+        (email) => email && !jaAvisados.has(email.trim().toLowerCase())
       )
 
       if (equipe.length > 0) {
@@ -571,6 +676,7 @@ export async function POST(request: Request) {
       citados,
       equipe_avisada: equipeAvisada,
       autor_avisado: autorAvisado,
+      cliente_avisado: clienteAvisado,
       ...resultado,
     })
   } catch (erro) {
