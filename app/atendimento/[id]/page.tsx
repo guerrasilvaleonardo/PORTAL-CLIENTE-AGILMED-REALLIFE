@@ -91,6 +91,10 @@ function descreverEvento(e: Evento) {
     return 'Responsável: ' + (e.de || '—') + ' → ' + (e.para || '—')
   }
 
+  if (e.tipo === 'empresa') {
+    return 'Empresa: ' + (e.de || '—') + ' → ' + (e.para || '—')
+  }
+
   if (e.tipo === 'sla') {
     return e.para === 'pausado'
       ? 'SLA pausado'
@@ -359,6 +363,12 @@ export default function AtendimentoChamadoPage() {
   const [links, setLinks] = useState<ChamadoLink[]>([])
 
   const [meuId, setMeuId] = useState('')
+  const [meuPerfil, setMeuPerfil] = useState('')
+  const [empresas, setEmpresas] = useState<
+    { id: string; nome: string }[]
+  >([])
+  const [novaEmpresa, setNovaEmpresa] = useState('')
+  const [salvandoEmpresa, setSalvandoEmpresa] = useState(false)
 
   const [novoLinkTitulo, setNovoLinkTitulo] = useState('')
   const [novoLinkUrl, setNovoLinkUrl] = useState('')
@@ -459,6 +469,37 @@ export default function AtendimentoChamadoPage() {
         .order('nome')
 
       setAgentes((agentesData || []) as Agente[])
+
+      /*
+       * Trocar a empresa do chamado e coisa de gestor: precisamos
+       * saber o perfil de quem esta na tela para decidir se o seletor
+       * aparece. A trava que vale esta no servidor.
+       */
+      const { data: meuPerfilData } = await supabase
+        .from('profiles')
+        .select('perfil')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const perfilAtual = meuPerfilData?.perfil || ''
+
+      setMeuPerfil(perfilAtual)
+
+      if (['gestor', 'admin'].includes(perfilAtual)) {
+        const { data: empresasData } = await supabase
+          .from('empresas')
+          .select('id, nome_fantasia, razao_social')
+          .order('nome_fantasia')
+
+        setEmpresas(
+          (empresasData || []).map((e: any) => ({
+            id: e.id,
+            nome: e.nome_fantasia || e.razao_social || 'Sem nome',
+          }))
+        )
+      }
+
+      setNovaEmpresa(chamadoAtual.empresa_id)
 
       const { data: eventosData } = await supabase
         .from('chamado_eventos')
@@ -986,6 +1027,77 @@ export default function AtendimentoChamadoPage() {
       setSalvandoPrioridade(
         false
       )
+    }
+  }
+
+  async function salvarEmpresa() {
+    if (!chamado || !novaEmpresa) return
+
+    if (novaEmpresa === chamado.empresa_id) return
+
+    const destino =
+      empresas.find((e) => e.id === novaEmpresa)?.nome || 'a empresa escolhida'
+
+    /*
+     * Aviso antes de confirmar: mudar a empresa muda quem enxerga o
+     * chamado. Quem abriu pode perder o acesso se nao pertencer a
+     * empresa de destino.
+     */
+    const confirmado = window.confirm(
+      'Mover o chamado para ' +
+        destino +
+        '?\n\nQuem enxerga o chamado muda junto: usuários da empresa atual deixam de ver, e os da nova passam a ver. Os e-mails passam a sair com a marca da nova empresa.'
+    )
+
+    if (!confirmado) {
+      setNovaEmpresa(chamado.empresa_id)
+      return
+    }
+
+    try {
+      setSalvandoEmpresa(true)
+      setErro('')
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        throw new Error('Sessão expirada. Entre novamente.')
+      }
+
+      const resposta = await fetch('/api/chamados/empresa', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + session.access_token,
+        },
+        body: JSON.stringify({
+          chamado_id: chamado.id,
+          empresa_id: novaEmpresa,
+        }),
+      })
+
+      const dados = await resposta.json()
+
+      if (!resposta.ok) {
+        throw new Error(dados?.erro || 'Não foi possível trocar a empresa.')
+      }
+
+      /* Recarrega tudo: marca, empresa e historico mudaram juntos. */
+      await carregarChamado()
+    } catch (error) {
+      console.error(error)
+
+      setErro(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível trocar a empresa.'
+      )
+
+      setNovaEmpresa(chamado.empresa_id)
+    } finally {
+      setSalvandoEmpresa(false)
     }
   }
 
@@ -3021,6 +3133,68 @@ export default function AtendimentoChamadoPage() {
                   ? 'Salvando...'
                   : 'Salvar prioridade'}
               </button>
+
+              {['gestor', 'admin'].includes(meuPerfil) && (
+                <>
+                  <div
+                    style={{
+                      height: '1px',
+                      background: '#e2e8f0',
+                      margin: '20px 0',
+                    }}
+                  />
+
+                  <label style={labelStyle}>
+                    Empresa
+                  </label>
+
+                  <select
+                    value={novaEmpresa}
+                    onChange={(event) =>
+                      setNovaEmpresa(event.target.value)
+                    }
+                    style={selectStyle}
+                  >
+                    {empresas.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.nome}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: 11.5,
+                      color: '#64748b',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Muda quem enxerga o chamado e a marca dos e-mails.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={salvarEmpresa}
+                    disabled={
+                      salvandoEmpresa ||
+                      novaEmpresa === chamado.empresa_id
+                    }
+                    style={{
+                      ...saveButtonStyle,
+                      opacity:
+                        salvandoEmpresa ||
+                        novaEmpresa === chamado.empresa_id
+                          ? 0.55
+                          : 1,
+                    }}
+                  >
+                    {salvandoEmpresa
+                      ? 'Movendo...'
+                      : 'Mover para esta empresa'}
+                  </button>
+                </>
+              )}
 
               <div
                 style={{
