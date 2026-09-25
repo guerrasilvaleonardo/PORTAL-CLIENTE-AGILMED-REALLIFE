@@ -1,0 +1,53 @@
+/*
+ * O balao explicativo precisa se comportar de dois jeitos.
+ *
+ * Na tela larga ele e um balao ancorado no botao, como qualquer
+ * popover. Na tela estreita isso nao funciona: 370px de balao dentro
+ * de um cartao de 340px estoura a lateral e cobre justamente o
+ * conteudo que a pessoa esta tentando ler. Entao abaixo de 720px ele
+ * vira um painel centralizado com fundo escuro atras, que e o padrao
+ * que todo mundo ja conhece de celular.
+ */
+
+.ajuda-balao {
+  position: absolute;
+  top: calc(100% + 8px);
+  z-index: 60;
+  width: 370px;
+  max-width: calc(100vw - 32px);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--border, #d8e3df);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px -10px rgba(15, 33, 31, 0.35);
+  padding: 14px;
+  text-align: left;
+}
+
+.ajuda-balao.direita { right: 0; }
+.ajuda-balao.esquerda { left: 0; }
+
+.ajuda-fundo { display: none; }
+
+@media (max-width: 720px) {
+  .ajuda-fundo {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    background: rgba(15, 33, 31, 0.45);
+  }
+
+  .ajuda-balao,
+  .ajuda-balao.direita,
+  .ajuda-balao.esquerda {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: min(370px, calc(100vw - 32px));
+    max-height: 80vh;
+  }
+}
