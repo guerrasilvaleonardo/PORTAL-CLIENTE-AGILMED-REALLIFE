@@ -60,16 +60,23 @@ async function verificarAdministrador(request: Request) {
     .eq('id', user.id)
     .maybeSingle()
 
+  /*
+   * Cadastrar empresa faz parte do dia a dia de quem atende: era
+   * quem recebia o cliente novo e precisava esperar um admin so para
+   * criar a ficha. Atendimento e gestao passam a poder fazer isso.
+   */
+  const PODEM_CADASTRAR = ['admin', 'gestor', 'atendimento']
+
   if (
     error ||
     !profile ||
-    profile.perfil !== 'admin' ||
+    !PODEM_CADASTRAR.includes(profile.perfil || '') ||
     profile.ativo !== true
   ) {
     return {
       autorizado: false as const,
       resposta: NextResponse.json(
-        { erro: 'Acesso restrito a administradores.' },
+        { erro: 'Acesso restrito à equipe interna.' },
         { status: 403 }
       ),
     }
