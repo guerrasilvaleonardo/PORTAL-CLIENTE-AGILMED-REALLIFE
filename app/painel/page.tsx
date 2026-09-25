@@ -164,7 +164,14 @@ export default function PainelPage() {
         if (!ativo) return
 
         setNome(perfil?.nome || '')
-        setEhAdmin(perfil?.perfil === 'admin')
+        /*
+         * Cadastrar empresa e usuario virou tarefa de quem atende,
+         * nao so do admin. A trava que importa esta no servidor: la,
+         * quem nao e admin nao cria nem edita administrador.
+         */
+        setEhAdmin(
+          ['admin', 'gestor', 'atendimento'].includes(perfil?.perfil || '')
+        )
         setEhGestor(
           perfil?.perfil === 'admin' || perfil?.perfil === 'gestor'
         )
