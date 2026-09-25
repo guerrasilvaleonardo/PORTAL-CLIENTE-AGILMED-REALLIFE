@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
+import { nomeDaEmpresa } from '@/lib/empresa'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
@@ -117,7 +118,8 @@ type Solicitante = {
 
 type Empresa = {
   id: string
-  nome_fantasia: string
+  nome_fantasia: string | null
+  razao_social?: string | null
   marca: string | null
 }
 
@@ -524,6 +526,7 @@ export default function AtendimentoChamadoPage() {
         .select(`
           id,
           nome_fantasia,
+          razao_social,
           marca
         `)
         .eq(
@@ -1742,8 +1745,9 @@ export default function AtendimentoChamadoPage() {
                   '#64748b',
               }}
             >
-              {empresa?.nome_fantasia ||
-                'Empresa não identificada'}
+              {empresa
+                ? nomeDaEmpresa(empresa, 'Empresa não identificada')
+                : 'Empresa não identificada'}
             </p>
           </div>
 
@@ -1872,8 +1876,7 @@ export default function AtendimentoChamadoPage() {
                 <Info
                   label="Empresa"
                   value={
-                    empresa?.nome_fantasia ||
-                    '—'
+                    (empresa ? nomeDaEmpresa(empresa, '—') : '—')
                   }
                 />
 
@@ -3287,8 +3290,7 @@ export default function AtendimentoChamadoPage() {
               <Info
                 label="Empresa"
                 value={
-                  empresa?.nome_fantasia ||
-                  '—'
+                  (empresa ? nomeDaEmpresa(empresa, '—') : '—')
                 }
               />
 
