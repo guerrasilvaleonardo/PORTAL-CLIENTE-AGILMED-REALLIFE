@@ -76,9 +76,11 @@ async function verificarAdministrador(request: Request) {
     motivo = 'Não foi possível ler seu perfil no banco: ' + error.message
   } else if (!profile) {
     motivo = 'Seu usuário não possui perfil cadastrado no portal.'
-  } else if (profile.perfil !== 'admin') {
+  } else if (
+    !['admin', 'gestor', 'atendimento'].includes(profile.perfil || '')
+  ) {
     motivo =
-      'Acesso restrito a administradores. Seu perfil atual é "' +
+      'Acesso restrito à equipe interna. Seu perfil atual é "' +
       String(profile.perfil) +
       '".'
   } else if (profile.ativo !== true) {
@@ -95,8 +97,17 @@ async function verificarAdministrador(request: Request) {
   return {
     autorizado: true,
     user,
+    /*
+     * Quem nao e admin pode cadastrar e editar gente, mas nao pode
+     * criar nem mexer em administrador. Sem essa trava, bastaria um
+     * atendente criar um usuario admin para si e o controle de acesso
+     * do portal deixaria de existir.
+     */
+    ehAdmin: profile?.perfil === 'admin',
   }
 }
+
+const PERFIS_QUE_SO_ADMIN_MEXE = ['admin']
 
 export async function GET(request: Request) {
   const verificacao = await verificarAdministrador(request)
@@ -183,6 +194,13 @@ export async function POST(request: Request) {
           erro: 'Perfil de usuário inválido.',
         },
         { status: 400 }
+      )
+    }
+
+    if (PERFIS_QUE_SO_ADMIN_MEXE.includes(perfil) && !verificacao.ehAdmin) {
+      return NextResponse.json(
+        { erro: 'Só um administrador pode criar outro administrador.' },
+        { status: 403 }
       )
     }
 
@@ -379,6 +397,33 @@ export async function PATCH(request: Request) {
         { erro: 'Perfil de usuário inválido.' },
         { status: 400 }
       )
+    }
+
+    if (!verificacao.ehAdmin) {
+      /*
+       * Duas portas fechadas para quem nao e admin: promover alguem a
+       * admin, e mexer em quem ja e admin (inclusive rebaixar ou
+       * trocar a senha).
+       */
+      if (PERFIS_QUE_SO_ADMIN_MEXE.includes(perfil)) {
+        return NextResponse.json(
+          { erro: 'Só um administrador pode promover alguém a administrador.' },
+          { status: 403 }
+        )
+      }
+
+      const { data: alvo } = await supabaseAdmin
+        .from('profiles')
+        .select('perfil')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (PERFIS_QUE_SO_ADMIN_MEXE.includes(alvo?.perfil || '')) {
+        return NextResponse.json(
+          { erro: 'Só um administrador pode editar outro administrador.' },
+          { status: 403 }
+        )
+      }
     }
 
     if (perfil === 'cliente' && !empresaId) {
