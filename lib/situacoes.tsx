@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import './situacoes.css'
 
 /*
  * As situações do chamado moram aqui, num lugar só, com o rótulo e a
@@ -176,23 +177,22 @@ export function AjudaSituacoes({
       </button>
 
       {aberto && (
-        <div
-          role="dialog"
-          aria-label="Significado de cada situação"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            [alinhamento === 'direita' ? 'right' : 'left']: 0,
-            zIndex: 60,
-            width: 'min(370px, calc(100vw - 32px))',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-m)',
-            boxShadow: 'var(--shadow)',
-            padding: 14,
-            textAlign: 'left',
-          } as React.CSSProperties}
-        >
+        <>
+          {/* No celular o balao vira painel central, com fundo atras. */}
+          <div
+            className="ajuda-fundo"
+            onClick={() => setAberto(false)}
+            aria-hidden
+          />
+
+          <div
+            role="dialog"
+            aria-label="Significado de cada situação"
+            className={
+              'ajuda-balao ' +
+              (alinhamento === 'direita' ? 'direita' : 'esquerda')
+            }
+          >
           <div
             style={{
               fontSize: 12.5,
@@ -237,9 +237,10 @@ export function AjudaSituacoes({
               lineHeight: 1.5,
             }}
           >
-            {NOTA_PRAZO}
+              {NOTA_PRAZO}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
