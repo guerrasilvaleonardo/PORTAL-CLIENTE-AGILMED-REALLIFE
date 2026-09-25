@@ -752,7 +752,6 @@ export default function DetalhesChamadoPage() {
                       chamado.status}
                   </span>
 
-                  <AjudaSituacoes rotulo="O que isso significa?" />
                 </div>
               </div>
 
@@ -762,7 +761,7 @@ export default function DetalhesChamadoPage() {
                 * um chamado e nao sabe se a bola esta com ele.
                 */}
               {EXPLICACAO_CLIENTE[chamado.status] && (
-                <p
+                <div
                   style={{
                     margin: '10px 0 0',
                     padding: '10px 12px',
@@ -775,7 +774,14 @@ export default function DetalhesChamadoPage() {
                   }}
                 >
                   {EXPLICACAO_CLIENTE[chamado.status]}
-                </p>
+
+                  <div style={{ marginTop: 8 }}>
+                    <AjudaSituacoes
+                      alinhamento="esquerda"
+                      rotulo="Ver as outras situações"
+                    />
+                  </div>
+                </div>
               )}
 
               <div style={styles.infoGrid}>
