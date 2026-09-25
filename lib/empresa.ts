@@ -71,3 +71,32 @@ export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
 
   return marca
 }
+
+/*
+ * Nome de exibição de uma empresa, em um lugar só.
+ *
+ * Nem toda empresa tem nome fantasia: algumas foram cadastradas só com
+ * a razão social. Quando a tela usava apenas nome_fantasia, essas
+ * empresas apareciam como uma linha em branco no meio da lista — e a
+ * pessoa concluía, com razão, que a empresa não estava lá.
+ */
+export function nomeDaEmpresa(
+  empresa:
+    | {
+        nome_fantasia?: string | null
+        razao_social?: string | null
+      }
+    | null
+    | undefined,
+  quandoVazio = 'Sem nome'
+) {
+  const fantasia = (empresa?.nome_fantasia || '').trim()
+
+  if (fantasia) return fantasia
+
+  const razao = (empresa?.razao_social || '').trim()
+
+  if (razao) return razao
+
+  return quandoVazio
+}
