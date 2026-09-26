@@ -5,11 +5,16 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Progresso as BarraProgressoUi } from '@/lib/graficos'
 import {
-  acharProgresso,
   corDoProgresso,
   CURSOS,
+  ETAPAS_MANUAIS,
   formatarDataHora,
-  normalizarCurso,
+  numeroDaNr,
+  percentualManual,
+  progressoDoCertificado,
+  ROTULO_ETAPA_MANUAL,
+  type EtapaManual,
+  type OrigemProgresso,
   type Progresso,
 } from '@/lib/treinamentos'
 
@@ -32,8 +37,20 @@ type Certificado = {
   link_certificado: string | null
   email_colaborador: string | null
   curso: string | null
+  created_at?: string | null
+  progresso_origem?: OrigemProgresso | null
+  progresso_etapa?: EtapaManual | null
+  progresso_manual?: number | null
+  progresso_manual_em?: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
 }
+
+const COLUNAS_CERT =
+  'id, numero, empresa_id, colaborador, funcao, tipo, emissao, validade, observacoes, link_certificado, email_colaborador, curso, empresas(nome_fantasia, razao_social)'
+
+/* Colunas criadas pela migracao certificados-progresso-manual.sql. */
+const COLUNAS_PROGRESSO_MANUAL =
+  ', created_at, progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
 
 const TIPOS = [
   'NR-35 — Trabalho em Altura',
@@ -50,6 +67,75 @@ const TIPOS = [
   'Outro',
 ]
 
+/*
+ * Sugere o tipo a partir do curso ("NR 33 | ESPACOS CONFINADOS" ->
+ * "NR-33 — ..."). So e usado quando o tipo ainda esta vazio: nunca
+ * troca uma escolha ja feita.
+ */
+function tipoPeloCurso(curso: string) {
+  const nr = numeroDaNr(curso)
+
+  if (nr) {
+    const prefixo = 'NR-' + nr.padStart(2, '0') + ' '
+
+    return TIPOS.find((t) => t.startsWith(prefixo)) || ''
+  }
+
+  const texto = curso.toUpperCase()
+
+  if (texto.includes('BRIGADA')) return 'Brigada de Incêndio'
+  if (texto.includes('PRIMEIROS SOCORROS')) return 'Primeiros Socorros'
+  if (texto.includes('CIPA')) return 'CIPA — Capacitação'
+
+  return ''
+}
+
+const NOMES_MES = [
+  'jan', 'fev', 'mar', 'abr', 'mai', 'jun',
+  'jul', 'ago', 'set', 'out', 'nov', 'dez',
+]
+
+const SEM_DATA = 'sem-data'
+
+/*
+ * Mes de referencia do certificado: o da emissao. Sem emissao, o mes
+ * em que foi cadastrado no portal. Sem nenhum dos dois, "sem data".
+ */
+function mesDoCertificado(c: Certificado) {
+  if (c.emissao) return c.emissao.slice(0, 7)
+
+  if (c.created_at) {
+    const d = new Date(c.created_at)
+
+    if (!Number.isNaN(d.getTime())) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    }
+  }
+
+  return SEM_DATA
+}
+
+function rotuloMes(chave: string) {
+  if (chave === SEM_DATA) return 'Sem data'
+
+  const [a, m] = chave.split('-')
+
+  return NOMES_MES[Number(m) - 1] + '/' + a.slice(2)
+}
+
+/* Chaves "AAAA-MM" dos ultimos N meses, do mais antigo ao atual. */
+function ultimosMeses(n: number) {
+  const hoje = new Date()
+  const lista: string[] = []
+
+  for (let i = n - 1; i >= 0; i -= 1) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+    lista.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'))
+  }
+
+  return lista
+}
+
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -65,6 +151,9 @@ const formVazio = {
   validade: '',
   observacoes: '',
   link_certificado: '',
+  progresso_origem: 'ead' as OrigemProgresso,
+  progresso_etapa: 'agendado' as EtapaManual,
+  progresso_manual: '',
 }
 
 /*
@@ -126,6 +215,12 @@ export default function CertificadosPage() {
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroSituacao, setFiltroSituacao] = useState('')
+  const [filtroOrigem, setFiltroOrigem] = useState('')
+  const [filtroMes, setFiltroMes] = useState('')
+  const [periodo, setPeriodo] = useState('12')
+
+  /* false enquanto a migracao do progresso manual nao tiver rodado. */
+  const [suportaManual, setSuportaManual] = useState(true)
 
   const [form, setForm] = useState(formVazio)
   const editando = form.id !== ''
@@ -142,12 +237,36 @@ export default function CertificadosPage() {
           ? valor.toLowerCase().trim()
           : valor
 
-    setForm((atual) => ({ ...atual, [campo]: tratado }))
+    setForm((atual) => {
+      const novo = { ...atual, [campo]: tratado }
+
+      if (campo === 'curso' && !atual.tipo) {
+        novo.tipo = tipoPeloCurso(tratado)
+      }
+
+      return novo
+    })
+  }
+
+  function escolherOrigem(origem: OrigemProgresso) {
+    setForm((atual) => ({
+      ...atual,
+      progresso_origem: origem,
+      progresso_etapa: atual.progresso_etapa || 'agendado',
+    }))
+  }
+
+  function escolherEtapa(etapa: EtapaManual) {
+    setForm((atual) => ({
+      ...atual,
+      progresso_etapa: etapa,
+      progresso_manual: etapa === 'concluido' ? '100' : atual.progresso_manual,
+    }))
   }
 
   /* A mesma regra usada no relatorio de Treinamentos. */
   function progressoDe(c: Certificado) {
-    return acharProgresso(c.email_colaborador, c.curso, progressos)
+    return progressoDoCertificado(c, progressos)
   }
 
   async function atualizarEad() {
@@ -228,12 +347,28 @@ export default function CertificadosPage() {
         setEmpresas(empresasData || [])
       }
 
-      const { data, error } = await supabase
+      /*
+       * Tenta ler ja com o progresso manual. Se a migracao ainda nao
+       * rodou (coluna inexistente, 42703), le do jeito antigo e esconde
+       * a opcao de lancamento manual, em vez de quebrar a tela.
+       */
+      let { data, error } = await supabase
         .from('certificados')
-        .select(
-          'id, numero, empresa_id, colaborador, funcao, tipo, emissao, validade, observacoes, link_certificado, email_colaborador, curso, empresas(nome_fantasia, razao_social)'
-        )
+        .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
         .order('validade', { ascending: true, nullsFirst: false })
+
+      if (error && error.code === '42703') {
+        const antiga = await supabase
+          .from('certificados')
+          .select(COLUNAS_CERT)
+          .order('validade', { ascending: true, nullsFirst: false })
+
+        data = antiga.data as typeof data
+        error = antiga.error
+        setSuportaManual(false)
+      } else {
+        setSuportaManual(true)
+      }
 
       if (error) throw error
 
@@ -284,6 +419,15 @@ export default function CertificadosPage() {
       return
     }
 
+    const manual = suportaManual && form.progresso_origem === 'manual'
+    const textoPct = String(form.progresso_manual).trim()
+    const pct = textoPct === '' ? null : Number(textoPct)
+
+    if (manual && pct !== null && (!Number.isFinite(pct) || pct < 0 || pct > 100)) {
+      setErro('O progresso manual deve ficar entre 0 e 100%.')
+      return
+    }
+
     try {
       setSalvando(true)
 
@@ -298,6 +442,22 @@ export default function CertificadosPage() {
         validade: form.validade || null,
         observacoes: form.observacoes.trim() || null,
         link_certificado: normalizarLink(form.link_certificado),
+        ...(suportaManual
+          ? manual
+            ? {
+                progresso_origem: 'manual' as OrigemProgresso,
+                progresso_etapa: form.progresso_etapa,
+                progresso_manual: percentualManual(
+                  form.progresso_etapa,
+                  pct === null ? null : Math.round(pct)
+                ),
+              }
+            : {
+                progresso_origem: 'ead' as OrigemProgresso,
+                progresso_etapa: null,
+                progresso_manual: null,
+              }
+          : {}),
       }
 
       if (editando) {
@@ -348,6 +508,10 @@ export default function CertificadosPage() {
       validade: c.validade || '',
       observacoes: c.observacoes || '',
       link_certificado: c.link_certificado || '',
+      progresso_origem: c.progresso_origem === 'manual' ? 'manual' : 'ead',
+      progresso_etapa: c.progresso_etapa || 'agendado',
+      progresso_manual:
+        typeof c.progresso_manual === 'number' ? String(c.progresso_manual) : '',
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -373,6 +537,13 @@ export default function CertificadosPage() {
     return certificados.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
       if (filtroTipo && c.tipo !== filtroTipo) return false
+      if (filtroMes && mesDoCertificado(c) !== filtroMes) return false
+
+      if (filtroOrigem) {
+        const origem = c.progresso_origem === 'manual' ? 'manual' : 'ead'
+
+        if (origem !== filtroOrigem) return false
+      }
 
       if (filtroSituacao) {
         const d = diasAte(c.validade)
@@ -398,7 +569,115 @@ export default function CertificadosPage() {
         .toLowerCase()
         .includes(termo)
     })
-  }, [certificados, busca, filtroEmpresa, filtroTipo, filtroSituacao])
+  }, [
+    certificados,
+    busca,
+    filtroEmpresa,
+    filtroTipo,
+    filtroSituacao,
+    filtroMes,
+    filtroOrigem,
+  ])
+
+  /*
+   * Painel tipo x mes. Respeita empresa e origem; tipo e mes NAO
+   * entram, porque sao justamente o que o painel ajuda a escolher.
+   */
+  const painel = useMemo(() => {
+    const base = certificados.filter((c) => {
+      if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
+
+      if (filtroOrigem) {
+        const origem = c.progresso_origem === 'manual' ? 'manual' : 'ead'
+
+        if (origem !== filtroOrigem) return false
+      }
+
+      return true
+    })
+
+    const mesesComDado = [...new Set(base.map(mesDoCertificado))]
+      .filter((m) => m !== SEM_DATA)
+      .sort()
+
+    let meses: string[]
+
+    if (periodo === 'tudo') {
+      meses = mesesComDado
+    } else if (periodo === 'ano') {
+      const ano = String(new Date().getFullYear())
+      meses = ultimosMeses(new Date().getMonth() + 1).filter((m) =>
+        m.startsWith(ano)
+      )
+    } else {
+      meses = ultimosMeses(Number(periodo))
+    }
+
+    const semData = base.filter((c) => mesDoCertificado(c) === SEM_DATA)
+
+    if (semData.length > 0 && periodo === 'tudo') meses = [...meses, SEM_DATA]
+
+    const noPeriodo = base.filter((c) => meses.includes(mesDoCertificado(c)))
+
+    const tipos = [...new Set(noPeriodo.map((c) => c.tipo))].sort(
+      (a, b) => TIPOS.indexOf(a) - TIPOS.indexOf(b) || a.localeCompare(b)
+    )
+
+    const celula: Record<string, number> = {}
+    const porTipo: Record<string, number> = {}
+    const porMes: Record<string, number> = {}
+
+    let concluidos = 0
+    let presenciais = 0
+    let semEmissao = 0
+
+    for (const c of noPeriodo) {
+      const m = mesDoCertificado(c)
+      const chave = c.tipo + '|' + m
+
+      celula[chave] = (celula[chave] || 0) + 1
+      porTipo[c.tipo] = (porTipo[c.tipo] || 0) + 1
+      porMes[m] = (porMes[m] || 0) + 1
+
+      if ((progressoDoCertificado(c, progressos)?.progresso ?? 0) >= 100) {
+        concluidos += 1
+      }
+
+      if (c.progresso_origem === 'manual') presenciais += 1
+      if (!c.emissao) semEmissao += 1
+    }
+
+    const maior = Object.values(celula).reduce((a, b) => Math.max(a, b), 0)
+
+    return {
+      meses,
+      tipos,
+      celula,
+      porTipo,
+      porMes,
+      maior,
+      total: noPeriodo.length,
+      concluidos,
+      presenciais,
+      semEmissao,
+      semDataFora: periodo === 'tudo' ? 0 : semData.length,
+    }
+  }, [certificados, progressos, filtroEmpresa, filtroOrigem, periodo])
+
+  function focarCelula(tipo: string, mes: string) {
+    setFiltroTipo(tipo)
+    setFiltroMes(mes === SEM_DATA ? SEM_DATA : mes)
+    document
+      .getElementById('lista-certificados')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  /* Meses que aparecem no filtro: os que tem certificado. */
+  const mesesDoFiltro = useMemo(
+    () =>
+      [...new Set(certificados.map(mesDoCertificado))].sort().reverse(),
+    [certificados]
+  )
 
   const indicadores = useMemo(() => {
     let vencidos = 0
@@ -584,6 +863,103 @@ export default function CertificadosPage() {
               </div>
             </div>
 
+            {suportaManual ? (
+              <div className="field-row">
+                <div className="field">
+                  <label>Origem do progresso *</label>
+
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className={
+                        'btn btn-sm' +
+                        (form.progresso_origem === 'ead' ? ' btn-primary' : '')
+                      }
+                      aria-pressed={form.progresso_origem === 'ead'}
+                      onClick={() => escolherOrigem('ead')}
+                    >
+                      Plataforma (EAD)
+                    </button>
+
+                    <button
+                      type="button"
+                      className={
+                        'btn btn-sm' +
+                        (form.progresso_origem === 'manual' ? ' btn-primary' : '')
+                      }
+                      aria-pressed={form.progresso_origem === 'manual'}
+                      onClick={() => escolherOrigem('manual')}
+                    >
+                      Presencial (manual)
+                    </button>
+                  </div>
+
+                  <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
+                    {form.progresso_origem === 'ead'
+                      ? 'Atualiza sozinho todo dia às 06h, pelo e-mail do colaborador no EAD.'
+                      : 'A leitura do EAD não mexe neste certificado. Quem salvar fica registrado.'}
+                  </span>
+                </div>
+
+                {form.progresso_origem === 'manual' && (
+                  <>
+                    <div className="field">
+                      <label>Etapa</label>
+                      <select
+                        value={form.progresso_etapa}
+                        onChange={(e) =>
+                          escolherEtapa(e.target.value as EtapaManual)
+                        }
+                      >
+                        {ETAPAS_MANUAIS.map((etapa) => (
+                          <option key={etapa} value={etapa}>
+                            {ROTULO_ETAPA_MANUAL[etapa]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="field">
+                      <label>Progresso (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={form.progresso_manual}
+                        disabled={form.progresso_etapa === 'concluido'}
+                        onChange={(e) =>
+                          setForm((atual) => ({
+                            ...atual,
+                            progresso_manual: e.target.value,
+                          }))
+                        }
+                        placeholder="Opcional — 0 a 100"
+                      />
+
+                      {form.progresso_etapa === 'concluido' && !form.emissao && (
+                        <span style={{ fontSize: 11.5, color: 'var(--amber)' }}>
+                          Concluído sem data de emissão: no painel, entra no
+                          mês de cadastro.
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--ink-muted)',
+                  padding: '4px 0',
+                }}
+              >
+                Lançamento manual (presencial) indisponível: falta rodar a
+                migração do progresso no Supabase.
+              </div>
+            )}
+
             <div className="field-row">
               <div className="field">
                 <label>Tipo *</label>
@@ -661,6 +1037,122 @@ export default function CertificadosPage() {
 
       <div className="panel">
         <div className="panel-head">
+          <div className="section-title">Painel por tipo e mês</div>
+
+          <div className="filters">
+            <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+              <option value="6">Últimos 6 meses</option>
+              <option value="12">Últimos 12 meses</option>
+              <option value="ano">Ano atual</option>
+              <option value="tudo">Todo o período</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="panel-body">
+          <div className="stats" style={{ marginBottom: 14 }}>
+            <div className="stat">
+              <div className="num">{carregando ? '—' : painel.total}</div>
+              <div className="lbl">Lançados no período</div>
+            </div>
+
+            <div className="stat good">
+              <div className="num">{carregando ? '—' : painel.concluidos}</div>
+              <div className="lbl">Com progresso 100%</div>
+            </div>
+
+            <div className="stat">
+              <div className="num">{carregando ? '—' : painel.presenciais}</div>
+              <div className="lbl">Presenciais (manual)</div>
+            </div>
+
+            <div className={'stat' + (painel.semEmissao > 0 ? ' warn' : '')}>
+              <div className="num">{carregando ? '—' : painel.semEmissao}</div>
+              <div className="lbl">Sem data de emissão</div>
+            </div>
+          </div>
+
+          {carregando ? (
+            <div className="empty-state">Carregando...</div>
+          ) : painel.total === 0 ? (
+            <div className="empty-state">Nenhum certificado no período.</div>
+          ) : (
+            <div className="table-wrap">
+              <div className="table-scroll">
+                <table className="matriz">
+                  <thead>
+                    <tr>
+                      <th>Tipo</th>
+                      {painel.meses.map((m) => (
+                        <th key={m}>{rotuloMes(m)}</th>
+                      ))}
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {painel.tipos.map((t) => (
+                      <tr key={t}>
+                        <th scope="row">{t}</th>
+
+                        {painel.meses.map((m) => {
+                          const n = painel.celula[t + '|' + m] || 0
+                          const forca = painel.maior ? n / painel.maior : 0
+
+                          return (
+                            <td key={m}>
+                              {n > 0 ? (
+                                <button
+                                  type="button"
+                                  className="matriz-cel"
+                                  title={`${t} · ${rotuloMes(m)}: ${n} — ver na lista`}
+                                  onClick={() => focarCelula(t, m)}
+                                  style={{
+                                    background: `color-mix(in srgb, var(--primary) ${Math.round(12 + forca * 70)}%, var(--surface))`,
+                                    color: forca > 0.5 ? '#fff' : 'var(--ink)',
+                                  }}
+                                >
+                                  {n}
+                                </button>
+                              ) : (
+                                <span className="matriz-zero">·</span>
+                              )}
+                            </td>
+                          )
+                        })}
+
+                        <td className="matriz-total">{painel.porTipo[t] || 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+
+                  <tfoot>
+                    <tr>
+                      <th scope="row">Total</th>
+                      {painel.meses.map((m) => (
+                        <td key={m} className="matriz-total">
+                          {painel.porMes[m] || 0}
+                        </td>
+                      ))}
+                      <td className="matriz-total">{painel.total}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <p className="footnote" style={{ marginTop: 10 }}>
+            Mês pela data de emissão; sem emissão, pelo mês de cadastro.
+            Clique num número para ver esses certificados na lista.
+            {painel.semDataFora > 0 &&
+              ` ${painel.semDataFora} certificado(s) sem nenhuma data aparecem só em "Todo o período".`}
+          </p>
+        </div>
+      </div>
+
+      <div className="panel" id="lista-certificados">
+        <div className="panel-head">
           <div className="section-title">Certificados</div>
 
           <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
@@ -715,6 +1207,46 @@ export default function CertificadosPage() {
               <option value="90">Vencem em 90 dias</option>
               <option value="validos">Em dia</option>
             </select>
+
+            {suportaManual && (
+              <select
+                value={filtroOrigem}
+                onChange={(e) => setFiltroOrigem(e.target.value)}
+              >
+                <option value="">Todas as origens</option>
+                <option value="ead">Plataforma (EAD)</option>
+                <option value="manual">Presencial (manual)</option>
+              </select>
+            )}
+
+            <select
+              value={filtroMes}
+              onChange={(e) => setFiltroMes(e.target.value)}
+            >
+              <option value="">Todos os meses</option>
+
+              {mesesDoFiltro.map((m) => (
+                <option key={m} value={m}>
+                  {rotuloMes(m)}
+                </option>
+              ))}
+            </select>
+
+            {(filtroTipo || filtroMes || filtroOrigem || filtroSituacao || busca) && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  setBusca('')
+                  setFiltroTipo('')
+                  setFiltroMes('')
+                  setFiltroOrigem('')
+                  setFiltroSituacao('')
+                }}
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
 
           <div className="table-wrap">
@@ -827,10 +1359,16 @@ export default function CertificadosPage() {
                               color: 'var(--ink-faint)',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
+                              whiteSpace: registro.origem === 'manual' ? 'normal' : 'nowrap',
                             }}
                           >
-                            {formatarDataHora(registro.atualizado_em)}
+                            {registro.origem === 'manual'
+                              ? 'Presencial · ' +
+                                registro.situacao +
+                                (registro.atualizado_em
+                                  ? ' · ' + formatarDataHora(registro.atualizado_em)
+                                  : '')
+                              : formatarDataHora(registro.atualizado_em)}
                           </span>
                         )}
                       </span>
