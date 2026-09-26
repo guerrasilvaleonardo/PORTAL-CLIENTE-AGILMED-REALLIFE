@@ -17,6 +17,79 @@ export type Progresso = {
   progresso: number
   situacao: string | null
   atualizado_em: string
+  /* 'manual' quando veio do lancamento presencial, nao do EAD. */
+  origem?: OrigemProgresso
+}
+
+/*
+ * De onde vem o progresso do certificado:
+ *   'ead'    -> Maestrus; a leitura das 06h atualiza sozinha
+ *   'manual' -> treinamento presencial; a equipe informa a etapa
+ */
+export type OrigemProgresso = 'ead' | 'manual'
+
+export type EtapaManual = 'agendado' | 'em_andamento' | 'concluido'
+
+export const ETAPAS_MANUAIS: EtapaManual[] = [
+  'agendado',
+  'em_andamento',
+  'concluido',
+]
+
+export const ROTULO_ETAPA_MANUAL: Record<EtapaManual, string> = {
+  agendado: 'Agendado',
+  em_andamento: 'Em andamento',
+  concluido: 'Concluído',
+}
+
+/* O que um certificado precisa ter para sabermos o progresso dele. */
+export type CertificadoComProgresso = {
+  email_colaborador: string | null
+  curso: string | null
+  progresso_origem?: OrigemProgresso | null
+  progresso_etapa?: EtapaManual | null
+  progresso_manual?: number | null
+  progresso_manual_em?: string | null
+}
+
+/*
+ * Percentual que vale para um lancamento manual. "Concluido" e sempre
+ * 100%; sem percentual informado, a etapa decide.
+ */
+export function percentualManual(
+  etapa: EtapaManual | null | undefined,
+  percentual: number | null | undefined
+) {
+  if (etapa === 'concluido') return 100
+  if (typeof percentual === 'number') return Math.max(0, Math.min(100, percentual))
+
+  return 0
+}
+
+/*
+ * Progresso de um certificado, qualquer que seja a origem. Certificados
+ * e Treinamentos chamam SEMPRE esta funcao, para os numeros baterem.
+ */
+export function progressoDoCertificado(
+  c: CertificadoComProgresso,
+  progressos: Progresso[]
+): Progresso | null {
+  if (c.progresso_origem === 'manual') {
+    const etapa = c.progresso_etapa || 'agendado'
+
+    return {
+      email: c.email_colaborador || '',
+      curso: c.curso || '',
+      progresso: percentualManual(etapa, c.progresso_manual),
+      situacao: ROTULO_ETAPA_MANUAL[etapa],
+      atualizado_em: c.progresso_manual_em || '',
+      origem: 'manual',
+    }
+  }
+
+  const doEad = acharProgresso(c.email_colaborador, c.curso, progressos)
+
+  return doEad ? { ...doEad, origem: 'ead' } : null
 }
 
 /* Sugestoes do campo de curso. O campo aceita qualquer texto. */
