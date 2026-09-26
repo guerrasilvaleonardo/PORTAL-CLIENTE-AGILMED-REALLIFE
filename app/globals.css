@@ -232,3 +232,28 @@ button {
 @media (max-width: 980px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Painel tipo x mes (Certificados). */
+.matriz { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.matriz th, .matriz td {
+  padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.matriz thead th {
+  font-size: 11px; font-weight: 700; color: var(--ink-muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.matriz th[scope='row'] {
+  text-align: left; font-weight: 600; color: var(--ink);
+  position: sticky; left: 0; background: var(--surface); z-index: 1;
+}
+.matriz tfoot th, .matriz tfoot td { border-bottom: 0; }
+.matriz-cel {
+  min-width: 34px; padding: 4px 8px; border: 0; border-radius: 7px;
+  font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 12.5px;
+  cursor: pointer;
+}
+.matriz-cel:hover { outline: 2px solid var(--primary-strong); outline-offset: 1px; }
+.matriz-cel:focus-visible { outline: 2px solid var(--primary-strong); outline-offset: 2px; }
+.matriz-zero { color: var(--ink-faint); }
+.matriz-total { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--ink-muted); }
