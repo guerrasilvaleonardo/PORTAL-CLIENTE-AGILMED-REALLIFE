@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Barras, Progresso as BarraProgresso, Rosca } from '@/lib/graficos'
 import {
-  acharProgresso,
   corDoProgresso,
   etapaDoProgresso,
   formatarDataHora,
   normalizarCurso,
   PILL_ETAPA,
+  progressoDoCertificado,
   ROTULO_ETAPA,
+  type EtapaManual,
   type Etapa,
+  type OrigemProgresso,
   type Progresso,
 } from '@/lib/treinamentos'
 
@@ -32,7 +34,17 @@ type Certificado = {
   curso: string | null
   tipo: string
   validade: string | null
+  progresso_origem?: OrigemProgresso | null
+  progresso_etapa?: EtapaManual | null
+  progresso_manual?: number | null
+  progresso_manual_em?: string | null
 }
+
+const COLUNAS_CERT =
+  'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, validade'
+
+const COLUNAS_PROGRESSO_MANUAL =
+  ', progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
 
 type Linha = {
   id: string
@@ -43,6 +55,7 @@ type Linha = {
   empresa: string
   curso: string
   cursoEad: string | null
+  presencial: boolean
   progresso: number
   etapa: Etapa
   situacao: string | null
@@ -111,12 +124,24 @@ export default function TreinamentosPage() {
         setEmpresas((listaEmpresas || []) as Empresa[])
       }
 
-      const { data: certs, error: erroCerts } = await supabase
+      /*
+       * Tenta ler ja com o progresso manual. Se a migracao ainda nao
+       * rodou (coluna inexistente, 42703), le do jeito antigo.
+       */
+      let { data: certs, error: erroCerts } = await supabase
         .from('certificados')
-        .select(
-          'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, validade'
-        )
+        .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
         .order('colaborador')
+
+      if (erroCerts && erroCerts.code === '42703') {
+        const antiga = await supabase
+          .from('certificados')
+          .select(COLUNAS_CERT)
+          .order('colaborador')
+
+        certs = antiga.data as typeof certs
+        erroCerts = antiga.error
+      }
 
       if (erroCerts) throw erroCerts
 
@@ -124,7 +149,7 @@ export default function TreinamentosPage() {
         .from('treinamentos_progresso')
         .select('email, curso, progresso, situacao, atualizado_em')
 
-      setCertificados((certs || []) as Certificado[])
+      setCertificados((certs || []) as unknown as Certificado[])
       setProgressos((prog || []) as Progresso[])
     } catch (e: any) {
       console.error(e)
@@ -189,11 +214,7 @@ export default function TreinamentosPage() {
   /* Uma linha por certificado, com a matricula do EAD ao lado. */
   const linhas = useMemo<Linha[]>(() => {
     return certificados.map((c) => {
-      const registro = acharProgresso(
-        c.email_colaborador,
-        c.curso,
-        progressos
-      )
+      const registro = progressoDoCertificado(c, progressos)
 
       return {
         id: c.id,
@@ -203,11 +224,12 @@ export default function TreinamentosPage() {
         empresaId: c.empresa_id,
         empresa: empresaPorId[c.empresa_id] || '—',
         curso: c.curso || c.tipo,
-        cursoEad: registro?.curso ?? null,
+        cursoEad: registro?.origem === 'manual' ? null : registro?.curso ?? null,
+        presencial: registro?.origem === 'manual',
         progresso: registro?.progresso ?? 0,
         etapa: etapaDoProgresso(registro),
         situacao: registro?.situacao ?? null,
-        atualizado: registro?.atualizado_em ?? null,
+        atualizado: registro?.atualizado_em || null,
       }
     })
   }, [certificados, progressos, empresaPorId])
@@ -354,7 +376,7 @@ export default function TreinamentosPage() {
         l.email || '',
         l.empresa,
         l.curso,
-        l.cursoEad || '',
+        l.presencial ? 'PRESENCIAL (manual)' : l.cursoEad || '',
         String(l.progresso),
         ROTULO_ETAPA[l.etapa],
         l.atualizado ? formatarDataHora(l.atualizado) : '',
@@ -652,6 +674,18 @@ export default function TreinamentosPage() {
                           }}
                         >
                           EAD: {l.cursoEad}
+                        </span>
+                      )}
+
+                      {l.presencial && (
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 11.5,
+                            color: 'var(--ink-faint)',
+                          }}
+                        >
+                          Presencial · lançamento manual
                         </span>
                       )}
                     </span>
