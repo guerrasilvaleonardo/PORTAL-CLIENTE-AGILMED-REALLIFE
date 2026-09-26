@@ -325,10 +325,28 @@ export async function GET(request: Request) {
 
     /* 3. E-mails registrados em Certificados ----------------------- */
 
-    const { data: certificados, error: erroCertificados } = await supabaseAdmin
+    /*
+     * So entram os certificados com progresso vindo do EAD. Os
+     * presenciais (progresso_origem = 'manual') sao atualizados a mao
+     * e nao devem gerar busca nem aviso de "sem matricula no EAD".
+     * Se a coluna ainda nao existir (migracao nao rodada), cai na
+     * leitura antiga em vez de derrubar a rotina.
+     */
+    let { data: certificados, error: erroCertificados } = await supabaseAdmin
       .from('certificados')
       .select('email_colaborador')
       .not('email_colaborador', 'is', null)
+      .neq('progresso_origem', 'manual')
+
+    if (erroCertificados && erroCertificados.code === '42703') {
+      const antiga = await supabaseAdmin
+        .from('certificados')
+        .select('email_colaborador')
+        .not('email_colaborador', 'is', null)
+
+      certificados = antiga.data
+      erroCertificados = antiga.error
+    }
 
     if (erroCertificados) throw erroCertificados
 
