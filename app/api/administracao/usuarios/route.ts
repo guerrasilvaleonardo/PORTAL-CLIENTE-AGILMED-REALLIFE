@@ -379,6 +379,15 @@ export async function PATCH(request: Request) {
     }
 
     const nome = String(body.nome ?? '').trim()
+    /*
+     * E-mail é opcional no corpo: quando não vem, o atual é mantido.
+     * Quando vem diferente, muda também o login (Supabase Auth), senão
+     * a pessoa continuaria entrando com o e-mail antigo.
+     */
+    const emailInformado =
+      body.email === undefined || body.email === null
+        ? null
+        : String(body.email).trim().toLowerCase()
     const telefone = String(body.telefone ?? '').trim()
     const cargo = String(body.cargo ?? '').trim()
     const perfil = String(body.perfil ?? '').trim()
@@ -389,6 +398,13 @@ export async function PATCH(request: Request) {
     if (!nome) {
       return NextResponse.json(
         { erro: 'O nome é obrigatório.' },
+        { status: 400 }
+      )
+    }
+
+    if (emailInformado !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailInformado)) {
+      return NextResponse.json(
+        { erro: 'E-mail inválido.' },
         { status: 400 }
       )
     }
@@ -446,13 +462,36 @@ export async function PATCH(request: Request) {
      * tira o próprio acesso, e o último administrador ativo não pode
      * ser rebaixado nem desativado por outro.
      */
-    if (id === verificacao.user?.id && (perfil !== 'admin' || !ativo)) {
+    if (
+      id === verificacao.user?.id &&
+      verificacao.ehAdmin &&
+      (perfil !== 'admin' || !ativo)
+    ) {
       return NextResponse.json(
         {
           erro: 'Você não pode remover o seu próprio acesso de administrador.',
         },
         { status: 400 }
       )
+    }
+
+    /*
+     * Quem não é admin pode corrigir os próprios dados, mas não mudar o
+     * próprio perfil nem se desativar.
+     */
+    if (id === verificacao.user?.id && !verificacao.ehAdmin) {
+      const { data: proprio } = await supabaseAdmin
+        .from('profiles')
+        .select('perfil, ativo')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (proprio && (proprio.perfil !== perfil || !ativo)) {
+        return NextResponse.json(
+          { erro: 'Você não pode alterar o seu próprio perfil nem a sua situação.' },
+          { status: 400 }
+        )
+      }
     }
 
     if (perfil !== 'admin' || !ativo) {
@@ -495,10 +534,75 @@ export async function PATCH(request: Request) {
       }
     }
 
+    /*
+     * Troca de e-mail: confere se ninguém mais usa o endereço, muda o
+     * login primeiro e só depois o cadastro. Se o cadastro falhar, o
+     * login volta ao e-mail antigo para os dois não ficarem diferentes.
+     */
+    const { data: registroAtual } = await supabaseAdmin
+      .from('profiles')
+      .select('email')
+      .eq('id', id)
+      .maybeSingle()
+
+    const emailAnterior = (registroAtual?.email || '').toLowerCase()
+    const emailNovo = emailInformado ?? emailAnterior
+    const emailMudou = emailInformado !== null && emailNovo !== emailAnterior
+
+    if (emailInformado !== null && !emailNovo) {
+      return NextResponse.json(
+        { erro: 'O e-mail é obrigatório.' },
+        { status: 400 }
+      )
+    }
+
+    if (emailMudou) {
+      const { data: dono } = await supabaseAdmin
+        .from('profiles')
+        .select('id, nome')
+        .ilike('email', emailNovo)
+        .neq('id', id)
+        .limit(1)
+        .maybeSingle()
+
+      if (dono) {
+        return NextResponse.json(
+          {
+            erro:
+              'Este e-mail já pertence a outro usuário (' +
+              (dono.nome || 'sem nome') +
+              ').',
+          },
+          { status: 409 }
+        )
+      }
+
+      const { error: emailError } =
+        await supabaseAdmin.auth.admin.updateUserById(id, {
+          email: emailNovo,
+          email_confirm: true,
+        })
+
+      if (emailError) {
+        const jaExiste = /already|registered|exists/i.test(emailError.message)
+
+        return NextResponse.json(
+          {
+            erro: jaExiste
+              ? 'Este e-mail já está em uso no login de outra conta.'
+              : 'Não foi possível alterar o e-mail de acesso: ' +
+                emailError.message,
+          },
+          { status: jaExiste ? 409 : 400 }
+        )
+      }
+    }
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         nome,
+        ...(emailMudou ? { email: emailNovo } : {}),
         telefone: telefone || null,
         cargo: cargo || null,
         perfil,
@@ -510,6 +614,13 @@ export async function PATCH(request: Request) {
       .single()
 
     if (profileError) {
+      if (emailMudou && emailAnterior) {
+        await supabaseAdmin.auth.admin.updateUserById(id, {
+          email: emailAnterior,
+          email_confirm: true,
+        })
+      }
+
       return NextResponse.json(
         {
           erro: 'Não foi possível salvar as alterações.',
@@ -539,6 +650,7 @@ export async function PATCH(request: Request) {
       sucesso: true,
       usuario: profile,
       senha_alterada: Boolean(senha),
+      email_alterado: emailMudou,
     })
   } catch (error) {
     return NextResponse.json(
