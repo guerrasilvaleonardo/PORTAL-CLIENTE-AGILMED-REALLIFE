@@ -153,7 +153,7 @@ export default function UsuariosPage() {
         return
       }
 
-      if (!editando && !email.trim()) {
+      if (!email.trim()) {
         setErro('Preencha o e-mail.')
         return
       }
@@ -173,6 +173,24 @@ export default function UsuariosPage() {
         return
       }
 
+      const original = editando
+        ? usuarios.find((u) => u.id === editandoId)
+        : null
+      const emailMudou =
+        editando &&
+        email.trim().toLowerCase() !== (original?.email || '').toLowerCase()
+
+      if (
+        emailMudou &&
+        !window.confirm(
+          'O login de ' + (nome.trim() || 'este usuário') +
+            ' passará a ser ' + email.trim() +
+            '. O e-mail antigo deixa de funcionar. Confirmar?'
+        )
+      ) {
+        return
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession()
@@ -188,6 +206,7 @@ export default function UsuariosPage() {
         ? {
             id: editandoId,
             nome: nome.trim(),
+            email: email.trim(),
             telefone: telefone.trim(),
             cargo: cargo.trim(),
             perfil,
@@ -226,9 +245,11 @@ export default function UsuariosPage() {
 
       setMensagem(
         editando
-          ? resultado.senha_alterada
-            ? 'Usuário atualizado e senha redefinida.'
-            : 'Usuário atualizado com sucesso.'
+          ? [
+              'Usuário atualizado com sucesso.',
+              resultado.email_alterado ? 'O login passou a ser o novo e-mail.' : '',
+              resultado.senha_alterada ? 'Senha redefinida.' : '',
+            ].filter(Boolean).join(' ')
           : 'Usuário criado com sucesso.'
       )
 
@@ -339,7 +360,6 @@ export default function UsuariosPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="pessoa@empresa.com.br"
-                disabled={editando}
               />
             </div>
           </div>
