@@ -4,7 +4,7 @@ import { DragEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
-import { horasUteisAte, textoPrazoUtil } from '@/lib/prazo'
+import { situacaoSla } from '@/lib/prazo'
 import { AjudaSituacoes, EXPLICACAO_EQUIPE } from '@/lib/situacoes'
 import './quadro.css'
 
@@ -30,6 +30,9 @@ type Chamado = {
   status: string
   created_at: string
   prazo_sla: string | null
+  sla_pausado_em: string | null
+  resolvido_em: string | null
+  encerrado_em: string | null
   responsavel_id: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string; marca: string | null } | null
   responsavel?: { nome: string | null } | null
@@ -45,16 +48,9 @@ function iniciais(nome?: string | null) {
 
 /*
  * O prazo conta apenas horas úteis: 8 por dia, de segunda a sexta.
+ * O relógio para quando o chamado é resolvido e fica pausado enquanto
+ * aguarda o cliente (ver situacaoSla em lib/prazo).
  */
-function horasAte(prazo: string | null) {
-  const h = horasUteisAte(prazo)
-
-  return h === null ? null : Math.round(h)
-}
-
-function textoPrazo(prazo: string | null) {
-  return textoPrazoUtil(prazo)
-}
 
 export default function AtendimentoPage() {
   const [chamados, setChamados] = useState<Chamado[]>([])
@@ -118,7 +114,7 @@ export default function AtendimentoPage() {
       const { data, error } = await supabase
         .from('chamados')
         .select(
-          'id, numero, empresa_id, categoria, assunto, prioridade, status, created_at, prazo_sla, responsavel_id, empresas(nome_fantasia, razao_social, marca), responsavel:profiles!chamados_responsavel_id_fkey(nome)'
+          'id, numero, empresa_id, categoria, assunto, prioridade, status, created_at, prazo_sla, sla_pausado_em, resolvido_em, encerrado_em, responsavel_id, empresas(nome_fantasia, razao_social, marca), responsavel:profiles!chamados_responsavel_id_fkey(nome)'
         )
         .order('created_at', { ascending: false })
 
@@ -209,10 +205,7 @@ export default function AtendimentoPage() {
     return {
       total: chamados.length,
       abertos: abertos.length,
-      atrasados: abertos.filter((c) => {
-        const h = horasAte(c.prazo_sla)
-        return h !== null && h < 0
-      }).length,
+      atrasados: abertos.filter((c) => situacaoSla(c).atrasado).length,
       urgentes: abertos.filter((c) => c.prioridade === 'urgente').length,
     }
   }, [chamados])
@@ -277,6 +270,12 @@ export default function AtendimentoPage() {
         <div className="topbar-spacer" />
 
         {!tv && <AjudaSituacoes publico="equipe" rotulo="Legenda das colunas" />}
+
+        {!tv && (
+          <Link href="/atendimento/prioridades" className="btn btn-sm">
+            Prioridades
+          </Link>
+        )}
 
         <button
           type="button"
@@ -385,9 +384,8 @@ export default function AtendimentoPage() {
                   <div className="empty-col">vazio</div>
                 ) : (
                   daColuna.map((c) => {
-                    const prazo = textoPrazo(c.prazo_sla)
-                    const aberto = EM_ABERTO.includes(c.status)
-                    const atrasado = aberto && prazo.atrasado
+                    const prazo = situacaoSla(c)
+                    const atrasado = prazo.atrasado
 
                     return (
                       <Link

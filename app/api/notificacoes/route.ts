@@ -211,7 +211,7 @@ export async function POST(request: Request) {
     const { data: chamado, error: chamadoError } = await supabaseAdmin
       .from('chamados')
       .select(
-        'id, numero, assunto, categoria, status, prioridade, empresa_id, criado_por, responsavel_id'
+        'id, numero, assunto, categoria, status, prioridade, empresa_id, criado_por, responsavel_id, prazo_sla'
       )
       .eq('id', chamadoId)
       .maybeSingle()
@@ -284,13 +284,51 @@ export async function POST(request: Request) {
         { rotulo: 'Abrir no quadro', url: portal + '/atendimento/' + chamado.id }
       )
 
+      /*
+       * Posição real na fila da área (view v_chamados_fila), e não um
+       * "você é o próximo": a ordem segue o prazo de cada chamado.
+       */
+      const { data: fila } = await supabaseAdmin
+        .from('v_chamados_fila')
+        .select('posicao_area, total_area')
+        .eq('id', chamado.id)
+        .maybeSingle()
+
+      const prazoTexto = chamado.prazo_sla
+        ? new Date(chamado.prazo_sla).toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : ''
+
       tituloParaCliente = 'Recebemos o chamado ' + codigo
       resumoParaCliente = [
         'O chamado <strong>' + assuntoChamado + '</strong> foi aberto e já está na nossa fila.',
         '<strong>Categoria:</strong> ' + escapar(chamado.categoria),
         '<strong>Prioridade:</strong> ' + escapar(chamado.prioridade),
+        fila?.posicao_area
+          ? '<strong>Posição atual na fila de ' +
+            escapar(chamado.categoria) +
+            ':</strong> ' +
+            fila.posicao_area +
+            'º de ' +
+            fila.total_area +
+            '.'
+          : '',
+        prazoTexto
+          ? '<strong>Prazo de atendimento:</strong> até ' +
+            prazoTexto +
+            ' (horário de Brasília; contamos horas úteis, de segunda a sexta, 8h por dia).'
+          : '',
+        fila?.posicao_area
+          ? 'A posição pode mudar se entrar uma demanda urgente ou com prazo menor.'
+          : '',
         'Você será avisado a cada movimentação.',
-      ]
+      ].filter(Boolean)
     } else if (evento === 'mensagem_nova') {
       const trecho = String(body.mensagem ?? '').slice(0, 400)
 
@@ -529,7 +567,11 @@ export async function POST(request: Request) {
       para.map((e) => (e || '').trim().toLowerCase()).filter(Boolean)
     )
 
-    if (autor?.email) {
+    /*
+     * Exceção: o cliente que acabou de abrir o chamado recebe a
+     * confirmação com a posição na fila e o prazo.
+     */
+    if (autor?.email && !(evento === 'chamado_criado' && !autorEhInterno)) {
       jaAvisados.add(autor.email.trim().toLowerCase())
     }
 

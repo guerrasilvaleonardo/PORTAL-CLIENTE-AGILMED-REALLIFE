@@ -201,3 +201,100 @@ export function textoPrazoUtil(prazo: string | null) {
     atrasado: false,
   }
 }
+
+/* Duração em horas úteis como texto curto: "5h úteis", "2d úteis". */
+export function duracaoUtil(horas: number) {
+  const h = Math.abs(Math.round(horas))
+
+  return h >= HORAS_UTEIS_POR_DIA
+    ? Math.round(h / HORAS_UTEIS_POR_DIA) + 'd úteis'
+    : h + 'h úteis'
+}
+
+export type ChaveSla =
+  | 'atrasado'
+  | 'vence_em_breve'
+  | 'no_prazo'
+  | 'pausado'
+  | 'sem_sla'
+  | 'cumprido'
+  | 'descumprido'
+  | 'concluido'
+
+export type ChamadoComSla = {
+  status: string
+  prazo_sla: string | null
+  sla_pausado_em?: string | null
+  resolvido_em?: string | null
+  encerrado_em?: string | null
+}
+
+/* A partir de quantas horas úteis restantes o chamado "vence em breve". */
+export const VENCE_EM_BREVE_HORAS = 4
+
+/*
+ * Situação do SLA levando em conta o status do chamado:
+ * - resolvido/encerrado: o relógio para na data de resolução, e o
+ *   cartão diz se foi resolvido no prazo ou fora dele;
+ * - aguardando cliente: o relógio está pausado, então vale o saldo que
+ *   havia no momento da pausa (o banco estende o prazo na retomada);
+ * - demais: horas úteis que faltam ou que passaram até o prazo.
+ */
+export function situacaoSla(c: ChamadoComSla): {
+  chave: ChaveSla
+  texto: string
+  atrasado: boolean
+  horas: number | null
+} {
+  if (!c.prazo_sla) {
+    return { chave: 'sem_sla', texto: 'sem SLA', atrasado: false, horas: null }
+  }
+
+  const prazo = new Date(c.prazo_sla)
+
+  if (c.status === 'resolvido' || c.status === 'encerrado') {
+    const fim = c.resolvido_em || c.encerrado_em
+
+    if (!fim) {
+      return { chave: 'concluido', texto: 'Concluído', atrasado: false, horas: null }
+    }
+
+    const h = horasUteisEntre(new Date(fim), prazo)
+
+    return h >= 0
+      ? { chave: 'cumprido', texto: 'Resolvido no prazo', atrasado: false, horas: h }
+      : {
+          chave: 'descumprido',
+          texto: 'Resolvido com ' + duracaoUtil(h) + ' de atraso',
+          atrasado: false,
+          horas: h,
+        }
+  }
+
+  if (c.status === 'aguardando_cliente' && c.sla_pausado_em) {
+    const h = horasUteisEntre(new Date(c.sla_pausado_em), prazo)
+
+    return {
+      chave: 'pausado',
+      texto:
+        'SLA pausado · ' +
+        duracaoUtil(h) +
+        (h < 0 ? ' em atraso' : ' restantes'),
+      atrasado: false,
+      horas: h,
+    }
+  }
+
+  const h = horasUteisAte(c.prazo_sla) as number
+
+  if (Math.round(h) < 0) {
+    return { chave: 'atrasado', texto: duracaoUtil(h) + ' em atraso', atrasado: true, horas: h }
+  }
+
+  return {
+    chave: h <= VENCE_EM_BREVE_HORAS ? 'vence_em_breve' : 'no_prazo',
+    texto: duracaoUtil(h) + ' restantes',
+    atrasado: false,
+    horas: h,
+  }
+}

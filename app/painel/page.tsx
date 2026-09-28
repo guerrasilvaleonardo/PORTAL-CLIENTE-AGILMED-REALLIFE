@@ -624,9 +624,15 @@ export default function PainelPage() {
         <div className="panel-head">
           <div className="section-title">Meus atendimentos</div>
 
-          <Link href="/atendimento?responsavel=meus" className="btn btn-sm">
-            Ver no quadro
-          </Link>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Link href="/atendimento/prioridades" className="btn btn-sm">
+              Minha fila de prioridades
+            </Link>
+
+            <Link href="/atendimento?responsavel=meus" className="btn btn-sm">
+              Ver no quadro
+            </Link>
+          </div>
         </div>
 
         <div className="panel-body" style={{ gap: 0 }}>
