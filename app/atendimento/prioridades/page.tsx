@@ -11,8 +11,8 @@ import '../quadro.css'
  * da equipe saber o que atacar primeiro. A ordem vem da view
  * v_chamados_fila (supabase/chamados-fila-prioridades.sql), a mesma que
  * calcula a posição que o cliente vê:
- *   atrasados primeiro (maior atraso no topo) → menor prazo restante →
- *   prioridade → data de abertura. "Aguardando cliente" fica fora da
+ *   urgentes sempre no topo → atrasados (maior atraso primeiro) →
+ *   menor prazo restante → prioridade → data de abertura. "Aguardando cliente" fica fora da
  *   fila, com o SLA pausado.
  */
 
@@ -508,8 +508,8 @@ export default function PrioridadesPage() {
 
         <div className="panel-body" style={{ overflowX: 'auto', gap: 0 }}>
           <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginBottom: 8 }}>
-            Ordem: atrasados primeiro (maior atraso no topo) → menor prazo restante →
-            prioridade → data de abertura. Prazos em horas úteis.
+            Ordem: urgentes sempre no topo → atrasados (maior atraso primeiro) →
+            menor prazo restante → prioridade → data de abertura. Prazos em horas úteis.
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
