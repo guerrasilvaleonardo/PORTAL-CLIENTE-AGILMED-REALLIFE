@@ -11,8 +11,8 @@ import '../quadro.css'
  * da equipe saber o que atacar primeiro. A ordem vem da view
  * v_chamados_fila (supabase/chamados-fila-prioridades.sql), a mesma que
  * calcula a posição que o cliente vê:
- *   atrasados primeiro (maior atraso no topo) → menor prazo restante →
- *   prioridade → data de abertura. "Aguardando cliente" fica fora da
+ *   urgentes sempre no topo → atrasados (maior atraso primeiro) →
+ *   menor prazo restante → prioridade → data de abertura. "Aguardando cliente" fica fora da
  *   fila, com o SLA pausado.
  */
 
@@ -109,7 +109,12 @@ export default function PrioridadesPage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [meuId, setMeuId] = useState('')
-  const [aba, setAba] = useState<'minha' | 'geral'>('minha')
+  /*
+   * De quem é a lista: 'meus' (quem está logado), '' (fila geral),
+   * 'sem' (sem responsável) ou o id de um atendente.
+   */
+  const [responsavel, setResponsavel] = useState('meus')
+  const [agentes, setAgentes] = useState<{ id: string; nome: string }[]>([])
   const [area, setArea] = useState('')
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null)
 
@@ -138,6 +143,17 @@ export default function PrioridadesPage() {
       }
 
       setMeuId(user.id)
+
+      const { data: equipe } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .in('perfil', PERFIS_INTERNOS)
+        .eq('ativo', true)
+        .order('nome')
+
+      setAgentes(
+        ((equipe || []) as any[]).map((p) => ({ id: p.id, nome: p.nome || 'Sem nome' }))
+      )
 
       const [lista, fila] = await Promise.all([
         supabase
@@ -177,6 +193,11 @@ export default function PrioridadesPage() {
   }
 
   useEffect(() => {
+    /* Atalho: /atendimento/prioridades?responsavel=<id> abre a lista daquela pessoa. */
+    const alvo = new URLSearchParams(window.location.search).get('responsavel')
+
+    if (alvo) setResponsavel(alvo)
+
     carregar()
 
     /* O SLA anda com o relógio: atualiza sozinho a cada 2 minutos. */
@@ -258,31 +279,47 @@ export default function PrioridadesPage() {
     )
   }, [abertos, posicoes])
 
+  /* O chamado pertence à lista selecionada? */
+  function doResponsavel(id: string | null) {
+    if (responsavel === 'meus') return id === meuId
+    if (responsavel === 'sem') return !id
+    return id === responsavel
+  }
+
+  const nomeDaLista =
+    responsavel === ''
+      ? 'Fila geral'
+      : responsavel === 'meus'
+        ? 'Minha fila'
+        : responsavel === 'sem'
+          ? 'Sem responsável'
+          : 'Fila de ' + (agentes.find((a) => a.id === responsavel)?.nome || 'atendente')
+
   const lista = useMemo(() => {
     let l = abertos.filter((c) => posicoes[c.id])
 
-    if (aba === 'minha') l = l.filter((c) => c.responsavel_id === meuId)
+    if (responsavel) l = l.filter((c) => doResponsavel(c.responsavel_id))
     if (area) l = l.filter((c) => (c.categoria || 'Sem área') === area)
 
     const campo: keyof Posicao =
-      aba === 'minha' ? 'posicao_responsavel' : area ? 'posicao_area' : 'posicao_geral'
+      responsavel ? 'posicao_responsavel' : area ? 'posicao_area' : 'posicao_geral'
 
     return [...l].sort(
       (a, b) =>
         ((posicoes[a.id]?.[campo] as number) ?? 9999) -
         ((posicoes[b.id]?.[campo] as number) ?? 9999)
     )
-  }, [abertos, posicoes, aba, area, meuId])
+  }, [abertos, posicoes, responsavel, area, meuId])
 
   const pausados = useMemo(
     () =>
       abertos.filter(
         (c) =>
           c.sla.chave === 'pausado' &&
-          (aba === 'geral' || c.responsavel_id === meuId) &&
+          (!responsavel || doResponsavel(c.responsavel_id)) &&
           (!area || (c.categoria || 'Sem área') === area)
       ),
-    [abertos, aba, area, meuId]
+    [abertos, responsavel, area, meuId]
   )
 
   return (
@@ -375,13 +412,27 @@ export default function PrioridadesPage() {
                 {carga.map((r) => (
                   <tr key={r.id}>
                     <td style={celula}>
-                      <Link
-                        href={'/atendimento?responsavel=' + r.id}
-                        style={{ color: 'inherit', display: 'flex', gap: 8, alignItems: 'center' }}
+                      <button
+                        type="button"
+                        onClick={() => setResponsavel(r.id === meuId ? 'meus' : r.id)}
+                        title="Ver a lista de prioridades desta pessoa"
+                        style={{
+                          color: 'inherit',
+                          display: 'flex',
+                          gap: 8,
+                          alignItems: 'center',
+                          background: 'none',
+                          border: 0,
+                          padding: 0,
+                          cursor: 'pointer',
+                          font: 'inherit',
+                          fontWeight:
+                            (responsavel === 'meus' ? meuId : responsavel) === r.id ? 700 : 400,
+                        }}
                       >
                         <span className="avatar">{r.id === 'sem' ? '--' : iniciais(r.nome)}</span>
                         {r.nome}
-                      </Link>
+                      </button>
                     </td>
                     <td style={{ ...celula, textAlign: 'right' }}>{r.fila}</td>
                     <td
@@ -408,25 +459,42 @@ export default function PrioridadesPage() {
 
       <div className="panel">
         <div className="panel-head" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <div className="section-title">Lista de prioridades</div>
+          <div className="section-title">Lista de prioridades · {nomeDaLista}</div>
 
           <div className="topbar-spacer" />
 
           <button
             type="button"
-            className={'btn btn-sm' + (aba === 'minha' ? ' btn-primary' : '')}
-            onClick={() => setAba('minha')}
+            className={'btn btn-sm' + (responsavel === 'meus' ? ' btn-primary' : '')}
+            onClick={() => setResponsavel('meus')}
           >
             Minha fila
           </button>
 
           <button
             type="button"
-            className={'btn btn-sm' + (aba === 'geral' ? ' btn-primary' : '')}
-            onClick={() => setAba('geral')}
+            className={'btn btn-sm' + (responsavel === '' ? ' btn-primary' : '')}
+            onClick={() => setResponsavel('')}
           >
             Fila geral
           </button>
+
+          <select
+            value={responsavel}
+            onChange={(e) => setResponsavel(e.target.value)}
+            aria-label="Atendente"
+          >
+            <option value="">Todos os atendentes</option>
+            <option value="meus">Eu</option>
+            <option value="sem">Sem responsável</option>
+            {agentes
+              .filter((a) => a.id !== meuId)
+              .map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nome}
+                </option>
+              ))}
+          </select>
 
           <select value={area} onChange={(e) => setArea(e.target.value)}>
             <option value="">Todas as áreas</option>
@@ -440,8 +508,8 @@ export default function PrioridadesPage() {
 
         <div className="panel-body" style={{ overflowX: 'auto', gap: 0 }}>
           <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginBottom: 8 }}>
-            Ordem: atrasados primeiro (maior atraso no topo) → menor prazo restante →
-            prioridade → data de abertura. Prazos em horas úteis.
+            Ordem: urgentes sempre no topo → atrasados (maior atraso primeiro) →
+            menor prazo restante → prioridade → data de abertura. Prazos em horas úteis.
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -463,9 +531,11 @@ export default function PrioridadesPage() {
                   <td style={celula} colSpan={7}>
                     {carregando
                       ? 'Carregando...'
-                      : aba === 'minha'
+                      : responsavel === 'meus'
                         ? 'Nenhum chamado da fila está no seu nome.'
-                        : 'Nenhum chamado na fila.'}
+                        : responsavel
+                          ? 'Nenhum chamado da fila nesta lista.'
+                          : 'Nenhum chamado na fila.'}
                   </td>
                 </tr>
               )}

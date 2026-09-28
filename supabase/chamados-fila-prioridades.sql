@@ -7,10 +7,10 @@
 -- que o cliente vê):
 --   entram ........ status 'aberto' e 'em_atendimento'
 --                   ('aguardando_cliente' fica fora: o SLA está pausado)
---   ordem ......... prazo_sla mais próximo primeiro. Quem já venceu tem o
---                   prazo mais antigo, então os atrasados ficam no topo,
---                   do maior atraso para o menor. Depois: prioridade
---                   (urgente > alta > normal > baixa) e data de abertura.
+--   ordem ......... urgentes sempre no topo; dentro de cada grupo, prazo_sla
+--                   mais próximo primeiro (quem já venceu tem o prazo mais
+--                   antigo, então os atrasados vêm antes, do maior atraso
+--                   para o menor). Depois: prioridade e data de abertura.
 --   posição ....... por área (coluna categoria)
 -- =====================================================================
 
@@ -39,17 +39,20 @@ select
 from public.chamados c
 window
   w_area  as (partition by c.status in ('aberto', 'em_atendimento'), c.categoria
-              order by c.prazo_sla asc nulls last,
+              order by (c.prioridade = 'urgente') desc,
+                       c.prazo_sla asc nulls last,
                        case c.prioridade when 'urgente' then 1 when 'alta' then 2
                                          when 'baixa' then 4 else 3 end,
                        c.created_at),
   w_resp  as (partition by c.status in ('aberto', 'em_atendimento'), c.responsavel_id
-              order by c.prazo_sla asc nulls last,
+              order by (c.prioridade = 'urgente') desc,
+                       c.prazo_sla asc nulls last,
                        case c.prioridade when 'urgente' then 1 when 'alta' then 2
                                          when 'baixa' then 4 else 3 end,
                        c.created_at),
   w_geral as (partition by c.status in ('aberto', 'em_atendimento')
-              order by c.prazo_sla asc nulls last,
+              order by (c.prioridade = 'urgente') desc,
+                       c.prazo_sla asc nulls last,
                        case c.prioridade when 'urgente' then 1 when 'alta' then 2
                                          when 'baixa' then 4 else 3 end,
                        c.created_at);
