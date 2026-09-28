@@ -177,6 +177,13 @@ export default function DetalhesChamadoPage() {
 
   const [marca, setMarca] = useState<Marca | null>(null)
 
+  /* Posição atual na fila da área (só enquanto o chamado está na fila). */
+  const [posicao, setPosicao] = useState<{
+    area: string
+    posicao_area: number
+    total_area: number
+  } | null>(null)
+
   useEffect(() => {
     async function carregar() {
       setLoading(true)
@@ -212,6 +219,22 @@ export default function DetalhesChamadoPage() {
       }
 
       setChamado(chamadoData as Chamado)
+
+      const { data: posicaoData } = await supabase.rpc('posicao_do_chamado', {
+        p_chamado_id: chamadoId,
+      })
+
+      const pos = Array.isArray(posicaoData) ? posicaoData[0] : null
+
+      setPosicao(
+        pos?.posicao_area
+          ? {
+              area: pos.area,
+              posicao_area: Number(pos.posicao_area),
+              total_area: Number(pos.total_area),
+            }
+          : null
+      )
 
       const { data: mensagensData, error: mensagensError } =
         await supabase
@@ -832,7 +855,28 @@ export default function DetalhesChamadoPage() {
                   value={formatarData(
                     chamado.prazo_sla
                   )}
+                  detalhe={
+                    chamado.status === 'aguardando_cliente'
+                      ? 'Pausado até o seu retorno'
+                      : undefined
+                  }
                 />
+
+                {posicao && (
+                  <Info
+                    label="Posição na fila"
+                    value={
+                      posicao.posicao_area +
+                      'º de ' +
+                      posicao.total_area
+                    }
+                    detalhe={
+                      'Fila de ' +
+                      posicao.area +
+                      '. Pode mudar se entrar uma demanda urgente.'
+                    }
+                  />
+                )}
 
                 <Info
                   label="Encerramento"
