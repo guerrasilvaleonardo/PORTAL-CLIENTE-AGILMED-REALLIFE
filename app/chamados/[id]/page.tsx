@@ -172,6 +172,8 @@ export default function DetalhesChamadoPage() {
 
   const [abrindoAnexo, setAbrindoAnexo] = useState<string | null>(null)
 
+  const [baixandoAnexo, setBaixandoAnexo] = useState<string | null>(null)
+
   const [erro, setErro] = useState('')
   const [erroAnexo, setErroAnexo] = useState('')
 
@@ -593,6 +595,39 @@ export default function DetalhesChamadoPage() {
     if (editandoLink === link.id) cancelarEdicaoLink()
   }
 
+
+  async function baixarAnexo(anexo: Anexo) {
+    setBaixandoAnexo(anexo.id)
+    setErroAnexo('')
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('chamados-anexos')
+        .createSignedUrl(anexo.caminho_arquivo, 300, {
+          download: anexo.nome_arquivo || true,
+        })
+
+      if (error || !data?.signedUrl) {
+        console.error(error)
+        setErroAnexo('Não foi possível baixar este arquivo.')
+        return
+      }
+
+      const link = document.createElement('a')
+      link.href = data.signedUrl
+      link.download = anexo.nome_arquivo || ''
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error(error)
+      setErroAnexo('Não foi possível baixar este arquivo.')
+    } finally {
+      setBaixandoAnexo(null)
+    }
+  }
+
   async function abrirAnexo(anexo: Anexo) {
     setAbrindoAnexo(anexo.id)
     setErroAnexo('')
@@ -994,6 +1029,25 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
 
+              {anexos.length > 0 && (
+                <div
+                  style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1e3a8a',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    marginBottom: '12px',
+                    fontSize: '14px',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>Novo:</strong> clique em <strong>Baixar</strong>{' '}
+                  para salvar o arquivo no seu computador. O botão{' '}
+                  <strong>Abrir</strong> mostra o arquivo em uma nova aba.
+                </div>
+              )}
+
               {anexos.length === 0 ? (
                 <div style={styles.emptyAttachments}>
                   Ainda não existem arquivos anexados a este
@@ -1050,6 +1104,24 @@ export default function DetalhesChamadoPage() {
                         {abrindoAnexo === anexo.id
                           ? 'Abrindo...'
                           : 'Abrir'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => baixarAnexo(anexo)}
+                        disabled={baixandoAnexo === anexo.id}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: tema.borda,
+                          color: tema.principal,
+                          ...(baixandoAnexo === anexo.id
+                            ? styles.disabledButton
+                            : {}),
+                        }}
+                      >
+                        {baixandoAnexo === anexo.id
+                          ? 'Baixando...'
+                          : 'Baixar'}
                       </button>
                     </div>
                   ))}
