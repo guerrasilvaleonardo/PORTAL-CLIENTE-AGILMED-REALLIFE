@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
 import { nomeDaEmpresa } from '@/lib/empresa'
@@ -94,6 +94,18 @@ function descreverEvento(e: Evento) {
 
   if (e.tipo === 'empresa') {
     return 'Empresa: ' + (e.de || '—') + ' → ' + (e.para || '—')
+  }
+
+  if (e.tipo === 'anexo') {
+    return 'Arquivo anexado: ' + (e.para || '—')
+  }
+
+  if (e.tipo === 'link') {
+    return 'Link adicionado: ' + (e.para || '—')
+  }
+
+  if (e.tipo === 'mensagem') {
+    return 'Mensagem na conversa'
   }
 
   if (e.tipo === 'sla') {
@@ -358,6 +370,8 @@ export default function AtendimentoChamadoPage() {
 
   const [abrindoAnexo, setAbrindoAnexo] =
     useState<string | null>(null)
+
+  const [baixandoAnexo, setBaixandoAnexo] = useState<string | null>(null)
 
   const [erroAnexo, setErroAnexo] =
     useState('')
@@ -1335,6 +1349,39 @@ export default function AtendimentoChamadoPage() {
     }
   }
 
+
+  async function baixarAnexo(anexo: Anexo) {
+    setBaixandoAnexo(anexo.id)
+    setErroAnexo('')
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('chamados-anexos')
+        .createSignedUrl(anexo.caminho_arquivo, 300, {
+          download: anexo.nome_arquivo || true,
+        })
+
+      if (error || !data?.signedUrl) {
+        console.error(error)
+        setErroAnexo('Não foi possível baixar este arquivo.')
+        return
+      }
+
+      const link = document.createElement('a')
+      link.href = data.signedUrl
+      link.download = anexo.nome_arquivo || ''
+      link.rel = 'noopener'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (error) {
+      console.error(error)
+      setErroAnexo('Não foi possível baixar este arquivo.')
+    } finally {
+      setBaixandoAnexo(null)
+    }
+  }
+
   async function abrirAnexo(
     anexo: Anexo
   ) {
@@ -1528,6 +1575,108 @@ export default function AtendimentoChamadoPage() {
       )
     }
   }
+
+  /*
+   * O historico junta os movimentos gravados em chamado_eventos
+   * (situacao, prioridade, responsavel, empresa, SLA) com o que ja
+   * esta carregado na tela: arquivos, links e mensagens. Assim tudo
+   * aparece, inclusive o que foi feito antes desta versao.
+   */
+  const [nomesPessoas, setNomesPessoas] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const conhecidos: Record<string, string> = {}
+
+    agentes.forEach((a) => {
+      if (a.nome) conhecidos[a.id] = a.nome
+    })
+
+    mensagens.forEach((m) => {
+      if (m.autor_id && m.autor_nome) conhecidos[m.autor_id] = m.autor_nome
+    })
+
+    const faltando = Array.from(
+      new Set(
+        [
+          ...anexos.map((a) => a.enviado_por),
+          ...links.map((l) => l.criado_por),
+        ].filter(
+          (id): id is string =>
+            !!id && !conhecidos[id] && !nomesPessoas[id]
+        )
+      )
+    )
+
+    if (faltando.length === 0) {
+      if (Object.keys(conhecidos).some((id) => !nomesPessoas[id])) {
+        setNomesPessoas((atual) => ({ ...conhecidos, ...atual }))
+      }
+      return
+    }
+
+    supabase
+      .from('profiles')
+      .select('id, nome')
+      .in('id', faltando)
+      .then(({ data }) => {
+        const buscados: Record<string, string> = {}
+
+        ;(data || []).forEach((p: any) => {
+          if (p.nome) buscados[p.id] = p.nome
+        })
+
+        setNomesPessoas((atual) => ({
+          ...conhecidos,
+          ...atual,
+          ...buscados,
+        }))
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentes, mensagens, anexos, links])
+
+  const historico = useMemo<Evento[]>(() => {
+    const nome = (id: string | null) =>
+      id && nomesPessoas[id] ? { nome: nomesPessoas[id] } : null
+
+    const itens: Evento[] = [
+      ...eventos,
+      ...anexos.map((a) => ({
+        id: 'anexo-' + a.id,
+        tipo: 'anexo',
+        de: null,
+        para: a.nome_arquivo,
+        observacao: null,
+        created_at: a.created_at,
+        autor: nome(a.enviado_por),
+      })),
+      ...links.map((l) => ({
+        id: 'link-' + l.id,
+        tipo: 'link',
+        de: null,
+        para: l.titulo || l.url,
+        observacao: null,
+        created_at: l.created_at,
+        autor: nome(l.criado_por),
+      })),
+      ...mensagens.map((m) => ({
+        id: 'mensagem-' + m.id,
+        tipo: 'mensagem',
+        de: null,
+        para: null,
+        observacao:
+          m.mensagem.length > 140
+            ? m.mensagem.slice(0, 140).trimEnd() + '…'
+            : m.mensagem,
+        created_at: m.created_at,
+        autor: { nome: m.autor_nome },
+      })),
+    ]
+
+    return itens.sort(
+      (x, y) =>
+        new Date(x.created_at).getTime() - new Date(y.created_at).getTime()
+    )
+  }, [eventos, anexos, links, mensagens, nomesPessoas])
 
   if (loading) {
     return (
@@ -2414,6 +2563,25 @@ export default function AtendimentoChamadoPage() {
                 </div>
               )}
 
+              {anexos.length > 0 && (
+                <div
+                  style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    color: '#1e3a8a',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    marginBottom: '12px',
+                    fontSize: '14px',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>Novo:</strong> clique em <strong>Baixar</strong>{' '}
+                  para salvar o arquivo no seu computador. O botão{' '}
+                  <strong>Abrir</strong> mostra o arquivo em uma nova aba.
+                </div>
+              )}
+
               {anexos.length === 0 ? (
                 <div
                   style={{
@@ -2562,6 +2730,26 @@ export default function AtendimentoChamadoPage() {
                           anexo.id
                             ? 'Abrindo...'
                             : 'Abrir'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => baixarAnexo(anexo)}
+                          disabled={baixandoAnexo === anexo.id}
+                          style={{
+                            border: '1px solid #99f6e4',
+                            background: '#ffffff',
+                            color: '#0f766e',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            opacity: baixandoAnexo === anexo.id ? 0.6 : 1,
+                          }}
+                        >
+                          {baixandoAnexo === anexo.id
+                            ? 'Baixando...'
+                            : 'Baixar'}
                         </button>
                       </div>
                     )
@@ -2900,7 +3088,7 @@ export default function AtendimentoChamadoPage() {
                 />
               </div>
 
-              {eventos.length === 0 ? (
+              {historico.length === 0 ? (
                 <p style={{ color: '#64748b', fontSize: 14, margin: 0 }}>
                   Nenhum movimento registrado ainda.
                 </p>
@@ -2913,7 +3101,7 @@ export default function AtendimentoChamadoPage() {
                     gap: 14,
                   }}
                 >
-                  {eventos.map((e) => (
+                  {historico.map((e) => (
                     <div key={e.id} style={{ position: 'relative' }}>
                       <span
                         style={{
@@ -2924,7 +3112,13 @@ export default function AtendimentoChamadoPage() {
                           height: 9,
                           borderRadius: 999,
                           background:
-                            e.tipo === 'sla' ? '#b45309' : '#0f766e',
+                            e.tipo === 'sla'
+                              ? '#b45309'
+                              : e.tipo === 'anexo' || e.tipo === 'link'
+                                ? '#2563eb'
+                                : e.tipo === 'mensagem'
+                                  ? '#94a3b8'
+                                  : '#0f766e',
                         }}
                       />
 
