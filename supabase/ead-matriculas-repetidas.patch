@@ -1,0 +1,568 @@
+From f24bed5d4b101922de7e56b7b60b24fa42e1cda4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 1 Oct 2026 10:18:32 -0400
+Subject: [PATCH] =?UTF-8?q?EAD:=20uma=20linha=20por=20matr=C3=ADcula=20e?=
+ =?UTF-8?q?=20certificado=20n=C3=A3o=20divide=20matr=C3=ADcula?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014dfp1nMQx7ZfpDoj9Bccwh
+---
+ app/api/cron/treinamentos/route.ts    |  57 ++++++---
+ app/certificados/page.tsx             |  38 ++++--
+ app/treinamentos/page.tsx             |  26 ++++-
+ lib/treinamentos.ts                   | 160 +++++++++++++++++++++++---
+ supabase/ead-matriculas-repetidas.sql |  78 +++++++++++++
+ 5 files changed, 315 insertions(+), 44 deletions(-)
+ create mode 100644 supabase/ead-matriculas-repetidas.sql
+
+diff --git a/app/api/cron/treinamentos/route.ts b/app/api/cron/treinamentos/route.ts
+index 075db8a..cff286e 100644
+--- a/app/api/cron/treinamentos/route.ts
++++ b/app/api/cron/treinamentos/route.ts
+@@ -446,24 +446,26 @@ export async function GET(request: Request) {
+ 
+     const agora = new Date().toISOString()
+ 
+-    const unicos = new Map<string, Linha>()
++    /*
++     * Uma linha por MATRICULA (e-mail + curso + data de inicio). O mesmo
++     * curso pode ser liberado de novo para o colaborador (ex.: NR 33 em
++     * 2025 e outra vez em 2026); antes as duas viravam uma so e o
++     * certificado novo herdava o percentual do antigo.
++     */
++    const porMatricula = new Map<string, Linha>()
+ 
+     for (const linha of encontrados) {
+-      const chave = linha.email + '|' + linha.curso.toUpperCase()
++      const chave =
++        linha.email + '|' + linha.curso.toUpperCase() + '|' + (linha.inicio || '')
+ 
+-      const anterior = unicos.get(chave)
++      const anterior = porMatricula.get(chave)
+ 
+-      /*
+-       * O mesmo curso pode aparecer em mais de uma matricula do aluno.
+-       * Fica valendo a matricula ativa e, entre iguais, a de maior
+-       * andamento.
+-       */
+       if (!anterior || melhorLinha(linha, anterior) === linha) {
+-        unicos.set(chave, linha)
++        porMatricula.set(chave, linha)
+       }
+     }
+ 
+-    const registros = [...unicos.values()].map((l) => ({
++    const paraRegistro = (l: Linha) => ({
+       email: l.email,
+       aluno: l.aluno,
+       curso: l.curso,
+@@ -472,14 +474,42 @@ export async function GET(request: Request) {
+       inicio: l.inicio,
+       origem: 'maestrus',
+       atualizado_em: agora,
+-    }))
++    })
++
++    let registros = [...porMatricula.values()].map(paraRegistro)
+ 
+     if (registros.length > 0) {
+       const { error: erroGravacao } = await supabaseAdmin
+         .from('treinamentos_progresso')
+-        .upsert(registros, { onConflict: 'email,curso' })
++        .upsert(registros, { onConflict: 'email,curso,inicio' })
+ 
+-      if (erroGravacao) throw erroGravacao
++      /*
++       * 42P10: o banco ainda tem a regra antiga (uma linha por e-mail +
++       * curso). Ate rodar supabase/ead-matriculas-repetidas.sql, grava
++       * do jeito antigo para a rotina nao parar.
++       */
++      if (erroGravacao && erroGravacao.code === '42P10') {
++        const unicos = new Map<string, Linha>()
++
++        for (const linha of encontrados) {
++          const chave = linha.email + '|' + linha.curso.toUpperCase()
++          const anterior = unicos.get(chave)
++
++          if (!anterior || melhorLinha(linha, anterior) === linha) {
++            unicos.set(chave, linha)
++          }
++        }
++
++        registros = [...unicos.values()].map(paraRegistro)
++
++        const antiga = await supabaseAdmin
++          .from('treinamentos_progresso')
++          .upsert(registros, { onConflict: 'email,curso' })
++
++        if (antiga.error) throw antiga.error
++      } else if (erroGravacao) {
++        throw erroGravacao
++      }
+     }
+ 
+     await registrar(
+@@ -494,6 +524,7 @@ export async function GET(request: Request) {
+       sucesso: true,
+       colaboradores: emails.length,
+       registros: registros.length,
++      gravados: registros.length,
+       sem_cadastro_no_ead: semCadastro,
+     })
+   } catch (erro) {
+diff --git a/app/certificados/page.tsx b/app/certificados/page.tsx
+index 3be58ba..c5cd322 100644
+--- a/app/certificados/page.tsx
++++ b/app/certificados/page.tsx
+@@ -11,7 +11,7 @@ import {
+   formatarDataHora,
+   numeroDaNr,
+   percentualManual,
+-  progressoDoCertificado,
++  progressosDosCertificados,
+   ROTULO_ETAPA_MANUAL,
+   type EtapaManual,
+   type OrigemProgresso,
+@@ -264,9 +264,24 @@ export default function CertificadosPage() {
+     }))
+   }
+ 
+-  /* A mesma regra usada no relatorio de Treinamentos. */
+-  function progressoDe(c: Certificado) {
+-    return progressoDoCertificado(c, progressos)
++  /*
++   * A mesma regra usada no relatorio de Treinamentos: cada matricula do
++   * EAD vai para um unico certificado (curso repetido em anos
++   * diferentes nao divide mais o mesmo percentual).
++   */
++  const progressoPorId = useMemo(() => {
++    const mapa = new Map<string, Progresso | null>()
++
++    progressosDosCertificados(certificados, progressos).forEach((p, c) => {
++      mapa.set(c.id, p)
++    })
++
++    return mapa
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [certificados, progressos])
++
++  function progressoDe(c: Certificado): Progresso | null {
++    return progressoPorId.get(c.id) ?? null
+   }
+ 
+   async function atualizarEad() {
+@@ -379,9 +394,18 @@ export default function CertificadosPage() {
+         }))
+       )
+ 
+-      const { data: progressoData } = await supabase
++      /* "inicio" separa matriculas repetidas do mesmo curso. */
++      let { data: progressoData, error: erroProgresso } = await supabase
+         .from('treinamentos_progresso')
+-        .select('email, curso, progresso, situacao, atualizado_em')
++        .select('email, curso, progresso, situacao, atualizado_em, inicio')
++
++      if (erroProgresso) {
++        const antiga = await supabase
++          .from('treinamentos_progresso')
++          .select('email, curso, progresso, situacao, atualizado_em')
++
++        progressoData = antiga.data as typeof progressoData
++      }
+ 
+       setProgressos((progressoData || []) as Progresso[])
+     } catch (e: any) {
+@@ -639,7 +663,7 @@ export default function CertificadosPage() {
+       porTipo[c.tipo] = (porTipo[c.tipo] || 0) + 1
+       porMes[m] = (porMes[m] || 0) + 1
+ 
+-      if ((progressoDoCertificado(c, progressos)?.progresso ?? 0) >= 100) {
++      if ((progressoDe(c)?.progresso ?? 0) >= 100) {
+         concluidos += 1
+       }
+ 
+diff --git a/app/treinamentos/page.tsx b/app/treinamentos/page.tsx
+index c3b5319..0ac6c71 100644
+--- a/app/treinamentos/page.tsx
++++ b/app/treinamentos/page.tsx
+@@ -9,7 +9,7 @@ import {
+   formatarDataHora,
+   normalizarCurso,
+   PILL_ETAPA,
+-  progressoDoCertificado,
++  progressosDosCertificados,
+   ROTULO_ETAPA,
+   type EtapaManual,
+   type Etapa,
+@@ -34,6 +34,9 @@ type Certificado = {
+   curso: string | null
+   tipo: string
+   validade: string | null
++  emissao?: string | null
++  link_certificado?: string | null
++  created_at?: string | null
+   progresso_origem?: OrigemProgresso | null
+   progresso_etapa?: EtapaManual | null
+   progresso_manual?: number | null
+@@ -41,10 +44,10 @@ type Certificado = {
+ }
+ 
+ const COLUNAS_CERT =
+-  'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, validade'
++  'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, validade, emissao, link_certificado'
+ 
+ const COLUNAS_PROGRESSO_MANUAL =
+-  ', progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
++  ', created_at, progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
+ 
+ type Linha = {
+   id: string
+@@ -145,9 +148,18 @@ export default function TreinamentosPage() {
+ 
+       if (erroCerts) throw erroCerts
+ 
+-      const { data: prog } = await supabase
++      /* "inicio" separa matriculas repetidas do mesmo curso. */
++      let { data: prog, error: erroProgresso } = await supabase
+         .from('treinamentos_progresso')
+-        .select('email, curso, progresso, situacao, atualizado_em')
++        .select('email, curso, progresso, situacao, atualizado_em, inicio')
++
++      if (erroProgresso) {
++        const antiga = await supabase
++          .from('treinamentos_progresso')
++          .select('email, curso, progresso, situacao, atualizado_em')
++
++        prog = antiga.data as typeof prog
++      }
+ 
+       setCertificados((certs || []) as unknown as Certificado[])
+       setProgressos((prog || []) as Progresso[])
+@@ -213,8 +225,10 @@ export default function TreinamentosPage() {
+ 
+   /* Uma linha por certificado, com a matricula do EAD ao lado. */
+   const linhas = useMemo<Linha[]>(() => {
++    const porCertificado = progressosDosCertificados(certificados, progressos)
++
+     return certificados.map((c) => {
+-      const registro = progressoDoCertificado(c, progressos)
++      const registro = porCertificado.get(c) ?? null
+ 
+       return {
+         id: c.id,
+diff --git a/lib/treinamentos.ts b/lib/treinamentos.ts
+index 3f65269..fe2d2ab 100644
+--- a/lib/treinamentos.ts
++++ b/lib/treinamentos.ts
+@@ -17,6 +17,8 @@ export type Progresso = {
+   progresso: number
+   situacao: string | null
+   atualizado_em: string
++  /* Data de inicio da matricula no EAD (AAAA-MM-DD). */
++  inicio?: string | null
+   /* 'manual' quando veio do lancamento presencial, nao do EAD. */
+   origem?: OrigemProgresso
+ }
+@@ -44,7 +46,12 @@ export const ROTULO_ETAPA_MANUAL: Record<EtapaManual, string> = {
+ 
+ /* O que um certificado precisa ter para sabermos o progresso dele. */
+ export type CertificadoComProgresso = {
++  id?: string
+   email_colaborador: string | null
++  emissao?: string | null
++  validade?: string | null
++  link_certificado?: string | null
++  created_at?: string | null
+   curso: string | null
+   progresso_origem?: OrigemProgresso | null
+   progresso_etapa?: EtapaManual | null
+@@ -155,42 +162,58 @@ export function qualificadores(texto: string) {
+ }
+ 
+ /*
+- * Acha a matricula do EAD que corresponde a um certificado.
+- * Devolve null quando o colaborador nao tem e-mail, nao tem
+- * matricula, ou nenhuma matricula bate com o curso.
++ * Todas as matriculas do EAD que podem corresponder a um certificado.
++ * Lista vazia quando o colaborador nao tem e-mail, nao tem matricula,
++ * ou nenhuma matricula bate com o curso.
++ *
++ * O mesmo curso pode aparecer mais de uma vez (ex.: NR 33 feito em
++ * 2025 e liberado de novo em 2026). Por isso devolvemos todas — quem
++ * decide qual vai para qual certificado e progressosDosCertificados.
+  */
+-export function acharProgresso(
++export function candidatosDoCurso(
+   email: string | null,
+   curso: string | null,
+   progressos: Progresso[]
+-): Progresso | null {
+-  if (!email) return null
++): Progresso[] {
++  if (!email) return []
+ 
+   const alvoEmail = email.toLowerCase().trim()
+ 
+-  const doColaborador = progressos.filter(
++  const todas = progressos.filter(
+     (p) => p.email.toLowerCase().trim() === alvoEmail
+   )
+ 
+-  if (doColaborador.length === 0) return null
++  /*
++   * Vale so a ultima leitura do EAD para este colaborador. Linhas que a
++   * leitura mais recente nao tocou (ex.: a linha unica gravada antes de
++   * separarmos matriculas repetidas) ficam de fora, para nao virarem uma
++   * "matricula fantasma".
++   */
++  const ultima = todas.reduce(
++    (max, p) => ((p.atualizado_em || '') > max ? p.atualizado_em || '' : max),
++    ''
++  )
++
++  const doColaborador = todas.filter(
++    (p) => (p.atualizado_em || '') === ultima
++  )
+ 
+-  const maiorPrimeiro = (lista: Progresso[]) =>
+-    [...lista].sort((a, b) => b.progresso - a.progresso)[0]
++  if (doColaborador.length === 0) return []
+ 
+-  if (!curso) return maiorPrimeiro(doColaborador)
++  if (!curso) return doColaborador
+ 
+   const alvo = normalizarCurso(curso)
+ 
+-  const exato = doColaborador.find((p) => normalizarCurso(p.curso) === alvo)
++  const exatos = doColaborador.filter((p) => normalizarCurso(p.curso) === alvo)
+ 
+-  if (exato) return exato
++  if (exatos.length > 0) return exatos
+ 
+   const nr = numeroDaNr(curso)
+ 
+   if (nr) {
+     const mesmaNr = doColaborador.filter((p) => numeroDaNr(p.curso) === nr)
+ 
+-    if (mesmaNr.length === 0) return null
++    if (mesmaNr.length === 0) return []
+ 
+     const quaisCert = qualificadores(curso)
+ 
+@@ -204,21 +227,122 @@ export function acharProgresso(
+       return quaisEad.length === 0
+     })
+ 
+-    return maiorPrimeiro(compativeis.length > 0 ? compativeis : mesmaNr)
++    return compativeis.length > 0 ? compativeis : mesmaNr
+   }
+ 
+   /* Cursos sem NR: Brigada de Incendio, Primeiros Socorros... */
+   const palavras = alvo.split(' ').filter((t) => t.length > 3)
+ 
+-  const porPalavra = doColaborador.filter((p) => {
++  return doColaborador.filter((p) => {
+     const texto = normalizarCurso(p.curso)
+ 
+     return palavras.length > 0 && palavras.every((t) => texto.includes(t))
+   })
++}
++
++function maiorProgresso(lista: Progresso[]) {
++  return [...lista].sort((a, b) => b.progresso - a.progresso)[0] || null
++}
++
++/* Matricula de maior andamento entre as que batem com o curso. */
++export function acharProgresso(
++  email: string | null,
++  curso: string | null,
++  progressos: Progresso[]
++): Progresso | null {
++  return maiorProgresso(candidatosDoCurso(email, curso, progressos))
++}
++
++/* Certificado ja emitido: tem emissao, validade ou arquivo. */
++function jaEmitido(c: CertificadoComProgresso) {
++  return Boolean(c.emissao || c.validade || c.link_certificado)
++}
++
++function chaveDaMatricula(p: Progresso) {
++  return [
++    p.email.toLowerCase().trim(),
++    normalizarCurso(p.curso),
++    p.inicio || '',
++  ].join('|')
++}
++
++/*
++ * Progresso de cada certificado, sem que dois certificados dividam a
++ * mesma matricula do EAD.
++ *
++ * Regra:
++ *   1. Certificados ja emitidos escolhem primeiro (do mais antigo para
++ *      o mais novo). Cada um fica com a matricula mais adiantada entre
++ *      as iniciadas ate a data de emissao; sem data, a mais adiantada.
++ *   2. Os demais (recem-liberados) ficam com a matricula mais recente
++ *      que sobrou.
++ *   3. Se nao sobrar nenhuma, o certificado fica "Sem matricula" — em
++ *      vez de copiar o percentual de outro certificado.
++ *
++ * Certificados e Treinamentos chamam SEMPRE esta funcao, para os
++ * numeros baterem.
++ */
++export function progressosDosCertificados<T extends CertificadoComProgresso>(
++  certificados: T[],
++  progressos: Progresso[]
++): Map<T, Progresso | null> {
++  const resultado = new Map<T, Progresso | null>()
++  const usadas = new Set<string>()
++
++  const doEad = certificados.filter((c) => {
++    if (c.progresso_origem === 'manual') {
++      resultado.set(c, progressoDoCertificado(c, progressos))
++      return false
++    }
++
++    return true
++  })
++
++  const data = (v: string | null | undefined) => v || ''
++
++  const emitidos = doEad
++    .filter(jaEmitido)
++    .sort((a, b) =>
++      (data(a.emissao) || '9999').localeCompare(data(b.emissao) || '9999') ||
++      data(a.created_at).localeCompare(data(b.created_at))
++    )
++
++  const novos = doEad
++    .filter((c) => !jaEmitido(c))
++    .sort((a, b) => data(b.created_at).localeCompare(data(a.created_at)))
+ 
+-  if (porPalavra.length === 0) return null
++  for (const c of emitidos) {
++    const livres = candidatosDoCurso(c.email_colaborador, c.curso, progressos)
++      .filter((p) => !usadas.has(chaveDaMatricula(p)))
++
++    const ate = c.emissao
++      ? livres.filter((p) => !p.inicio || p.inicio <= (c.emissao as string))
++      : []
++
++    const escolhida = maiorProgresso(ate.length > 0 ? ate : livres)
++
++    if (escolhida) usadas.add(chaveDaMatricula(escolhida))
++
++    resultado.set(c, escolhida ? { ...escolhida, origem: 'ead' } : null)
++  }
++
++  for (const c of novos) {
++    const livres = candidatosDoCurso(c.email_colaborador, c.curso, progressos)
++      .filter((p) => !usadas.has(chaveDaMatricula(p)))
++      .sort(
++        (a, b) =>
++          data(b.inicio).localeCompare(data(a.inicio)) ||
++          b.progresso - a.progresso
++      )
++
++    const escolhida = livres[0] || null
++
++    if (escolhida) usadas.add(chaveDaMatricula(escolhida))
++
++    resultado.set(c, escolhida ? { ...escolhida, origem: 'ead' } : null)
++  }
+ 
+-  return maiorPrimeiro(porPalavra)
++  return resultado
+ }
+ 
+ export type Etapa = 'concluido' | 'andamento' | 'nao_iniciado' | 'sem_dados'
+diff --git a/supabase/ead-matriculas-repetidas.sql b/supabase/ead-matriculas-repetidas.sql
+new file mode 100644
+index 0000000..4fa00f5
+--- /dev/null
++++ b/supabase/ead-matriculas-repetidas.sql
+@@ -0,0 +1,78 @@
++-- ============================================================
++-- EAD: matriculas repetidas do mesmo curso
++-- ============================================================
++-- Problema: treinamentos_progresso aceitava uma unica linha por
++-- e-mail + curso. Quando o colaborador recebe o mesmo curso de novo
++-- (ex.: NR 33 em 2025 com 95% e nova liberacao em 01/10/2026 com 0%),
++-- as duas matriculas viravam uma so.
++--
++-- O que este script faz:
++--   1. Garante a coluna "inicio" (data de inicio da matricula).
++--   2. Remove a regra UNICA antiga (email, curso).
++--   3. Cria a regra UNICA nova (email, curso, inicio).
++--
++-- NAO apaga nenhuma linha. Pode rodar mais de uma vez.
++-- Depois de rodar: Certificados > "Atualizar agora".
++-- ============================================================
++
++alter table public.treinamentos_progresso
++  add column if not exists inicio date;
++
++do $$
++declare
++  r record;
++begin
++  -- Constraints UNIQUE / PK exatamente em (email, curso)
++  for r in
++    select c.conname
++    from pg_constraint c
++    where c.conrelid = 'public.treinamentos_progresso'::regclass
++      and c.contype in ('u')
++      and (
++        select array_agg(a.attname::text order by a.attname)
++        from unnest(c.conkey) k
++        join pg_attribute a
++          on a.attrelid = c.conrelid and a.attnum = k
++      ) = array['curso', 'email']
++  loop
++    execute format(
++      'alter table public.treinamentos_progresso drop constraint %I',
++      r.conname
++    );
++  end loop;
++
++  -- Indices UNIQUE soltos exatamente em (email, curso)
++  for r in
++    select i.indexrelid::regclass::text as nome
++    from pg_index i
++    where i.indrelid = 'public.treinamentos_progresso'::regclass
++      and i.indisunique
++      and not i.indisprimary
++      and (
++        select array_agg(a.attname::text order by a.attname)
++        from unnest(i.indkey) k
++        join pg_attribute a
++          on a.attrelid = i.indrelid and a.attnum = k
++      ) = array['curso', 'email']
++  loop
++    execute format('drop index if exists %s', r.nome);
++  end loop;
++
++  -- Regra nova: uma linha por matricula
++  if not exists (
++    select 1
++    from pg_constraint
++    where conrelid = 'public.treinamentos_progresso'::regclass
++      and conname = 'treinamentos_progresso_matricula_key'
++  ) then
++    alter table public.treinamentos_progresso
++      add constraint treinamentos_progresso_matricula_key
++      unique nulls not distinct (email, curso, inicio);
++  end if;
++end $$;
++
++-- Conferencia: deve listar treinamentos_progresso_matricula_key
++select conname, pg_get_constraintdef(oid)
++from pg_constraint
++where conrelid = 'public.treinamentos_progresso'::regclass
++  and contype in ('u', 'p');
+-- 
+2.43.0
+
