@@ -446,24 +446,26 @@ export async function GET(request: Request) {
 
     const agora = new Date().toISOString()
 
-    const unicos = new Map<string, Linha>()
+    /*
+     * Uma linha por MATRICULA (e-mail + curso + data de inicio). O mesmo
+     * curso pode ser liberado de novo para o colaborador (ex.: NR 33 em
+     * 2025 e outra vez em 2026); antes as duas viravam uma so e o
+     * certificado novo herdava o percentual do antigo.
+     */
+    const porMatricula = new Map<string, Linha>()
 
     for (const linha of encontrados) {
-      const chave = linha.email + '|' + linha.curso.toUpperCase()
+      const chave =
+        linha.email + '|' + linha.curso.toUpperCase() + '|' + (linha.inicio || '')
 
-      const anterior = unicos.get(chave)
+      const anterior = porMatricula.get(chave)
 
-      /*
-       * O mesmo curso pode aparecer em mais de uma matricula do aluno.
-       * Fica valendo a matricula ativa e, entre iguais, a de maior
-       * andamento.
-       */
       if (!anterior || melhorLinha(linha, anterior) === linha) {
-        unicos.set(chave, linha)
+        porMatricula.set(chave, linha)
       }
     }
 
-    const registros = [...unicos.values()].map((l) => ({
+    const paraRegistro = (l: Linha) => ({
       email: l.email,
       aluno: l.aluno,
       curso: l.curso,
@@ -472,14 +474,42 @@ export async function GET(request: Request) {
       inicio: l.inicio,
       origem: 'maestrus',
       atualizado_em: agora,
-    }))
+    })
+
+    let registros = [...porMatricula.values()].map(paraRegistro)
 
     if (registros.length > 0) {
       const { error: erroGravacao } = await supabaseAdmin
         .from('treinamentos_progresso')
-        .upsert(registros, { onConflict: 'email,curso' })
+        .upsert(registros, { onConflict: 'email,curso,inicio' })
 
-      if (erroGravacao) throw erroGravacao
+      /*
+       * 42P10: o banco ainda tem a regra antiga (uma linha por e-mail +
+       * curso). Ate rodar supabase/ead-matriculas-repetidas.sql, grava
+       * do jeito antigo para a rotina nao parar.
+       */
+      if (erroGravacao && erroGravacao.code === '42P10') {
+        const unicos = new Map<string, Linha>()
+
+        for (const linha of encontrados) {
+          const chave = linha.email + '|' + linha.curso.toUpperCase()
+          const anterior = unicos.get(chave)
+
+          if (!anterior || melhorLinha(linha, anterior) === linha) {
+            unicos.set(chave, linha)
+          }
+        }
+
+        registros = [...unicos.values()].map(paraRegistro)
+
+        const antiga = await supabaseAdmin
+          .from('treinamentos_progresso')
+          .upsert(registros, { onConflict: 'email,curso' })
+
+        if (antiga.error) throw antiga.error
+      } else if (erroGravacao) {
+        throw erroGravacao
+      }
     }
 
     await registrar(
@@ -494,6 +524,7 @@ export async function GET(request: Request) {
       sucesso: true,
       colaboradores: emails.length,
       registros: registros.length,
+      gravados: registros.length,
       sem_cadastro_no_ead: semCadastro,
     })
   } catch (erro) {
