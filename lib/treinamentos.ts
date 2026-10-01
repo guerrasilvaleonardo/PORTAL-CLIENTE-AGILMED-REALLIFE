@@ -17,6 +17,8 @@ export type Progresso = {
   progresso: number
   situacao: string | null
   atualizado_em: string
+  /* Data de inicio da matricula no EAD (AAAA-MM-DD). */
+  inicio?: string | null
   /* 'manual' quando veio do lancamento presencial, nao do EAD. */
   origem?: OrigemProgresso
 }
@@ -44,7 +46,12 @@ export const ROTULO_ETAPA_MANUAL: Record<EtapaManual, string> = {
 
 /* O que um certificado precisa ter para sabermos o progresso dele. */
 export type CertificadoComProgresso = {
+  id?: string
   email_colaborador: string | null
+  emissao?: string | null
+  validade?: string | null
+  link_certificado?: string | null
+  created_at?: string | null
   curso: string | null
   progresso_origem?: OrigemProgresso | null
   progresso_etapa?: EtapaManual | null
@@ -155,42 +162,58 @@ export function qualificadores(texto: string) {
 }
 
 /*
- * Acha a matricula do EAD que corresponde a um certificado.
- * Devolve null quando o colaborador nao tem e-mail, nao tem
- * matricula, ou nenhuma matricula bate com o curso.
+ * Todas as matriculas do EAD que podem corresponder a um certificado.
+ * Lista vazia quando o colaborador nao tem e-mail, nao tem matricula,
+ * ou nenhuma matricula bate com o curso.
+ *
+ * O mesmo curso pode aparecer mais de uma vez (ex.: NR 33 feito em
+ * 2025 e liberado de novo em 2026). Por isso devolvemos todas — quem
+ * decide qual vai para qual certificado e progressosDosCertificados.
  */
-export function acharProgresso(
+export function candidatosDoCurso(
   email: string | null,
   curso: string | null,
   progressos: Progresso[]
-): Progresso | null {
-  if (!email) return null
+): Progresso[] {
+  if (!email) return []
 
   const alvoEmail = email.toLowerCase().trim()
 
-  const doColaborador = progressos.filter(
+  const todas = progressos.filter(
     (p) => p.email.toLowerCase().trim() === alvoEmail
   )
 
-  if (doColaborador.length === 0) return null
+  /*
+   * Vale so a ultima leitura do EAD para este colaborador. Linhas que a
+   * leitura mais recente nao tocou (ex.: a linha unica gravada antes de
+   * separarmos matriculas repetidas) ficam de fora, para nao virarem uma
+   * "matricula fantasma".
+   */
+  const ultima = todas.reduce(
+    (max, p) => ((p.atualizado_em || '') > max ? p.atualizado_em || '' : max),
+    ''
+  )
 
-  const maiorPrimeiro = (lista: Progresso[]) =>
-    [...lista].sort((a, b) => b.progresso - a.progresso)[0]
+  const doColaborador = todas.filter(
+    (p) => (p.atualizado_em || '') === ultima
+  )
 
-  if (!curso) return maiorPrimeiro(doColaborador)
+  if (doColaborador.length === 0) return []
+
+  if (!curso) return doColaborador
 
   const alvo = normalizarCurso(curso)
 
-  const exato = doColaborador.find((p) => normalizarCurso(p.curso) === alvo)
+  const exatos = doColaborador.filter((p) => normalizarCurso(p.curso) === alvo)
 
-  if (exato) return exato
+  if (exatos.length > 0) return exatos
 
   const nr = numeroDaNr(curso)
 
   if (nr) {
     const mesmaNr = doColaborador.filter((p) => numeroDaNr(p.curso) === nr)
 
-    if (mesmaNr.length === 0) return null
+    if (mesmaNr.length === 0) return []
 
     const quaisCert = qualificadores(curso)
 
@@ -204,21 +227,122 @@ export function acharProgresso(
       return quaisEad.length === 0
     })
 
-    return maiorPrimeiro(compativeis.length > 0 ? compativeis : mesmaNr)
+    return compativeis.length > 0 ? compativeis : mesmaNr
   }
 
   /* Cursos sem NR: Brigada de Incendio, Primeiros Socorros... */
   const palavras = alvo.split(' ').filter((t) => t.length > 3)
 
-  const porPalavra = doColaborador.filter((p) => {
+  return doColaborador.filter((p) => {
     const texto = normalizarCurso(p.curso)
 
     return palavras.length > 0 && palavras.every((t) => texto.includes(t))
   })
+}
 
-  if (porPalavra.length === 0) return null
+function maiorProgresso(lista: Progresso[]) {
+  return [...lista].sort((a, b) => b.progresso - a.progresso)[0] || null
+}
 
-  return maiorPrimeiro(porPalavra)
+/* Matricula de maior andamento entre as que batem com o curso. */
+export function acharProgresso(
+  email: string | null,
+  curso: string | null,
+  progressos: Progresso[]
+): Progresso | null {
+  return maiorProgresso(candidatosDoCurso(email, curso, progressos))
+}
+
+/* Certificado ja emitido: tem emissao, validade ou arquivo. */
+function jaEmitido(c: CertificadoComProgresso) {
+  return Boolean(c.emissao || c.validade || c.link_certificado)
+}
+
+function chaveDaMatricula(p: Progresso) {
+  return [
+    p.email.toLowerCase().trim(),
+    normalizarCurso(p.curso),
+    p.inicio || '',
+  ].join('|')
+}
+
+/*
+ * Progresso de cada certificado, sem que dois certificados dividam a
+ * mesma matricula do EAD.
+ *
+ * Regra:
+ *   1. Certificados ja emitidos escolhem primeiro (do mais antigo para
+ *      o mais novo). Cada um fica com a matricula mais adiantada entre
+ *      as iniciadas ate a data de emissao; sem data, a mais adiantada.
+ *   2. Os demais (recem-liberados) ficam com a matricula mais recente
+ *      que sobrou.
+ *   3. Se nao sobrar nenhuma, o certificado fica "Sem matricula" — em
+ *      vez de copiar o percentual de outro certificado.
+ *
+ * Certificados e Treinamentos chamam SEMPRE esta funcao, para os
+ * numeros baterem.
+ */
+export function progressosDosCertificados<T extends CertificadoComProgresso>(
+  certificados: T[],
+  progressos: Progresso[]
+): Map<T, Progresso | null> {
+  const resultado = new Map<T, Progresso | null>()
+  const usadas = new Set<string>()
+
+  const doEad = certificados.filter((c) => {
+    if (c.progresso_origem === 'manual') {
+      resultado.set(c, progressoDoCertificado(c, progressos))
+      return false
+    }
+
+    return true
+  })
+
+  const data = (v: string | null | undefined) => v || ''
+
+  const emitidos = doEad
+    .filter(jaEmitido)
+    .sort((a, b) =>
+      (data(a.emissao) || '9999').localeCompare(data(b.emissao) || '9999') ||
+      data(a.created_at).localeCompare(data(b.created_at))
+    )
+
+  const novos = doEad
+    .filter((c) => !jaEmitido(c))
+    .sort((a, b) => data(b.created_at).localeCompare(data(a.created_at)))
+
+  for (const c of emitidos) {
+    const livres = candidatosDoCurso(c.email_colaborador, c.curso, progressos)
+      .filter((p) => !usadas.has(chaveDaMatricula(p)))
+
+    const ate = c.emissao
+      ? livres.filter((p) => !p.inicio || p.inicio <= (c.emissao as string))
+      : []
+
+    const escolhida = maiorProgresso(ate.length > 0 ? ate : livres)
+
+    if (escolhida) usadas.add(chaveDaMatricula(escolhida))
+
+    resultado.set(c, escolhida ? { ...escolhida, origem: 'ead' } : null)
+  }
+
+  for (const c of novos) {
+    const livres = candidatosDoCurso(c.email_colaborador, c.curso, progressos)
+      .filter((p) => !usadas.has(chaveDaMatricula(p)))
+      .sort(
+        (a, b) =>
+          data(b.inicio).localeCompare(data(a.inicio)) ||
+          b.progresso - a.progresso
+      )
+
+    const escolhida = livres[0] || null
+
+    if (escolhida) usadas.add(chaveDaMatricula(escolhida))
+
+    resultado.set(c, escolhida ? { ...escolhida, origem: 'ead' } : null)
+  }
+
+  return resultado
 }
 
 export type Etapa = 'concluido' | 'andamento' | 'nao_iniciado' | 'sem_dados'
