@@ -307,6 +307,12 @@ export default function CertificadosPage() {
         return
       }
 
+      /* Leitura recente: o servidor nao leu o EAD de novo, so avisou. */
+      if (corpo?.recente) {
+        setMensagem(corpo?.aviso || 'O progresso já foi atualizado há pouco.')
+        return
+      }
+
       const semCadastro: string[] = corpo?.sem_cadastro_no_ead || []
 
       setMensagem(
@@ -748,6 +754,18 @@ export default function CertificadosPage() {
         </div>
 
         <div className="topbar-spacer" />
+
+        {/* Cliente: o botao da equipe fica no painel de cadastro, que ele nao ve. */}
+        {!interno && (
+          <button
+            type="button"
+            className="btn"
+            onClick={atualizarEad}
+            disabled={atualizandoEad}
+          >
+            {atualizandoEad ? 'Atualizando...' : 'Atualizar progresso do EAD'}
+          </button>
+        )}
 
         <Link href="/treinamentos" className="btn">
           Relatório de treinamentos
