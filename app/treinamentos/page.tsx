@@ -195,8 +195,14 @@ export default function TreinamentosPage() {
 
       const corpo = await resposta.json()
 
-      if (!resposta.ok) {
+      if (!resposta.ok || corpo?.sucesso === false) {
         throw new Error(corpo?.erro || 'Não foi possível atualizar.')
+      }
+
+      /* Leitura recente: o servidor nao leu o EAD de novo, so avisou. */
+      if (corpo?.recente) {
+        setMensagem(corpo?.aviso || 'O progresso já foi atualizado há pouco.')
+        return
       }
 
       setMensagem(
@@ -548,16 +554,15 @@ export default function TreinamentosPage() {
           <div className="section-title">Por colaborador</div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            {interno && (
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={atualizarEad}
-                disabled={atualizando}
-              >
-                {atualizando ? 'Atualizando...' : 'Atualizar do EAD'}
-              </button>
-            )}
+            {/* Equipe e cliente: o servidor limita o cliente a empresa dele. */}
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={atualizarEad}
+              disabled={atualizando}
+            >
+              {atualizando ? 'Atualizando...' : 'Atualizar do EAD'}
+            </button>
 
             <button
               type="button"
