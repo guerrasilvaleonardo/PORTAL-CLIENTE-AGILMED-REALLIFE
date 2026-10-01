@@ -9,7 +9,7 @@ import {
   formatarDataHora,
   normalizarCurso,
   PILL_ETAPA,
-  progressoDoCertificado,
+  progressosDosCertificados,
   ROTULO_ETAPA,
   type EtapaManual,
   type Etapa,
@@ -34,6 +34,9 @@ type Certificado = {
   curso: string | null
   tipo: string
   validade: string | null
+  emissao?: string | null
+  link_certificado?: string | null
+  created_at?: string | null
   progresso_origem?: OrigemProgresso | null
   progresso_etapa?: EtapaManual | null
   progresso_manual?: number | null
@@ -41,10 +44,10 @@ type Certificado = {
 }
 
 const COLUNAS_CERT =
-  'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, validade'
+  'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, validade, emissao, link_certificado'
 
 const COLUNAS_PROGRESSO_MANUAL =
-  ', progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
+  ', created_at, progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
 
 type Linha = {
   id: string
@@ -145,9 +148,18 @@ export default function TreinamentosPage() {
 
       if (erroCerts) throw erroCerts
 
-      const { data: prog } = await supabase
+      /* "inicio" separa matriculas repetidas do mesmo curso. */
+      let { data: prog, error: erroProgresso } = await supabase
         .from('treinamentos_progresso')
-        .select('email, curso, progresso, situacao, atualizado_em')
+        .select('email, curso, progresso, situacao, atualizado_em, inicio')
+
+      if (erroProgresso) {
+        const antiga = await supabase
+          .from('treinamentos_progresso')
+          .select('email, curso, progresso, situacao, atualizado_em')
+
+        prog = antiga.data as typeof prog
+      }
 
       setCertificados((certs || []) as unknown as Certificado[])
       setProgressos((prog || []) as Progresso[])
@@ -213,8 +225,10 @@ export default function TreinamentosPage() {
 
   /* Uma linha por certificado, com a matricula do EAD ao lado. */
   const linhas = useMemo<Linha[]>(() => {
+    const porCertificado = progressosDosCertificados(certificados, progressos)
+
     return certificados.map((c) => {
-      const registro = progressoDoCertificado(c, progressos)
+      const registro = porCertificado.get(c) ?? null
 
       return {
         id: c.id,
