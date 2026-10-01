@@ -23,37 +23,62 @@ const PADRAO_URL = 'https://reallifessma.maestrus.com'
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
 /*
- * Aceita a chamada do agendador da Vercel (CRON_SECRET) e tambem o
- * botao "Atualizar agora" da tela de Certificados, usado por quem e da
- * equipe interna.
+ * Quem pode disparar a leitura:
+ *   - o agendador da Vercel (CRON_SECRET)        -> todos os clientes
+ *   - equipe interna (botao "Atualizar agora")    -> todos os clientes
+ *   - cliente ativo (botao na tela dele)          -> SO a empresa dele
+ *
+ * empresaId = null significa "todas as empresas".
  */
-async function autorizado(request: Request) {
+type Acesso =
+  | { ok: false }
+  | { ok: true; empresaId: string | null; cliente: boolean }
+
+async function autorizado(request: Request): Promise<Acesso> {
   const cabecalho = request.headers.get('authorization') || ''
 
   const segredo = process.env.CRON_SECRET
 
-  if (!segredo) return true
+  if (!segredo) return { ok: true, empresaId: null, cliente: false }
 
-  if (cabecalho === 'Bearer ' + segredo) return true
+  if (cabecalho === 'Bearer ' + segredo) {
+    return { ok: true, empresaId: null, cliente: false }
+  }
 
   const token = cabecalho.replace(/^Bearer /i, '').trim()
 
-  if (!token) return false
+  if (!token) return { ok: false }
 
   const { data, error } = await supabaseAdmin.auth.getUser(token)
 
-  if (error || !data?.user) return false
+  if (error || !data?.user) return { ok: false }
 
   const { data: perfil } = await supabaseAdmin
     .from('profiles')
-    .select('perfil, ativo')
+    .select('perfil, ativo, empresa_id')
     .eq('id', data.user.id)
     .single()
 
-  return Boolean(
-    perfil && perfil.ativo === true && PERFIS_INTERNOS.includes(perfil.perfil)
-  )
+  if (!perfil || perfil.ativo !== true) return { ok: false }
+
+  if (PERFIS_INTERNOS.includes(perfil.perfil)) {
+    return { ok: true, empresaId: null, cliente: false }
+  }
+
+  /* Cliente sem empresa vinculada nao enxerga nada — nao pode disparar. */
+  if (perfil.perfil === 'cliente' && perfil.empresa_id) {
+    return { ok: true, empresaId: String(perfil.empresa_id), cliente: true }
+  }
+
+  return { ok: false }
 }
+
+/*
+ * Intervalo minimo entre duas leituras disparadas pelo cliente.
+ * Cada leitura entra no EAD e busca colaborador por colaborador; sem
+ * limite, cliques repetidos sobrecarregam o Maestrus e a Vercel.
+ */
+const INTERVALO_CLIENTE_MIN = 10
 
 /* ------------------------------------------------------------------ */
 /* Cookies                                                             */
@@ -216,9 +241,13 @@ function lerLinhas(conteudo: string): Linha[] {
 /* ------------------------------------------------------------------ */
 
 export async function GET(request: Request) {
-  if (!(await autorizado(request))) {
+  const acesso = await autorizado(request)
+
+  if (!acesso.ok) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
+
+  const { empresaId, cliente } = acesso
 
   const base = (process.env.MAESTRUS_URL || PADRAO_URL).replace(/\/+$/, '')
   const usuario = process.env.MAESTRUS_EMAIL || ''
@@ -267,16 +296,108 @@ export async function GET(request: Request) {
     registros: number,
     detalhe: string
   ) {
+    const quem = empresaId ? '[empresa ' + empresaId + '] ' : ''
+
     await supabaseAdmin.from('treinamentos_sync_log').insert({
       origem: 'maestrus',
       registros,
       sucesso,
-      detalhe: detalhe.slice(0, 900),
+      detalhe: (quem + detalhe).slice(0, 900),
     })
   }
 
   try {
-    /* 1. Entrar na plataforma ------------------------------------- */
+    /* 1. E-mails registrados em Certificados ----------------------- */
+
+    /*
+     * So entram os certificados com progresso vindo do EAD. Os
+     * presenciais (progresso_origem = 'manual') sao atualizados a mao
+     * e nao devem gerar busca nem aviso de "sem matricula no EAD".
+     * Se a coluna ainda nao existir (migracao nao rodada), cai na
+     * leitura antiga em vez de derrubar a rotina.
+     */
+    let consulta = supabaseAdmin
+      .from('certificados')
+      .select('email_colaborador')
+      .not('email_colaborador', 'is', null)
+      .neq('progresso_origem', 'manual')
+
+    if (empresaId) consulta = consulta.eq('empresa_id', empresaId)
+
+    let { data: certificados, error: erroCertificados } = await consulta
+
+    if (erroCertificados && erroCertificados.code === '42703') {
+      let consultaAntiga = supabaseAdmin
+        .from('certificados')
+        .select('email_colaborador')
+        .not('email_colaborador', 'is', null)
+
+      if (empresaId) consultaAntiga = consultaAntiga.eq('empresa_id', empresaId)
+
+      const antiga = await consultaAntiga
+
+      certificados = antiga.data
+      erroCertificados = antiga.error
+    }
+
+    if (erroCertificados) throw erroCertificados
+
+    const emails = [
+      ...new Set(
+        (certificados || [])
+          .map((c) => (c.email_colaborador || '').toLowerCase().trim())
+          .filter(Boolean)
+      ),
+    ]
+
+    if (emails.length === 0) {
+      await registrar(true, 0, 'Nenhum colaborador com e-mail registrado.')
+
+      return NextResponse.json({
+        sucesso: true,
+        registros: 0,
+        aviso:
+          'Nenhum certificado tem e-mail de colaborador preenchido ainda.',
+      })
+    }
+
+    /*
+     * Cliente: uma leitura a cada INTERVALO_CLIENTE_MIN minutos. Vale a
+     * leitura mais recente dos colaboradores DELE, venha ela do
+     * agendador, da equipe ou do proprio cliente.
+     */
+    if (cliente) {
+      const { data: recente } = await supabaseAdmin
+        .from('treinamentos_progresso')
+        .select('atualizado_em')
+        .in('email', emails)
+        .order('atualizado_em', { ascending: false })
+        .limit(1)
+
+      const ultima = recente?.[0]?.atualizado_em
+
+      if (ultima) {
+        const minutos = (Date.now() - new Date(ultima).getTime()) / 60000
+
+        if (minutos < INTERVALO_CLIENTE_MIN) {
+          const espera = Math.max(1, Math.ceil(INTERVALO_CLIENTE_MIN - minutos))
+
+          return NextResponse.json({
+            sucesso: true,
+            registros: 0,
+            recente: true,
+            aviso:
+              'O progresso foi atualizado há menos de ' +
+              INTERVALO_CLIENTE_MIN +
+              ' minutos. Tente de novo em ' +
+              espera +
+              ' minuto(s).',
+          })
+        }
+      }
+    }
+
+    /* 2. Entrar na plataforma ------------------------------------- */
 
     const paginaLogin = await pedir('/ead/login/')
     const htmlLogin = await paginaLogin.text()
@@ -317,57 +438,11 @@ export async function GET(request: Request) {
       )
     }
 
-    /* 2. Renovar o csrf na tela de matrículas ---------------------- */
+    /* 3. Renovar o csrf na tela de matrículas ---------------------- */
 
     const telaLista = await pedir('/ead/gestao-cursos/matriculas/')
     const htmlLista = await telaLista.text()
     const csrf = tokenDoFormulario(htmlLista) || jar.get('csrftoken') || ''
-
-    /* 3. E-mails registrados em Certificados ----------------------- */
-
-    /*
-     * So entram os certificados com progresso vindo do EAD. Os
-     * presenciais (progresso_origem = 'manual') sao atualizados a mao
-     * e nao devem gerar busca nem aviso de "sem matricula no EAD".
-     * Se a coluna ainda nao existir (migracao nao rodada), cai na
-     * leitura antiga em vez de derrubar a rotina.
-     */
-    let { data: certificados, error: erroCertificados } = await supabaseAdmin
-      .from('certificados')
-      .select('email_colaborador')
-      .not('email_colaborador', 'is', null)
-      .neq('progresso_origem', 'manual')
-
-    if (erroCertificados && erroCertificados.code === '42703') {
-      const antiga = await supabaseAdmin
-        .from('certificados')
-        .select('email_colaborador')
-        .not('email_colaborador', 'is', null)
-
-      certificados = antiga.data
-      erroCertificados = antiga.error
-    }
-
-    if (erroCertificados) throw erroCertificados
-
-    const emails = [
-      ...new Set(
-        (certificados || [])
-          .map((c) => (c.email_colaborador || '').toLowerCase().trim())
-          .filter(Boolean)
-      ),
-    ]
-
-    if (emails.length === 0) {
-      await registrar(true, 0, 'Nenhum colaborador com e-mail registrado.')
-
-      return NextResponse.json({
-        sucesso: true,
-        registros: 0,
-        aviso:
-          'Nenhum certificado tem e-mail de colaborador preenchido ainda.',
-      })
-    }
 
     /* 4. Buscar cada colaborador no EAD ---------------------------- */
 
