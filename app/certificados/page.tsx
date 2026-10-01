@@ -11,7 +11,7 @@ import {
   formatarDataHora,
   numeroDaNr,
   percentualManual,
-  progressoDoCertificado,
+  progressosDosCertificados,
   ROTULO_ETAPA_MANUAL,
   type EtapaManual,
   type OrigemProgresso,
@@ -264,9 +264,24 @@ export default function CertificadosPage() {
     }))
   }
 
-  /* A mesma regra usada no relatorio de Treinamentos. */
-  function progressoDe(c: Certificado) {
-    return progressoDoCertificado(c, progressos)
+  /*
+   * A mesma regra usada no relatorio de Treinamentos: cada matricula do
+   * EAD vai para um unico certificado (curso repetido em anos
+   * diferentes nao divide mais o mesmo percentual).
+   */
+  const progressoPorId = useMemo(() => {
+    const mapa = new Map<string, Progresso | null>()
+
+    progressosDosCertificados(certificados, progressos).forEach((p, c) => {
+      mapa.set(c.id, p)
+    })
+
+    return mapa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [certificados, progressos])
+
+  function progressoDe(c: Certificado): Progresso | null {
+    return progressoPorId.get(c.id) ?? null
   }
 
   async function atualizarEad() {
@@ -379,9 +394,18 @@ export default function CertificadosPage() {
         }))
       )
 
-      const { data: progressoData } = await supabase
+      /* "inicio" separa matriculas repetidas do mesmo curso. */
+      let { data: progressoData, error: erroProgresso } = await supabase
         .from('treinamentos_progresso')
-        .select('email, curso, progresso, situacao, atualizado_em')
+        .select('email, curso, progresso, situacao, atualizado_em, inicio')
+
+      if (erroProgresso) {
+        const antiga = await supabase
+          .from('treinamentos_progresso')
+          .select('email, curso, progresso, situacao, atualizado_em')
+
+        progressoData = antiga.data as typeof progressoData
+      }
 
       setProgressos((progressoData || []) as Progresso[])
     } catch (e: any) {
@@ -639,7 +663,7 @@ export default function CertificadosPage() {
       porTipo[c.tipo] = (porTipo[c.tipo] || 0) + 1
       porMes[m] = (porMes[m] || 0) + 1
 
-      if ((progressoDoCertificado(c, progressos)?.progresso ?? 0) >= 100) {
+      if ((progressoDe(c)?.progresso ?? 0) >= 100) {
         concluidos += 1
       }
 
