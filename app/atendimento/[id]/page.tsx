@@ -9,6 +9,8 @@ import { nomeDaEmpresa } from '@/lib/empresa'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
+import EtapasChamado from '@/components/EtapasChamado'
+import { marcas } from '@/lib/marca'
 
 type Chamado = {
   id: string
@@ -106,6 +108,21 @@ function descreverEvento(e: Evento) {
 
   if (e.tipo === 'mensagem') {
     return 'Mensagem na conversa'
+  }
+
+  if (e.tipo === 'etapa') {
+    const acoes: Record<string, string> = {
+      criada: 'Etapa criada',
+      concluida: 'Etapa concluída',
+      reaberta: 'Etapa reaberta',
+      removida: 'Etapa removida',
+    }
+
+    return (acoes[e.para || ''] || 'Etapa') + ': ' + (e.de || '—')
+  }
+
+  if (e.tipo === 'automacao') {
+    return e.observacao || 'Ação automática'
   }
 
   if (e.tipo === 'sla') {
@@ -2124,6 +2141,15 @@ export default function AtendimentoChamadoPage() {
                 </p>
               </div>
             </section>
+
+            <EtapasChamado
+              chamadoId={String(chamado.id)}
+              editavel
+              somenteLeitura={chamado.status === 'encerrado'}
+              cor={empresa?.marca === 'agilmed' ? marcas.agilmed.principal : marcas.reallife.principal}
+              cardStyle={cardStyle}
+              titleStyle={cardTitleStyle}
+            />
 
             <section
               style={cardStyle}
