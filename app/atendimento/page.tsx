@@ -54,6 +54,9 @@ function iniciais(nome?: string | null) {
 
 export default function AtendimentoPage() {
   const [chamados, setChamados] = useState<Chamado[]>([])
+  const [progresso, setProgresso] = useState<
+    Map<string, { total: number; concluidas: number; percentual: number }>
+  >(new Map())
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
@@ -119,6 +122,20 @@ export default function AtendimentoPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
+
+      /*
+       * % de etapas concluídas. Consulta à parte e tolerante a erro:
+       * se a view ainda não existir, o quadro carrega normalmente.
+       */
+      const { data: progressoData } = await supabase
+        .from('v_chamados_progresso')
+        .select('chamado_id, total, concluidas, percentual')
+
+      setProgresso(
+        new Map(
+          ((progressoData || []) as any[]).map((p) => [String(p.chamado_id), p])
+        )
+      )
 
       setChamados(
         (data || []).map((item: any) => ({
@@ -385,6 +402,7 @@ export default function AtendimentoPage() {
                 ) : (
                   daColuna.map((c) => {
                     const prazo = situacaoSla(c)
+                    const prog = progresso.get(String(c.id))
                     const atrasado = prazo.atrasado
 
                     return (
@@ -415,6 +433,29 @@ export default function AtendimentoPage() {
                           {' · '}
                           {c.categoria}
                         </div>
+
+                        {prog && (
+                          <div
+                            className="card-progresso"
+                            title={
+                              prog.concluidas +
+                              ' de ' +
+                              prog.total +
+                              ' etapa(s) concluída(s)'
+                            }
+                          >
+                            <div className="barra">
+                              <div
+                                className={
+                                  'preenchido' +
+                                  (prog.percentual === 100 ? ' completo' : '')
+                                }
+                                style={{ width: prog.percentual + '%' }}
+                              />
+                            </div>
+                            <span>{prog.percentual}%</span>
+                          </div>
+                        )}
 
                         <div className="card-meta">
                           <span className={'due' + (atrasado ? ' bad' : '')}>
