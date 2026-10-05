@@ -10,6 +10,7 @@ import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import type { Marca } from '@/lib/marca'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
+import EtapasChamado from '@/components/EtapasChamado'
 
 type Chamado = {
   id: string
@@ -403,6 +404,17 @@ export default function DetalhesChamadoPage() {
     }
 
     setMensagens((atual) => [...atual, mensagemFormatada])
+
+    /*
+     * Resposta do cliente em chamado resolvido: o banco devolve o
+     * chamado para "Em atendimento" (trigger em chamado_mensagens).
+     * Aqui só espelhamos isso na tela, sem esperar recarregar.
+     */
+    if (chamado?.status === 'resolvido') {
+      setChamado((atual) =>
+        atual ? { ...atual, status: 'em_atendimento', resolvido_em: null } : atual
+      )
+    }
 
     avisar('mensagem_nova', String(chamadoId), {
       mensagem: data.mensagem,
@@ -952,6 +964,14 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
             </div>
+
+            <EtapasChamado
+              chamadoId={String(chamado.id)}
+              editavel={false}
+              cor={tema.principal}
+              cardStyle={styles.card}
+              titleStyle={styles.cardTitle}
+            />
 
             <div style={styles.card}>
               <div style={styles.cardHeader}>
