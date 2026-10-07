@@ -8,6 +8,7 @@ import { avisar } from '@/lib/avisar';
 import { normalizarUrl } from '@/lib/links';
 import { HORAS_SLA, prazoEmHorasUteis, rotuloPrazo } from '@/lib/prazo';
 import type { Marca } from '@/lib/marca';
+import { SeletorParticipantes } from '@/components/ParticipantesChamado';
 
 const categorias = [
   'Saúde Ocupacional',
@@ -104,6 +105,13 @@ export default function NovoChamadoPage() {
   const [linkUrl, setLinkUrl] = useState('');
   const [interno, setInterno] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  /*
+   * Quem do cliente vê o chamado. Cliente abre restrito (só ele + quem
+   * marcar). A equipe abre para a empresa toda por padrão, senão
+   * ninguém do cliente enxergaria o chamado.
+   */
+  const [participantes, setParticipantes] = useState<string[]>([]);
+  const [todaEmpresa, setTodaEmpresa] = useState(false);
 
   useEffect(() => {
     async function carregarUsuario() {
@@ -140,6 +148,7 @@ export default function NovoChamadoPage() {
 
         setMarca(marcaEmpresa);
         setInterno(ehInterno);
+        setTodaEmpresa(ehInterno);
         setUsuarioId(perfil.id);
 
         /*
@@ -247,6 +256,10 @@ export default function NovoChamadoPage() {
           prioridade,
           status: 'aberto',
           prazo_sla: prazoSla,
+          visibilidade:
+            todaEmpresa || (interno && participantes.length === 0)
+              ? 'empresa'
+              : 'restrita',
         })
         .select('id, numero, prazo_sla')
         .single();
@@ -259,6 +272,21 @@ export default function NovoChamadoPage() {
         );
 
         return;
+      }
+
+      if (!todaEmpresa && participantes.length > 0) {
+        const { error: partError } = await supabase
+          .from('chamado_participantes')
+          .insert(
+            participantes.map((usuario) => ({
+              chamado_id: data.id,
+              usuario_id: usuario,
+            }))
+          );
+
+        if (partError) {
+          console.error(partError);
+        }
       }
 
       if (linkNormalizado) {
@@ -511,9 +539,10 @@ export default function NovoChamadoPage() {
 
                     <select
                       value={empresaId}
-                      onChange={(event) =>
-                        setEmpresaId(event.target.value)
-                      }
+                      onChange={(event) => {
+                        setEmpresaId(event.target.value);
+                        setParticipantes([]);
+                      }}
                       style={styles.input}
                       required
                     >
@@ -739,6 +768,30 @@ export default function NovoChamadoPage() {
                     de abrir o chamado.
                   </span>
                 </div>
+
+                {empresaId && (
+                  <div style={styles.field}>
+                    <label style={styles.label}>
+                      Quem da empresa pode ver este chamado
+                    </label>
+
+                    <SeletorParticipantes
+                      empresaId={empresaId}
+                      usuarioAtualId={usuarioId}
+                      selecionados={participantes}
+                      onSelecionados={setParticipantes}
+                      todaEmpresa={todaEmpresa}
+                      onTodaEmpresa={setTodaEmpresa}
+                      cor={tema.principal}
+                    />
+
+                    <span style={styles.helper}>
+                      {interno
+                        ? 'Sem ninguém marcado, o chamado fica visível para toda a empresa.'
+                        : 'Use "Só pessoas selecionadas" para assuntos que não devem ser vistos por todos. Nossa equipe sempre tem acesso.'}
+                    </span>
+                  </div>
+                )}
 
                 <div style={styles.attachmentBox}>
                   <div style={styles.attachmentIcon}>↥</div>
