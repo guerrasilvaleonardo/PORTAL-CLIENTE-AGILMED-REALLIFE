@@ -38,6 +38,8 @@ async function avisarCitados(
     nomeAutor: string
     nomeEmpresa: string
     chamadoId: string
+    empresaId: string
+    permitidos: Set<string> | null
   }
 ) {
   const apelidos = [
@@ -50,12 +52,18 @@ async function avisarCitados(
 
   const { data: pessoas } = await supabaseAdmin
     .from('profiles')
-    .select('id, nome, email, perfil')
+    .select('id, nome, email, perfil, empresa_id')
     .eq('ativo', true)
 
-  const citados = (pessoas || []).filter((p) => {
+  const citados = (pessoas || []).filter((p: any) => {
     if (p.id === autorId || !p.email) {
       return false
+    }
+
+    /* Citação só avisa quem pode ver o chamado. */
+    if (!PERFIS_INTERNOS.includes(p.perfil || '')) {
+      if (p.empresa_id !== dados.empresaId) return false
+      if (dados.permitidos && !dados.permitidos.has(p.id)) return false
     }
 
     const nome = semAcento(p.nome || '')
@@ -159,14 +167,42 @@ async function equipeInterna() {
  * acompanha de verdade, e os usuarios que aquela empresa tem no portal.
  * Os dois recebem, sem repetir quem aparece nas duas listas.
  */
-async function ladoDoCliente(empresaId: string, emailDaEmpresa?: string | null) {
+/*
+ * Quem do cliente pode receber avisos do chamado.
+ * Chamado 'restrito': só quem abriu + participantes (sem o e-mail
+ * geral da empresa, que pode ser lido por qualquer um lá dentro).
+ * Chamado da empresa toda (ou banco ainda sem a coluna): como antes.
+ */
+async function idsComAcessoNoCliente(chamado: any): Promise<Set<string> | null> {
+  if (!chamado?.visibilidade || chamado.visibilidade === 'empresa') {
+    return null
+  }
+
+  const { data } = await supabaseAdmin
+    .from('chamado_participantes')
+    .select('usuario_id')
+    .eq('chamado_id', chamado.id)
+
+  return new Set(
+    [chamado.criado_por, ...(data || []).map((p: any) => p.usuario_id)].filter(Boolean)
+  )
+}
+
+async function ladoDoCliente(chamado: any, emailDaEmpresa?: string | null) {
+  const permitidos = await idsComAcessoNoCliente(chamado)
+
   const { data } = await supabaseAdmin
     .from('profiles')
-    .select('email')
-    .eq('empresa_id', empresaId)
+    .select('id, email')
+    .eq('empresa_id', chamado.empresa_id)
     .eq('ativo', true)
 
-  const lista = [emailDaEmpresa || '', ...(data || []).map((p) => p.email || '')]
+  const usuarios = (data || []).filter((p: any) => !permitidos || permitidos.has(p.id))
+
+  const lista = [
+    permitidos ? '' : emailDaEmpresa || '',
+    ...usuarios.map((p: any) => p.email || ''),
+  ]
 
   const vistos = new Set<string>()
   const limpa: string[] = []
@@ -210,9 +246,7 @@ export async function POST(request: Request) {
 
     const { data: chamado, error: chamadoError } = await supabaseAdmin
       .from('chamados')
-      .select(
-        'id, numero, assunto, categoria, status, prioridade, empresa_id, criado_por, responsavel_id, prazo_sla'
-      )
+      .select('*')
       .eq('id', chamadoId)
       .maybeSingle()
 
@@ -242,6 +276,27 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     const autorEhInterno = PERFIS_INTERNOS.includes(autor?.perfil || '')
+
+    /*
+     * Só dispara aviso de chamado que a pessoa enxerga: equipe interna,
+     * ou usuário da empresa com acesso a este chamado.
+     */
+    if (!autorEhInterno) {
+      const { data: perfilAutor } = await supabaseAdmin
+        .from('profiles')
+        .select('empresa_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const permitidos = await idsComAcessoNoCliente(chamado)
+
+      if (
+        perfilAutor?.empresa_id !== chamado.empresa_id ||
+        (permitidos && !permitidos.has(user.id))
+      ) {
+        return NextResponse.json({ erro: 'Sem acesso a este chamado.' }, { status: 403 })
+      }
+    }
     const nomeAutor = autor?.nome || 'Equipe'
 
     const codigo = '#' + (chamado.numero ?? '')
@@ -333,7 +388,7 @@ export async function POST(request: Request) {
       const trecho = String(body.mensagem ?? '').slice(0, 400)
 
       if (autorEhInterno) {
-        para = await ladoDoCliente(chamado.empresa_id, empresa?.email)
+        para = await ladoDoCliente(chamado, empresa?.email)
 
         assunto = 'Resposta no chamado ' + codigo
 
@@ -407,7 +462,7 @@ export async function POST(request: Request) {
         ].filter(Boolean)
       }
     } else if (evento === 'status_alterado') {
-      para = await ladoDoCliente(chamado.empresa_id, empresa?.email)
+      para = await ladoDoCliente(chamado, empresa?.email)
 
       const rotulos: Record<string, string> = {
         aberto: 'Aberto',
@@ -632,7 +687,7 @@ export async function POST(request: Request) {
 
     if (resumoParaCliente.length > 0) {
       const doCliente = (
-        await ladoDoCliente(chamado.empresa_id, empresa?.email)
+        await ladoDoCliente(chamado, empresa?.email)
       ).filter((email) => !jaAvisados.has(email.trim().toLowerCase()))
 
       if (doCliente.length > 0) {
@@ -710,6 +765,8 @@ export async function POST(request: Request) {
         nomeAutor: nomeAutor,
         nomeEmpresa,
         chamadoId: chamado.id,
+        empresaId: chamado.empresa_id,
+        permitidos: await idsComAcessoNoCliente(chamado),
       })
     }
 
