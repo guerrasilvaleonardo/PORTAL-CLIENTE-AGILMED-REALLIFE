@@ -10,6 +10,7 @@ import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
 import EtapasChamado from '@/components/EtapasChamado'
+import ParticipantesChamado from '@/components/ParticipantesChamado'
 import { marcas } from '@/lib/marca'
 
 type Chamado = {
@@ -119,6 +120,16 @@ function descreverEvento(e: Evento) {
     }
 
     return (acoes[e.para || ''] || 'Etapa') + ': ' + (e.de || '—')
+  }
+
+  if (e.tipo === 'participante') {
+    return (e.para === 'removido' ? 'Participante removido: ' : 'Participante incluído: ') + (e.de || '—')
+  }
+
+  if (e.tipo === 'visibilidade') {
+    return e.para === 'empresa'
+      ? 'Chamado aberto para toda a empresa'
+      : 'Chamado restrito a pessoas selecionadas'
   }
 
   if (e.tipo === 'automacao') {
@@ -675,12 +686,15 @@ export default function AtendimentoChamadoPage() {
                     item.mensagem,
                   created_at:
                     item.created_at,
-                  autor_nome:
-                    perfil?.nome ||
-                    'Usuário',
-                  autor_perfil:
-                    perfil?.perfil ||
-                    'cliente',
+                  /* Sem autor = mensagem automática do portal. */
+                  autor_nome: !item.autor_id
+                    ? 'Assistente virtual'
+                    : perfil?.nome ||
+                      'Usuário',
+                  autor_perfil: !item.autor_id
+                    ? 'sistema'
+                    : perfil?.perfil ||
+                      'cliente',
                 }
               }
             )
@@ -2151,6 +2165,16 @@ export default function AtendimentoChamadoPage() {
               titleStyle={cardTitleStyle}
             />
 
+            <ParticipantesChamado
+              chamadoId={String(chamado.id)}
+              empresaId={String(chamado.empresa_id)}
+              criadoPor={chamado.criado_por}
+              podeGerenciar={chamado.status !== 'encerrado'}
+              cor={empresa?.marca === 'agilmed' ? marcas.agilmed.principal : marcas.reallife.principal}
+              cardStyle={cardStyle}
+              titleStyle={cardTitleStyle}
+            />
+
             <section
               style={cardStyle}
             >
@@ -2308,9 +2332,12 @@ export default function AtendimentoChamadoPage() {
                                     800,
                                 }}
                               >
-                                {equipe
-                                  ? 'Equipe'
-                                  : 'Cliente'}
+                                {mensagem.autor_perfil ===
+                                'sistema'
+                                  ? 'Automática'
+                                  : equipe
+                                    ? 'Equipe'
+                                    : 'Cliente'}
                               </span>
 
                               <span
