@@ -11,6 +11,7 @@ import type { ChamadoLink } from '@/lib/links'
 import type { Marca } from '@/lib/marca'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 import EtapasChamado from '@/components/EtapasChamado'
+import ParticipantesChamado from '@/components/ParticipantesChamado'
 
 type Chamado = {
   id: string
@@ -21,6 +22,7 @@ type Chamado = {
   prioridade: string
   status: string
   criado_por: string | null
+  empresa_id?: string | null
   prazo_sla: string | null
   resolvido_em: string | null
   encerrado_em: string | null
@@ -209,7 +211,7 @@ export default function DetalhesChamadoPage() {
       const { data: chamadoData, error: chamadoError } = await supabase
         .from('chamados')
         .select(
-          'id, numero, categoria, assunto, descricao, prioridade, status, criado_por, prazo_sla, resolvido_em, encerrado_em, avaliacao, comentario_avaliacao, created_at, updated_at'
+          'id, numero, empresa_id, categoria, assunto, descricao, prioridade, status, criado_por, prazo_sla, resolvido_em, encerrado_em, avaliacao, comentario_avaliacao, created_at, updated_at'
         )
         .eq('id', chamadoId)
         .single()
@@ -284,8 +286,13 @@ export default function DetalhesChamadoPage() {
                 autor_id: item.autor_id,
                 mensagem: item.mensagem,
                 created_at: item.created_at,
-                autor_nome: perfil?.nome || 'Usuário',
-                autor_perfil: perfil?.perfil || 'cliente',
+                /* Sem autor = mensagem automática do portal. */
+                autor_nome: !item.autor_id
+                  ? 'Assistente virtual'
+                  : perfil?.nome || 'Usuário',
+                autor_perfil: !item.autor_id
+                  ? 'sistema'
+                  : perfil?.perfil || 'cliente',
               }
             }
           )
@@ -973,6 +980,22 @@ export default function DetalhesChamadoPage() {
               titleStyle={styles.cardTitle}
             />
 
+            {chamado.empresa_id && (
+              <ParticipantesChamado
+                chamadoId={String(chamado.id)}
+                empresaId={String(chamado.empresa_id)}
+                criadoPor={chamado.criado_por}
+                podeGerenciar={
+                  !!usuarioId &&
+                  chamado.criado_por === usuarioId &&
+                  chamado.status !== 'encerrado'
+                }
+                cor={tema.principal}
+                cardStyle={styles.card}
+                titleStyle={styles.cardTitle}
+              />
+            )}
+
             <div style={styles.card}>
               <div style={styles.cardHeader}>
                 <h2 style={styles.cardTitle}>
@@ -1351,9 +1374,12 @@ export default function DetalhesChamadoPage() {
                             style={styles.profileTag}
                           >
                             {mensagem.autor_perfil ===
-                            'cliente'
-                              ? 'Cliente'
-                              : 'Equipe'}
+                            'sistema'
+                              ? 'Mensagem automática'
+                              : mensagem.autor_perfil ===
+                                  'cliente'
+                                ? 'Cliente'
+                                : 'Equipe'}
                           </span>
 
                           <span
