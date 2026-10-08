@@ -377,6 +377,14 @@ export default function PainelPage() {
       acao: 'Abrir fila',
     },
     {
+      href: '/atendimento/desempenho',
+      titulo: 'Desempenho',
+      texto: ehGestor
+        ? 'Resultado individual de cada atendente: volume, SLA, tempos e reabertura.'
+        : 'O seu resultado nos chamados: volume, SLA, tempos e reabertura.',
+      acao: 'Ver desempenho',
+    },
+    {
       href: '/certificados',
       titulo: 'Certificados',
       texto: 'Treinamentos e exames por colaborador, com o que vence primeiro no topo.',
@@ -733,6 +741,10 @@ export default function PainelPage() {
         <div className="panel">
           <div className="panel-head">
             <div className="section-title">Carga por atendente</div>
+
+            <Link href="/atendimento/desempenho" className="btn btn-sm">
+              Desempenho individual
+            </Link>
 
             {semDono > 0 && (
               <Link href="/atendimento?responsavel=sem" className="pill bad">
