@@ -189,6 +189,13 @@ export default function DetalhesChamadoPage() {
     total_area: number
   } | null>(null)
 
+  /*
+   * Nome de quem está cuidando do chamado. null = ainda sem
+   * responsável. Vem de uma função do banco que devolve só o nome,
+   * para não abrir os dados da equipe ao cliente.
+   */
+  const [atendente, setAtendente] = useState<string | null>(null)
+
   useEffect(() => {
     async function carregar() {
       setLoading(true)
@@ -240,6 +247,22 @@ export default function DetalhesChamadoPage() {
             }
           : null
       )
+
+      const { data: atendenteData, error: atendenteError } =
+        await supabase.rpc('atendente_do_chamado', {
+          p_chamado_id: chamadoId,
+        })
+
+      if (atendenteError) {
+        /* Função ainda não criada no banco: segue sem o nome. */
+        console.error(atendenteError)
+      }
+
+      const linhaAtendente = Array.isArray(atendenteData)
+        ? atendenteData[0]
+        : null
+
+      setAtendente(linhaAtendente?.nome || null)
 
       const { data: mensagensData, error: mensagensError } =
         await supabase
@@ -878,6 +901,19 @@ export default function DetalhesChamadoPage() {
                     solicitante?.nome
                       ? solicitante?.email || undefined
                       : undefined
+                  }
+                />
+
+                <Info
+                  label="Atendente responsável"
+                  value={atendente || 'Aguardando atribuição'}
+                  detalhe={
+                    atendente
+                      ? 'É quem está cuidando do seu chamado.'
+                      : chamado.status === 'resolvido' ||
+                          chamado.status === 'encerrado'
+                        ? undefined
+                        : 'Um atendente da nossa equipe vai assumir em breve.'
                   }
                 />
 
