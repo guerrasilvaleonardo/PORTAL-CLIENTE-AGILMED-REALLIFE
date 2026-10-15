@@ -100,6 +100,32 @@
   padding: 2px 7px; border-radius: 20px; letter-spacing: .02em;
 }
 
+/*
+ * Chamados atrasados piscam para chamar a atenção da equipe.
+ * Pulso lento (1,6s), bem abaixo do limite de 3 piscadas por segundo
+ * da WCAG 2.3.1, e desligado para quem pede menos movimento no sistema.
+ */
+@keyframes pisca-atraso {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+@keyframes pulsa-card-atraso {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185, 59, 44, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(185, 59, 44, .55); }
+}
+
+.badge-atraso,
+.sla-atrasado { animation: pisca-atraso 1.6s ease-in-out infinite; }
+
+.qcard.atrasado { animation: pulsa-card-atraso 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-atraso,
+  .sla-atrasado,
+  .qcard.atrasado { animation: none; }
+}
+
 .empty-col { color: var(--ink-faint); font-size: 12px; text-align: center; padding: 16px 6px; }
 
 .tv .stats,
