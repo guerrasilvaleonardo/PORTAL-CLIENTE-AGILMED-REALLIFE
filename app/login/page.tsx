@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -11,6 +11,18 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+
+  /*
+   * Aviso quando a pessoa chega aqui porque o login salvo expirou
+   * (ver lib/sessao.ts).
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+
+    if (params.get('sessao') === 'expirada') {
+      setErro('Sua sessão expirou. Entre novamente para continuar.')
+    }
+  }, [])
 
   async function entrar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
