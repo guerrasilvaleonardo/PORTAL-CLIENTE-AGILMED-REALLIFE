@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { duracaoUtil, situacaoSla, type ChaveSla } from '@/lib/prazo'
+import { duracaoUtil, prestesAAtrasar, situacaoSla, type ChaveSla } from '@/lib/prazo'
 import '../quadro.css'
 
 /*
@@ -572,7 +572,13 @@ export default function PrioridadesPage() {
                   </td>
 
                   <td
-                    className={c.sla.chave === 'atrasado' ? 'sla-atrasado' : undefined}
+                    className={
+                      c.sla.chave === 'atrasado'
+                        ? 'sla-atrasado'
+                        : prestesAAtrasar(c.sla)
+                          ? 'sla-alerta'
+                          : undefined
+                    }
                     style={{ ...celula, whiteSpace: 'nowrap', color: COR_SLA[c.sla.chave], fontWeight: 600 }}
                   >
                     {ROTULO_SLA[c.sla.chave] || c.sla.chave}
