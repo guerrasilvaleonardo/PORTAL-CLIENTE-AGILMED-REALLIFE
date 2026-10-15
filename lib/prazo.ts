@@ -232,6 +232,18 @@ export type ChamadoComSla = {
 /* A partir de quantas horas úteis restantes o chamado "vence em breve". */
 export const VENCE_EM_BREVE_HORAS = 4
 
+/* Com até esta quantidade de horas úteis restantes, o chamado pisca em amarelo. */
+export const ALERTA_ATRASO_HORAS = 1
+
+/* Chamado em aberto que atrasa em até 1h útil (e ainda não atrasou). */
+export function prestesAAtrasar(s: { chave: ChaveSla; horas: number | null }) {
+  return (
+    s.chave === 'vence_em_breve' &&
+    s.horas !== null &&
+    s.horas <= ALERTA_ATRASO_HORAS
+  )
+}
+
 /*
  * Situação do SLA levando em conta o status do chamado:
  * - resolvido/encerrado: o relógio para na data de resolução, e o

@@ -120,10 +120,36 @@
 
 .qcard.atrasado { animation: pulsa-card-atraso 1.6s ease-in-out infinite; }
 
+/*
+ * Falta 1h útil ou menos para atrasar: pisca em amarelo, no mesmo ritmo.
+ * Texto escuro sobre o amarelo para continuar legível.
+ */
+@keyframes pulsa-card-alerta {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+  50% { box-shadow: 0 0 0 3px rgba(234, 179, 8, .75); }
+}
+
+.qcard.alerta { background: #FFF7D6; }
+
+.badge-alerta {
+  font-size: 10px; font-weight: 700; background: #FACC15; color: #3D2E00;
+  padding: 2px 7px; border-radius: 20px; letter-spacing: .02em;
+}
+
+.sla-alerta { background: #FEF3C7; color: #5C4300 !important; }
+
+.badge-alerta,
+.sla-alerta { animation: pisca-atraso 1.6s ease-in-out infinite; }
+
+.qcard.alerta { animation: pulsa-card-alerta 1.6s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .badge-atraso,
   .sla-atrasado,
-  .qcard.atrasado { animation: none; }
+  .qcard.atrasado,
+  .badge-alerta,
+  .sla-alerta,
+  .qcard.alerta { animation: none; }
 }
 
 .empty-col { color: var(--ink-faint); font-size: 12px; text-align: center; padding: 16px 6px; }
