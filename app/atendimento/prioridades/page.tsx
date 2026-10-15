@@ -571,7 +571,10 @@ export default function PrioridadesPage() {
                     <span className="avatar">{iniciais(c.responsavel?.nome)}</span>
                   </td>
 
-                  <td style={{ ...celula, whiteSpace: 'nowrap', color: COR_SLA[c.sla.chave], fontWeight: 600 }}>
+                  <td
+                    className={c.sla.chave === 'atrasado' ? 'sla-atrasado' : undefined}
+                    style={{ ...celula, whiteSpace: 'nowrap', color: COR_SLA[c.sla.chave], fontWeight: 600 }}
+                  >
                     {ROTULO_SLA[c.sla.chave] || c.sla.chave}
                     <div style={{ fontWeight: 400, fontSize: 12 }}>
                       {c.sla.horas === null ? '' : c.sla.texto}
