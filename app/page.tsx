@@ -6,6 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { marcas, type Marca } from '@/lib/marca'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
+import {
+  comLimiteDeTempo,
+  irParaLoginSessaoExpirada,
+  TempoEsgotadoError,
+} from '@/lib/sessao'
 
 type Perfil = {
   nome: string | null
@@ -240,6 +245,7 @@ export default function HomePage() {
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [chamados, setChamados] = useState<Chamado[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [redirecionando, setRedirecionando] = useState(false)
 
   useEffect(() => {
     let ativo = true
@@ -249,25 +255,27 @@ export default function HomePage() {
         setLoading(true)
         setError(null)
 
+        /*
+         * Com limite de tempo: se a renovação do login travar, a
+         * pessoa vai para o login em vez de ficar presa aqui.
+         */
         const {
           data: { user },
-        } = await supabase.auth.getUser()
+        } = await comLimiteDeTempo(supabase.auth.getUser())
 
         if (!user) {
-          if (ativo) {
-            setError('Usuário não autenticado.')
-            setLoading(false)
-          }
-
+          await irParaLoginSessaoExpirada()
           return
         }
 
         const { data: perfilData, error: perfilError } =
-          await supabase
-            .from('profiles')
-            .select('nome, email, empresa_id, perfil')
-            .eq('id', user.id)
-            .single()
+          await comLimiteDeTempo(
+            supabase
+              .from('profiles')
+              .select('nome, email, empresa_id, perfil')
+              .eq('id', user.id)
+              .single()
+          )
 
         if (perfilError) {
           throw perfilError
@@ -284,7 +292,11 @@ export default function HomePage() {
             perfilData?.perfil || ''
           )
         ) {
-          window.location.href = '/painel'
+          if (ativo) {
+            setRedirecionando(true)
+          }
+
+          window.location.replace('/painel')
           return
         }
 
@@ -345,6 +357,11 @@ export default function HomePage() {
           err
         )
 
+        if (err instanceof TempoEsgotadoError) {
+          await irParaLoginSessaoExpirada()
+          return
+        }
+
         if (ativo) {
           setError(
             err instanceof Error && err.message
@@ -371,7 +388,9 @@ export default function HomePage() {
       <div style={styles.loading}>
         {error
           ? error
-          : 'Carregando portal...'}
+          : redirecionando
+            ? 'Abrindo o painel...'
+            : 'Carregando portal...'}
       </div>
     )
   }
