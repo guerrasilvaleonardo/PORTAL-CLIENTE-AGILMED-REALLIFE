@@ -4,7 +4,7 @@ import { DragEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
-import { situacaoSla } from '@/lib/prazo'
+import { prestesAAtrasar, situacaoSla } from '@/lib/prazo'
 import { AjudaSituacoes, EXPLICACAO_EQUIPE } from '@/lib/situacoes'
 import './quadro.css'
 
@@ -404,12 +404,17 @@ export default function AtendimentoPage() {
                     const prazo = situacaoSla(c)
                     const prog = progresso.get(String(c.id))
                     const atrasado = prazo.atrasado
+                    const alerta = !atrasado && prestesAAtrasar(prazo)
 
                     return (
                       <Link
                         key={c.id}
                         href={'/atendimento/' + c.id}
-                        className={'qcard pri-' + c.prioridade + (atrasado ? ' atrasado' : '')}
+                        className={
+                          'qcard pri-' +
+                          c.prioridade +
+                          (atrasado ? ' atrasado' : alerta ? ' alerta' : '')
+                        }
                         draggable={!tv}
                         onDragStart={(e) => {
                           setArrastando(c.id)
@@ -424,6 +429,7 @@ export default function AtendimentoPage() {
                         <div className="card-top">
                           <span className="card-code">#{c.numero}</span>
                           {atrasado && <span className="badge-atraso">ATRASADO</span>}
+                          {alerta && <span className="badge-alerta">VENCE EM 1H</span>}
                         </div>
 
                         <div className="card-title">{c.assunto}</div>
