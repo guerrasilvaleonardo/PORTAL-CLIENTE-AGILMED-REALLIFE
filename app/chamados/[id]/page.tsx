@@ -946,12 +946,14 @@ export default function DetalhesChamadoPage() {
 
                 <Info
                   label="Prazo SLA"
-                  value={formatarData(
-                    chamado.prazo_sla
-                  )}
+                  value={
+                    chamado.status === 'aguardando_cliente'
+                      ? 'Pausado'
+                      : formatarData(chamado.prazo_sla)
+                  }
                   detalhe={
                     chamado.status === 'aguardando_cliente'
-                      ? 'Pausado até o seu retorno'
+                      ? 'O prazo volta a contar quando você responder'
                       : undefined
                   }
                 />
