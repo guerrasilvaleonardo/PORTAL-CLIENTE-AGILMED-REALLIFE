@@ -386,6 +386,7 @@ export function formatarDataHora(iso: string | null) {
   if (Number.isNaN(d.getTime())) return '—'
 
   return d.toLocaleString('pt-BR', {
+    timeZone: 'America/Porto_Velho',
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',
