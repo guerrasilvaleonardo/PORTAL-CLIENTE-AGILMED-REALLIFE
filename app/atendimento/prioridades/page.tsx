@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { duracaoUtil, prestesAAtrasar, situacaoSla, type ChaveSla } from '@/lib/prazo'
+import { ALERTA_ATRASO_HORAS, duracaoUtil, prestesAAtrasar, situacaoSla, type ChaveSla } from '@/lib/prazo'
+import { carregarAlertaPrazoHoras } from '@/lib/estrelas'
 import '../quadro.css'
 
 /*
@@ -28,7 +29,7 @@ const ROTULO_STATUS: Record<string, string> = {
 }
 
 const ROTULO_SLA: Partial<Record<ChaveSla, string>> = {
-  atrasado: 'Atrasado',
+  atrasado: 'Fora do prazo',
   vence_em_breve: 'Vence em breve',
   no_prazo: 'No prazo',
   pausado: 'Pausado',
@@ -109,6 +110,11 @@ export default function PrioridadesPage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [meuId, setMeuId] = useState('')
+  const [alertaHoras, setAlertaHoras] = useState(ALERTA_ATRASO_HORAS)
+
+  useEffect(() => {
+    carregarAlertaPrazoHoras().then(setAlertaHoras)
+  }, [])
   /*
    * De quem é a lista: 'meus' (quem está logado), '' (fila geral),
    * 'sem' (sem responsável) ou o id de um atendente.
@@ -575,13 +581,13 @@ export default function PrioridadesPage() {
                     className={
                       c.sla.chave === 'atrasado'
                         ? 'sla-atrasado'
-                        : prestesAAtrasar(c.sla)
+                        : prestesAAtrasar(c.sla, alertaHoras)
                           ? 'sla-alerta'
                           : undefined
                     }
                     style={{ ...celula, whiteSpace: 'nowrap', color: COR_SLA[c.sla.chave], fontWeight: 600 }}
                   >
-                    {ROTULO_SLA[c.sla.chave] || c.sla.chave}
+                    {prestesAAtrasar(c.sla, alertaHoras) ? 'Próximo do prazo' : ROTULO_SLA[c.sla.chave] || c.sla.chave}
                     <div style={{ fontWeight: 400, fontSize: 12 }}>
                       {c.sla.horas === null ? '' : c.sla.texto}
                     </div>
