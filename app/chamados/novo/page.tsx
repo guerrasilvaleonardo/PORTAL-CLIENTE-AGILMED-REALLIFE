@@ -647,7 +647,16 @@ export default function NovoChamadoPage() {
                   </label>
 
                   <div style={styles.priorityGrid}>
-                    {prioridades.map((item) => {
+                    {/*
+                     * Urgente é definida pela gestão (gestor/admin):
+                     * o cliente escolhe até Alta. A equipe interna
+                     * vê todas as opções. O banco aplica a mesma
+                     * regra (chamado_prioridade_abertura).
+                     */}
+                    {(interno
+                      ? prioridades
+                      : prioridades.filter((item) => item.value !== 'urgente')
+                    ).map((item) => {
                       const selecionada =
                         prioridade === item.value;
 
@@ -730,6 +739,14 @@ export default function NovoChamadoPage() {
                       );
                     })}
                   </div>
+
+                  {!interno && (
+                    <span style={styles.helper}>
+                      A prioridade Urgente é definida pela nossa equipe
+                      após a análise do chamado. Se o caso for crítico,
+                      descreva o impacto acima.
+                    </span>
+                  )}
                 </div>
 
                 <div style={styles.field}>
