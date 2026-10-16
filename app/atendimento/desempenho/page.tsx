@@ -427,7 +427,7 @@ export default function DesempenhoPage() {
   const rotuloPeriodo = PERIODOS.find((p) => p.chave === periodo)?.rotulo || ''
 
   const fmtData = (d: Date) =>
-    d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    d.toLocaleDateString('pt-BR', { timeZone: 'America/Porto_Velho' })
 
   const fimInclusivo = new Date(fim.getTime() - 1)
 
@@ -892,7 +892,7 @@ export default function DesempenhoPage() {
 
       <div className="footnote" style={{ textAlign: 'left', lineHeight: 1.6 }}>
         Como ler: o chamado conta para o responsável atual. Tempos em horas úteis (seg–sex,
-        08–12h e 13–17h, Brasília), pela mediana. Resolução desconta o tempo em “Aguardando
+        08–12h e 13–17h, horário de Porto Velho), pela mediana. Resolução desconta o tempo em “Aguardando
         cliente” e em “Resolvido” antes de reabrir. 1ª resposta = primeira mensagem escrita
         por alguém da equipe (mensagens automáticas não contam). Carteira e atrasados são o
         retrato de agora. A meta de {META_SLA}% de SLA é referência interna, não exigência normativa.
