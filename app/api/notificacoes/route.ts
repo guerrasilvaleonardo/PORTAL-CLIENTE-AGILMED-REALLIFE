@@ -116,6 +116,62 @@ async function avisarCitados(
  * equipe interna em nome do cliente tem como autor uma pessoa de
  * dentro. Por isso buscamos o autor pelo id, e nao pela empresa.
  */
+async function convidarParaAvaliar(
+  chamado: any,
+  marca: ReturnType<typeof marcaDaEmpresa>,
+  portal: string,
+  codigo: string,
+  assuntoChamado: string
+) {
+  const { data: cfg, error: cfgErro } = await supabaseAdmin
+    .from('estrelas_config')
+    .select('ativo, prazo_avaliacao_dias')
+    .maybeSingle()
+
+  /* Programa não instalado ou desligado: sem convite. */
+  if (cfgErro || !cfg?.ativo) return false
+
+  const { data: jaAvaliado } = await supabaseAdmin
+    .from('chamado_avaliacoes')
+    .select('chamado_id')
+    .eq('chamado_id', chamado.id)
+    .maybeSingle()
+
+  if (jaAvaliado) return false
+
+  const abriu = await autorDoChamado(chamado.criado_por)
+  if (!abriu || abriu.perfil !== 'cliente' || !abriu.email) return false
+
+  /* Reserva o convite antes de enviar: um só por chamado. */
+  const { error: reservaErro } = await supabaseAdmin
+    .from('chamado_avaliacao_convites')
+    .insert({ chamado_id: chamado.id })
+
+  if (reservaErro) return false
+
+  const prazo = cfg.prazo_avaliacao_dias
+    ? 'Você tem até ' + cfg.prazo_avaliacao_dias + ' dia(s) para responder.'
+    : ''
+
+  const envio = await enviarEmail({
+    para: [abriu.email],
+    marca,
+    assunto: 'Como foi seu atendimento no chamado ' + codigo + '?',
+    html: montarEmail(
+      marca,
+      'Como foi seu atendimento?',
+      [
+        'O chamado <strong>' + assuntoChamado + '</strong> (' + escapar(codigo) + ') foi resolvido.',
+        'Conte para nós como foi: ⭐ Ruim, ⭐⭐ Bom ou ⭐⭐⭐ Excelente. A avaliação é opcional e leva poucos segundos.',
+        prazo,
+      ].filter(Boolean),
+      { rotulo: 'Avaliar o atendimento', url: portal + '/chamados/' + chamado.id + '#avaliar' }
+    ),
+  })
+
+  return !!envio?.enviado
+}
+
 async function autorDoChamado(criadoPor: string | null) {
   if (!criadoPor) {
     return null
@@ -770,8 +826,24 @@ export async function POST(request: Request) {
       })
     }
 
+    /*
+     * Programa de estrelas: chamado resolvido convida quem o abriu a
+     * avaliar o atendimento. Um único convite por chamado (reaberturas
+     * e avisos repetidos não reenviam) e só com o programa ativo.
+     */
+    let convidado = false
+
+    if (evento === 'status_alterado' && chamado.status === 'resolvido') {
+      try {
+        convidado = await convidarParaAvaliar(chamado, marca, portal, codigo, assuntoChamado)
+      } catch (erro) {
+        console.error('Convite de avaliação não enviado:', erro)
+      }
+    }
+
     return NextResponse.json({
       sucesso: true,
+      convite_avaliacao: convidado,
       citados,
       equipe_avisada: equipeAvisada,
       autor_avisado: autorAvisado,

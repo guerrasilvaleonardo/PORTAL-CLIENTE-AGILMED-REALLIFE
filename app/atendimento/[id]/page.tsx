@@ -10,6 +10,8 @@ import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
 import EtapasChamado from '@/components/EtapasChamado'
+import AvaliacaoChamado from '@/components/AvaliacaoChamado'
+import EstrelasDoChamado from '@/components/EstrelasDoChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
 import { marcas } from '@/lib/marca'
 import '../../chamado-selecao.css'
@@ -2163,6 +2165,22 @@ export default function AtendimentoChamadoPage() {
               editavel
               somenteLeitura={chamado.status === 'encerrado'}
               cor={empresa?.marca === 'agilmed' ? marcas.agilmed.principal : marcas.reallife.principal}
+              cardStyle={cardStyle}
+              titleStyle={cardTitleStyle}
+            />
+
+            <AvaliacaoChamado
+              chamadoId={String(chamado.id)}
+              status={chamado.status}
+              visaoEquipe
+              cardStyle={cardStyle}
+              titleStyle={cardTitleStyle}
+            />
+
+            <EstrelasDoChamado
+              chamadoId={String(chamado.id)}
+              status={chamado.status}
+              ehGestor={['gestor', 'admin'].includes(meuPerfil)}
               cardStyle={cardStyle}
               titleStyle={cardTitleStyle}
             />
