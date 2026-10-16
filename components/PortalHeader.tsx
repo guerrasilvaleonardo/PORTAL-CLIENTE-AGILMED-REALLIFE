@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { marcas, type Marca } from '@/lib/marca'
+import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -124,6 +125,7 @@ export default function PortalHeader() {
     ? [
         { href: '/painel', rotulo: 'Painel' },
         { href: '/atendimento', rotulo: 'Atendimento' },
+        { href: '/estrelas', rotulo: 'Estrelas' },
         { href: '/chamados', rotulo: 'Chamados' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
@@ -191,6 +193,8 @@ export default function PortalHeader() {
           {saindo ? 'Saindo...' : 'Sair'}
         </button>
       </div>
+
+      {interno && <CelebracaoEstrelas />}
     </header>
   )
 }
