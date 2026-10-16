@@ -305,6 +305,12 @@ export default function AtendimentoPage() {
         )}
 
         {!tv && (
+          <Link href="/atendimento/agenda" className="btn btn-sm">
+            Agenda
+          </Link>
+        )}
+
+        {!tv && (
           <Link href="/estrelas" className="btn btn-sm">
             ★ Estrelas
           </Link>
