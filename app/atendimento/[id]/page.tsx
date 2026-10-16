@@ -981,8 +981,19 @@ export default function AtendimentoChamadoPage() {
     }
   }
 
+  const podeAlterarPrioridade = ['gestor', 'admin'].includes(meuPerfil)
+
   async function salvarPrioridade() {
     if (!chamado) return
+
+    /*
+     * Prioridade refaz o prazo de SLA e mexe nas estrelas: so gestor
+     * ou admin alteram. O banco tambem barra (a_chamado_prioridade_guarda).
+     */
+    if (!podeAlterarPrioridade) {
+      setErro('Somente gestor ou administrador pode alterar a prioridade.')
+      return
+    }
 
     if (
       novaPrioridade ===
@@ -3343,6 +3354,8 @@ export default function AtendimentoChamadoPage() {
                 Prioridade
               </label>
 
+              {podeAlterarPrioridade ? (
+                <>
               <select
                 value={
                   novaPrioridade
@@ -3404,6 +3417,17 @@ export default function AtendimentoChamadoPage() {
                   ? 'Salvando...'
                   : 'Salvar prioridade'}
               </button>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+                  <strong>
+                    {prioridadeLabels[chamado.prioridade] || chamado.prioridade}
+                  </strong>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    Somente gestor ou administrador altera a prioridade.
+                  </div>
+                </div>
+              )}
 
               {['gestor', 'admin'].includes(meuPerfil) && (
                 <>
