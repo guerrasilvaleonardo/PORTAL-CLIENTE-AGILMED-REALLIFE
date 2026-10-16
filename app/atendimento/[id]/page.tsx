@@ -207,6 +207,7 @@ function formatarData(data: string | null) {
   if (!data) return '—'
 
   return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Porto_Velho',
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(data))
@@ -3033,7 +3034,7 @@ export default function AtendimentoChamadoPage() {
                         >
                           {new Date(
                             link.created_at
-                          ).toLocaleString('pt-BR')}
+                          ).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho' })}
                         </span>
                       </div>
 
@@ -3147,7 +3148,7 @@ export default function AtendimentoChamadoPage() {
                     chamado.sla_pausado_em
                       ? 'pausado'
                       : chamado.prazo_sla
-                        ? new Date(chamado.prazo_sla).toLocaleString('pt-BR')
+                        ? new Date(chamado.prazo_sla).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho' })
                         : 'sem SLA'
                   }
                   alerta={
@@ -3212,7 +3213,7 @@ export default function AtendimentoChamadoPage() {
                           marginTop: 2,
                         }}
                       >
-                        {new Date(e.created_at).toLocaleString('pt-BR')}
+                        {new Date(e.created_at).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho' })}
                         {e.autor?.nome ? ' · ' + e.autor.nome : ''}
                       </div>
 
