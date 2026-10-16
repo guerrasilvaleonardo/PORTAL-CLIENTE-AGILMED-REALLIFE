@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { carregarFeriados } from '@/lib/feriados'
 import { avisar } from '@/lib/avisar'
 import { nomeDaEmpresa } from '@/lib/empresa'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
-import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
+import { prazoAoTrocarPrioridade, situacaoSla } from '@/lib/prazo'
 import EtapasChamado from '@/components/EtapasChamado'
 import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import EstrelasDoChamado from '@/components/EstrelasDoChamado'
@@ -434,6 +435,9 @@ export default function AtendimentoChamadoPage() {
     try {
       setLoading(true)
       setErro('')
+
+      /* Feriados do calendário do SLA (não contam hora útil). */
+      await carregarFeriados(supabase)
 
       const {
         data: { user },
@@ -981,8 +985,19 @@ export default function AtendimentoChamadoPage() {
     }
   }
 
+  const podeAlterarPrioridade = ['gestor', 'admin'].includes(meuPerfil)
+
   async function salvarPrioridade() {
     if (!chamado) return
+
+    /*
+     * Prioridade refaz o prazo de SLA e mexe nas estrelas: so gestor
+     * ou admin alteram. O banco tambem barra (a_chamado_prioridade_guarda).
+     */
+    if (!podeAlterarPrioridade) {
+      setErro('Somente gestor ou administrador pode alterar a prioridade.')
+      return
+    }
 
     if (
       novaPrioridade ===
@@ -996,14 +1011,16 @@ export default function AtendimentoChamadoPage() {
       setErro('')
 
       /*
-       * Trocar a prioridade refaz o prazo, contado em horas uteis a
-       * partir da abertura do chamado: 8 horas por dia, de segunda a
-       * sexta.
+       * Trocar a prioridade refaz o prazo em horas uteis (seg-sex,
+       * sem feriados), mantendo o que o prazo ja tinha sido estendido
+       * por pausas em "Aguardando cliente" e feriados: so entra a
+       * diferenca entre o SLA da prioridade nova e o da antiga.
        */
-      const prazoRefeito = prazoEmHorasUteis(
-        HORAS_SLA[novaPrioridade] ??
-          HORAS_SLA.normal,
-        new Date(chamado.created_at)
+      const prazoRefeito = prazoAoTrocarPrioridade(
+        new Date(chamado.created_at),
+        chamado.prazo_sla,
+        chamado.prioridade,
+        novaPrioridade
       ).toISOString()
 
       const {
@@ -1707,9 +1724,18 @@ export default function AtendimentoChamadoPage() {
       })),
     ]
 
+    /*
+     * Itens gravados no mesmo instante (mesma operação no banco) seguem
+     * a ordem dos fatos: mudança de status -> mensagem automática ->
+     * pausa/retomada do SLA.
+     */
+    const peso = (e: Evento) =>
+      e.tipo === 'status' ? 0 : e.tipo === 'sla' ? 2 : 1
+
     return itens.sort(
       (x, y) =>
-        new Date(x.created_at).getTime() - new Date(y.created_at).getTime()
+        new Date(x.created_at).getTime() -
+          new Date(y.created_at).getTime() || peso(x) - peso(y)
     )
   }, [eventos, anexos, links, mensagens, nomesPessoas])
 
@@ -2105,6 +2131,7 @@ export default function AtendimentoChamadoPage() {
                   value={formatarData(
                     chamado.prazo_sla
                   )}
+                  detalhe={situacaoSla(chamado).texto}
                 />
 
                 <Info
@@ -3145,7 +3172,8 @@ export default function AtendimentoChamadoPage() {
                 <BlocoSla
                   rotulo="Prazo"
                   valor={
-                    chamado.sla_pausado_em
+                    chamado.sla_pausado_em ||
+                    chamado.status === 'aguardando_cliente'
                       ? 'pausado'
                       : chamado.prazo_sla
                         ? new Date(chamado.prazo_sla).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho' })
@@ -3153,6 +3181,7 @@ export default function AtendimentoChamadoPage() {
                   }
                   alerta={
                     !chamado.sla_pausado_em &&
+                    chamado.status !== 'aguardando_cliente' &&
                     Boolean(chamado.prazo_sla) &&
                     new Date(chamado.prazo_sla as string).getTime() <
                       Date.now() &&
@@ -3343,6 +3372,8 @@ export default function AtendimentoChamadoPage() {
                 Prioridade
               </label>
 
+              {podeAlterarPrioridade ? (
+                <>
               <select
                 value={
                   novaPrioridade
@@ -3404,6 +3435,17 @@ export default function AtendimentoChamadoPage() {
                   ? 'Salvando...'
                   : 'Salvar prioridade'}
               </button>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.5 }}>
+                  <strong>
+                    {prioridadeLabels[chamado.prioridade] || chamado.prioridade}
+                  </strong>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    Somente gestor ou administrador altera a prioridade.
+                  </div>
+                </div>
+              )}
 
               {['gestor', 'admin'].includes(meuPerfil) && (
                 <>
@@ -3603,6 +3645,7 @@ export default function AtendimentoChamadoPage() {
                 value={formatarData(
                   chamado.prazo_sla
                 )}
+                detalhe={situacaoSla(chamado).texto}
               />
             </section>
           </aside>

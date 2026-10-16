@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { carregarFeriados } from '@/lib/feriados'
 import { ALERTA_ATRASO_HORAS, duracaoUtil, prestesAAtrasar, situacaoSla, type ChaveSla } from '@/lib/prazo'
 import { carregarAlertaPrazoHoras } from '@/lib/estrelas'
 import '../quadro.css'
@@ -128,6 +129,9 @@ export default function PrioridadesPage() {
   async function carregar() {
     try {
       setErro('')
+
+      /* Feriados do calendário do SLA (não contam hora útil). */
+      await carregarFeriados(supabase)
 
       const {
         data: { user },
@@ -345,6 +349,10 @@ export default function PrioridadesPage() {
             {atualizadoEm.toLocaleTimeString('pt-BR', { timeZone: 'America/Porto_Velho', hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
+
+        <Link href="/atendimento/feriados" className="btn btn-sm">
+          Feriados
+        </Link>
 
         <Link href="/atendimento" className="btn btn-sm">
           Quadro de chamados

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { carregarFeriados } from '@/lib/feriados';
 import { obterMarcaDaEmpresa } from '@/lib/empresa';
 import { avisar } from '@/lib/avisar';
 import { normalizarUrl } from '@/lib/links';
@@ -118,6 +119,9 @@ export default function NovoChamadoPage() {
       try {
         setCarregando(true);
         setErro('');
+
+        /* Feriados do calendário do SLA (não contam hora útil). */
+        await carregarFeriados(supabase);
 
         const {
           data: { user },

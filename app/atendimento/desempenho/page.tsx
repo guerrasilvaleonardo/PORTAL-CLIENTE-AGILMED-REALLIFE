@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { carregarFeriados } from '@/lib/feriados'
 import { Barras } from '@/lib/graficos'
 import { marcas } from '@/lib/marca'
 import {
@@ -125,6 +126,9 @@ export default function DesempenhoPage() {
       try {
         setCarregando(true)
         setErro('')
+
+        /* Feriados do calendário do SLA (não contam hora útil). */
+        await carregarFeriados(supabase)
 
         const {
           data: { user },

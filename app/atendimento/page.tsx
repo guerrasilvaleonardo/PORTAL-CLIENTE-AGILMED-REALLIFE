@@ -3,6 +3,7 @@
 import { DragEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { carregarFeriados } from '@/lib/feriados'
 import { avisar } from '@/lib/avisar'
 import { ALERTA_ATRASO_HORAS, prestesAAtrasar, situacaoSla } from '@/lib/prazo'
 import { carregarAlertaPrazoHoras } from '@/lib/estrelas'
@@ -83,6 +84,9 @@ export default function AtendimentoPage() {
     try {
       setCarregando(true)
       setErro('')
+
+      /* Feriados do calendário do SLA (não contam hora útil). */
+      await carregarFeriados(supabase)
 
       const {
         data: { user },

@@ -6,6 +6,10 @@
  * e horário de almoço não entram na conta — um chamado aberto na
  * sexta às 16h com prazo de 4 horas úteis vence na segunda às 11h,
  * e não no sábado de madrugada.
+ *
+ * Feriados cadastrados (tabela public.feriados) também não contam.
+ * As telas chamam carregarFeriados() (lib/feriados.ts) antes de
+ * calcular; sem isso a conta segue só com fim de semana.
  */
 
 /*
@@ -61,10 +65,23 @@ function minutosDoDia(local: Date) {
   return local.getUTCHours() * 60 + local.getUTCMinutes()
 }
 
+/* Datas (AAAA-MM-DD, no relógio do expediente) que não contam hora útil. */
+let feriados = new Set<string>()
+
+export function definirFeriados(datas: string[]) {
+  feriados = new Set(datas.map((d) => String(d).slice(0, 10)))
+}
+
+export function ehFeriado(data: string) {
+  return feriados.has(String(data).slice(0, 10))
+}
+
 function ehDiaUtil(local: Date) {
   const d = local.getUTCDay()
 
-  return d >= 1 && d <= 5
+  if (d < 1 || d > 5) return false
+
+  return !feriados.has(local.toISOString().slice(0, 10))
 }
 
 function comMinutos(local: Date, minutos: number) {
@@ -134,6 +151,28 @@ export function prazoEmHorasUteis(horasUteis: number, inicio?: Date) {
   }
 
   return paraReal(atual)
+}
+
+/*
+ * Novo prazo ao trocar a prioridade. Mantém as extensões que o prazo
+ * já recebeu (pausas em "Aguardando cliente", feriados) e só soma ou
+ * tira a diferença entre o SLA da prioridade nova e o da antiga.
+ * Sem prazo anterior, conta do zero a partir da abertura.
+ */
+export function prazoAoTrocarPrioridade(
+  abertura: Date,
+  prazoAtual: string | null,
+  prioridadeAntiga: string,
+  prioridadeNova: string
+) {
+  const novo = HORAS_SLA[prioridadeNova] ?? HORAS_SLA.normal
+
+  if (!prazoAtual) return prazoEmHorasUteis(novo, abertura)
+
+  const antigo = HORAS_SLA[prioridadeAntiga] ?? HORAS_SLA.normal
+  const orcamento = horasUteisEntre(abertura, new Date(prazoAtual))
+
+  return prazoEmHorasUteis(Math.max(0, orcamento + novo - antigo), abertura)
 }
 
 /*
@@ -292,6 +331,11 @@ export function situacaoSla(c: ChamadoComSla): {
           atrasado: false,
           horas: h,
         }
+  }
+
+  if (c.status === 'aguardando_cliente' && !c.sla_pausado_em) {
+    /* Pausado sem registro do início da pausa: não conta horas. */
+    return { chave: 'pausado', texto: 'SLA pausado', atrasado: false, horas: null }
   }
 
   if (c.status === 'aguardando_cliente' && c.sla_pausado_em) {

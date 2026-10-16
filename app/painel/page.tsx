@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { textoPrazoUtil } from '@/lib/prazo'
+import { carregarFeriados } from '@/lib/feriados'
+import { situacaoSla } from '@/lib/prazo'
 import { AjudaSituacoes } from '@/lib/situacoes'
 import { Barras, Rosca } from '@/lib/graficos'
 
@@ -18,6 +19,7 @@ type ChamadoAberto = {
   status: string
   prioridade: string
   prazo_sla: string | null
+  sla_pausado_em: string | null
   responsavel_id: string | null
   empresas?: {
     nome_fantasia: string | null
@@ -49,13 +51,17 @@ function iniciais(nome: string) {
   ).toUpperCase()
 }
 
-function estaAtrasado(prazo: string | null) {
-  return Boolean(prazo) && new Date(prazo as string).getTime() < Date.now()
+/*
+ * Atraso e texto do prazo pela mesma regra das outras telas
+ * (situacaoSla): horas úteis, feriados e "Aguardando cliente" pausado
+ * — chamado pausado nunca aparece como atrasado.
+ */
+function estaAtrasado(c: ChamadoAberto) {
+  return situacaoSla(c).atrasado
 }
 
-/* O prazo conta apenas horas úteis: 8 por dia, de segunda a sexta. */
-function textoPrazo(prazo: string | null) {
-  return textoPrazoUtil(prazo).texto
+function textoPrazo(c: ChamadoAberto) {
+  return situacaoSla(c).texto
 }
 
 type Panorama = {
@@ -138,6 +144,9 @@ export default function PainelPage() {
       try {
         setCarregando(true)
         setErro('')
+
+        /* Feriados do calendário do SLA (não contam hora útil). */
+        await carregarFeriados(supabase)
 
         const {
           data: { user },
@@ -242,7 +251,7 @@ export default function PainelPage() {
         const { data: filaData } = await supabase
           .from('chamados')
           .select(
-            'id, numero, assunto, status, prioridade, prazo_sla, responsavel_id, empresas(nome_fantasia, razao_social)'
+            'id, numero, assunto, status, prioridade, prazo_sla, sla_pausado_em, responsavel_id, empresas(nome_fantasia, razao_social)'
           )
           .in('status', EM_ABERTO)
           .order('prazo_sla', { nullsFirst: false })
@@ -275,7 +284,7 @@ export default function PainelPage() {
               id: pessoa.id,
               nome: pessoa.nome || 'Sem nome',
               abertos: dela.length,
-              atrasados: dela.filter((c) => estaAtrasado(c.prazo_sla)).length,
+              atrasados: dela.filter((c) => estaAtrasado(c)).length,
               urgentes: dela.filter((c) => c.prioridade === 'urgente').length,
             }
           })
@@ -341,9 +350,9 @@ export default function PainelPage() {
             .slice(0, 6),
 
           noPrazo: fila.filter(
-            (c) => c.prazo_sla && !estaAtrasado(c.prazo_sla)
+            (c) => c.prazo_sla && !estaAtrasado(c)
           ).length,
-          atrasados: fila.filter((c) => estaAtrasado(c.prazo_sla)).length,
+          atrasados: fila.filter((c) => estaAtrasado(c)).length,
           semPrazo: fila.filter((c) => !c.prazo_sla).length,
 
           treinoConcluido: treinos.filter((v) => v >= 100).length,
@@ -365,7 +374,7 @@ export default function PainelPage() {
     }
   }, [])
 
-  const meusAtrasados = meus.filter((c) => estaAtrasado(c.prazo_sla)).length
+  const meusAtrasados = meus.filter((c) => estaAtrasado(c)).length
 
   const maiorCarga = carga.reduce((m, a) => Math.max(m, a.abertos), 0)
 
@@ -653,7 +662,7 @@ export default function PainelPage() {
             </div>
           ) : (
             meus.map((c, indice) => {
-              const atrasado = estaAtrasado(c.prazo_sla)
+              const atrasado = estaAtrasado(c)
 
               return (
                 <Link
@@ -727,7 +736,7 @@ export default function PainelPage() {
                           : 'var(--ink-muted)',
                       }}
                     >
-                      {textoPrazo(c.prazo_sla)}
+                      {textoPrazo(c)}
                     </span>
                   </span>
                 </Link>
