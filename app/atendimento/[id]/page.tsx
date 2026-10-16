@@ -9,7 +9,7 @@ import { avisar } from '@/lib/avisar'
 import { nomeDaEmpresa } from '@/lib/empresa'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
-import { prazoAoTrocarPrioridade } from '@/lib/prazo'
+import { prazoAoTrocarPrioridade, situacaoSla } from '@/lib/prazo'
 import EtapasChamado from '@/components/EtapasChamado'
 import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import EstrelasDoChamado from '@/components/EstrelasDoChamado'
@@ -1724,9 +1724,18 @@ export default function AtendimentoChamadoPage() {
       })),
     ]
 
+    /*
+     * Itens gravados no mesmo instante (mesma operação no banco) seguem
+     * a ordem dos fatos: mudança de status -> mensagem automática ->
+     * pausa/retomada do SLA.
+     */
+    const peso = (e: Evento) =>
+      e.tipo === 'status' ? 0 : e.tipo === 'sla' ? 2 : 1
+
     return itens.sort(
       (x, y) =>
-        new Date(x.created_at).getTime() - new Date(y.created_at).getTime()
+        new Date(x.created_at).getTime() -
+          new Date(y.created_at).getTime() || peso(x) - peso(y)
     )
   }, [eventos, anexos, links, mensagens, nomesPessoas])
 
@@ -2122,6 +2131,7 @@ export default function AtendimentoChamadoPage() {
                   value={formatarData(
                     chamado.prazo_sla
                   )}
+                  detalhe={situacaoSla(chamado).texto}
                 />
 
                 <Info
@@ -3635,6 +3645,7 @@ export default function AtendimentoChamadoPage() {
                 value={formatarData(
                   chamado.prazo_sla
                 )}
+                detalhe={situacaoSla(chamado).texto}
               />
             </section>
           </aside>
