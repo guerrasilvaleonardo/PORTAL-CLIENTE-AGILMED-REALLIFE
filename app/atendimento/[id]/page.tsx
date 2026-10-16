@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { carregarFeriados } from '@/lib/feriados'
 import { avisar } from '@/lib/avisar'
 import { nomeDaEmpresa } from '@/lib/empresa'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
-import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
+import { prazoAoTrocarPrioridade } from '@/lib/prazo'
 import EtapasChamado from '@/components/EtapasChamado'
 import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import EstrelasDoChamado from '@/components/EstrelasDoChamado'
@@ -434,6 +435,9 @@ export default function AtendimentoChamadoPage() {
     try {
       setLoading(true)
       setErro('')
+
+      /* Feriados do calendário do SLA (não contam hora útil). */
+      await carregarFeriados(supabase)
 
       const {
         data: { user },
@@ -1007,14 +1011,16 @@ export default function AtendimentoChamadoPage() {
       setErro('')
 
       /*
-       * Trocar a prioridade refaz o prazo, contado em horas uteis a
-       * partir da abertura do chamado: 8 horas por dia, de segunda a
-       * sexta.
+       * Trocar a prioridade refaz o prazo em horas uteis (seg-sex,
+       * sem feriados), mantendo o que o prazo ja tinha sido estendido
+       * por pausas em "Aguardando cliente" e feriados: so entra a
+       * diferenca entre o SLA da prioridade nova e o da antiga.
        */
-      const prazoRefeito = prazoEmHorasUteis(
-        HORAS_SLA[novaPrioridade] ??
-          HORAS_SLA.normal,
-        new Date(chamado.created_at)
+      const prazoRefeito = prazoAoTrocarPrioridade(
+        new Date(chamado.created_at),
+        chamado.prazo_sla,
+        chamado.prioridade,
+        novaPrioridade
       ).toISOString()
 
       const {
@@ -3156,7 +3162,8 @@ export default function AtendimentoChamadoPage() {
                 <BlocoSla
                   rotulo="Prazo"
                   valor={
-                    chamado.sla_pausado_em
+                    chamado.sla_pausado_em ||
+                    chamado.status === 'aguardando_cliente'
                       ? 'pausado'
                       : chamado.prazo_sla
                         ? new Date(chamado.prazo_sla).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho' })
@@ -3164,6 +3171,7 @@ export default function AtendimentoChamadoPage() {
                   }
                   alerta={
                     !chamado.sla_pausado_em &&
+                    chamado.status !== 'aguardando_cliente' &&
                     Boolean(chamado.prazo_sla) &&
                     new Date(chamado.prazo_sla as string).getTime() <
                       Date.now() &&
