@@ -90,6 +90,7 @@ function formatarData(data: string | null) {
   if (!data) return '—'
 
   return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Porto_Velho',
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(data))
