@@ -57,10 +57,10 @@ export const MESES = [
 
 export const ALERTA_PADRAO_HORAS = 1
 
-/* Data de hoje no horário de Brasília, como { ano, mes (1-12), dia }. */
+/* Data de hoje no horário do expediente (Porto Velho), como { ano, mes (1-12), dia }. */
 export function hojeBrasilia() {
   const partes = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo',
+    timeZone: 'America/Porto_Velho',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -110,7 +110,7 @@ export function rotuloMedalha(posicao: number) {
 export function formatarDataHora(valor: string | null | undefined) {
   if (!valor) return '—'
   return new Date(valor).toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
+    timeZone: 'America/Porto_Velho',
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
