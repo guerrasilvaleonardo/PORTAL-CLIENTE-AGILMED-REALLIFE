@@ -12,6 +12,7 @@ import type { Marca } from '@/lib/marca'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 import EtapasChamado from '@/components/EtapasChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
+import '../../chamado-selecao.css'
 
 type Chamado = {
   id: string
@@ -772,6 +773,7 @@ export default function DetalhesChamadoPage() {
 
   return (
     <main
+      className="chamado-detalhe"
       style={{
         ...styles.page,
         background: `linear-gradient(180deg, ${tema.fundo} 0%, #f5f7fa 34%)`,

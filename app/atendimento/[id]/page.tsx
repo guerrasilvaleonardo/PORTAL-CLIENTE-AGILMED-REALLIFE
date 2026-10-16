@@ -12,6 +12,7 @@ import { HORAS_SLA, prazoEmHorasUteis } from '@/lib/prazo'
 import EtapasChamado from '@/components/EtapasChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
 import { marcas } from '@/lib/marca'
+import '../../chamado-selecao.css'
 
 type Chamado = {
   id: string
@@ -1832,6 +1833,7 @@ export default function AtendimentoChamadoPage() {
 
   return (
     <main
+      className="chamado-detalhe"
       style={{
         minHeight:
           'calc(100vh - 70px)',
