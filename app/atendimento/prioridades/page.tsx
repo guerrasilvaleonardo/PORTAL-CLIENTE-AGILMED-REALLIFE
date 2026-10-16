@@ -350,6 +350,10 @@ export default function PrioridadesPage() {
           </span>
         )}
 
+        <Link href="/atendimento/agenda" className="btn btn-sm">
+          Agenda
+        </Link>
+
         <Link href="/atendimento/feriados" className="btn btn-sm">
           Feriados
         </Link>
