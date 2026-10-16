@@ -539,6 +539,10 @@ export default function DesempenhoPage() {
 
         <div style={{ flex: 1 }} />
 
+        <Link href="/estrelas" className="btn btn-sm">
+          ★ Estrelas
+        </Link>
+
         <Link href="/atendimento/prioridades" className="btn btn-sm">
           Fila de prioridades
         </Link>
