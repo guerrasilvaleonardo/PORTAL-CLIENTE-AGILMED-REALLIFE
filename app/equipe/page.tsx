@@ -40,6 +40,7 @@ type Contato = {
 
 function horario(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', {
+    timeZone: 'America/Porto_Velho',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
