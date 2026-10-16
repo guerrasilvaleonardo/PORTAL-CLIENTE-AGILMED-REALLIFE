@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { horasUteisEntre } from '@/lib/prazo'
+import { carregarFeriados } from '@/lib/feriados'
 import {
   enderecoDoPortal,
   enviarEmail,
@@ -12,7 +13,11 @@ import {
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+/*
+ * "Aguardando cliente" fica fora: o SLA está pausado, então o chamado
+ * não está atrasando (o prazo é estendido quando o atendimento volta).
+ */
+const EM_ABERTO = ['aberto', 'em_atendimento']
 
 function autorizado(request: Request) {
   const segredo = process.env.CRON_SECRET
@@ -38,6 +43,9 @@ export async function GET(request: Request) {
   if (!autorizado(request)) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
+
+  /* Feriados do calendário do SLA (lidos de novo a cada execução). */
+  await carregarFeriados(supabaseAdmin, true)
 
   const { data, error } = await supabaseAdmin
     .from('chamados')
