@@ -12,6 +12,7 @@ import type { Marca } from '@/lib/marca'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 import EtapasChamado from '@/components/EtapasChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
+import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import '../../chamado-selecao.css'
 
 type Chamado = {
@@ -987,28 +988,15 @@ export default function DetalhesChamadoPage() {
                   {chamado.descricao}
                 </p>
               </div>
-
-              {chamado.avaliacao && (
-                <div style={styles.evaluationBox}>
-                  <div style={styles.label}>
-                    Avaliação
-                  </div>
-
-                  <div style={styles.stars}>
-                    {'★'.repeat(chamado.avaliacao)}
-                    {'☆'.repeat(
-                      5 - chamado.avaliacao
-                    )}
-                  </div>
-
-                  {chamado.comentario_avaliacao && (
-                    <p style={styles.description}>
-                      {chamado.comentario_avaliacao}
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
+
+            <AvaliacaoChamado
+              chamadoId={String(chamado.id)}
+              status={chamado.status}
+              cor={tema.principal}
+              cardStyle={styles.card}
+              titleStyle={styles.cardTitle}
+            />
 
             <EtapasChamado
               chamadoId={String(chamado.id)}
