@@ -4,7 +4,8 @@ import { DragEvent, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { avisar } from '@/lib/avisar'
-import { prestesAAtrasar, situacaoSla } from '@/lib/prazo'
+import { ALERTA_ATRASO_HORAS, prestesAAtrasar, situacaoSla } from '@/lib/prazo'
+import { carregarAlertaPrazoHoras } from '@/lib/estrelas'
 import { AjudaSituacoes, EXPLICACAO_EQUIPE } from '@/lib/situacoes'
 import './quadro.css'
 
@@ -60,6 +61,11 @@ export default function AtendimentoPage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
+  const [alertaHoras, setAlertaHoras] = useState(ALERTA_ATRASO_HORAS)
+
+  useEffect(() => {
+    carregarAlertaPrazoHoras().then(setAlertaHoras)
+  }, [])
   const [tv, setTv] = useState(false)
 
   const [busca, setBusca] = useState('')
@@ -294,6 +300,12 @@ export default function AtendimentoPage() {
           </Link>
         )}
 
+        {!tv && (
+          <Link href="/estrelas" className="btn btn-sm">
+            ★ Estrelas
+          </Link>
+        )}
+
         <button
           type="button"
           className={'btn btn-sm' + (tv ? ' btn-primary' : '')}
@@ -404,7 +416,7 @@ export default function AtendimentoPage() {
                     const prazo = situacaoSla(c)
                     const prog = progresso.get(String(c.id))
                     const atrasado = prazo.atrasado
-                    const alerta = !atrasado && prestesAAtrasar(prazo)
+                    const alerta = !atrasado && prestesAAtrasar(prazo, alertaHoras)
 
                     return (
                       <Link
@@ -428,8 +440,8 @@ export default function AtendimentoPage() {
                       >
                         <div className="card-top">
                           <span className="card-code">#{c.numero}</span>
-                          {atrasado && <span className="badge-atraso">ATRASADO</span>}
-                          {alerta && <span className="badge-alerta">VENCE EM 1H</span>}
+                          {atrasado && <span className="badge-atraso">FORA DO PRAZO</span>}
+                          {alerta && <span className="badge-alerta">PRÓXIMO DO PRAZO</span>}
                         </div>
 
                         <div className="card-title">{c.assunto}</div>
