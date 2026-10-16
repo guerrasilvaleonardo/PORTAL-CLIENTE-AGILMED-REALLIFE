@@ -2,7 +2,7 @@
  * Desempenho individual no atendimento de chamados.
  *
  * Todas as contas de tempo usam HORAS ÚTEIS (lib/prazo.ts): 8 horas
- * por dia, de segunda a sexta, no horário de Brasília. Fica aqui,
+ * por dia, de segunda a sexta, no horário de Porto Velho. Fica aqui,
  * separado da tela, para que a regra de cada indicador esteja escrita
  * num lugar só e possa ser conferida sem abrir o React.
  *
@@ -283,11 +283,11 @@ export const PERIODOS: { chave: ChavePeriodo; rotulo: string }[] = [
 ]
 
 /*
- * Limites do período no calendário de Brasília (UTC-3 o ano todo),
- * para "mês atual" começar à meia-noite de Brasília e não de UTC.
+ * Limites do período no calendário de Porto Velho (UTC-4 o ano todo),
+ * para "mês atual" começar à meia-noite de Porto Velho e não de UTC.
  */
 export function limitesPeriodo(chave: ChavePeriodo, agora = new Date()) {
-  const FUSO = -3 * 3600000
+  const FUSO = -4 * 3600000
   const local = new Date(agora.getTime() + FUSO)
   const ano = local.getUTCFullYear()
   const mes = local.getUTCMonth()
