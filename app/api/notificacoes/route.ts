@@ -407,7 +407,7 @@ export async function POST(request: Request) {
 
       const prazoTexto = chamado.prazo_sla
         ? new Date(chamado.prazo_sla).toLocaleString('pt-BR', {
-            timeZone: 'America/Sao_Paulo',
+            timeZone: 'America/Porto_Velho',
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
@@ -433,7 +433,7 @@ export async function POST(request: Request) {
         prazoTexto
           ? '<strong>Prazo de atendimento:</strong> até ' +
             prazoTexto +
-            ' (horário de Brasília; contamos horas úteis, de segunda a sexta, 8h por dia).'
+            ' (horário de Porto Velho/RO; contamos horas úteis, de segunda a sexta, 8h por dia).'
           : '',
         fila?.posicao_area
           ? 'A posição pode mudar se entrar uma demanda urgente ou com prazo menor.'

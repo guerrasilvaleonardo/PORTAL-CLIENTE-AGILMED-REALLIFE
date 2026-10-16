@@ -64,6 +64,7 @@ function formatarData(iso: string) {
   if (Number.isNaN(d.getTime())) return '—'
 
   return d.toLocaleDateString('pt-BR', {
+    timeZone: 'America/Porto_Velho',
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',

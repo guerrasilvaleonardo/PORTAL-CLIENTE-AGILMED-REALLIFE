@@ -14,7 +14,7 @@
 --     eventos, atualizar a página ou reprocessar nunca duplica estrelas.
 --   * O SLA do portal continua exatamente como era (pausa automática em
 --     "Aguardando cliente", sem feriados, seg-sex 08-12h/13-17h,
---     horário de Brasília). Este script só OBSERVA o SLA.
+--     horário de Porto Velho). Este script só OBSERVA o SLA.
 --   * Alterações de prazo feitas sem mudança de status (ex.: troca de
 --     prioridade) são registradas. Para as estrelas, uma EXTENSÃO de
 --     prazo só vale se um gestor autorizar, e nunca se o prazo antigo já
@@ -315,7 +315,7 @@ begin
   -- Primeira concessão: só com programa ativo e resolução a partir da data inicial.
   if not tem_l then
     if not cfg.ativo or cfg.data_inicio is null
-       or (v_res at time zone 'America/Sao_Paulo')::date < cfg.data_inicio then
+       or (v_res at time zone 'America/Porto_Velho')::date < cfg.data_inicio then
       return;
     end if;
     if c.responsavel_id is null then return; end if;
@@ -571,7 +571,7 @@ begin
            round(avg(l.nota)::numeric, 2)                          as media
       from public.estrelas_lancamentos l
      where l.situacao = 'valida'
-       and (l.resolvido_em at time zone 'America/Sao_Paulo')::date between p_inicio and p_fim
+       and (l.resolvido_em at time zone 'America/Porto_Velho')::date between p_inicio and p_fim
      group by l.atendente_id
   )
   select b.atendente_id,
@@ -705,7 +705,7 @@ begin
    where ch.status in ('resolvido', 'encerrado')
      and ch.responsavel_id is not null
      and coalesce(ch.resolvido_em, ch.encerrado_em) is not null
-     and (coalesce(ch.resolvido_em, ch.encerrado_em) at time zone 'America/Sao_Paulo')::date >= p_data_inicio
+     and (coalesce(ch.resolvido_em, ch.encerrado_em) at time zone 'America/Porto_Velho')::date >= p_data_inicio
      and not exists (select 1 from public.estrelas_lancamentos l where l.chamado_id = ch.id)
    group by ch.responsavel_id, p.nome, p.email
    order by 3 desc;
@@ -748,7 +748,7 @@ begin
       raise exception 'Defina o prazo para receber avaliações antes de ativar.';
     end if;
     if not exists (select 1 from public.estrelas_fechamentos f
-                    where f.ano = extract(year from (now() at time zone 'America/Sao_Paulo'))::int) then
+                    where f.ano = extract(year from (now() at time zone 'America/Porto_Velho'))::int) then
       raise exception 'Defina a data de fechamento anual do ano corrente antes de ativar.';
     end if;
   end if;
@@ -784,7 +784,7 @@ begin
       select ch.id from public.chamados ch
        where ch.status in ('resolvido', 'encerrado')
          and coalesce(ch.resolvido_em, ch.encerrado_em) is not null
-         and (coalesce(ch.resolvido_em, ch.encerrado_em) at time zone 'America/Sao_Paulo')::date >= depois.data_inicio
+         and (coalesce(ch.resolvido_em, ch.encerrado_em) at time zone 'America/Porto_Velho')::date >= depois.data_inicio
          and not exists (select 1 from public.estrelas_lancamentos l where l.chamado_id = ch.id)
     loop
       perform public.estrelas_recalcular(r.id, auth.uid());
@@ -846,7 +846,7 @@ begin
   select * into f from public.estrelas_fechamentos where ano = p_ano for update;
   if not found then raise exception 'Defina antes a data de fechamento de %.', p_ano; end if;
   if f.fechado_em is not null then raise exception 'O ano % já foi fechado.', p_ano; end if;
-  if (now() at time zone 'America/Sao_Paulo')::date < f.data_fechamento then
+  if (now() at time zone 'America/Porto_Velho')::date < f.data_fechamento then
     raise exception 'O fechamento de % só pode ser feito a partir de %.', p_ano, to_char(f.data_fechamento, 'DD/MM/YYYY');
   end if;
 

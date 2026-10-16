@@ -8,7 +8,7 @@
 --        ao pausar.
 --
 -- Expediente igual ao de lib/prazo.ts: seg-sex, 08-12h e 13-17h,
--- horário de Brasília (America/Sao_Paulo). Sem feriados, como no app.
+-- horário de Porto Velho (America/Porto_Velho). Sem feriados, como no app.
 -- sla_pausa_total continua guardando o tempo corrido (só informativo).
 -- O restante da função registrar_mudanca_chamado fica igual.
 -- =====================================================================
@@ -21,18 +21,18 @@ set search_path = public
 as $fn$
   with dias as (
     select d::date as dia
-    from generate_series((p_ini at time zone 'America/Sao_Paulo')::date,
-                         (p_fim at time zone 'America/Sao_Paulo')::date,
+    from generate_series((p_ini at time zone 'America/Porto_Velho')::date,
+                         (p_fim at time zone 'America/Porto_Velho')::date,
                          interval '1 day') d
     where p_ini < p_fim
       and extract(isodow from d) <= 5
   ),
   janelas as (
-    select (dia + time '08:00') at time zone 'America/Sao_Paulo' as j_ini,
-           (dia + time '12:00') at time zone 'America/Sao_Paulo' as j_fim from dias
+    select (dia + time '08:00') at time zone 'America/Porto_Velho' as j_ini,
+           (dia + time '12:00') at time zone 'America/Porto_Velho' as j_fim from dias
     union all
-    select (dia + time '13:00') at time zone 'America/Sao_Paulo',
-           (dia + time '17:00') at time zone 'America/Sao_Paulo' from dias
+    select (dia + time '13:00') at time zone 'America/Porto_Velho',
+           (dia + time '17:00') at time zone 'America/Porto_Velho' from dias
   )
   select coalesce(sum(extract(epoch from (least(j_fim, p_fim) - greatest(j_ini, p_ini)))) / 3600.0, 0)
   from janelas
@@ -56,7 +56,7 @@ begin
   if p_ini is null or p_horas is null then return p_ini; end if;
   if p_horas <= 0 then return p_ini; end if;
 
-  dia   := (p_ini at time zone 'America/Sao_Paulo')::date;
+  dia   := (p_ini at time zone 'America/Porto_Velho')::date;
   resto := p_horas * 3600;
 
   for i in 0..2000 loop
@@ -65,8 +65,8 @@ begin
         select * from (values (time '08:00', time '12:00'),
                               (time '13:00', time '17:00')) v(ini, fim)
       loop
-        a := greatest((dia + j.ini) at time zone 'America/Sao_Paulo', p_ini);
-        b := (dia + j.fim) at time zone 'America/Sao_Paulo';
+        a := greatest((dia + j.ini) at time zone 'America/Porto_Velho', p_ini);
+        b := (dia + j.fim) at time zone 'America/Porto_Velho';
         if b > a then
           dur := extract(epoch from (b - a));
           if dur >= resto then

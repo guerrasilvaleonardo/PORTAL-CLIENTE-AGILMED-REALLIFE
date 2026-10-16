@@ -79,6 +79,7 @@ function iniciais(nome?: string | null) {
 function dataHora(iso: string | null) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('pt-BR', {
+    timeZone: 'America/Porto_Velho',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -341,7 +342,7 @@ export default function PrioridadesPage() {
         {atualizadoEm && (
           <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
             Atualizado às{' '}
-            {atualizadoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            {atualizadoEm.toLocaleTimeString('pt-BR', { timeZone: 'America/Porto_Velho', hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
 

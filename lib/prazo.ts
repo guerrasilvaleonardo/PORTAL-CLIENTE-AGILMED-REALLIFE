@@ -2,14 +2,18 @@
  * Prazo em HORAS ÚTEIS.
  *
  * A jornada é de 8 horas por dia, de segunda a sexta: das 08h às 12h
- * e das 13h às 17h, no horário de Brasília. Fim de semana, madrugada
+ * e das 13h às 17h, no horário de Porto Velho (RO). Fim de semana, madrugada
  * e horário de almoço não entram na conta — um chamado aberto na
  * sexta às 16h com prazo de 4 horas úteis vence na segunda às 11h,
  * e não no sábado de madrugada.
  */
 
-/* Fuso fixo: o Brasil nao usa mais horario de verao (UTC-3 o ano todo). */
-const FUSO_MINUTOS = -180 // America/Sao_Paulo (UTC-3)
+/*
+ * Fuso fixo do expediente: Porto Velho (UTC-4 o ano todo, sem horário
+ * de verão). Deve ser o mesmo das funções horas_uteis_entre e
+ * somar_horas_uteis do banco (America/Porto_Velho).
+ */
+const FUSO_MINUTOS = -240 // America/Porto_Velho (UTC-4)
 
 const MANHA_INICIO = 8 * 60
 const MANHA_FIM = 12 * 60
@@ -44,7 +48,7 @@ export function rotuloPrazo(prioridade: string) {
   return 'Prazo de ' + horas + ' horas úteis'
 }
 
-/* Converte um instante real para o relógio de Brasília e de volta. */
+/* Converte um instante real para o relógio do expediente e de volta. */
 function paraLocal(data: Date) {
   return new Date(data.getTime() + FUSO_MINUTOS * 60000)
 }

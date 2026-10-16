@@ -199,7 +199,7 @@ group by e.chamado_id;
 grant select on public.v_chamados_progresso to authenticated;
 
 
--- ---------- 3. Mensagem do cliente reabre chamado "Resolvido" ---------
+-- ---------- 3. Mensagem do cliente reabre "Resolvido" e retoma "Aguardando cliente"
 create or replace function public.reabrir_chamado_por_mensagem_cliente()
 returns trigger
 language plpgsql
@@ -215,7 +215,7 @@ begin
     update public.chamados
        set status = 'em_atendimento'
      where id = new.chamado_id
-       and status = 'resolvido';
+       and status in ('resolvido', 'aguardando_cliente');
   end if;
 
   return null;
