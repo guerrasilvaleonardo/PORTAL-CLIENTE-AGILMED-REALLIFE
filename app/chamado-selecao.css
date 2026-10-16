@@ -1,0 +1,30 @@
+/*
+ * Tela do chamado (equipe e cliente): o que está sob o mouse ou
+ * selecionado fica destacado em amarelo, para a pessoa ver onde vai
+ * clicar. Contorno em vez de trocar o fundo dos botões, para não
+ * apagar o texto branco dos botões escuros.
+ */
+
+.chamado-detalhe :is(button, a, select, summary, input[type='checkbox'], input[type='radio'], input[type='file']):not(:disabled):hover,
+.chamado-detalhe :is(button, a, select, summary, input, textarea):focus-visible {
+  outline: 3px solid #facc15 !important;
+  outline-offset: 2px;
+}
+
+/* Linhas clicáveis (etapas, opções com caixinha): fundo amarelo claro. */
+.chamado-detalhe label:hover {
+  background-color: #fef3c7 !important;
+  border-radius: 6px;
+}
+
+/* Campos de texto e listas: fundo amarelo claro ao passar o mouse ou digitar. */
+.chamado-detalhe :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), textarea, select):not(:disabled):is(:hover, :focus) {
+  background-color: #fffbeb !important;
+  border-color: #eab308 !important;
+}
+
+/* Texto selecionado com o mouse. */
+.chamado-detalhe ::selection {
+  background: #fde047;
+  color: #1f2937;
+}
