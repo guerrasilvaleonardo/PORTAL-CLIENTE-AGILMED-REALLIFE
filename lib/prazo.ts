@@ -232,15 +232,22 @@ export type ChamadoComSla = {
 /* A partir de quantas horas úteis restantes o chamado "vence em breve". */
 export const VENCE_EM_BREVE_HORAS = 4
 
-/* Com até esta quantidade de horas úteis restantes, o chamado pisca em amarelo. */
+/*
+ * Padrão da antecedência do alerta amarelo "Próximo do prazo". O valor
+ * em uso é configurado pelo gestor no programa de estrelas
+ * (estrelas_config.alerta_prazo_horas).
+ */
 export const ALERTA_ATRASO_HORAS = 1
 
-/* Chamado em aberto que atrasa em até 1h útil (e ainda não atrasou). */
-export function prestesAAtrasar(s: { chave: ChaveSla; horas: number | null }) {
+/* Chamado em aberto que vence dentro da antecedência do alerta (e ainda não atrasou). */
+export function prestesAAtrasar(
+  s: { chave: ChaveSla; horas: number | null },
+  limiteHoras: number = ALERTA_ATRASO_HORAS
+) {
   return (
-    s.chave === 'vence_em_breve' &&
+    (s.chave === 'vence_em_breve' || s.chave === 'no_prazo') &&
     s.horas !== null &&
-    s.horas <= ALERTA_ATRASO_HORAS
+    s.horas <= limiteHoras
   )
 }
 
