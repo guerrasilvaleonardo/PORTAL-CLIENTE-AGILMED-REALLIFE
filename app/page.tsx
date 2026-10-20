@@ -8,6 +8,8 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
+import CobrancasPendentes, { SeloCobranca } from '@/components/CobrancasPendentes'
+import { useCobrancasPendentes } from '@/lib/cobrancasPendentes'
 import SeloMensagemNova from '@/components/SeloMensagemNova'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 import {
@@ -37,6 +39,7 @@ const statusLabels: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -257,6 +260,9 @@ export default function HomePage() {
   const { pendentes } = useAvaliacoesPendentes(perfil?.perfil === 'cliente')
   const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
   const mensagensNovas = useChamadosNaoLidos(perfil?.perfil === 'cliente')
+  /* Chamados esperando resposta do cliente além do prazo da empresa. */
+  const cobrancas = useCobrancasPendentes(perfil?.perfil === 'cliente')
+  const diasCobranca = new Map(cobrancas.map((c) => [c.id, c.dias]))
 
   useEffect(() => {
     let ativo = true
@@ -363,7 +369,7 @@ export default function HomePage() {
           (chamadosData || []) as Chamado[]
         )
 
-        const EM_ANDAMENTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+        const EM_ANDAMENTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
         const contar = (filtro: (q: any) => any) =>
           filtro(
             supabase
@@ -450,6 +456,8 @@ export default function HomePage() {
             {error}
           </div>
         )}
+
+        <CobrancasPendentes cobrancas={cobrancas} />
 
         <PendenciasAvaliacao pendentes={pendentes} />
 
@@ -666,6 +674,9 @@ export default function HomePage() {
                       >
                         {chamado.assunto}
                         {idsParaAvaliar.has(chamado.id) && <SeloAvaliar />}
+                        {diasCobranca.has(chamado.id) && (
+                          <SeloCobranca dias={diasCobranca.get(chamado.id) || 0} />
+                        )}
                         <SeloMensagemNova quantidade={mensagensNovas[chamado.id]} />
                       </p>
 
@@ -695,7 +706,9 @@ export default function HomePage() {
                                 : chamado.status ===
                                     'aguardando_cliente'
                                   ? '#fefce8'
-                                  : '#f0fdf4',
+                                  : chamado.status === 'suspenso'
+                                    ? '#fef2f2'
+                                    : '#f0fdf4',
                           color:
                             chamado.status ===
                             'aberto'
@@ -706,7 +719,9 @@ export default function HomePage() {
                                 : chamado.status ===
                                     'aguardando_cliente'
                                   ? '#a16207'
-                                  : '#15803d',
+                                  : chamado.status === 'suspenso'
+                                    ? '#b91c1c'
+                                    : '#15803d',
                         }}
                       >
                         {statusLabels[
