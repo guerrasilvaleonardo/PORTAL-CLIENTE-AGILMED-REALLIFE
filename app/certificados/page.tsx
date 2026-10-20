@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { casaBusca, palavrasDaBusca } from '@/lib/busca'
+import { casaBusca, normalizar, palavrasDaBusca } from '@/lib/busca'
 import './certificados.css'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -303,6 +303,67 @@ export default function CertificadosPage() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
 
   const [form, setForm] = useState(formVazio)
+
+  const [sugerirPessoa, setSugerirPessoa] = useState(false)
+
+  /*
+   * Colaboradores já cadastrados na empresa escolhida no formulário.
+   * Mesmo nome (sem acento/maiúsculas) e mesmo e-mail viram uma pessoa;
+   * função e e-mail vêm do cadastro mais recente que os tem.
+   */
+  const pessoasDaEmpresa = useMemo(() => {
+    if (!form.empresa_id) return []
+
+    const mapa = new Map<string, { nome: string; funcao: string; email: string; cursos: number; recente: string }>()
+
+    for (const c of certificados) {
+      if (c.empresa_id !== form.empresa_id || !c.colaborador) continue
+
+      const chave = normalizar(c.colaborador).replace(/\s+/g, ' ').trim() + '|' + (c.email_colaborador || '').toLowerCase().trim()
+      const data = c.created_at || c.emissao || ''
+      const atual = mapa.get(chave)
+
+      if (!atual) {
+        mapa.set(chave, { nome: c.colaborador, funcao: c.funcao || '', email: c.email_colaborador || '', cursos: 1, recente: data })
+        continue
+      }
+
+      atual.cursos += 1
+      if (data >= atual.recente) {
+        atual.recente = data
+        atual.nome = c.colaborador
+        if (c.funcao) atual.funcao = c.funcao
+      } else if (!atual.funcao && c.funcao) {
+        atual.funcao = c.funcao
+      }
+    }
+
+    return [...mapa.values()]
+  }, [certificados, form.empresa_id])
+
+  const sugestoesPessoa = useMemo(() => {
+    const termo = form.colaborador.trim()
+    if (termo.length < 2) return []
+
+    const palavras = palavrasDaBusca(termo)
+
+    return pessoasDaEmpresa
+      .filter((p) => casaBusca(p.nome + ' ' + p.email + ' ' + p.funcao, palavras))
+      .filter((p) => !(p.nome === form.colaborador && p.email === form.email_colaborador))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+      .slice(0, 6)
+  }, [pessoasDaEmpresa, form.colaborador, form.email_colaborador])
+
+  function escolherPessoa(p: { nome: string; funcao: string; email: string }) {
+    setForm((atual) => ({
+      ...atual,
+      colaborador: p.nome,
+      funcao: p.funcao || atual.funcao,
+      email_colaborador: p.email || atual.email_colaborador,
+    }))
+    setSugerirPessoa(false)
+  }
+
   const editando = form.id !== ''
 
   function alterar(campo: Exclude<keyof typeof formVazio, 'sem_vencimento'>, valor: string) {
@@ -1059,6 +1120,36 @@ export default function CertificadosPage() {
     )
   }
 
+  function paginador() {
+    if (totalPaginas <= 1) return null
+
+    const ir = (n: number) => {
+      setPagina(n)
+      document.getElementById('lista-certificados')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+
+    return (
+      <span className="cert-paginas">
+        <button type="button" className="cert-pag-seta" disabled={paginaAtual === 1} onClick={() => ir(paginaAtual - 1)}>
+          ‹ Anterior
+        </button>
+        {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+          .filter((n) => n === 1 || n === totalPaginas || Math.abs(n - paginaAtual) <= 2)
+          .map((n, i, lista) => (
+            <span key={n} style={{ display: 'contents' }}>
+              {i > 0 && n - lista[i - 1] > 1 && <span className="cert-sub">…</span>}
+              <button type="button" className={n === paginaAtual ? 'ativo' : ''} aria-current={n === paginaAtual ? 'page' : undefined} onClick={() => ir(n)}>
+                {n}
+              </button>
+            </span>
+          ))}
+        <button type="button" className="cert-pag-seta" disabled={paginaAtual === totalPaginas} onClick={() => ir(paginaAtual + 1)}>
+          Próxima ›
+        </button>
+      </span>
+    )
+  }
+
   function linhaCertificado(c: Certificado, comPessoa: boolean) {
     const s = situacao(c)
     const empresa = c.empresas?.nome_fantasia || c.empresas?.razao_social || ''
@@ -1305,6 +1396,15 @@ export default function CertificadosPage() {
               </div>
             </div>
 
+            {!carregando && totalPaginas > 1 && (
+              <div className="cert-rodape cert-rodape-topo">
+                <span className="cert-sub">
+                  Página {paginaAtual} de {totalPaginas}
+                </span>
+                {paginador()}
+              </div>
+            )}
+
             <div className="cert-tabela">
               <div className={'cert-linha cert-cab' + (interno ? '' : ' cliente') + (visao === 'colaborador' ? ' sem-pessoa' : '')}>
                 {visao === 'certificado' && <span>{interno ? 'Colaborador / Empresa' : 'Colaborador'}</span>}
@@ -1355,26 +1455,7 @@ export default function CertificadosPage() {
                   Exibindo {inicio + 1}–{Math.min(inicio + POR_PAGINA, totalItens)} de {totalItens}
                   {visao === 'colaborador' ? ' colaboradores' : ''}
                 </span>
-                {totalPaginas > 1 && (
-                  <span className="cert-paginas">
-                    <button type="button" disabled={paginaAtual === 1} onClick={() => setPagina(paginaAtual - 1)} aria-label="Página anterior">
-                      ‹
-                    </button>
-                    {Array.from({ length: totalPaginas }, (_, i) => i + 1)
-                      .filter((n) => n === 1 || n === totalPaginas || Math.abs(n - paginaAtual) <= 2)
-                      .map((n, i, lista) => (
-                        <span key={n} style={{ display: 'contents' }}>
-                          {i > 0 && n - lista[i - 1] > 1 && <span className="cert-sub">…</span>}
-                          <button type="button" className={n === paginaAtual ? 'ativo' : ''} onClick={() => setPagina(n)}>
-                            {n}
-                          </button>
-                        </span>
-                      ))}
-                    <button type="button" disabled={paginaAtual === totalPaginas} onClick={() => setPagina(paginaAtual + 1)} aria-label="Próxima página">
-                      ›
-                    </button>
-                  </span>
-                )}
+                {paginador()}
               </div>
             )}
           </div>
@@ -1550,7 +1631,43 @@ export default function CertificadosPage() {
               <div className="field-row">
                 <div className="field">
                   <label>Colaborador *</label>
-                  <input value={form.colaborador} onChange={(e) => alterar('colaborador', e.target.value)} placeholder="Nome de quem fez o treinamento" />
+                  <div className="cert-sugestao-wrap">
+                    <input
+                      value={form.colaborador}
+                      onChange={(e) => {
+                        alterar('colaborador', e.target.value)
+                        setSugerirPessoa(true)
+                      }}
+                      onFocus={() => setSugerirPessoa(true)}
+                      onBlur={() => setTimeout(() => setSugerirPessoa(false), 150)}
+                      onKeyDown={(e) => e.key === 'Escape' && sugerirPessoa && sugestoesPessoa.length > 0 && (e.stopPropagation(), setSugerirPessoa(false))}
+                      placeholder={form.empresa_id ? 'Digite o nome: mostramos quem já tem cadastro' : 'Nome de quem fez o treinamento'}
+                      autoComplete="off"
+                      role="combobox"
+                      aria-expanded={sugerirPessoa && sugestoesPessoa.length > 0}
+                      aria-controls="cert-sugestoes-pessoa"
+                    />
+                    {sugerirPessoa && sugestoesPessoa.length > 0 && (
+                      <div className="cert-sugestoes" id="cert-sugestoes-pessoa" role="listbox">
+                        <div className="cert-sugestoes-titulo">Já cadastrados nesta empresa</div>
+                        {sugestoesPessoa.map((p) => (
+                          <button
+                            key={p.nome + '|' + p.email}
+                            type="button"
+                            role="option"
+                            aria-selected={false}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => escolherPessoa(p)}
+                          >
+                            <span className="cert-nome">{p.nome}</span>
+                            <span className="cert-sub">
+                              {[p.funcao, p.email, p.cursos + (p.cursos === 1 ? ' certificado' : ' certificados')].filter(Boolean).join(' · ')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="field">
                   <label>Função</label>

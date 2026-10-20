@@ -213,7 +213,13 @@ export function candidatosDoCurso(
   if (nr) {
     const mesmaNr = doColaborador.filter((p) => numeroDaNr(p.curso) === nr)
 
-    if (mesmaNr.length === 0) return []
+    /*
+     * O EAD nem sempre põe "NR xx" no nome do curso ("Integração de
+     * Segurança e Saúde Ocupacional", "Segurança na Operação de Ponte
+     * Rolante"). Nesse caso compara pelas palavras, só com cursos do EAD
+     * que não citam outra NR.
+     */
+    if (mesmaNr.length === 0) return porPalavras(curso, doColaborador)
 
     const quaisCert = qualificadores(curso)
 
@@ -237,6 +243,36 @@ export function candidatosDoCurso(
     const texto = normalizarCurso(p.curso)
 
     return palavras.length > 0 && palavras.every((t) => texto.includes(t))
+  })
+}
+
+/* Palavras comuns demais para identificar um curso. */
+const PALAVRAS_GENERICAS = new Set(['SEGURANCA', 'TRABALHO', 'TRABALHOS', 'SOBRE', 'PARA', 'COM', 'CURSO', 'TREINAMENTO'])
+
+function palavrasDoCurso(texto: string) {
+  return normalizarCurso(texto)
+    .split(' ')
+    .filter((t) => t.length > 3 && !/^\d+$/.test(t) && !PALAVRAS_GENERICAS.has(t) && !QUALIFICADORES.includes(t))
+}
+
+/*
+ * Certificado com NR cujo curso no EAD não cita NR: casa quando pelo
+ * menos 2 palavras próprias do curso aparecem e elas são a maioria.
+ * Ex.: "NR 11 PONTE ROLANTE E PÓRTICO" x "Segurança na Operação de
+ * Ponte Rolante" (PONTE, ROLANTE: 2 de 3).
+ */
+function porPalavras(curso: string, doColaborador: Progresso[]) {
+  const palavras = palavrasDoCurso(curso)
+
+  if (palavras.length < 2) return []
+
+  return doColaborador.filter((p) => {
+    if (numeroDaNr(p.curso)) return false
+
+    const texto = ' ' + normalizarCurso(p.curso) + ' '
+    const achadas = palavras.filter((t) => texto.includes(' ' + t + ' ')).length
+
+    return achadas >= 2 && achadas * 2 > palavras.length
   })
 }
 
