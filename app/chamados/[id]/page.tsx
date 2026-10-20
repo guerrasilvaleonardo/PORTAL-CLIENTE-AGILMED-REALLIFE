@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { marcarChamadoLido } from '@/lib/chamadosNaoLidos'
+import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
+import type { DadosSuspensao } from '@/lib/suspensao'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { avisar } from '@/lib/avisar'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
@@ -60,6 +62,7 @@ const statusLabels: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -155,6 +158,25 @@ export default function DetalhesChamadoPage() {
   const chamadoId = Array.isArray(params.id) ? params.id[0] : params.id
 
   const [chamado, setChamado] = useState<Chamado | null>(null)
+  /* Atendimento suspenso: motivo e próxima atualização (sem a observação interna). */
+  const [suspensao, setSuspensao] = useState<DadosSuspensao | null>(null)
+
+  useEffect(() => {
+    if (!chamado?.id || chamado.status !== 'suspenso') {
+      setSuspensao(null)
+      return
+    }
+
+    let vivo = true
+
+    carregarSuspensos([chamado.id]).then((mapa) => {
+      if (vivo) setSuspensao(mapa[chamado.id] || null)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [chamado?.id, chamado?.status])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [anexos, setAnexos] = useState<Anexo[]>([])
   const [links, setLinks] = useState<ChamadoLink[]>([])
@@ -892,6 +914,31 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
 
+              {chamado.status === 'suspenso' && (
+                <div
+                  role="status"
+                  style={{
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#7f1d1d',
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    margin: '0 0 16px',
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <strong style={{ color: '#b91c1c' }}>Atendimento suspenso</strong>
+                  {suspensao?.suspensao_motivo && <div>Motivo: {suspensao.suspensao_motivo}</div>}
+                  {suspensao?.suspensao_proxima && (
+                    <div>Próxima atualização prevista: {dataDoBanco(suspensao.suspensao_proxima)}</div>
+                  )}
+                  <div style={{ fontSize: 13 }}>
+                    Enquanto a suspensão durar, o prazo de atendimento fica pausado.
+                  </div>
+                </div>
+              )}
+
               <div style={styles.infoGrid}>
                 <Info
                   label="Categoria"
@@ -951,14 +998,16 @@ export default function DetalhesChamadoPage() {
                 <Info
                   label="Prazo SLA"
                   value={
-                    chamado.status === 'aguardando_cliente'
+                    chamado.status === 'aguardando_cliente' || chamado.status === 'suspenso'
                       ? 'Pausado'
                       : formatarData(chamado.prazo_sla)
                   }
                   detalhe={
                     chamado.status === 'aguardando_cliente'
                       ? 'O prazo volta a contar quando você responder'
-                      : undefined
+                      : chamado.status === 'suspenso'
+                        ? 'O prazo volta a contar quando o atendimento for retomado'
+                        : undefined
                   }
                 />
 
@@ -1507,6 +1556,7 @@ export default function DetalhesChamadoPage() {
                       'em_atendimento' ||
                     chamado.status ===
                       'aguardando_cliente' ||
+                    chamado.status === 'suspenso' ||
                     chamado.status ===
                       'resolvido' ||
                     chamado.status === 'encerrado'
@@ -1670,6 +1720,11 @@ function statusStyle(status: string) {
     aguardando_cliente: {
       background: '#fefce8',
       color: '#a16207',
+    },
+
+    suspenso: {
+      background: '#fef2f2',
+      color: '#b91c1c',
     },
 
     resolvido: {
