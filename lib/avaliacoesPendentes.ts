@@ -6,9 +6,10 @@ import { supabase } from '@/lib/supabase'
 /*
  * Chamados que o usuário logado ainda pode avaliar.
  *
- * Mesma regra do banco (avaliacao_situacao / avaliar_chamado):
- * só quem ABRIU o chamado, com perfil cliente, chamado Resolvido ou
- * Encerrado, sem avaliação, dentro do prazo configurado no programa.
+ * Regra do banco (avaliacoes_pendentes / avaliar_chamado): o
+ * solicitante indicado; sem ele, quem abriu (se cliente); se a equipe
+ * abriu, qualquer usuário do cliente que veja o chamado. Chamado
+ * Resolvido ou Encerrado, sem avaliação, dentro do prazo do programa.
  * A decisão final é sempre do banco: aqui só pré-filtramos e
  * confirmamos chamado a chamado com avaliacao_situacao.
  */
@@ -40,6 +41,29 @@ export function useAvaliacoesPendentes(ativo = true) {
         } = await supabase.auth.getUser()
 
         if (!user) return
+
+        /*
+         * Caminho principal: uma chamada só, com a regra completa do
+         * banco (solicitante, quem abriu ou usuário do cliente quando a
+         * equipe abriu). Se a função ainda não existir no banco, cai na
+         * consulta antiga logo abaixo.
+         */
+        const { data: lista, error: erroLista } = await supabase.rpc('avaliacoes_pendentes')
+
+        if (!erroLista) {
+          if (vivo) {
+            setPendentes(
+              ((lista || []) as any[]).map((c) => ({
+                id: c.id,
+                numero: c.numero,
+                assunto: c.assunto,
+                status: c.status,
+                avaliarAte: c.avaliar_ate || null,
+              }))
+            )
+          }
+          return
+        }
 
         const { data: chamados, error } = await supabase
           .from('chamados')
