@@ -56,6 +56,7 @@ const manualCliente: Manual = {
           },
           passos: [
             'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Documentos SST, Treinamentos ou Conversas. A área aberta fica destacada.',
+            'Áreas com 🔒 são ferramentas contratadas à parte (Certificados, Treinamentos, Documentos SST). Ao clicar, você vê o que a ferramenta oferece e o botão "Solicitar contratação", que abre um chamado para a nossa equipe enviar a proposta.',
             'O botão "?" abre este manual já no assunto da tela em que você está.',
             'Meu perfil (no topo, ao lado do "?") abre seus dados e a troca de senha. O botão Sair encerra o seu acesso: use sempre que estiver em um computador compartilhado.',
           ],

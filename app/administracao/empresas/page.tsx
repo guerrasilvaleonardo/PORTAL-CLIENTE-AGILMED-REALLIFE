@@ -18,6 +18,9 @@ type Empresa = {
   marca: string | null
   status: string
   dias_cobranca?: number | null
+  modulo_certificados?: boolean | null
+  modulo_treinamentos?: boolean | null
+  modulo_documentos?: boolean | null
   total_usuarios: number
   total_chamados: number
 }
@@ -46,6 +49,10 @@ const formVazio = {
   marca: '',
   status: 'ativo',
   dias_cobranca: '7',
+  /* Empresa nova começa sem as ferramentas cobradas à parte. */
+  modulo_certificados: false,
+  modulo_treinamentos: false,
+  modulo_documentos: false,
 }
 
 function formatarCnpj(valor: string | null) {
@@ -68,7 +75,7 @@ export default function EmpresasPage() {
 
   const editando = form.id !== ''
 
-  function alterar(campo: keyof typeof formVazio, valor: string) {
+  function alterar(campo: Exclude<keyof typeof formVazio, 'modulo_certificados' | 'modulo_treinamentos' | 'modulo_documentos'>, valor: string) {
     setForm((atual) => ({ ...atual, [campo]: valor }))
   }
 
@@ -185,6 +192,9 @@ export default function EmpresasPage() {
       marca: empresa.marca || '',
       status: empresa.status || 'ativo',
       dias_cobranca: String(empresa.dias_cobranca ?? 7),
+      modulo_certificados: empresa.modulo_certificados !== false,
+      modulo_treinamentos: empresa.modulo_treinamentos !== false,
+      modulo_documentos: empresa.modulo_documentos !== false,
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -395,6 +405,34 @@ export default function EmpresasPage() {
             </div>
           </div>
 
+          <div className="field">
+            <label title="Ferramentas cobradas à parte. Sem a marcação, o cliente vê a ferramenta com cadeado e pede a contratação por chamado. A equipe continua vendo tudo.">
+              Ferramentas contratadas pelo cliente
+            </label>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 13.5 }}>
+              {(
+                [
+                  ['modulo_certificados', 'Certificados'],
+                  ['modulo_treinamentos', 'Treinamentos'],
+                  ['modulo_documentos', 'Documentos SST'],
+                ] as const
+              ).map(([campo, rotulo]) => (
+                <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontWeight: 500, color: 'var(--ink)', fontSize: 13.5 }}>
+                  <input
+                    type="checkbox"
+                    checked={form[campo]}
+                    onChange={(e) => setForm((atual) => ({ ...atual, [campo]: e.target.checked }))}
+                  />
+                  {rotulo}
+                </label>
+              ))}
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
+              Chamados, Início e Conversas ficam sempre liberados. Sem a ferramenta, o cliente vê o cadeado, não recebe os
+              e-mails automáticos dela e pede a contratação por chamado.
+            </span>
+          </div>
+
           <div>
             <button
               type="submit"
@@ -476,6 +514,18 @@ export default function EmpresasPage() {
                           style={{ marginTop: 4 }}
                         >
                           inativa
+                        </span>
+                      )}
+
+                      {empresa.modulo_certificados !== undefined && (
+                        <span style={{ display: 'block', fontSize: 11.5, color: 'var(--ink-muted)', marginTop: 2 }}>
+                          {[
+                            empresa.modulo_certificados !== false && 'Certificados',
+                            empresa.modulo_treinamentos !== false && 'Treinamentos',
+                            empresa.modulo_documentos !== false && 'Documentos SST',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ') || 'Só chamados'}
                         </span>
                       )}
                     </span>

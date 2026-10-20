@@ -20,6 +20,7 @@ import {
   type OrigemProgresso,
   type Progresso,
 } from '@/lib/treinamentos'
+import { ComModulo } from '@/components/ModuloBloqueado'
 
 type Empresa = {
   id: string
@@ -268,7 +269,7 @@ function formatarData(valor: string | null) {
   return `${d}/${m}/${a}`
 }
 
-export default function CertificadosPage() {
+function CertificadosPageConteudo() {
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -1806,5 +1807,14 @@ export default function CertificadosPage() {
         </div>
       )}
     </div>
+  )
+}
+
+/* Ferramenta cobrada à parte: cliente sem contratação vê o cadeado (lib/modulos.ts). */
+export default function CertificadosPage() {
+  return (
+    <ComModulo modulo="certificados">
+      <CertificadosPageConteudo />
+    </ComModulo>
   )
 }

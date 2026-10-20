@@ -102,6 +102,17 @@ function tabela(itens: Item[], comEmpresa: boolean) {
   )
 }
 
+/*
+ * Empresas que NÃO contrataram a ferramenta (supabase/modulos-cliente.sql)
+ * não recebem o e-mail dela; a equipe continua recebendo. Sem a coluna
+ * (SQL não rodou), ninguém é bloqueado.
+ */
+async function empresasSemModulo(coluna: string) {
+  const { data, error } = await supabaseAdmin.from('empresas').select('id, ' + coluna)
+  if (error) return new Set<string>()
+  return new Set((data || []).filter((e: any) => e[coluna] === false).map((e: any) => e.id as string))
+}
+
 export async function GET(request: Request) {
   if (!autorizado(request)) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
@@ -246,7 +257,11 @@ export async function GET(request: Request) {
   const porEmpresa = new Map<string, Item[]>()
   for (const i of itens) porEmpresa.set(i.doc.empresa_id, [...(porEmpresa.get(i.doc.empresa_id) || []), i])
 
+  const semContratacao = await empresasSemModulo('modulo_documentos')
+
   for (const [empresaId, lista] of porEmpresa) {
+    if (semContratacao.has(empresaId)) continue
+
     const empresa = lista[0].doc.empresas
     const marca = marcaDaEmpresa(empresa?.marca)
 

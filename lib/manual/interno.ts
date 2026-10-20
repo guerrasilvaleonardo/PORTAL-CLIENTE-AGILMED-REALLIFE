@@ -644,8 +644,9 @@ const manualInterno: Manual = {
           passos: [
             'Preencha razão social, nome fantasia, CNPJ, a marca que atende (ÁgilMed ou Real Life), situação e contatos. Clique em Cadastrar empresa e depois crie os usuários dela.',
             'Cobrar cliente após (dias): quantos dias corridos um chamado pode ficar em Aguardando cliente antes da cobrança automática (padrão 7, de 1 a 60).',
+            'Ferramentas contratadas pelo cliente: marque Certificados, Treinamentos e/ou Documentos SST conforme o contrato. Empresa nova começa sem nenhuma. Sem a marcação, o cliente vê a ferramenta com cadeado, não acessa os dados dela nem recebe os e-mails automáticos dela, e pode clicar em "Solicitar contratação", que abre um chamado em Atendimento administrativo. A equipe continua vendo e controlando tudo.',
           ],
-          dica: 'A marca define as cores do portal e dos e-mails para o cliente. O e-mail da empresa recebe os avisos dos chamados abertos para toda a empresa. Empresa não é excluída: marque como Inativa.',
+          dica: 'A marca define as cores do portal e dos e-mails para o cliente. O e-mail da empresa recebe os avisos dos chamados abertos para toda a empresa. Empresa não é excluída: marque como Inativa. Contratação aprovada? Edite a empresa, marque a ferramenta e salve: libera na hora para todos os usuários dela.',
         },
         {
           titulo: 'Criar um usuário',
