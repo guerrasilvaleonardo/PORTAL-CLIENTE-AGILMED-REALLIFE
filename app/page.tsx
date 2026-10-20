@@ -8,6 +8,8 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
+import SeloMensagemNova from '@/components/SeloMensagemNova'
+import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 import {
   comLimiteDeTempo,
   irParaLoginSessaoExpirada,
@@ -246,12 +248,15 @@ export default function HomePage() {
   const [marca, setMarca] = useState<Marca | null>(null)
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [chamados, setChamados] = useState<Chamado[]>([])
+  /* Números da empresa inteira (não só dos 5 chamados recentes). */
+  const [contagem, setContagem] = useState({ total: 0, andamento: 0, resolvidos: 0, urgentes: 0 })
   const [error, setError] = useState<string | null>(null)
   const [redirecionando, setRedirecionando] = useState(false)
 
   /* Só cliente avalia; a busca começa quando o perfil é confirmado. */
   const { pendentes } = useAvaliacoesPendentes(perfil?.perfil === 'cliente')
   const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
+  const mensagensNovas = useChamadosNaoLidos(perfil?.perfil === 'cliente')
 
   useEffect(() => {
     let ativo = true
@@ -357,6 +362,24 @@ export default function HomePage() {
         setChamados(
           (chamadosData || []) as Chamado[]
         )
+
+        const EM_ANDAMENTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+        const contar = (filtro: (q: any) => any) =>
+          filtro(
+            supabase
+              .from('chamados')
+              .select('id', { count: 'exact', head: true })
+              .eq('empresa_id', perfilData.empresa_id)
+          ).then((r: any) => r.count || 0)
+
+        const [total, andamento, resolvidos, urgentes] = await Promise.all([
+          contar((q) => q),
+          contar((q) => q.in('status', EM_ANDAMENTO)),
+          contar((q) => q.in('status', ['resolvido', 'encerrado'])),
+          contar((q) => q.in('status', EM_ANDAMENTO).eq('prioridade', 'urgente')),
+        ])
+
+        if (ativo) setContagem({ total, andamento, resolvidos, urgentes })
       } catch (err) {
         console.error(
           'Erro ao carregar portal:',
@@ -403,25 +426,10 @@ export default function HomePage() {
 
   const tema = marcas[marca]
 
-  const totalChamados = chamados.length
-
-  const abertos = chamados.filter(
-    (chamado) =>
-      chamado.status === 'aberto' ||
-      chamado.status === 'em_atendimento' ||
-      chamado.status === 'aguardando_cliente'
-  ).length
-
-  const resolvidos = chamados.filter(
-    (chamado) =>
-      chamado.status === 'resolvido' ||
-      chamado.status === 'encerrado'
-  ).length
-
-  const urgentes = chamados.filter(
-    (chamado) =>
-      chamado.prioridade === 'urgente'
-  ).length
+  const totalChamados = contagem.total
+  const abertos = contagem.andamento
+  const resolvidos = contagem.resolvidos
+  const urgentes = contagem.urgentes
 
   return (
     <main style={styles.page}>
@@ -454,7 +462,7 @@ export default function HomePage() {
         >
           <div style={styles.card}>
             <p style={styles.cardLabel}>
-              Chamados recentes
+              Chamados
             </p>
 
             <p style={styles.cardValue}>
@@ -484,7 +492,7 @@ export default function HomePage() {
 
           <div style={styles.card}>
             <p style={styles.cardLabel}>
-              Urgentes
+              Urgentes em aberto
             </p>
 
             <p style={styles.cardValue}>
@@ -658,6 +666,7 @@ export default function HomePage() {
                       >
                         {chamado.assunto}
                         {idsParaAvaliar.has(chamado.id) && <SeloAvaliar />}
+                        <SeloMensagemNova quantidade={mensagensNovas[chamado.id]} />
                       </p>
 
                       <p
