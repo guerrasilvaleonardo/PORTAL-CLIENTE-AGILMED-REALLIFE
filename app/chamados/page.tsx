@@ -7,6 +7,7 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes } from '@/lib/situacoes'
 import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
+import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import CobrancasPendentes, { SeloCobranca } from '@/components/CobrancasPendentes'
 import { useCobrancasPendentes } from '@/lib/cobrancasPendentes'
 import SeloMensagemNova from '@/components/SeloMensagemNova'
@@ -199,7 +200,7 @@ export default function ChamadosPage() {
   }, [chamados])
 
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase()
+    const palavras = palavrasDaBusca(busca)
 
     return chamados.filter((c) => {
       if (filtro === 'abertos' && !EM_ABERTO.includes(c.status)) return false
@@ -207,19 +208,13 @@ export default function ChamadosPage() {
         return false
       }
 
-      if (!termo) return true
+      if (!palavras.length) return true
 
-      const alvo = (
-        c.assunto +
-        ' ' +
-        c.categoria +
-        ' ' +
-        String(c.numero) +
-        ' ' +
-        (c.empresas?.nome_fantasia || c.empresas?.razao_social || '')
-      ).toLowerCase()
-
-      return alvo.includes(termo)
+      /* Sem acento e em qualquer ordem; inclui a descrição do chamado. */
+      return casaBusca(
+        [c.assunto, c.categoria, c.numero, c.empresas?.nome_fantasia, c.empresas?.razao_social, (c as any).descricao].join(' '),
+        palavras
+      )
     })
   }, [chamados, filtro, busca])
 
@@ -307,7 +302,7 @@ export default function ChamadosPage() {
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar assunto, número ou categoria"
+              placeholder="Buscar assunto, número, nome ou descrição"
             />
 
             <select
