@@ -130,7 +130,7 @@ export async function GET(request: Request) {
   const { data: perfis } = todosIds.length
     ? await supabaseAdmin
         .from('profiles')
-        .select('id, email, perfil, ativo')
+        .select('id, nome, email, perfil, ativo')
         .in('id', todosIds)
     : { data: [] as any[] }
 
@@ -139,6 +139,53 @@ export async function GET(request: Request) {
     if ((p as any).perfil === 'cliente' && (p as any).ativo !== false && (p as any).email) {
       emailCliente.set((p as any).id, (p as any).email)
     }
+  }
+
+  const pessoa = new Map<string, { nome: string; email: string; cliente: boolean }>()
+  for (const p of perfis || []) {
+    pessoa.set((p as any).id, {
+      nome: (p as any).nome || '',
+      email: (p as any).email || '',
+      cliente: (p as any).perfil === 'cliente',
+    })
+  }
+
+  /*
+   * O que a equipe pediu: última mensagem escrita por alguém da equipe
+   * (não automática). Ajuda a empresa a saber o que falta e para quem.
+   */
+  const { data: msgs } = await supabaseAdmin
+    .from('chamado_mensagens')
+    .select('chamado_id, autor_id, mensagem, created_at')
+    .in('chamado_id', devidos.map((c: any) => c.id))
+    .not('autor_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(500)
+
+  const autoresIds = [...new Set((msgs || []).map((m: any) => m.autor_id))]
+  const { data: autores } = autoresIds.length
+    ? await supabaseAdmin.from('profiles').select('id, nome, perfil').in('id', autoresIds)
+    : { data: [] as any[] }
+  const autorEquipe = new Map(
+    (autores || [])
+      .filter((a: any) => ['atendimento', 'gestor', 'admin'].includes(a.perfil))
+      .map((a: any) => [a.id, a.nome || 'Equipe'])
+  )
+
+  const pedido = new Map<string, { texto: string; autor: string }>()
+  for (const m of (msgs || []) as any[]) {
+    if (pedido.has(m.chamado_id) || !autorEquipe.has(m.autor_id)) continue
+    const texto = String(m.mensagem || '').replace(/\s+/g, ' ').trim()
+    pedido.set(m.chamado_id, {
+      texto: texto.length > 280 ? texto.slice(0, 277) + '...' : texto,
+      autor: autorEquipe.get(m.autor_id) as string,
+    })
+  }
+
+  function quem(id: string | null) {
+    const p = id ? pessoa.get(id) : null
+    if (!p || (!p.nome && !p.email)) return ''
+    return escapar(p.nome || p.email) + (p.nome && p.email ? ' (' + escapar(p.email) + ')' : '')
   }
 
   let envios = 0
@@ -159,9 +206,36 @@ export async function GET(request: Request) {
 
     const dias = Math.floor((agora.getTime() - new Date(c.sla_pausado_em).getTime()) / 86400000)
 
+    /* Quem deve a resposta: solicitante indicado; sem ele, quem abriu. */
+    const abriu = quem(c.criado_por)
+    const solicitante = c.solicitante_id && c.solicitante_id !== c.criado_por ? quem(c.solicitante_id) : ''
+    /*
+     * Se a equipe abriu o chamado e não há solicitante, quem responde é o
+     * pessoal do cliente que recebeu este e-mail (participantes).
+     */
+    const idDono = solicitante ? c.solicitante_id : pessoa.get(c.criado_por)?.cliente ? c.criado_por : null
+    const doCliente = [...(pessoasPorChamado.get(c.id) || [])].filter((id) => pessoa.get(id)?.cliente)
+    const responsavelResposta = idDono
+      ? quem(idDono)
+      : doCliente.map((id) => quem(id)).filter(Boolean).join(', ')
+    const nomeCurto = idDono ? (pessoa.get(idDono)?.nome || '').split(' ')[0] : ''
+    const pedidoDaEquipe = pedido.get(c.id)
+
+    const identificacao =
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:4px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">' +
+      (responsavelResposta
+        ? '<tr><td style="padding:10px 14px 4px;font-size:14px;color:#0f172a;"><strong>Resposta esperada de:</strong> ' + responsavelResposta + '</td></tr>'
+        : '') +
+      (abriu ? '<tr><td style="padding:4px 14px;font-size:13px;color:#334155;">Aberto por: ' + abriu + '</td></tr>' : '') +
+      (solicitante ? '<tr><td style="padding:4px 14px;font-size:13px;color:#334155;">Solicitante: ' + solicitante + '</td></tr>' : '') +
+      '<tr><td style="padding:4px 14px 10px;font-size:13px;color:#334155;">Empresa: ' +
+      escapar(empresa?.nome_fantasia || empresa?.razao_social || '') +
+      '</td></tr></table>'
+
     const r = await enviarEmail({
       para,
-      assunto: 'Chamado #' + c.numero + ' aguarda o seu retorno há ' + dias + ' dias',
+      assunto:
+        'Chamado #' + c.numero + ' aguarda o retorno' + (nomeCurto ? ' de ' + nomeCurto : '') + ' há ' + dias + ' dias',
       html: montarEmail(
         marca,
         'Precisamos do seu retorno',
@@ -175,6 +249,16 @@ export async function GET(request: Request) {
             ' (' +
             dias +
             ' dias).',
+          identificacao,
+          ...(pedidoDaEquipe
+            ? [
+                '<strong>O que precisamos</strong> (última mensagem de ' +
+                  escapar(pedidoDaEquipe.autor) +
+                  '):<br><em>' +
+                  escapar(pedidoDaEquipe.texto) +
+                  '</em>',
+              ]
+            : []),
           'Sem esse retorno não conseguimos continuar o atendimento. Basta abrir o chamado no portal e responder por lá: ele volta para a nossa equipe na hora.',
         ],
         { rotulo: 'Responder o chamado', url: portal + '/chamados/' + c.id },

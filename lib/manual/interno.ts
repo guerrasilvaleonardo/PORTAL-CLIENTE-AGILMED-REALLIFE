@@ -112,6 +112,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Filtros: busca, empresa, prioridade e responsável ("Meus atendimentos", "Sem responsável" ou uma pessoa).',
+            'A busca procura no título, número, categoria, empresa, descrição e nas mensagens da conversa, sem diferenciar acentos, maiúsculas ou ordem das palavras ("antonio da conceicao lopes" acha "Lopes, Antônio Conceição"). Quando acha fora do título, o cartão mostra "Encontrado na descrição" ou "Encontrado na conversa".',
             'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO. O selo "nova" piscando indica mensagem não lida num chamado seu.',
           ],
         },
@@ -185,6 +186,7 @@ const manualInterno: Manual = {
           passos: [
             'Escolha a nova situação. Aguardando cliente pausa o prazo; Resolvido entrega a solução; voltar para Aberto ou Em atendimento reabre.',
             'Clique em Salvar status. O cliente recebe e-mail e o sistema publica uma mensagem automática na conversa.',
+            'Ao pôr em Aguardando cliente, escreva na conversa exatamente o que falta (documento, dado, confirmação e de quem). O e-mail de cobrança mostra em "O que precisamos" a última mensagem da equipe no chamado: se ela não disser o que falta, o lembrete repete um texto que não ajuda o cliente.',
           ],
           dica: 'Responder na conversa de um chamado Aberto já o passa para Em atendimento automaticamente.',
           atencao:
@@ -631,6 +633,7 @@ const manualInterno: Manual = {
           passos: [
             'Alerta de SLA: a equipe recebe a lista de chamados com prazo vencido (sem contar os Aguardando cliente), e cada responsável recebe os seus.',
             'Cobrança do cliente: chamado em Aguardando cliente além do prazo da empresa gera e-mail ao solicitante, a quem abriu (se cliente) e aos participantes do cliente; repete a cada 3 dias úteis até ele responder. Empresa interna fica fora. A cobrança fica registrada no histórico do chamado.',
+            'O e-mail de cobrança diz de quem a resposta é esperada (o solicitante; sem ele, quem abriu; se a equipe abriu, os usuários do cliente no chamado), quem abriu, a empresa e a última mensagem escrita pela equipe ("O que precisamos"). Por isso, ao pôr em Aguardando cliente, escreva na conversa exatamente o que falta.',
             'Mensagens automáticas na conversa do chamado: ao abrir, entrar em atendimento, reabrir, aguardar cliente, suspender, retomar, resolver e encerrar.',
           ],
         },

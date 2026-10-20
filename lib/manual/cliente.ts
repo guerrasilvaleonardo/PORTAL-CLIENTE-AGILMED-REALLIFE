@@ -137,7 +137,7 @@ const manualCliente: Manual = {
           },
           passos: [
             'Clique em "Responder": o portal abre o chamado. Responda na conversa ou envie o que foi pedido; o chamado volta para a nossa equipe na hora e o aviso some.',
-            'Enquanto o chamado aguardar a sua resposta, você também recebe um e-mail de lembrete a cada 3 dias úteis.',
+            'Enquanto o chamado aguardar a sua resposta, você também recebe um e-mail de lembrete a cada 3 dias úteis. O e-mail mostra de quem a resposta é esperada, quem abriu o chamado e o que a nossa equipe precisa.',
           ],
           dica: 'Se o pedido já foi atendido por outro meio, escreva isso na conversa para a equipe atualizar o chamado.',
         },
@@ -262,7 +262,7 @@ const manualCliente: Manual = {
           },
           passos: [
             'Os números mostram o total de chamados que você pode ver, quantos estão em aberto, urgentes e resolvidos.',
-            'Busque pelo assunto, número ou categoria e filtre pela situação (por exemplo, "Só os em aberto").',
+            'Busque pelo assunto, número, categoria ou por um nome escrito na descrição, e filtre pela situação (por exemplo, "Só os em aberto"). Acentos e ordem das palavras não importam.',
             'Clique em uma linha para abrir o chamado.',
           ],
           dica: 'Você vê os chamados abertos para toda a empresa, os que você abriu e aqueles em que foi marcado. Um chamado restrito de um colega não aparece para você.',

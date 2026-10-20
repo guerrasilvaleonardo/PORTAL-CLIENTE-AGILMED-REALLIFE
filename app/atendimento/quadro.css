@@ -179,3 +179,9 @@
   color: var(--danger); background: var(--danger-tint);
   border-radius: 8px; padding: 4px 8px;
 }
+
+/* Busca: indica quando o termo foi achado fora do título. */
+.card-achado {
+  margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--primary-strong, #0f4c51);
+  background: var(--primary-tint, #e6f2f1); border-radius: 8px; padding: 3px 8px; display: inline-block;
+}
