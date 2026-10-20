@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { ehFeriado } from '@/lib/prazo'
+import { HORAS_SLA, ehFeriado, prazoEmHorasUteis } from '@/lib/prazo'
 import { carregarFeriados } from '@/lib/feriados'
 import { enderecoDoPortal, enviarEmail, escapar, marcaDaEmpresa, montarEmail } from '@/lib/email'
-import { dataBr, diasAteData, hojePortoVelho, marcoAtual, nomeDoTipo, type DocumentoSst } from '@/lib/documentosSst'
+import {
+  DIAS_CHAMADO_AUTOMATICO,
+  dataBr,
+  diasAteData,
+  hojePortoVelho,
+  marcoAtual,
+  nomeDoTipo,
+  proximoPrazo,
+  type DocumentoSst,
+} from '@/lib/documentosSst'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -20,6 +29,11 @@ export const maxDuration = 60
  * Cliente: um e-mail por empresa, para os usuários ativos dela.
  * Equipe: o responsável pelo acompanhamento recebe os dele; sem
  * responsável, vai para gestores e administradores.
+ *
+ * Chamado automático: faltando DIAS_CHAMADO_AUTOMATICO (60) dias ou
+ * menos para o próximo prazo e sem nenhum chamado ligado ao documento
+ * (chamados.documento_sst_id), o portal abre um chamado de renovação
+ * para a empresa, já com o responsável pelo acompanhamento.
  */
 
 function autorizado(request: Request) {
@@ -33,7 +47,9 @@ type Item = {
   prazo: 'vencimento' | 'revisao'
   data: string
   dias: number
+  /* -2 = só avisa o chamado aberto hoje (não entra no registro de marcos). */
   marco: number
+  chamado?: number
 }
 
 function descricao(i: Item) {
@@ -74,7 +90,11 @@ function tabela(itens: Item[], comEmpresa: boolean) {
           ' · ' +
           quando +
           (i.doc.link_assinado ? '' : ' · sem versão assinada no portal') +
-          '</span></td></tr>'
+          '</span>' +
+          (i.chamado
+            ? '<br><span style="font-size:13px;color:#0f766e;"><strong>Chamado #' + i.chamado + '</strong> de renovação aberto automaticamente.</span>'
+            : '') +
+          '</td></tr>'
         )
       })
       .join('') +
@@ -99,7 +119,7 @@ export async function GET(request: Request) {
 
   const { data: docs, error } = await supabaseAdmin
     .from('documentos_sst')
-    .select('*, empresas(nome_fantasia, razao_social, marca), documentos_sst_tipos(nome, sigla)')
+    .select('*, empresas(nome_fantasia, razao_social, marca, interna), documentos_sst_tipos(nome, sigla)')
     .eq('situacao', 'vigente')
 
   if (error) {
@@ -131,8 +151,90 @@ export async function GET(request: Request) {
     }
   }
 
+  /* ---------- Chamado automático de renovação ---------- */
+  const abertos: { documento: string; chamado: number }[] = []
+  let erroChamado: string | null = null
+
+  const { data: ligados, error: erroLigados } = await supabaseAdmin
+    .from('chamados')
+    .select('documento_sst_id')
+    .not('documento_sst_id', 'is', null)
+
+  if (erroLigados) {
+    erroChamado = 'coluna chamados.documento_sst_id ainda não existe: ' + erroLigados.message
+  } else {
+    const comChamado = new Set((ligados || []).map((c: any) => c.documento_sst_id))
+
+    const { data: equipe } = await supabaseAdmin
+      .from('profiles')
+      .select('id, perfil')
+      .in('perfil', ['admin', 'gestor'])
+      .eq('ativo', true)
+      .order('perfil')
+
+    const gestorPadrao = (equipe || []).find((p: any) => p.perfil === 'admin')?.id || (equipe || [])[0]?.id
+
+    for (const d of (docs || []) as Item['doc'][]) {
+      if (d.chamado_automatico === false || comChamado.has(d.id) || d.empresas?.interna) continue
+
+      const prazo = proximoPrazo(d)
+      const dias = prazo ? diasAteData(prazo.data, hoje) : null
+      if (!prazo || dias === null || dias > DIAS_CHAMADO_AUTOMATICO) continue
+
+      const criadoPor = d.responsavel_id || gestorPadrao
+      if (!criadoPor) continue
+
+      const nome = nomeDoTipo(d.documentos_sst_tipos) + (d.unidade ? ' — ' + d.unidade : '')
+      const quando =
+        dias < 0
+          ? (prazo.tipo === 'vencimento' ? 'venceu em ' : 'a revisão programada era para ') + dataBr(prazo.data)
+          : (prazo.tipo === 'vencimento' ? 'vence em ' : 'tem revisão programada para ') +
+            dataBr(prazo.data) +
+            ' (' + dias + ' dia' + (dias === 1 ? '' : 's') + ')'
+
+      const { data: novo, error: erroNovo } = await supabaseAdmin
+        .from('chamados')
+        .insert({
+          empresa_id: d.empresa_id,
+          criado_por: criadoPor,
+          responsavel_id: d.responsavel_id || null,
+          categoria: 'Documentos',
+          assunto: 'Renovação: ' + nome,
+          descricao:
+            'Chamado aberto automaticamente pelo portal: o documento ' +
+            nome +
+            (d.versao ? ' (' + d.versao + ')' : '') +
+            (d.titulo ? ' — ' + d.titulo : '') +
+            ' ' + quando +
+            ' e ainda não havia pedido de renovação.' +
+            '\n\nPara a renovação, informe as alterações desde a última versão (processos, funções, ambientes, número de trabalhadores) ou confirme que não houve mudanças.',
+          prioridade: 'normal',
+          status: 'aberto',
+          prazo_sla: prazoEmHorasUteis(HORAS_SLA.normal ?? 24).toISOString(),
+          visibilidade: 'empresa',
+          documento_sst_id: d.id,
+        })
+        .select('numero')
+        .single()
+
+      if (erroNovo) {
+        erroChamado = erroNovo.message
+        console.error('Chamado automático do documento ' + d.id + ':', erroNovo)
+        continue
+      }
+
+      comChamado.add(d.id)
+      abertos.push({ documento: d.id, chamado: (novo as any).numero })
+
+      /* Entra no aviso do dia mesmo que hoje não seja dia de marco. */
+      const item = itens.find((i) => i.doc.id === d.id)
+      if (item) item.chamado = (novo as any).numero
+      else itens.push({ doc: d, prazo: prazo.tipo, data: prazo.data, dias, marco: -2, chamado: (novo as any).numero })
+    }
+  }
+
   if (!itens.length) {
-    return NextResponse.json({ sucesso: true, data: hoje, avisos: 0, envios: 0 })
+    return NextResponse.json({ sucesso: true, data: hoje, avisos: 0, envios: 0, chamados: abertos, erroChamado })
   }
 
   itens.sort((a, b) => a.dias - b.dias)
@@ -176,7 +278,7 @@ export async function GET(request: Request) {
             escapar(empresa?.nome_fantasia || empresa?.razao_social || 'sua empresa') +
             '</strong> estão com prazo de vencimento ou de revisão próximo:',
           tabela(lista, false),
-          'Para pedir a renovação, abra o documento no portal e clique em "Solicitar renovação".',
+          'Quando faltam ' + DIAS_CHAMADO_AUTOMATICO + ' dias ou menos e ninguém pediu a renovação, abrimos o chamado automaticamente. Para pedir antes, abra o documento no portal e clique em "Solicitar renovação".',
         ],
         { rotulo: 'Ver os documentos', url: enderecoDoPortal(marca) + '/documentos' },
         'Aviso automático do Portal do Cliente.'
@@ -234,12 +336,14 @@ export async function GET(request: Request) {
     }
   }
 
-  if (avisados.size) {
+  const registrar = [...avisados].filter((i) => i.marco !== -2)
+
+  if (registrar.length) {
     await supabaseAdmin.from('documentos_sst_alertas').upsert(
-      [...avisados].map((i) => ({ documento_id: i.doc.id, prazo: i.prazo, data_prazo: i.data, marco: i.marco })),
+      registrar.map((i) => ({ documento_id: i.doc.id, prazo: i.prazo, data_prazo: i.data, marco: i.marco })),
       { onConflict: 'documento_id,prazo,data_prazo,marco', ignoreDuplicates: true }
     )
   }
 
-  return NextResponse.json({ sucesso: true, data: hoje, avisos: itens.length, registrados: avisados.size, envios })
+  return NextResponse.json({ sucesso: true, data: hoje, avisos: itens.length, registrados: registrar.length, envios, chamados: abertos, erroChamado })
 }

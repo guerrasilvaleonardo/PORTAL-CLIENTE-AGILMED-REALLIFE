@@ -186,6 +186,23 @@ create policy documentos_sst_alertas_equipe
                  where p.id = auth.uid() and p.ativo = true
                    and p.perfil in ('atendimento', 'gestor', 'admin')));
 
+-- ---------- 4. Chamado de renovação -----------------------------------
+-- Liga o chamado ao documento. Pedido feito pelo botão "Solicitar
+-- renovação" ou aberto automaticamente pelo portal a 60 dias do prazo
+-- (quando ninguém pediu). Só ADICIONA uma coluna em chamados, vazia
+-- para todos os chamados que já existem.
+alter table public.chamados
+  add column if not exists documento_sst_id uuid
+    references public.documentos_sst (id) on delete set null;
+
+create index if not exists chamados_documento_sst
+  on public.chamados (documento_sst_id) where documento_sst_id is not null;
+
+-- Documento que a empresa prefere tratar por conta própria: desliga o
+-- chamado automático (o alerta por e-mail continua).
+alter table public.documentos_sst
+  add column if not exists chamado_automatico boolean not null default true;
+
 -- Conferência
 select (select count(*) from public.documentos_sst_tipos) as tipos,
        (select count(*) from public.documentos_sst) as documentos;

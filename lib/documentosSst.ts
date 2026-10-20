@@ -24,6 +24,8 @@ export type DocumentoSst = {
   observacoes: string | null
   alertas: number[] | null
   situacao: 'vigente' | 'substituido'
+  /* false = não abre chamado automático de renovação (o e-mail continua). */
+  chamado_automatico?: boolean
   substitui_id: string | null
   created_at: string
   updated_at?: string
@@ -38,6 +40,12 @@ export type TipoDocumento = {
 }
 
 export const ALERTAS_PADRAO = [90, 60, 30, 15, 7]
+
+/*
+ * Faltando este número de dias (ou menos) para o próximo prazo, sem
+ * chamado de renovação ligado ao documento, o portal abre um sozinho.
+ */
+export const DIAS_CHAMADO_AUTOMATICO = 60
 
 /* Data de hoje em Porto Velho, AAAA-MM-DD. */
 export function hojePortoVelho() {

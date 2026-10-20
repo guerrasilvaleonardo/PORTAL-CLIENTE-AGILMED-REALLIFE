@@ -38,3 +38,4 @@
   .doc-linha > :first-child { grid-column: 1; }
   .doc-linha .cert-acoes { grid-column: 2; grid-row: 1; }
 }
+.doc-chamado { text-decoration: none; }
