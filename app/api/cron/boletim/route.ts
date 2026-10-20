@@ -39,6 +39,17 @@ function faixa(dias: number | null) {
  * empresa dos certificados que vencem nos próximos 90, 30 e 7 dias,
  * além dos que já venceram. A equipe interna recebe o consolidado.
  */
+/*
+ * Empresas que NÃO contrataram a ferramenta (supabase/modulos-cliente.sql)
+ * não recebem o e-mail dela; a equipe continua recebendo. Sem a coluna
+ * (SQL não rodou), ninguém é bloqueado.
+ */
+async function empresasSemModulo(coluna: string) {
+  const { data, error } = await supabaseAdmin.from('empresas').select('id, ' + coluna)
+  if (error) return new Set<string>()
+  return new Set((data || []).filter((e: any) => e[coluna] === false).map((e: any) => e.id as string))
+}
+
 export async function GET(request: Request) {
   if (!autorizado(request)) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
@@ -118,7 +129,11 @@ export async function GET(request: Request) {
 
   let envios = 0
 
+  const semContratacao = await empresasSemModulo('modulo_certificados')
+
   for (const [empresaId, itens] of porEmpresa) {
+    if (semContratacao.has(empresaId)) continue
+
     const empresa = itens[0].empresas
     const marca = marcaDaEmpresa(empresa?.marca)
     const portal = enderecoDoPortal(marca)
