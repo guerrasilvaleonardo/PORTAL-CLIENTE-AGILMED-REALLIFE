@@ -161,6 +161,10 @@ export async function enviarEmail(envio: Envio) {
 export function formatarData(valor: string | null | undefined) {
   if (!valor) return '—'
 
+  /* Data pura (AAAA-MM-DD): sem conversão de fuso, senão vira o dia anterior. */
+  const soData = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor)
+  if (soData) return soData[3] + '/' + soData[2] + '/' + soData[1]
+
   const d = new Date(valor)
 
   if (Number.isNaN(d.getTime())) return '—'

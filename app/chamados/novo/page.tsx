@@ -125,6 +125,18 @@ export default function NovoChamadoPage() {
   /* Empresa da própria equipe (chamado interno): solicitante é da equipe. */
   const [empresaInterna, setEmpresaInterna] = useState(false);
 
+  /*
+   * Abertura pré-preenchida por link (ex.: "Solicitar renovação" em
+   * Documentos SST): ?categoria=...&assunto=...&descricao=...
+   */
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const cat = q.get('categoria');
+    if (cat && categorias.includes(cat)) setCategoria(cat);
+    if (q.get('assunto')) setAssunto((q.get('assunto') || '').slice(0, 200));
+    if (q.get('descricao')) setDescricao((q.get('descricao') || '').slice(0, 4000));
+  }, []);
+
   useEffect(() => {
     let ativo = true;
 

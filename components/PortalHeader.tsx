@@ -189,6 +189,7 @@ export default function PortalHeader() {
         { href: '/estrelas', rotulo: 'Estrelas' },
         { href: '/chamados', rotulo: 'Chamados' },
         { href: '/certificados', rotulo: 'Certificados' },
+        { href: '/documentos', rotulo: 'Documentos SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
         { href: '/equipe', rotulo: 'Conversas' },
       ]
@@ -196,6 +197,7 @@ export default function PortalHeader() {
         { href: '/', rotulo: 'Início' },
         { href: '/chamados', rotulo: 'Chamados' },
         { href: '/certificados', rotulo: 'Certificados' },
+        { href: '/documentos', rotulo: 'Documentos SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
         { href: '/equipe', rotulo: 'Conversas' },
       ]

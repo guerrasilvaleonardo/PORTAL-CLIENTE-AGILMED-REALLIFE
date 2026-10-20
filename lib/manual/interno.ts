@@ -6,7 +6,7 @@ import type { Bloco, Manual } from './tipos'
  * (time interno) e, se o cliente vê ou é afetado, em cliente.ts.
  */
 
-const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Certificados', 'Treinamentos', 'Conversas']
+const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualInterno: Manual = {
@@ -26,7 +26,7 @@ const manualInterno: Manual = {
             'Chamados entram pelo cliente (ou são abertos por nós em nome dele) e caem no Quadro de chamados.',
             'Cada chamado tem responsável, prioridade, prazo (SLA), conversas, etapas, anexos e histórico.',
             'Painel, Prioridades, Agenda e Desempenho ajudam a organizar a fila e a carga de cada um.',
-            'Certificados e Treinamentos acompanham a validade e o andamento EAD dos colaboradores dos clientes.',
+            'Certificados e Treinamentos acompanham a validade e o andamento EAD dos colaboradores dos clientes. Documentos SST controla prazos, revisões e versões assinadas de PGR, PCMSO, laudos e programas de cada empresa.',
           ],
         },
         {
@@ -47,7 +47,7 @@ const manualInterno: Manual = {
           titulo: 'Menu e botão de ajuda',
           tela: { url: '/painel', blocos: [menu('Painel', 1), { t: 'topo', sobre: 'Painel central', titulo: 'Olá, Ana.' }] },
           passos: [
-            'Menu da equipe: Painel, Atendimento, Estrelas, Chamados, Certificados, Treinamentos e Conversas. O botão "?" abre este manual no assunto da tela atual. Sair encerra o acesso.',
+            'Menu da equipe: Painel, Atendimento, Estrelas, Chamados, Certificados, Documentos SST, Treinamentos e Conversas. O botão "?" abre este manual no assunto da tela atual. Sair encerra o acesso.',
           ],
           dica: 'Meu perfil (dados e troca de senha) fica no link "Meu perfil", no topo de todas as telas. Mensagem nova em chamado seu (responsável, aberto ou solicitado por você) acende um balão vermelho na aba Atendimento; mensagem nova em Conversas acende o balão na aba Conversas.',
           link: { href: '/perfil', rotulo: 'Abrir Meu perfil' },
@@ -534,6 +534,59 @@ const manualInterno: Manual = {
             'Toda segunda-feira o Boletim de Antecedência é enviado por e-mail aos clientes e à equipe com o que vence em 90, 30 e 7 dias.',
           ],
           dica: '"Sem data de emissão" (Análise mensal) não é o mesmo que "Validade não informada" (cartões): um fala da emissão, o outro do vencimento.',
+        },
+      ],
+    },
+
+    {
+      id: 'documentos',
+      titulo: 'Documentos SST',
+      rotas: ['/documentos'],
+      slides: [
+        {
+          titulo: 'Cadastrar um documento',
+          texto: 'Controle de PGR, PCMSO, AET, AEP, LTCAT, laudos, PCA, PPR e outros tipos, por empresa e unidade.',
+          tela: {
+            url: '/documentos',
+            blocos: [
+              menu('Documentos SST'),
+              { t: 'topo', sobre: 'Todos os clientes', titulo: 'Documentos SST', botoes: ['Exportar', '+ Novo tipo de documento', '+ Novo documento'] },
+              { t: 'campos', n: 1, itens: [{ rotulo: 'Empresa', valor: 'Empresa A', obrigatorio: true }, { rotulo: 'Unidade / contrato', valor: 'Matriz' }, { rotulo: 'Tipo', valor: 'PGR', obrigatorio: true }, { rotulo: 'Versão', valor: 'Rev. 02' }, { rotulo: 'Título', valor: 'PGR — Unidade Porto Velho', largo: true }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Emissão', valor: '20/11/2025' }, { rotulo: 'Vencimento', valor: '20/11/2027' }, { rotulo: 'Próxima revisão', valor: '20/11/2026' }] },
+              { t: 'campos', n: 3, itens: [{ rotulo: 'Responsável pelo acompanhamento', valor: 'Ana' }, { rotulo: 'Responsável técnico', valor: 'Nome · CREA' }, { rotulo: 'Link do documento assinado', valor: 'https://...', largo: true }] },
+              { t: 'botoes', itens: [{ rotulo: 'Cadastrar documento', primario: true }] },
+            ],
+          },
+          passos: [
+            'Clique em "+ Novo documento". Empresa, unidade/contrato/estabelecimento (diferencia documentos da mesma empresa), tipo, versão e título.',
+            'Datas: emissão, vencimento e próxima revisão são campos separados. Se o documento não tem vencimento fixo, marque "Não possui vencimento fixo" e programe a revisão.',
+            'Responsável pelo acompanhamento (quem da equipe providencia a renovação), responsável técnico (quem elaborou), link do documento assinado (SharePoint, Drive...) e observações.',
+            'Alertas antes do prazo: marque 90, 60, 30, 15 e/ou 7 dias. Valem para o vencimento e para a revisão programada.',
+            'Mudou o processo, a função, o ambiente ou o número de trabalhadores? Marque "Revisão pendente por alteração das condições" e escreva o que mudou.',
+          ],
+          atencao: 'Não existe validade automática por tipo: cada documento segue o critério dele. A data cadastrada não garante que o conteúdo continua atualizado.',
+        },
+        {
+          titulo: 'Acompanhar prazos e assinaturas',
+          passos: [
+            'Prazos: Cadastrados, Vencidos, A vencer em até 30 dias, 31 a 60 e 61 a 90. Cada documento entra numa faixa só; clique num cartão para filtrar.',
+            'Assinatura e revisão: "Sem link assinado" e "Revisões pendentes" (marcadas à mão ou com a data de revisão vencida). É outro controle: um documento pode estar no prazo e sem a versão assinada.',
+            'Filtros por empresa, unidade, tipo, responsável e situação. A lista vem ordenada pelo próximo prazo (vencimento ou revisão, o que vier antes).',
+            '"Abrir assinado" abre o arquivo; sem link, "+ Inserir link" abre o cadastro.',
+            'Menu ⋯: Editar, Renovar / Nova revisão, Histórico de revisões e Remover (pede confirmação; não apaga o arquivo no SharePoint/Drive).',
+          ],
+        },
+        {
+          titulo: 'Renovar e alertas automáticos',
+          passos: [
+            '"Renovar / Nova revisão" abre o cadastro copiado: preencha as novas datas, a versão e o link. A versão anterior vai para o histórico com o link preservado.',
+            'Todo dia útil, às 08h10 de Porto Velho, o portal envia e-mail quando um prazo chega a um dos marcos marcados no documento e quando vence: um aviso por marco.',
+            'O cliente recebe os da empresa dele. Na equipe, recebe o responsável pelo acompanhamento; sem responsável, gestores e administradores.',
+            '"+ Novo tipo de documento" amplia a lista (ex.: Laudo de SPDA). Tipo desativado sai do cadastro, mas os documentos dele continuam.',
+            'O cliente vê os documentos da empresa dele, abre o assinado e pode clicar em "Solicitar renovação", que abre um chamado em Documentos já preenchido.',
+          ],
+          dica: 'Marco que cair em fim de semana ou feriado sai no próximo dia útil.',
+          link: { href: '/documentos', rotulo: 'Abrir Documentos SST' },
         },
       ],
     },

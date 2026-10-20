@@ -1,0 +1,40 @@
+/* Documentos SST: complementa app/certificados/certificados.css */
+
+.cert-linha.doc-linha {
+  grid-template-columns: minmax(170px, 1.2fr) minmax(190px, 1.5fr) 120px minmax(170px, 1.1fr) 140px 48px;
+}
+.doc-linha .cert-validade { gap: 4px; }
+.doc-sem-link { border-style: dashed; color: var(--ink-muted); white-space: nowrap; }
+
+.doc-aviso { background: var(--primary-tint); color: var(--primary-strong); }
+.doc-marcos { display: flex; gap: 14px; flex-wrap: wrap; }
+
+.doc-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+}
+.doc-hist .cert-sub { white-space: normal; }
+.doc-hist-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.doc-tipo-novo { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.doc-tipo-novo .field { flex: 1 1 180px; }
+.doc-tipo {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.doc-tipo.inativo { opacity: 0.55; }
+.doc-fundo-tipos { z-index: 110; }
+
+@media (max-width: 860px) {
+  .cert-linha.doc-linha { grid-template-columns: 1fr auto; }
+  .doc-linha > :first-child { grid-column: 1; }
+  .doc-linha .cert-acoes { grid-column: 2; grid-row: 1; }
+}
