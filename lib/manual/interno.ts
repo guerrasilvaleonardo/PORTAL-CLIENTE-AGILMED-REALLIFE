@@ -2,8 +2,8 @@ import type { Bloco, Manual } from './tipos'
 
 /*
  * MANUAL DO TIME INTERNO (perfis atendimento, gestor e admin).
- * Ao mudar uma tela interna ou uma regra de SLA/estrelas, atualize
- * o capítulo correspondente aqui, no mesmo PR.
+ * Regra do projeto: TODA alteração do portal entra no mesmo PR aqui
+ * (time interno) e, se o cliente vê ou é afetado, em cliente.ts.
  */
 
 const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Certificados', 'Treinamentos', 'Conversas']
@@ -191,6 +191,28 @@ const manualInterno: Manual = {
             'Use Aguardando cliente só quando o próximo passo depender de fato do cliente, e diga na conversa o que falta. A pausa vale até ele responder. Parado além do prazo da empresa (padrão 7 dias, ajustável em Administração > Empresas), o cliente recebe cobrança por e-mail a cada 3 dias úteis e vê aviso vermelho no painel. Atendimento suspenso é para impedimento fora do seu controle, não para esperar o cliente.',
         },
         {
+          titulo: 'Suspender o atendimento',
+          texto:
+            'Para impedimento fora do controle do atendente: sistema indisponível, falha de software, dependência de fornecedor ou de terceiros (órgão, concessionária).',
+          tela: {
+            url: '/atendimento/…',
+            blocos: [
+              { t: 'topo', sobre: 'Atendimento suspenso', titulo: 'Suspender o chamado #115' },
+              { t: 'campos', n: 1, itens: [{ rotulo: 'Motivo', valor: 'Indisponibilidade de sistema', obrigatorio: true }, { rotulo: 'Próxima atualização', valor: '22/10/2026', obrigatorio: true }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Observação (só a equipe vê)', valor: 'eSocial fora do ar; retomar quando o envio voltar', largo: true, obrigatorio: true }] },
+              { t: 'botoes', n: 3, itens: [{ rotulo: 'Cancelar' }, { rotulo: 'Suspender atendimento', primario: true }] },
+            ],
+          },
+          passos: [
+            'No Quadro, arraste o cartão para a coluna Atendimento suspenso; ou, na tela do chamado, escolha Atendimento suspenso no status e clique em Salvar status.',
+            'Preencha motivo, observação (mínimo 10 caracteres) e a data da próxima atualização (hoje ou depois). Sem esses dados o sistema não deixa suspender.',
+            'O SLA pausa na hora. O cliente recebe e-mail e mensagem automática com o motivo e a próxima atualização; a observação fica só com a equipe.',
+            'Para retomar, mude a situação (por exemplo, Em atendimento). O prazo é estendido pelas horas úteis em que o chamado ficou suspenso e o cliente é avisado da retomada.',
+          ],
+          atencao:
+            'Nas estrelas, a extensão por suspensão fica "Aguardando gestor": só vale se o gestor autorizar, e nunca se o prazo já estava vencido quando a suspensão começou. Não use para esperar o cliente: para isso existe Aguardando cliente.',
+        },
+        {
           titulo: 'Prioridade e empresa (gestor e admin)',
           tela: {
             url: '/atendimento/…',
@@ -258,7 +280,8 @@ const manualInterno: Manual = {
             ],
           },
           passos: [
-            'A linha do tempo registra tudo: mudanças de situação, prioridade, responsável e empresa, anexos, links, mensagens, etapas, participantes e pausas do SLA, com data e autor.',
+            'A linha do tempo registra tudo: mudanças de situação, prioridade, responsável e empresa, anexos, links, mensagens, etapas, participantes, pausas do SLA, suspensões e cobranças enviadas ao cliente, com data e autor.',
+            'Nos detalhes do chamado, "Aberto por" mostra quem abriu (nome e e-mail) e "Atualização" mostra o último movimento registrado.',
           ],
           dica: 'Nesta tela, Primeira resposta e Tempo até resolver usam horas corridas. O Desempenho usa horas úteis.',
         },
@@ -558,6 +581,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Preencha razão social, nome fantasia, CNPJ, a marca que atende (ÁgilMed ou Real Life), situação e contatos. Clique em Cadastrar empresa e depois crie os usuários dela.',
+            'Cobrar cliente após (dias): quantos dias corridos um chamado pode ficar em Aguardando cliente antes da cobrança automática (padrão 7, de 1 a 60).',
           ],
           dica: 'A marca define as cores do portal e dos e-mails para o cliente. O e-mail da empresa recebe os avisos dos chamados abertos para toda a empresa. Empresa não é excluída: marque como Inativa.',
         },
@@ -596,6 +620,7 @@ const manualInterno: Manual = {
                 colunas: ['Rotina', 'Quando (Porto Velho)', 'O que faz'],
                 linhas: [
                   ['Alerta de SLA', 'Dias úteis, 08h', 'E-mail com chamados atrasados'],
+                  ['Cobrança do cliente', 'Dias úteis, 08h20', 'E-mail ao cliente com chamado parado'],
                   ['Boletim', 'Segunda, 07h', 'Certificados a vencer'],
                   ['Leitura do EAD', 'Todo dia, 05h', 'Atualiza o progresso'],
                   ['Encerramento', 'De hora em hora', 'Resolvido há 24h úteis → Encerrado'],
@@ -605,7 +630,8 @@ const manualInterno: Manual = {
           },
           passos: [
             'Alerta de SLA: a equipe recebe a lista de chamados com prazo vencido (sem contar os Aguardando cliente), e cada responsável recebe os seus.',
-            'Mensagens automáticas na conversa do chamado: ao abrir, entrar em atendimento, reabrir, aguardar cliente, resolver e encerrar.',
+            'Cobrança do cliente: chamado em Aguardando cliente além do prazo da empresa gera e-mail ao solicitante, a quem abriu (se cliente) e aos participantes do cliente; repete a cada 3 dias úteis até ele responder. Empresa interna fica fora. A cobrança fica registrada no histórico do chamado.',
+            'Mensagens automáticas na conversa do chamado: ao abrir, entrar em atendimento, reabrir, aguardar cliente, suspender, retomar, resolver e encerrar.',
           ],
         },
         {
