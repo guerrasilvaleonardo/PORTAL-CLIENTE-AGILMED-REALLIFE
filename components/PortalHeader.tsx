@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
+import ManualAjuda from '@/components/manual/ManualAjuda'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -183,6 +184,8 @@ export default function PortalHeader() {
             </Link>
           ))}
         </nav>
+
+        <ManualAjuda interno={interno} />
 
         <button
           type="button"

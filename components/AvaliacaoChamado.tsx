@@ -81,6 +81,18 @@ export default function AvaliacaoChamado({
     }
   }, [chamadoId, status])
 
+  /*
+   * Quem chega pelo lembrete ou pelo e-mail (link com #avaliar) vai
+   * direto ao cartão: ele só existe depois que a situação carrega,
+   * então o navegador sozinho não consegue rolar até ele.
+   */
+  useEffect(() => {
+    if (!situacao || typeof window === 'undefined') return
+    if (window.location.hash !== '#avaliar') return
+    const alvo = document.getElementById('avaliar')
+    if (alvo) alvo.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [situacao])
+
   async function enviar() {
     if (!nota || enviando) return
     setEnviando(true)

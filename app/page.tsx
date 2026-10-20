@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { marcas, type Marca } from '@/lib/marca'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
+import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
+import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
 import {
   comLimiteDeTempo,
   irParaLoginSessaoExpirada,
@@ -247,6 +249,10 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [redirecionando, setRedirecionando] = useState(false)
 
+  /* Só cliente avalia; a busca começa quando o perfil é confirmado. */
+  const { pendentes } = useAvaliacoesPendentes(perfil?.perfil === 'cliente')
+  const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
+
   useEffect(() => {
     let ativo = true
 
@@ -436,6 +442,8 @@ export default function HomePage() {
             {error}
           </div>
         )}
+
+        <PendenciasAvaliacao pendentes={pendentes} />
 
         <div
           style={{
@@ -649,6 +657,7 @@ export default function HomePage() {
                         }
                       >
                         {chamado.assunto}
+                        {idsParaAvaliar.has(chamado.id) && <SeloAvaliar />}
                       </p>
 
                       <p

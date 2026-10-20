@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes } from '@/lib/situacoes'
+import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
+import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
 
 type Chamado = {
   id: string
@@ -78,6 +80,10 @@ export default function ChamadosPage() {
   const [filtro, setFiltro] = useState('todos')
   const [busca, setBusca] = useState('')
   const [interno, setInterno] = useState(false)
+
+  /* Lembrete de avaliação: só para cliente, depois de saber o perfil. */
+  const { pendentes } = useAvaliacoesPendentes(!carregando && !interno)
+  const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
 
   useEffect(() => {
     let ativo = true
@@ -239,6 +245,8 @@ export default function ChamadosPage() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
+      {!interno && <PendenciasAvaliacao pendentes={pendentes} />}
+
       <div className="stats">
         <div className="stat">
           <div className="num">{carregando ? '—' : resumo.total}</div>
@@ -349,6 +357,7 @@ export default function ChamadosPage() {
                         }}
                       >
                         {c.assunto}
+                        {idsParaAvaliar.has(c.id) && <SeloAvaliar />}
                       </span>
 
                       <span
