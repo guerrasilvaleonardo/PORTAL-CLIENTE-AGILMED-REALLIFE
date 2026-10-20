@@ -8,6 +8,63 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
+import './portal-header.css'
+
+/*
+ * Mensagens privadas de Conversas ainda não lidas por quem está logado
+ * (chat_equipe: destinatario_id = eu e lido_em vazio). A sala aberta
+ * "Equipe toda" não tem controle de leitura e não entra na conta.
+ * Atualiza a cada 20 s, ao voltar para a aba e quando a tela de
+ * Conversas avisa que marcou mensagens como lidas.
+ */
+function useConversasNaoLidas(ativo: boolean) {
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    if (!ativo) return
+
+    let vivo = true
+
+    async function contar() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) return
+
+        const { count, error } = await supabase
+          .from('chat_equipe')
+          .select('id', { count: 'exact', head: true })
+          .eq('destinatario_id', user.id)
+          .is('lido_em', null)
+
+        if (!error && vivo) setTotal(count || 0)
+      } catch (erro) {
+        console.error('Erro ao contar mensagens não lidas:', erro)
+      }
+    }
+
+    contar()
+
+    const relogio = setInterval(contar, 20000)
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') contar()
+    }
+
+    document.addEventListener('visibilitychange', aoVoltar)
+    window.addEventListener('conversas-lidas', contar)
+
+    return () => {
+      vivo = false
+      clearInterval(relogio)
+      document.removeEventListener('visibilitychange', aoVoltar)
+      window.removeEventListener('conversas-lidas', contar)
+    }
+  }, [ativo])
+
+  return total
+}
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -18,6 +75,7 @@ export default function PortalHeader() {
   const [interno, setInterno] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [saindo, setSaindo] = useState(false)
+  const naoLidas = useConversasNaoLidas(!carregando && !!marca)
 
   useEffect(() => {
     let ativo = true
@@ -181,6 +239,19 @@ export default function PortalHeader() {
               className={ativo(item.href) ? 'active' : ''}
             >
               {item.rotulo}
+              {item.href === '/equipe' && naoLidas > 0 && (
+                <span
+                  className="balao-nao-lidas"
+                  title={
+                    naoLidas === 1
+                      ? '1 mensagem nova em Conversas'
+                      : naoLidas + ' mensagens novas em Conversas'
+                  }
+                  aria-label={naoLidas + ' mensagens não lidas'}
+                >
+                  {naoLidas > 9 ? '9+' : naoLidas}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

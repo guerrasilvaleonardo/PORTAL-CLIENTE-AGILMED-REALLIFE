@@ -122,30 +122,51 @@ export default function NovoChamadoPage() {
   const [clientesDaEmpresa, setClientesDaEmpresa] = useState<
     { id: string; nome: string | null; email: string | null }[]
   >([]);
+  /* Empresa da própria equipe (chamado interno): solicitante é da equipe. */
+  const [empresaInterna, setEmpresaInterna] = useState(false);
 
   useEffect(() => {
     let ativo = true;
 
     setSolicitanteId('');
     setClientesDaEmpresa([]);
+    setEmpresaInterna(false);
 
     if (!interno || !empresaId) return;
 
-    supabase
-      .from('profiles')
-      .select('id, nome, email')
-      .eq('empresa_id', empresaId)
-      .eq('perfil', 'cliente')
-      .eq('ativo', true)
-      .order('nome')
-      .then(({ data }) => {
-        if (ativo) setClientesDaEmpresa(data || []);
-      });
+    async function carregarSolicitantes() {
+      const { data: emp } = await supabase
+        .from('empresas')
+        .select('interna')
+        .eq('id', empresaId)
+        .maybeSingle();
+
+      const ehInterna = !!(emp as any)?.interna;
+
+      const consulta = supabase
+        .from('profiles')
+        .select('id, nome, email')
+        .eq('ativo', true)
+        .order('nome');
+
+      const { data } = ehInterna
+        ? await consulta.in('perfil', PERFIS_INTERNOS)
+        : await consulta.eq('empresa_id', empresaId).eq('perfil', 'cliente');
+
+      if (!ativo) return;
+
+      setEmpresaInterna(ehInterna);
+      setClientesDaEmpresa(data || []);
+      /* Chamado interno: quem abre normalmente é quem está pedindo. */
+      if (ehInterna) setSolicitanteId(usuarioId);
+    }
+
+    carregarSolicitantes();
 
     return () => {
       ativo = false;
     };
-  }, [interno, empresaId]);
+  }, [interno, empresaId, usuarioId]);
 
   useEffect(() => {
     async function carregarUsuario() {
@@ -614,7 +635,9 @@ export default function NovoChamadoPage() {
                 {interno && empresaId && (
                   <div style={styles.field}>
                     <label style={styles.label}>
-                      Solicitante (quem do cliente pediu){' '}
+                      {empresaInterna
+                        ? 'Solicitante (quem da equipe pediu)'
+                        : 'Solicitante (quem do cliente pediu)'}{' '}
                       {clientesDaEmpresa.length > 0 && (
                         <span style={styles.required}>*</span>
                       )}
@@ -644,9 +667,9 @@ export default function NovoChamadoPage() {
                     </select>
 
                     <span style={styles.helper}>
-                      É quem acompanha o chamado pelo portal e avalia o
-                      atendimento ao final. Ele passa a ver o chamado
-                      automaticamente.
+                      {empresaInterna
+                        ? 'Chamado interno: quem pediu avalia o atendimento ao final. Não pode ser o responsável pelo chamado.'
+                        : 'É quem acompanha o chamado pelo portal e avalia o atendimento ao final. Ele passa a ver o chamado automaticamente.'}
                     </span>
                   </div>
                 )}
