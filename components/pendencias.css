@@ -58,7 +58,55 @@
   .pend-aval-prazo, .pend-aval-botao { grid-column: span 1; }
 }
 
+/* Cobrança: chamado parado esperando o cliente além do prazo (vermelho). */
+.cobr {
+  border: 2px solid #dc2626;
+  background: #fef2f2;
+  border-radius: 18px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+  animation: cobr-borda 1.2s ease-in-out infinite;
+}
+.cobr h2 { font-size: 18px; color: #991b1b; margin: 0; }
+.cobr p { margin: 4px 0 0; font-size: 14px; color: #7f1d1d; line-height: 1.5; }
+
+.cobr-ponto {
+  flex: none; width: 14px; height: 14px; margin-top: 4px; border-radius: 50%;
+  background: #dc2626; box-shadow: 0 0 0 0 rgba(220, 38, 38, .7);
+  animation: cobr-pulso 1.2s ease-out infinite;
+}
+.cobr-ponto.pequeno { width: 8px; height: 8px; margin-top: 0; }
+
+.cobr-item { border-color: #fca5a5; }
+.cobr-item:hover { border-color: #dc2626; }
+.cobr-num { color: #991b1b; }
+.cobr-prazo { color: #7f1d1d; }
+.cobr-botao { background: #dc2626; }
+
+.cobr-selo {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: 8px;
+  font-size: 11px; font-weight: 700; color: #991b1b; background: #fee2e2;
+  border: 1px solid #fca5a5; padding: 2px 8px; border-radius: 20px; vertical-align: middle;
+  animation: cobr-selo 1.2s ease-in-out infinite;
+}
+
+@keyframes cobr-pulso {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .7); }
+  70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+@keyframes cobr-borda {
+  0%, 100% { border-color: #dc2626; }
+  50% { border-color: #fecaca; }
+}
+
+@keyframes cobr-selo {
+  0%, 100% { background: #fee2e2; }
+  50% { background: #fecaca; }
+}
+
 /* Quem pediu menos movimento no sistema vê o destaque parado. */
 @media (prefers-reduced-motion: reduce) {
-  .pend-aval, .pend-aval-ponto { animation: none; }
+  .pend-aval, .pend-aval-ponto, .cobr, .cobr-ponto, .cobr-selo { animation: none; }
 }

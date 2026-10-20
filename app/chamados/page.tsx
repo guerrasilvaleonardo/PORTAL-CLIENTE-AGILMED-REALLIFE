@@ -7,6 +7,8 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes } from '@/lib/situacoes'
 import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
+import CobrancasPendentes, { SeloCobranca } from '@/components/CobrancasPendentes'
+import { useCobrancasPendentes } from '@/lib/cobrancasPendentes'
 import SeloMensagemNova from '@/components/SeloMensagemNova'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 
@@ -32,6 +34,7 @@ const ROTULO_STATUS: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -40,6 +43,7 @@ const PILL_STATUS: Record<string, string> = {
   aberto: 'pill warn',
   em_atendimento: 'pill',
   aguardando_cliente: 'pill flat',
+  suspenso: 'pill bad',
   resolvido: 'pill good',
   encerrado: 'pill flat',
 }
@@ -58,7 +62,7 @@ const COR_PRIORIDADE: Record<string, string> = {
   baixa: 'var(--ink-faint)',
 }
 
-const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
 
 const GRADE = '72px minmax(240px, 1fr) 150px 110px 110px'
 
@@ -87,6 +91,9 @@ export default function ChamadosPage() {
   const { pendentes } = useAvaliacoesPendentes(!carregando)
   const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
   const mensagensNovas = useChamadosNaoLidos(!carregando)
+  /* Cobrança (aviso vermelho): só para cliente. */
+  const cobrancas = useCobrancasPendentes(!carregando && !interno)
+  const diasCobranca = new Map(cobrancas.map((c) => [c.id, c.dias]))
 
   useEffect(() => {
     let ativo = true
@@ -248,6 +255,8 @@ export default function ChamadosPage() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
+      <CobrancasPendentes cobrancas={cobrancas} />
+
       <PendenciasAvaliacao pendentes={pendentes} />
 
       <div className="stats">
@@ -310,6 +319,7 @@ export default function ChamadosPage() {
               <option value="aberto">Aberto</option>
               <option value="em_atendimento">Em atendimento</option>
               <option value="aguardando_cliente">Aguardando cliente</option>
+              <option value="suspenso">Atendimento suspenso</option>
               <option value="resolvido">Resolvido</option>
               <option value="encerrado">Encerrado</option>
             </select>
@@ -361,6 +371,7 @@ export default function ChamadosPage() {
                       >
                         {c.assunto}
                         {idsParaAvaliar.has(c.id) && <SeloAvaliar />}
+                        {diasCobranca.has(c.id) && <SeloCobranca dias={diasCobranca.get(c.id) || 0} />}
                         <SeloMensagemNova quantidade={mensagensNovas[c.id]} />
                       </span>
 

@@ -38,10 +38,10 @@
 
 import { horasUteisEntre, situacaoSla } from '@/lib/prazo'
 
-export const STATUS_EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+export const STATUS_EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
 
 /* Estados em que o relógio é do cliente, não do atendente. */
-const ESTADOS_PAUSADOS = ['aguardando_cliente', 'resolvido', 'encerrado']
+const ESTADOS_PAUSADOS = ['aguardando_cliente', 'suspenso', 'resolvido', 'encerrado']
 
 export type ChamadoBase = {
   id: string

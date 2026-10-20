@@ -18,6 +18,8 @@ export type ConfigEstrelas = {
   alerta_prazo_horas: number
   regra_versao: number
   estrelas_prazo: number
+  /* Bônus por avaliação Ruim (estrelas-avaliacao-igual-ao-cliente.sql). */
+  bonus_ruim?: number
   bonus_bom: number
   bonus_excelente: number
   atualizado_em: string | null
@@ -128,7 +130,8 @@ export function formatarData(valor: string | null | undefined) {
 export async function carregarConfig(): Promise<ConfigEstrelas | null> {
   const { data, error } = await supabase
     .from('estrelas_config')
-    .select('ativo, data_inicio, prazo_avaliacao_dias, alerta_prazo_horas, regra_versao, estrelas_prazo, bonus_bom, bonus_excelente, atualizado_em')
+    /* '*' para funcionar antes e depois da coluna bonus_ruim existir. */
+    .select('*')
     .maybeSingle()
 
   if (error || !data) return null

@@ -268,6 +268,8 @@ export type ChamadoComSla = {
   status: string
   prazo_sla: string | null
   sla_pausado_em?: string | null
+  /* Início da suspensão do atendimento (status 'suspenso'). */
+  suspenso_em?: string | null
   resolvido_em?: string | null
   encerrado_em?: string | null
 }
@@ -331,6 +333,22 @@ export function situacaoSla(c: ChamadoComSla): {
           atrasado: false,
           horas: h,
         }
+  }
+
+  /* Atendimento suspenso: o prazo também fica pausado (estendido na retomada). */
+  if (c.status === 'suspenso') {
+    if (!c.suspenso_em) {
+      return { chave: 'pausado', texto: 'SLA pausado (suspenso)', atrasado: false, horas: null }
+    }
+
+    const h = horasUteisEntre(new Date(c.suspenso_em), prazo)
+
+    return {
+      chave: 'pausado',
+      texto: 'SLA pausado (suspenso) · ' + duracaoUtil(h) + (h < 0 ? ' em atraso' : ' restantes'),
+      atrasado: false,
+      horas: h,
+    }
   }
 
   if (c.status === 'aguardando_cliente' && !c.sla_pausado_em) {

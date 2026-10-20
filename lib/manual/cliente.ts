@@ -294,6 +294,7 @@ const manualCliente: Manual = {
                   { titulo: 'Aberto', texto: 'Chegou e ainda não foi assumido. O prazo já corre.' },
                   { titulo: 'Em atendimento', texto: 'Um atendente está trabalhando nele.' },
                   { titulo: 'Aguardando cliente', texto: 'Precisamos de algo seu. Prazo pausado.' },
+                  { titulo: 'Atendimento suspenso', texto: 'Impedimento fora do nosso controle. Prazo pausado.' },
                   { titulo: 'Resolvido', texto: 'Solução entregue, aguardando sua conferência.' },
                   { titulo: 'Encerrado', texto: 'Finalizado. Não recebe mais movimentação.' },
                 ],
@@ -303,6 +304,8 @@ const manualCliente: Manual = {
           passos: [
             'Aberto → Em atendimento: um atendente assumiu. Você não precisa fazer nada.',
             'Aguardando cliente: a bola está com você. Responda na conversa ou envie o que foi pedido. Enquanto isso, o prazo fica pausado.',
+            'Se o chamado ficar em Aguardando cliente além do prazo combinado com a sua empresa (normalmente 7 dias), aparece um aviso vermelho piscando no Início e em Chamados, e você recebe um e-mail de lembrete a cada 3 dias úteis até responder.',
+            'Atendimento suspenso: o atendimento parou por um impedimento fora do nosso controle (sistema indisponível, falha de software, fornecedor). Você vê o motivo e a data prevista da próxima atualização, e o prazo fica pausado.',
             'Resolvido: confira a solução. Se algo não estiver certo, é só responder na conversa que o chamado volta para atendimento.',
             'Encerrado: sem resposta em 24 horas úteis depois de resolvido, o chamado é encerrado automaticamente. Se o assunto voltar, abra um novo chamado.',
           ],
@@ -320,6 +323,7 @@ const manualCliente: Manual = {
           passos: [
             'O prazo conta só horas úteis: de segunda a sexta, das 8h às 12h e das 13h às 17h, horário de Porto Velho. Fim de semana, almoço, noite e feriados não contam.',
             'Quando o chamado está "Aguardando cliente", o prazo aparece como Pausado. Ele volta a contar assim que você responder.',
+            'Em "Atendimento suspenso" o prazo também fica pausado e volta a contar quando o atendimento é retomado.',
           ],
           dica: 'Exemplo: um chamado Alta (8 horas úteis) aberto na sexta às 16h vence na segunda às 16h.',
         },

@@ -176,7 +176,7 @@ export default function EstrelasDoChamado({
             <div key={a.id} style={{ fontSize: 13, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <span>
                 {formatarDataHora(a.prazo_anterior)} → {formatarDataHora(a.prazo_novo)} (
-                {a.origem === 'prioridade' ? 'troca de prioridade' : 'alteração manual'}, em {formatarDataHora(a.alterado_em)})
+                {a.origem === 'prioridade' ? 'troca de prioridade, em ' : a.origem === 'suspensao' ? 'atendimento suspenso, iniciado em ' : 'alteração manual, em '}{formatarDataHora(a.alterado_em)})
               </span>
               <span className={'pill ' + (a.autorizado === null ? 'warn' : a.autorizado ? 'good' : 'bad')}>
                 {a.autorizado === null ? 'Aguardando gestor' : a.autorizado ? 'Autorizada' : 'Recusada'}
