@@ -3,7 +3,8 @@ import type { Bloco, Manual } from './tipos'
 /*
  * MANUAL DO CLIENTE.
  * Linguagem simples, para quem nunca usou o portal.
- * Ao mudar uma tela de cliente, atualize o capítulo dela aqui.
+ * Regra do projeto: toda alteração que o cliente vê ou que o afeta
+ * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
 const MENU = ['Início', 'Chamados', 'Certificados', 'Treinamentos', 'Conversas']
@@ -121,6 +122,24 @@ const manualCliente: Manual = {
             'Clique em "Avaliar agora": o portal abre o chamado já no cartão de avaliação.',
           ],
           atencao: 'Cada chamado recebe uma única avaliação, dentro do prazo mostrado. Depois do prazo, a avaliação não fica mais disponível.',
+        },
+        {
+          titulo: 'Aviso vermelho: chamado aguardando a sua resposta',
+          texto:
+            'Quando um chamado fica em "Aguardando cliente" por mais dias que o combinado com a sua empresa (normalmente 7), aparece no Início e em Chamados um quadro vermelho piscando.',
+          tela: {
+            url: '/',
+            blocos: [
+              menu('Início'),
+              { t: 'aviso', n: 1, tom: 'ruim', texto: '● 1 chamado aguarda a sua resposta — Precisamos de um retorno seu para continuar.' },
+              { t: 'tabela', n: 2, colunas: ['Nº', 'Assunto', 'Aguardando', ''], linhas: [['#112', 'PCMSO 2027', 'desde 10/10 · 9 dias', 'Responder →']] },
+            ],
+          },
+          passos: [
+            'Clique em "Responder": o portal abre o chamado. Responda na conversa ou envie o que foi pedido; o chamado volta para a nossa equipe na hora e o aviso some.',
+            'Enquanto o chamado aguardar a sua resposta, você também recebe um e-mail de lembrete a cada 3 dias úteis.',
+          ],
+          dica: 'Se o pedido já foi atendido por outro meio, escreva isso na conversa para a equipe atualizar o chamado.',
         },
       ],
     },
@@ -523,6 +542,8 @@ const manualCliente: Manual = {
             'Um colega não vê meu chamado. Abra o chamado e, em "Quem vê este chamado", marque o colega ou escolha "Toda a empresa".',
             'Por que o prazo não andou no fim de semana? O prazo conta só horas úteis, de segunda a sexta.',
             'Mandei um arquivo errado. Avise na conversa do chamado e envie o arquivo correto.',
+            'Recebi um e-mail de lembrete. O chamado está esperando uma resposta sua há mais tempo que o combinado. Responda na conversa do chamado que o lembrete para.',
+            'O que é "Atendimento suspenso"? O atendimento parou por um impedimento fora do nosso controle (sistema indisponível, fornecedor, órgão). O chamado mostra o motivo e a data da próxima atualização, e o prazo fica pausado até a retomada.',
             'Esqueci a senha ou meu acesso está inativo. Fale com a nossa equipe para gerar uma nova senha ou reativar o acesso.',
           ],
         },
