@@ -113,6 +113,39 @@ export default function NovoChamadoPage() {
    */
   const [participantes, setParticipantes] = useState<string[]>([]);
   const [todaEmpresa, setTodaEmpresa] = useState(false);
+  /*
+   * Solicitante: quando a equipe abre em nome do cliente, indica qual
+   * usuário do cliente pediu. É ele quem avalia o atendimento
+   * (supabase/chamados-solicitante-avaliacao.sql).
+   */
+  const [solicitanteId, setSolicitanteId] = useState('');
+  const [clientesDaEmpresa, setClientesDaEmpresa] = useState<
+    { id: string; nome: string | null; email: string | null }[]
+  >([]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    setSolicitanteId('');
+    setClientesDaEmpresa([]);
+
+    if (!interno || !empresaId) return;
+
+    supabase
+      .from('profiles')
+      .select('id, nome, email')
+      .eq('empresa_id', empresaId)
+      .eq('perfil', 'cliente')
+      .eq('ativo', true)
+      .order('nome')
+      .then(({ data }) => {
+        if (ativo) setClientesDaEmpresa(data || []);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, [interno, empresaId]);
 
   useEffect(() => {
     async function carregarUsuario() {
@@ -222,6 +255,13 @@ export default function NovoChamadoPage() {
       return;
     }
 
+    if (interno && clientesDaEmpresa.length > 0 && !solicitanteId) {
+      setErro(
+        'Indique o solicitante: o usuário do cliente que fez o pedido. É ele quem vai avaliar o atendimento.'
+      );
+      return;
+    }
+
     const linkNormalizado = normalizarUrl(linkUrl);
 
     if (linkUrl.trim() && !linkNormalizado) {
@@ -264,6 +304,9 @@ export default function NovoChamadoPage() {
             todaEmpresa || (interno && participantes.length === 0)
               ? 'empresa'
               : 'restrita',
+          ...(interno && solicitanteId
+            ? { solicitante_id: solicitanteId }
+            : {}),
         })
         .select('id, numero, prazo_sla')
         .single();
@@ -564,6 +607,46 @@ export default function NovoChamadoPage() {
 
                     <span style={styles.helper}>
                       Você está abrindo um chamado em nome do cliente.
+                    </span>
+                  </div>
+                )}
+
+                {interno && empresaId && (
+                  <div style={styles.field}>
+                    <label style={styles.label}>
+                      Solicitante (quem do cliente pediu){' '}
+                      {clientesDaEmpresa.length > 0 && (
+                        <span style={styles.required}>*</span>
+                      )}
+                    </label>
+
+                    <select
+                      value={solicitanteId}
+                      onChange={(event) =>
+                        setSolicitanteId(event.target.value)
+                      }
+                      style={styles.input}
+                      required={clientesDaEmpresa.length > 0}
+                      disabled={clientesDaEmpresa.length === 0}
+                    >
+                      <option value="">
+                        {clientesDaEmpresa.length === 0
+                          ? 'Esta empresa não tem usuários ativos no portal'
+                          : 'Selecione quem fez o pedido'}
+                      </option>
+
+                      {clientesDaEmpresa.map((cliente) => (
+                        <option key={cliente.id} value={cliente.id}>
+                          {(cliente.nome || cliente.email || 'Sem nome') +
+                            (cliente.email ? ' · ' + cliente.email : '')}
+                        </option>
+                      ))}
+                    </select>
+
+                    <span style={styles.helper}>
+                      É quem acompanha o chamado pelo portal e avalia o
+                      atendimento ao final. Ele passa a ver o chamado
+                      automaticamente.
                     </span>
                   </div>
                 )}

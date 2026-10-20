@@ -107,7 +107,7 @@ const manualCliente: Manual = {
         {
           titulo: 'Aviso "Você tem chamados para avaliar"',
           texto:
-            'Quando um chamado que você abriu é resolvido, aparece no Início (e na lista de Chamados) um quadro amarelo piscando com os chamados que esperam a sua avaliação.',
+            'Quando um chamado que você pediu é resolvido, aparece no Início (e na lista de Chamados) um quadro amarelo piscando com os chamados que esperam a sua avaliação.',
           tela: {
             url: '/',
             blocos: [
@@ -120,7 +120,7 @@ const manualCliente: Manual = {
             'O quadro só aparece quando há avaliação pendente e some sozinho quando você avalia.',
             'Clique em "Avaliar agora": o portal abre o chamado já no cartão de avaliação.',
           ],
-          atencao: 'Só quem abriu o chamado pode avaliar, uma única vez e dentro do prazo mostrado. Depois do prazo, a avaliação não fica mais disponível.',
+          atencao: 'Cada chamado recebe uma única avaliação, dentro do prazo mostrado. Depois do prazo, a avaliação não fica mais disponível.',
         },
       ],
     },
@@ -382,7 +382,7 @@ const manualCliente: Manual = {
       slides: [
         {
           titulo: 'Como avaliar',
-          texto: 'Depois que o chamado é resolvido, quem o abriu pode dizer como foi o atendimento. Leva menos de um minuto e ajuda a melhorar o serviço.',
+          texto: 'Depois que o chamado é resolvido, quem pediu o chamado pode dizer como foi o atendimento. Leva menos de um minuto e ajuda a melhorar o serviço.',
           tela: {
             url: '/chamados/…',
             blocos: [
@@ -406,7 +406,7 @@ const manualCliente: Manual = {
             'Você também recebe um e-mail "Como foi seu atendimento no chamado #N?" com o botão Avaliar o atendimento.',
             'O cartão de avaliação fica dentro do chamado, logo abaixo de Detalhes do chamado.',
           ],
-          dica: 'Só quem abriu o chamado consegue avaliar. Os colegas marcados no chamado acompanham, mas não avaliam.',
+          dica: 'Quem avalia: quem abriu o chamado ou, quando a nossa equipe abriu o chamado por você, o solicitante indicado por ela. Se a equipe abriu sem indicar ninguém, qualquer usuário da empresa que veja o chamado pode avaliar. Vale a primeira avaliação.',
         },
       ],
     },

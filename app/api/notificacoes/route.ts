@@ -139,7 +139,13 @@ async function convidarParaAvaliar(
 
   if (jaAvaliado) return false
 
-  const abriu = await autorDoChamado(chamado.criado_por)
+  /*
+   * Quem avalia: o solicitante indicado pela equipe; sem ele, quem
+   * abriu (se for do cliente). Chamado aberto pela equipe sem
+   * solicitante não recebe convite por e-mail: o aviso aparece no
+   * portal para os usuários do cliente (avaliacoes_pendentes).
+   */
+  const abriu = await autorDoChamado(chamado.solicitante_id || chamado.criado_por)
   if (!abriu || abriu.perfil !== 'cliente' || !abriu.email) return false
 
   /* Reserva o convite antes de enviar: um só por chamado. */

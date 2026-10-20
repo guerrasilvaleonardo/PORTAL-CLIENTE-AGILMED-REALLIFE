@@ -153,7 +153,7 @@ const manualInterno: Manual = {
             'Detalhes do chamado: empresa, quem abriu, categoria, datas, prazo e descrição.',
             'Etapas do atendimento: o plano de trabalho e o % concluído.',
             'Conversas: chat com o cliente. Abaixo ficam Anexos, Links de acesso e Histórico e SLA.',
-            'Gestão do chamado (coluna da direita): status, prioridade, empresa e responsável.',
+            'Gestão do chamado (coluna da direita): status, prioridade, empresa, responsável e solicitante do cliente (quem pediu e avalia o atendimento).',
           ],
         },
         {
@@ -456,13 +456,13 @@ const manualInterno: Manual = {
           tela: {
             url: '/chamados/novo',
             blocos: [
-              { t: 'campos', n: 1, itens: [{ rotulo: 'Empresa', valor: 'Empresa A', obrigatorio: true, largo: true }] },
+              { t: 'campos', n: 1, itens: [{ rotulo: 'Empresa', valor: 'Empresa A', obrigatorio: true }, { rotulo: 'Solicitante (quem do cliente pediu)', valor: 'Maria Souza', obrigatorio: true }] },
               { t: 'campos', n: 2, itens: [{ rotulo: 'Categoria', valor: 'Exames', obrigatorio: true }, { rotulo: 'Assunto', valor: 'Agendar periódicos', obrigatorio: true }, { rotulo: 'Descrição', valor: 'Pedido recebido por telefone…', largo: true }] },
               { t: 'opcoes', n: 3, itens: [{ rotulo: 'Baixa' }, { rotulo: 'Normal', ativo: true }, { rotulo: 'Alta' }, { rotulo: 'Urgente' }] },
             ],
           },
           passos: [
-            'Em Chamados, clique em "Abrir chamado para um cliente" e escolha a empresa.',
+            'Em Chamados, clique em "Abrir chamado para um cliente", escolha a empresa e o Solicitante: o usuário do cliente que fez o pedido. É ele quem acompanha e avalia o atendimento.',
             'Preencha categoria, assunto e descrição, como o cliente faria. Cite a origem do pedido (telefone, e-mail, reunião).',
             'Escolha a prioridade e, se quiser, marque os usuários do cliente que devem acompanhar. Sem ninguém marcado, o chamado fica visível para toda a empresa.',
           ],
@@ -612,7 +612,7 @@ const manualInterno: Manual = {
             'Chamado aberto: a equipe recebe "Novo chamado"; o cliente recebe a confirmação com prazo e posição na fila.',
             'Resposta da equipe, mudança de situação, de prioridade ou de responsável: o lado do cliente é avisado (em chamado restrito, só quem abriu e os participantes).',
             'Mensagem do cliente: o responsável (ou a equipe, se não houver responsável).',
-            'Resolvido: convite de avaliação a quem abriu, uma vez por chamado. Avaliação Ruim: e-mail reservado a gestores e admins.',
+            'Resolvido: convite de avaliação ao solicitante (ou a quem abriu, se for do cliente), uma vez por chamado. Avaliação Ruim: e-mail reservado a gestores e admins.',
             'Citação @Nome: a pessoa citada, se tiver acesso ao chamado.',
           ],
         },
