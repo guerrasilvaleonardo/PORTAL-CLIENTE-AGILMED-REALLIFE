@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import {
   ALERTAS_PADRAO,
+  DIAS_CHAMADO_AUTOMATICO,
   dataBr,
   diasAteData,
   faixaVencimento,
@@ -54,6 +55,7 @@ const formVazio = {
   observacoes: '',
   alertas: [...ALERTAS_PADRAO] as number[],
   substitui_id: '',
+  chamado_automatico: true,
 }
 
 type Form = typeof formVazio
@@ -126,6 +128,8 @@ export default function DocumentosSstPage() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
   const [confirmarRemocao, setConfirmarRemocao] = useState<string | null>(null)
   const [historicoDe, setHistoricoDe] = useState<Documento | null>(null)
+  /* Chamados de renovação ligados a cada documento (chamados.documento_sst_id). */
+  const [chamadosDoc, setChamadosDoc] = useState<Map<string, { id: string; numero: number; status: string }>>(new Map())
   const [tiposAberto, setTiposAberto] = useState(false)
   const [novoTipo, setNovoTipo] = useState({ nome: '', sigla: '' })
 
@@ -182,6 +186,16 @@ export default function DocumentosSstPage() {
         }
         throw e
       }
+
+      /* Sem a coluna (SQL antigo) só não mostra os chamados ligados. */
+      const { data: chs } = await supabase
+        .from('chamados')
+        .select('id, numero, status, documento_sst_id, created_at')
+        .not('documento_sst_id', 'is', null)
+        .order('created_at', { ascending: false })
+      const mapa = new Map<string, { id: string; numero: number; status: string }>()
+      for (const c of (chs || []) as any[]) if (!mapa.has(c.documento_sst_id)) mapa.set(c.documento_sst_id, c)
+      setChamadosDoc(mapa)
 
       setTipos((tps || []) as TipoDocumento[])
       setDocumentos(
@@ -320,6 +334,7 @@ export default function DocumentosSstPage() {
       observacoes: d.observacoes || '',
       alertas: d.alertas ? [...d.alertas] : [...ALERTAS_PADRAO],
       substitui_id: d.substitui_id || '',
+      chamado_automatico: d.chamado_automatico !== false,
     }
   }
 
@@ -388,6 +403,7 @@ export default function DocumentosSstPage() {
       versao: form.versao.trim() || null,
       observacoes: form.observacoes.trim() || null,
       alertas: [...form.alertas].sort((a, b) => b - a),
+      chamado_automatico: form.chamado_automatico,
     }
 
     setSalvando(true)
@@ -482,7 +498,7 @@ export default function DocumentosSstPage() {
       '.' +
       (prazo ? '\nPróximo prazo no portal: ' + dataBr(prazo.data) + ' (' + (prazo.tipo === 'vencimento' ? 'vencimento' : 'revisão') + ').' : '') +
       '\n\nAlterações desde a última versão (processos, funções, ambientes, número de trabalhadores): '
-    const q = new URLSearchParams({ categoria: 'Documentos', assunto: 'Renovação: ' + nome, descricao })
+    const q = new URLSearchParams({ categoria: 'Documentos', assunto: 'Renovação: ' + nome, descricao, documento: d.id })
     window.location.href = '/chamados/novo?' + q.toString()
   }
 
@@ -601,6 +617,15 @@ export default function DocumentosSstPage() {
         </span>
 
         <span className="cert-validade">
+          {chamadosDoc.get(d.id) && (
+            <a
+              className="pill neutro cert-pill doc-chamado"
+              href={(interno ? '/atendimento/' : '/chamados/') + chamadosDoc.get(d.id)!.id}
+              title="Chamado de renovação ligado a este documento"
+            >
+              Chamado #{chamadosDoc.get(d.id)!.numero}
+            </a>
+          )}
           {!d.vencimento && !d.sem_vencimento && d.proxima_revisao ? (
             /* Controlado só pela revisão: o aviso de revisão já diz a situação. */
             !rev && <span className="pill neutro cert-pill">Revisão programada</span>
@@ -654,9 +679,18 @@ export default function DocumentosSstPage() {
                     Renovar / Nova revisão
                   </button>
                 </>
+              ) : null}
+              {chamadosDoc.get(d.id) ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => (window.location.href = (interno ? '/atendimento/' : '/chamados/') + chamadosDoc.get(d.id)!.id)}
+                >
+                  Ver chamado de renovação #{chamadosDoc.get(d.id)!.numero}
+                </button>
               ) : (
                 <button type="button" role="menuitem" onClick={() => solicitarRenovacao(d)}>
-                  Solicitar renovação
+                  {interno ? 'Abrir chamado de renovação' : 'Solicitar renovação'}
                 </button>
               )}
               <button
@@ -1048,6 +1082,11 @@ export default function DocumentosSstPage() {
                 </span>
               </div>
 
+              <label className="cert-check">
+                <input type="checkbox" checked={form.chamado_automatico} onChange={(e) => alterar('chamado_automatico', e.target.checked)} />
+                Abrir chamado de renovação automaticamente a {DIAS_CHAMADO_AUTOMATICO} dias do prazo, se ninguém tiver pedido
+              </label>
+
               <div className="field">
                 <label>Observações</label>
                 <textarea value={form.observacoes} onChange={(e) => alterar('observacoes', e.target.value)} rows={3} placeholder="Pendências e condições de atualização" />
@@ -1104,7 +1143,7 @@ export default function DocumentosSstPage() {
                   )}
                 </div>
               ))}
-              {!interno && (
+              {!interno && !chamadosDoc.get(historicoDe.id) && (
                 <button type="button" className="btn btn-primary" onClick={() => solicitarRenovacao(historicoDe)}>
                   Solicitar renovação
                 </button>
