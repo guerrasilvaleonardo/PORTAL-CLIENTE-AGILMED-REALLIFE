@@ -516,7 +516,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Clique em "+ Novo certificado" no topo da página: o formulário abre na lateral, sem tirar a lista da tela. Esc ou Cancelar fecham sem salvar.',
-            'Empresa, colaborador, função, e-mail e curso no EAD. O e-mail é a chave para buscar o progresso na plataforma.',
+            'Empresa, colaborador, função, e-mail e curso no EAD. Escolha a empresa primeiro: ao digitar o nome, aparecem os colaboradores dela que já têm certificado; clique no nome para preencher função e e-mail do cadastro. O e-mail é a chave para buscar o progresso na plataforma.',
             'Origem do progresso: Plataforma (EAD) atualiza sozinha toda manhã; Presencial (manual) pede etapa (Agendado, Em andamento, Concluído) e %.',
             'Tipo, emissão, validade, observações e link do certificado. Se o certificado não tem prazo, marque "Este certificado não vence": ele vai para Sem vencimento, e não para Validade não informada. Clique em Registrar certificado.',
           ],
@@ -527,7 +527,7 @@ const manualInterno: Manual = {
           passos: [
             'Validade dos certificados: Vencidos, Vencem em até 90 dias (com quantos em até 30), Em dia (mais de 90 dias), Sem vencimento e Validade não informada. Cada certificado entra em uma só faixa, então os cartões somam o total. Clique num cartão para filtrar a lista.',
             'Treinamento: concluídos (100%), em andamento, não iniciados e sem dados de progresso. É outra régua, independente da validade; também filtra ao clicar.',
-            'Aba Certificados: busca (colaborador, função, e-mail ou curso, sem ligar para acento ou ordem), empresa, situação, "Mais filtros" (tipo, origem, mês) e Limpar. "Por colaborador" agrupa os cursos de cada pessoa. A lista mostra 25 por página.',
+            'Aba Certificados: busca (colaborador, função, e-mail ou curso, sem ligar para acento ou ordem), empresa, situação, "Mais filtros" (tipo, origem, mês) e Limpar. "Por colaborador" agrupa os cursos de cada pessoa. A lista mostra 25 por página; "‹ Anterior" e "Próxima ›" ficam no topo e no fim da lista.',
             'Menu ⋯ em cada linha: Editar abre o formulário lateral; Remover pede confirmação antes de apagar.',
             '⤓ Exportar baixa a lista filtrada em CSV (abre no Excel).',
             'Aba Análise mensal: o Painel por tipo e mês completo (lançados, 100%, presenciais, sem data de emissão e a matriz). O mês atual vem destacado e a cor mais forte indica mais certificados; clique num número para ver esses certificados na lista.',
@@ -550,7 +550,7 @@ const manualInterno: Manual = {
             '"Por colaborador": filtre por empresa, curso e situação. Atualizar do EAD busca o dado na hora; Baixar CSV gera planilha para o Excel.',
             'O aviso de e-mails com matrícula no EAD sem certificado cadastrado indica cadastros faltando em Certificados.',
           ],
-          dica: 'A leitura automática do EAD roda todo dia às 05h de Porto Velho. Certificados de origem manual não são alterados por ela.',
+          dica: 'A leitura automática do EAD roda todo dia às 05h de Porto Velho. Certificados de origem manual não são alterados por ela. Quando o curso no EAD não traz "NR" no nome (ex.: "Integração de Segurança e Saúde Ocupacional"), o portal casa pelo nome do curso; se mesmo assim aparecer "Não informado", confira o e-mail e o curso no EAD do certificado.',
         },
       ],
     },
