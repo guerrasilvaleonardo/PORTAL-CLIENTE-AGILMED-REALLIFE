@@ -16,6 +16,7 @@ import {
   type OrigemProgresso,
   type Progresso,
 } from '@/lib/treinamentos'
+import { ComModulo } from '@/components/ModuloBloqueado'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -73,7 +74,7 @@ function csvSeguro(valor: string) {
   return '"' + valor.replace(/"/g, '""') + '"'
 }
 
-export default function TreinamentosPage() {
+function TreinamentosPageConteudo() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [interno, setInterno] = useState(false)
@@ -744,5 +745,14 @@ export default function TreinamentosPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/* Ferramenta cobrada à parte: cliente sem contratação vê o cadeado (lib/modulos.ts). */
+export default function TreinamentosPage() {
+  return (
+    <ComModulo modulo="treinamentos">
+      <TreinamentosPageConteudo />
+    </ComModulo>
   )
 }
