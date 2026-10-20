@@ -7,7 +7,7 @@ import type { Bloco, Manual } from './tipos'
  * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
-const MENU = ['Início', 'Chamados', 'Certificados', 'Treinamentos', 'Conversas']
+const MENU = ['Início', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualCliente: Manual = {
@@ -26,6 +26,7 @@ const manualCliente: Manual = {
           passos: [
             'Chamados: pedidos à nossa equipe, com prazo e histórico.',
             'Certificados: validade dos treinamentos e exames de cada colaborador.',
+            'Documentos SST: prazos, revisões e versões assinadas de PGR, PCMSO, laudos e programas da sua empresa.',
             'Treinamentos: andamento de cada colaborador nos cursos a distância (EAD).',
             'Conversas: mensagens rápidas e privadas com a nossa equipe.',
           ],
@@ -54,7 +55,7 @@ const manualCliente: Manual = {
             blocos: [menu('Início', 1), { t: 'topo', titulo: 'Olá, Maria!', sub: 'Bem-vindo ao Portal do Cliente.' }],
           },
           passos: [
-            'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Treinamentos ou Conversas. A área aberta fica destacada.',
+            'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Documentos SST, Treinamentos ou Conversas. A área aberta fica destacada.',
             'O botão "?" abre este manual já no assunto da tela em que você está.',
             'Meu perfil (no topo, ao lado do "?") abre seus dados e a troca de senha. O botão Sair encerra o seu acesso: use sempre que estiver em um computador compartilhado.',
           ],
@@ -468,6 +469,35 @@ const manualCliente: Manual = {
             'Cadastro, correção e exclusão de certificados são feitos pela nossa equipe. Se algo estiver errado (inclusive um certificado em "Validade não informada"), abra um chamado na categoria Treinamentos ou Documentos.',
           ],
           link: { href: '/certificados', rotulo: 'Abrir Certificados' },
+        },
+      ],
+    },
+
+    {
+      id: 'documentos',
+      titulo: 'Documentos SST',
+      rotas: ['/documentos'],
+      slides: [
+        {
+          titulo: 'Prazos e documentos assinados',
+          texto: 'Reúne os documentos de SST da sua empresa (PGR, PCMSO, AET, LTCAT, laudos e outros), com prazos e o arquivo assinado.',
+          tela: {
+            url: '/documentos',
+            blocos: [
+              menu('Documentos SST'),
+              { t: 'topo', sobre: 'Sua empresa', titulo: 'Documentos SST', botoes: ['Exportar'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Cadastrados', valor: '6' }, { rotulo: 'Vencidos', valor: '0', tom: 'ruim' }, { rotulo: 'A vencer em até 30 dias', valor: '1', tom: 'ruim' }, { rotulo: 'Sem link assinado', valor: '1' }] },
+              { t: 'tabela', n: 2, colunas: ['Unidade', 'Documento', 'Próximo prazo', 'Situação', 'Arquivo'], linhas: [['Matriz', 'PGR · Rev. 02', '20/11/2026', 'Vence em 31 dias', 'Abrir assinado'], ['Obra', 'PCMSO · Rev. 01', '15/10/2027', 'No prazo', 'Abrir assinado']], pilulas: 3 },
+            ],
+          },
+          passos: [
+            'Os cartões mostram quantos documentos estão vencidos ou vencem em até 30, 60 e 90 dias, quantos ainda não têm a versão assinada no portal e quantos têm revisão pendente. Clique num cartão para filtrar.',
+            'Na lista, "Próximo prazo" é o vencimento ou a revisão programada, o que vier antes. "Abrir assinado" abre o documento.',
+            'No menu ⋯: "Solicitar renovação" abre um chamado já preenchido para a nossa equipe, e "Histórico de revisões" mostra as versões anteriores com os links.',
+          ],
+          atencao: 'Mudou processo, função, ambiente ou número de trabalhadores? Peça a revisão mesmo antes do prazo: a data no portal não garante que o conteúdo continua atualizado.',
+          dica: 'Você recebe e-mail quando um documento se aproxima do vencimento ou da revisão programada.',
+          link: { href: '/documentos', rotulo: 'Abrir Documentos SST' },
         },
       ],
     },
