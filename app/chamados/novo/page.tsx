@@ -104,6 +104,8 @@ export default function NovoChamadoPage() {
   const [prioridade, setPrioridade] = useState('normal');
   const [linkTitulo, setLinkTitulo] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  /* Documento SST de origem (botão "Solicitar renovação"). */
+  const [documentoSstId, setDocumentoSstId] = useState('');
   const [interno, setInterno] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   /*
@@ -135,6 +137,8 @@ export default function NovoChamadoPage() {
     if (cat && categorias.includes(cat)) setCategoria(cat);
     if (q.get('assunto')) setAssunto((q.get('assunto') || '').slice(0, 200));
     if (q.get('descricao')) setDescricao((q.get('descricao') || '').slice(0, 4000));
+    const doc = q.get('documento') || '';
+    if (/^[0-9a-f-]{36}$/i.test(doc)) setDocumentoSstId(doc);
   }, []);
 
   useEffect(() => {
@@ -322,9 +326,7 @@ export default function NovoChamadoPage() {
 
       const prazoSla = prazoEmHorasUteis(horas).toISOString();
 
-      const { data, error } = await supabase
-        .from('chamados')
-        .insert({
+      const dadosChamado: Record<string, unknown> = {
           empresa_id: empresaId,
           criado_por: usuarioId,
           categoria,
@@ -340,11 +342,33 @@ export default function NovoChamadoPage() {
           ...(interno && solicitanteId
             ? { solicitante_id: solicitanteId }
             : {}),
-        })
+      };
+
+      let { data, error } = await supabase
+        .from('chamados')
+        .insert(
+          documentoSstId
+            ? { ...dadosChamado, documento_sst_id: documentoSstId }
+            : dadosChamado
+        )
         .select('id, numero, prazo_sla')
         .single();
 
-      if (error) {
+      /*
+       * Se a coluna documento_sst_id ainda não existir (SQL de
+       * Documentos SST não aplicado), abre o chamado sem a ligação.
+       */
+      if (error && documentoSstId && /documento_sst_id|PGRST204|42703/.test((error.code || '') + ' ' + (error.message || ''))) {
+        const semLigacao = await supabase
+          .from('chamados')
+          .insert(dadosChamado)
+          .select('id, numero, prazo_sla')
+          .single();
+        data = semLigacao.data;
+        error = semLigacao.error;
+      }
+
+      if (error || !data) {
         console.error(error);
 
         setErro(
