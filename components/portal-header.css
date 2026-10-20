@@ -1,0 +1,28 @@
+/* Balão vermelho de mensagens não lidas na aba Conversas. */
+
+.balao-nao-lidas {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+  animation: balao-pisca 1.4s ease-out infinite;
+}
+
+@keyframes balao-pisca {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); transform: scale(1); }
+  50% { transform: scale(1.12); }
+  70% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); transform: scale(1); }
+}
+
+/* Quem pediu menos movimento no sistema vê o balão parado. */
+@media (prefers-reduced-motion: reduce) {
+  .balao-nao-lidas { animation: none; }
+}
