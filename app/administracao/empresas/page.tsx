@@ -17,6 +17,7 @@ type Empresa = {
   cep: string | null
   marca: string | null
   status: string
+  dias_cobranca?: number | null
   total_usuarios: number
   total_chamados: number
 }
@@ -44,6 +45,7 @@ const formVazio = {
   cep: '',
   marca: '',
   status: 'ativo',
+  dias_cobranca: '7',
 }
 
 function formatarCnpj(valor: string | null) {
@@ -182,6 +184,7 @@ export default function EmpresasPage() {
       cep: empresa.cep || '',
       marca: empresa.marca || '',
       status: empresa.status || 'ativo',
+      dias_cobranca: String(empresa.dias_cobranca ?? 7),
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -315,6 +318,20 @@ export default function EmpresasPage() {
                 <option value="ativo">Ativa</option>
                 <option value="inativo">Inativa</option>
               </select>
+            </div>
+
+            <div className="field">
+              <label title="Chamado parado em Aguardando cliente por mais dias que isto gera e-mail de cobrança e aviso vermelho no painel do cliente.">
+                Cobrar cliente após (dias)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                step={1}
+                value={form.dias_cobranca}
+                onChange={(e) => alterar('dias_cobranca', e.target.value)}
+              />
             </div>
           </div>
 

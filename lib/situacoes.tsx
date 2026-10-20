@@ -14,6 +14,7 @@ export type Situacao =
   | 'aberto'
   | 'em_atendimento'
   | 'aguardando_cliente'
+  | 'suspenso'
   | 'resolvido'
   | 'encerrado'
 
@@ -21,6 +22,7 @@ export const ORDEM_SITUACOES: Situacao[] = [
   'aberto',
   'em_atendimento',
   'aguardando_cliente',
+  'suspenso',
   'resolvido',
   'encerrado',
 ]
@@ -29,6 +31,7 @@ export const ROTULO_SITUACAO: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -37,6 +40,7 @@ export const COR_SITUACAO: Record<string, string> = {
   aberto: 'var(--primary)',
   em_atendimento: 'var(--amber)',
   aguardando_cliente: 'var(--ink-faint)',
+  suspenso: '#b91c1c',
   resolvido: 'var(--success)',
   encerrado: 'var(--success)',
 }
@@ -45,6 +49,7 @@ export const PILL_SITUACAO: Record<string, string> = {
   aberto: 'pill',
   em_atendimento: 'pill warn',
   aguardando_cliente: 'pill flat',
+  suspenso: 'pill bad',
   resolvido: 'pill good',
   encerrado: 'pill flat',
 }
@@ -62,6 +67,8 @@ export const EXPLICACAO_CLIENTE: Record<string, string> = {
     'Um atendente assumiu o chamado e está trabalhando nele. Você não precisa fazer nada por enquanto.',
   aguardando_cliente:
     'A bola está com você: precisamos de uma resposta, um documento ou uma confirmação para seguir. Enquanto isso, o prazo fica pausado.',
+  suspenso:
+    'O atendimento está parado por um impedimento fora do nosso controle (por exemplo, sistema indisponível ou dependência de fornecedor). Você vê o motivo e a data prevista da próxima atualização. O prazo fica pausado.',
   resolvido:
     'A solução foi entregue e o chamado aguarda a sua conferência. Se ainda não estiver certo, é só responder que ele volta para atendimento.',
   encerrado:
@@ -75,6 +82,8 @@ export const EXPLICACAO_EQUIPE: Record<string, string> = {
     'Alguém assumiu e está tocando o atendimento. O prazo continua correndo em horas úteis.',
   aguardando_cliente:
     'Depende de um retorno do cliente. Enquanto estiver assim, o prazo fica pausado e não conta como atraso.',
+  suspenso:
+    'Impedimento fora do controle do atendente (sistema, software, fornecedor). Motivo, observação e próxima atualização são obrigatórios. O SLA pausa na hora; para as estrelas, o tempo suspenso só vale depois que o gestor autorizar.',
   resolvido:
     'A solução foi entregue e está em conferência pelo cliente. Ainda pode voltar para atendimento se ele responder.',
   encerrado:

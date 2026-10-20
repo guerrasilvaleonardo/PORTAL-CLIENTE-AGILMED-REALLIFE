@@ -12,7 +12,7 @@ import PendenciasAvaliacao from '@/components/PendenciasAvaliacao'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
-const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
 
 type ChamadoAberto = {
   id: string
@@ -41,6 +41,7 @@ const rotuloSituacao: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -92,6 +93,7 @@ const CORES_STATUS: Record<string, string> = {
   aberto: 'var(--primary)',
   em_atendimento: 'var(--amber)',
   aguardando_cliente: 'var(--ink-faint)',
+  suspenso: 'var(--danger)',
   resolvido: 'var(--success)',
   encerrado: 'var(--success)',
 }
@@ -199,14 +201,14 @@ export default function PainelPage() {
               supabase
                 .from('chamados')
                 .select('id', { count: 'exact', head: true })
-                .in('status', ['aberto', 'em_atendimento', 'aguardando_cliente'])
+                .in('status', ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso'])
             ),
             contar(
               supabase
                 .from('chamados')
                 .select('id', { count: 'exact', head: true })
                 .eq('prioridade', 'urgente')
-                .in('status', ['aberto', 'em_atendimento', 'aguardando_cliente'])
+                .in('status', ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso'])
             ),
             contar(
               supabase

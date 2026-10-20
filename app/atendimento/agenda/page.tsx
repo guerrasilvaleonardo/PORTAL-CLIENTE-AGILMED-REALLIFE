@@ -25,7 +25,7 @@ import { situacaoSla } from '@/lib/prazo'
  */
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
-const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
 
 const FUSO_MS = -4 * 3600000 // America/Porto_Velho (UTC-4, sem horário de verão)
 const INICIO_H = 8

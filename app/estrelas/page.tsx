@@ -120,8 +120,9 @@ export default function EstrelasPage() {
           <span className="estrela-ouro" aria-hidden="true">★</span> Programa de estrelas
         </h1>
         <p style={{ margin: '8px 0 0', color: 'var(--ink-muted)', fontSize: 14 }}>
-          Até 3 estrelas por chamado: 1 por resolver dentro do prazo e até 2 pela avaliação do cliente
-          (Bom +1, Excelente +2).
+          Até {(cfg?.estrelas_prazo ?? 1) + (cfg?.bonus_excelente ?? 2)} estrelas por chamado:{' '}
+          {cfg?.estrelas_prazo ?? 1} por resolver dentro do prazo e as estrelas da avaliação do cliente
+          (Ruim +{cfg?.bonus_ruim ?? 0}, Bom +{cfg?.bonus_bom ?? 1}, Excelente +{cfg?.bonus_excelente ?? 2}).
         </p>
       </div>
 
@@ -625,6 +626,7 @@ function AbaMeuPainel({
 /* Texto explicativo do programa (mesmo texto para toda a equipe). */
 function TextoComoFunciona({ cfg }: { cfg: ConfigEstrelas | null }) {
   const ep = cfg?.estrelas_prazo ?? 1
+  const ruim = cfg?.bonus_ruim ?? 0
   const bom = cfg?.bonus_bom ?? 1
   const exc = cfg?.bonus_excelente ?? 2
   const max = ep + exc
@@ -645,7 +647,7 @@ function TextoComoFunciona({ cfg }: { cfg: ConfigEstrelas | null }) {
           </li>
           <li style={item}>
             Bônus pela avaliação do cliente: <strong>Excelente +{exc}</strong>, <strong>Bom +{bom}</strong>,
-            Ruim ou sem avaliação +0.
+            <strong> Ruim +{ruim}</strong>; sem avaliação +0.
           </li>
           <li style={item}>Máximo por chamado: <strong>{max} estrelas</strong>.</li>
           <li style={item}>
@@ -673,8 +675,9 @@ function TextoComoFunciona({ cfg }: { cfg: ConfigEstrelas | null }) {
             <strong> amarelo com “Próximo do prazo”</strong> quando falta {alerta}h útil(eis) ou menos.
           </li>
           <li style={item}>
-            Se o prazo for estendido sem mudança de status (por exemplo, troca de prioridade), a extensão só
-            vale para as estrelas se um gestor autorizar. Ela nunca vale se o prazo antigo já tinha vencido.
+            Se o prazo for estendido sem mudança de status (por exemplo, troca de prioridade) ou pelo tempo em
+            “Atendimento suspenso”, a extensão só vale para as estrelas se um gestor autorizar. Ela nunca vale se o
+            prazo antigo já tinha vencido (na suspensão, conta o momento em que ela começou).
           </li>
           <li style={item}>O horário de resolução é o do servidor, não o do computador de quem resolveu.</li>
         </ul>
@@ -800,7 +803,7 @@ function DadosAtuais({
       <div style={linha}><span style={rot}>Alerta “Próximo do prazo”</span><span>{(cfg?.alerta_prazo_horas ?? 1) + 'h útil(eis) antes do vencimento'}</span></div>
       <div style={linha}>
         <span style={rot}>Regras (versão {cfg?.regra_versao ?? 1})</span>
-        <span>Prazo {cfg?.estrelas_prazo ?? 1} · Bom +{cfg?.bonus_bom ?? 1} · Excelente +{cfg?.bonus_excelente ?? 2}</span>
+        <span>Prazo {cfg?.estrelas_prazo ?? 1} · Ruim +{cfg?.bonus_ruim ?? 0} · Bom +{cfg?.bonus_bom ?? 1} · Excelente +{cfg?.bonus_excelente ?? 2}</span>
       </div>
       <div style={linha}><span style={rot}>Última alteração da configuração</span><span>{cfg?.atualizado_em ? formatarDataHora(cfg.atualizado_em) : '—'}</span></div>
       <div style={linha}>
@@ -864,6 +867,7 @@ function AbaGestao({
   const [prazoAval, setPrazoAval] = useState<string>(cfg?.prazo_avaliacao_dias ? String(cfg.prazo_avaliacao_dias) : '')
   const [alerta, setAlerta] = useState<string>(String(cfg?.alerta_prazo_horas ?? 1))
   const [ep, setEp] = useState(cfg?.estrelas_prazo ?? 1)
+  const [ruim, setRuim] = useState(cfg?.bonus_ruim ?? 0)
   const [bom, setBom] = useState(cfg?.bonus_bom ?? 1)
   const [exc, setExc] = useState(cfg?.bonus_excelente ?? 2)
   const [motivo, setMotivo] = useState('')
@@ -945,6 +949,8 @@ function AbaGestao({
       p_bonus_bom: bom,
       p_bonus_excelente: exc,
       p_motivo: motivo,
+      /* Só envia se o banco já tiver o bônus Ruim (senão a função antiga recusa o parâmetro). */
+      ...(cfg?.bonus_ruim !== undefined ? { p_bonus_ruim: ruim } : {}),
     })
     setSalvando(false)
     if (error) return setErro(error.message)
@@ -1038,16 +1044,24 @@ function AbaGestao({
                 <option value={1}>1</option><option value={0}>0</option>
               </select>
             </label>
+            {cfg?.bonus_ruim !== undefined && (
+              <label style={rotuloCampo}>
+                Bônus avaliação “Ruim”
+                <select value={ruim} onChange={(e) => setRuim(Number(e.target.value))} style={campo}>
+                  <option value={0}>0</option><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
+                </select>
+              </label>
+            )}
             <label style={rotuloCampo}>
               Bônus avaliação “Bom”
               <select value={bom} onChange={(e) => setBom(Number(e.target.value))} style={campo}>
-                <option value={0}>0</option><option value={1}>1</option><option value={2}>2</option>
+                <option value={0}>0</option><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
               </select>
             </label>
             <label style={rotuloCampo}>
               Bônus avaliação “Excelente”
               <select value={exc} onChange={(e) => setExc(Number(e.target.value))} style={campo}>
-                <option value={0}>0</option><option value={1}>1</option><option value={2}>2</option>
+                <option value={0}>0</option><option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
               </select>
             </label>
           </div>
@@ -1167,7 +1181,7 @@ function AbaGestao({
             <div key={p.id} style={{ fontSize: 14 }}>
               <Link href={'/atendimento/' + p.chamado_id}><strong>#{p.chamados?.numero}</strong></Link> — {p.chamados?.assunto}:{' '}
               {formatarDataHora(p.prazo_anterior)} → {formatarDataHora(p.prazo_novo)}
-              {' '}({p.origem === 'prioridade' ? 'troca de prioridade' : 'manual'}). Decida na tela do chamado, com justificativa.
+              {' '}({p.origem === 'prioridade' ? 'troca de prioridade' : p.origem === 'suspensao' ? 'atendimento suspenso' : 'manual'}). Decida na tela do chamado, com justificativa.
             </div>
           ))}
           <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>

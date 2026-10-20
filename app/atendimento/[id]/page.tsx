@@ -15,6 +15,9 @@ import EtapasChamado from '@/components/EtapasChamado'
 import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import EstrelasDoChamado from '@/components/EstrelasDoChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
+import SuspenderChamado from '@/components/SuspenderChamado'
+import { carregarHistoricoSuspensoes, dataDoBanco } from '@/lib/suspensao'
+import type { RegistroSuspensao } from '@/lib/suspensao'
 import { marcas } from '@/lib/marca'
 import '../../chamado-selecao.css'
 
@@ -53,6 +56,7 @@ const rotuloStatus: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -193,6 +197,7 @@ const statusLabels: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em atendimento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
@@ -247,6 +252,12 @@ function corStatus(status: string) {
       return {
         background: '#f3e8ff',
         color: '#7e22ce',
+      }
+
+    case 'suspenso':
+      return {
+        background: '#fee2e2',
+        color: '#b91c1c',
       }
 
     case 'resolvido':
@@ -954,6 +965,12 @@ export default function AtendimentoChamadoPage() {
       return
     }
 
+    /* Suspender exige motivo, observação e próxima atualização. */
+    if (novoStatus === 'suspenso') {
+      setSuspendendo(true)
+      return
+    }
+
     try {
       setSalvandoStatus(true)
       setErro('')
@@ -1048,6 +1065,27 @@ export default function AtendimentoChamadoPage() {
   }
 
   const podeAlterarPrioridade = ['gestor', 'admin'].includes(meuPerfil)
+
+  /* Atendimento suspenso: janela de dados e histórico de suspensões. */
+  const [suspendendo, setSuspendendo] = useState(false)
+  const [suspensoes, setSuspensoes] = useState<RegistroSuspensao[]>([])
+
+  useEffect(() => {
+    if (!chamado?.id) return
+
+    let vivo = true
+
+    carregarHistoricoSuspensoes(chamado.id).then((lista) => {
+      if (vivo) setSuspensoes(lista)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [chamado?.id, chamado?.status])
+
+  const suspensaoAtual =
+    chamado?.status === 'suspenso' ? suspensoes.find((s) => !s.fim) || null : null
 
   async function salvarPrioridade() {
     if (!chamado) return
@@ -3264,7 +3302,8 @@ export default function AtendimentoChamadoPage() {
                   rotulo="Prazo"
                   valor={
                     chamado.sla_pausado_em ||
-                    chamado.status === 'aguardando_cliente'
+                    chamado.status === 'aguardando_cliente' ||
+                    chamado.status === 'suspenso'
                       ? 'pausado'
                       : chamado.prazo_sla
                         ? new Date(chamado.prazo_sla).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho' })
@@ -3273,6 +3312,7 @@ export default function AtendimentoChamadoPage() {
                   alerta={
                     !chamado.sla_pausado_em &&
                     chamado.status !== 'aguardando_cliente' &&
+                    chamado.status !== 'suspenso' &&
                     Boolean(chamado.prazo_sla) &&
                     new Date(chamado.prazo_sla as string).getTime() <
                       Date.now() &&
@@ -3376,6 +3416,73 @@ export default function AtendimentoChamadoPage() {
                 Gestão do chamado
               </h2>
 
+              {suspendendo && chamado && (
+                <SuspenderChamado
+                  chamado={{ id: chamado.id, numero: chamado.numero ?? 0, assunto: chamado.assunto }}
+                  onFechar={() => {
+                    setSuspendendo(false)
+                    setNovoStatus(chamado.status)
+                  }}
+                  onSuspenso={() => {
+                    setSuspendendo(false)
+                    avisar('status_alterado', chamado.id)
+                    carregarChamado()
+                  }}
+                />
+              )}
+
+              {chamado.status === 'suspenso' && (
+                <div
+                  style={{
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#7f1d1d',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    marginBottom: 16,
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong style={{ color: '#b91c1c' }}>Atendimento suspenso</strong>
+                  {suspensaoAtual ? (
+                    <>
+                      <div>Motivo: {suspensaoAtual.motivo}</div>
+                      <div>Próxima atualização: {dataDoBanco(suspensaoAtual.proxima_atualizacao)}</div>
+                      <div>Desde: {formatarData(suspensaoAtual.inicio)}</div>
+                      <div style={{ marginTop: 6 }}>
+                        <em>Observação (só a equipe):</em> {suspensaoAtual.observacao}
+                      </div>
+                    </>
+                  ) : (
+                    <div>SLA pausado. Os detalhes aparecem depois que o SQL de suspensão for aplicado.</div>
+                  )}
+                  <div style={{ marginTop: 6, fontSize: 12.5 }}>
+                    Para retomar, mude o status (ex.: Em atendimento). O prazo é estendido pelas horas
+                    úteis suspensas; nas estrelas, a extensão aguarda a decisão do gestor.
+                  </div>
+                </div>
+              )}
+
+              {suspensoes.filter((s) => s.fim).length > 0 && (
+                <p style={{ fontSize: 12.5, color: '#64748b', margin: '0 0 12px' }}>
+                  Suspensões anteriores:{' '}
+                  {suspensoes
+                    .filter((s) => s.fim)
+                    .map(
+                      (s) =>
+                        formatarData(s.inicio) +
+                        ' a ' +
+                        formatarData(s.fim) +
+                        ' (' +
+                        s.motivo +
+                        (s.horas_uteis != null ? ', ' + s.horas_uteis + ' h úteis' : '') +
+                        ')'
+                    )
+                    .join(' · ')}
+                </p>
+              )}
+
               <label
                 style={labelStyle}
               >
@@ -3408,6 +3515,10 @@ export default function AtendimentoChamadoPage() {
 
                 <option value="aguardando_cliente">
                   Aguardando cliente
+                </option>
+
+                <option value="suspenso">
+                  Atendimento suspenso
                 </option>
 
                 <option value="resolvido">
