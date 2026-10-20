@@ -49,7 +49,7 @@ const manualInterno: Manual = {
           passos: [
             'Menu da equipe: Painel, Atendimento, Estrelas, Chamados, Certificados, Treinamentos e Conversas. O botão "?" abre este manual no assunto da tela atual. Sair encerra o acesso.',
           ],
-          dica: 'Meu perfil (dados e troca de senha) fica no cartão "Meu perfil" do Painel.',
+          dica: 'Meu perfil (dados e troca de senha) fica no link "Meu perfil", no topo de todas as telas. Mensagem nova em chamado seu (responsável, aberto ou solicitado por você) acende um balão vermelho na aba Atendimento; mensagem nova em Conversas acende o balão na aba Conversas.',
           link: { href: '/perfil', rotulo: 'Abrir Meu perfil' },
         },
       ],
@@ -111,7 +111,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Filtros: busca, empresa, prioridade e responsável ("Meus atendimentos", "Sem responsável" ou uma pessoa).',
-            'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO.',
+            'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO. O selo "nova" piscando indica mensagem não lida num chamado seu.',
           ],
         },
         {
@@ -204,7 +204,7 @@ const manualInterno: Manual = {
             'Empresa: move o chamado para outra empresa. Muda quem enxerga o chamado e a marca dos e-mails; o portal pede confirmação.',
           ],
           atencao:
-            'O atendente vê só o texto "Somente gestor ou administrador altera a prioridade". Cliente abre no máximo como Alta: Urgente é decisão da gestão, depois da análise. A lista ainda mostra a opção "Média", que vale como Normal (24 h úteis).',
+            'O atendente vê só o texto "Somente gestor ou administrador altera a prioridade". Cliente abre no máximo como Alta: Urgente é decisão da gestão, depois da análise.',
         },
         {
           titulo: 'Conversas com o cliente',
@@ -395,7 +395,7 @@ const manualInterno: Manual = {
             ],
           },
           passos: [
-            'Escolha o período, a marca e a área.',
+            'Escolha o período, a marca, a área e a origem: clientes, internos (chamados da própria equipe) ou ambos.',
             'Passe o mouse no título das colunas para ver a definição. SLA verde a partir de 90% (meta interna), amarelo a partir de 75%.',
           ],
           dica: 'O chamado conta para o responsável atual. Tempos em horas úteis e pela mediana; mensagens automáticas não contam como 1ª resposta; a resolução desconta a espera do cliente.',
@@ -593,7 +593,7 @@ const manualInterno: Manual = {
                 t: 'tabela',
                 colunas: ['Rotina', 'Quando (Porto Velho)', 'O que faz'],
                 linhas: [
-                  ['Alerta de SLA', 'Todo dia, 08h', 'E-mail com chamados atrasados'],
+                  ['Alerta de SLA', 'Dias úteis, 08h', 'E-mail com chamados atrasados'],
                   ['Boletim', 'Segunda, 07h', 'Certificados a vencer'],
                   ['Leitura do EAD', 'Todo dia, 05h', 'Atualiza o progresso'],
                   ['Encerramento', 'De hora em hora', 'Resolvido há 24h úteis → Encerrado'],
