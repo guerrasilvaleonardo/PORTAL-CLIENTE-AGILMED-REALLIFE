@@ -5,7 +5,7 @@
 
 .board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -163,7 +163,7 @@
 .tv .card-client { font-size: 14px; }
 .tv .qcard { padding: 16px; cursor: default; }
 
-@media (max-width: 1300px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1500px) { .board { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 980px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .board { grid-template-columns: 1fr; } }
 
@@ -172,3 +172,10 @@
 .card-progresso .barra { flex: 1; height: 5px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
 .card-progresso .preenchido { height: 100%; background: #0f766e; border-radius: 999px; }
 .card-progresso .preenchido.completo { background: #16a34a; }
+
+/* Atendimento suspenso: motivo e próxima atualização no cartão. */
+.card-suspensao {
+  margin-top: 6px; font-size: 11.5px; font-weight: 600; line-height: 1.35;
+  color: var(--danger); background: var(--danger-tint);
+  border-radius: 8px; padding: 4px 8px;
+}

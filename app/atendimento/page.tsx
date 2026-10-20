@@ -1,6 +1,8 @@
 'use client'
 
 import { DragEvent, useEffect, useMemo, useState } from 'react'
+import SuspenderChamado from '@/components/SuspenderChamado'
+import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { carregarFeriados } from '@/lib/feriados'
@@ -18,11 +20,12 @@ const COLUNAS = [
   { id: 'aberto', rotulo: 'Aberto' },
   { id: 'em_atendimento', rotulo: 'Em andamento' },
   { id: 'aguardando_cliente', rotulo: 'Aguardando cliente' },
+  { id: 'suspenso', rotulo: 'Atendimento suspenso' },
   { id: 'resolvido', rotulo: 'Resolvido' },
   { id: 'encerrado', rotulo: 'Encerrado' },
 ]
 
-const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
 
 type Chamado = {
   id: string
@@ -35,6 +38,9 @@ type Chamado = {
   created_at: string
   prazo_sla: string | null
   sla_pausado_em: string | null
+  suspenso_em?: string | null
+  suspensao_motivo?: string | null
+  suspensao_proxima?: string | null
   resolvido_em: string | null
   encerrado_em: string | null
   responsavel_id: string | null
@@ -72,6 +78,8 @@ export default function AtendimentoPage() {
     carregarAlertaPrazoHoras().then(setAlertaHoras)
   }, [])
   const [tv, setTv] = useState(false)
+  /* Chamado arrastado para "Atendimento suspenso", aguardando os dados. */
+  const [suspendendo, setSuspendendo] = useState<Chamado | null>(null)
 
   const [busca, setBusca] = useState('')
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
@@ -151,9 +159,13 @@ export default function AtendimentoPage() {
         )
       )
 
+      /* Motivo e próxima atualização dos suspensos (consulta tolerante). */
+      const suspensos = await carregarSuspensos()
+
       setChamados(
         (data || []).map((item: any) => ({
           ...item,
+          ...(suspensos[item.id] || {}),
           empresas: Array.isArray(item.empresas) ? item.empresas[0] : item.empresas,
           responsavel: Array.isArray(item.responsavel) ? item.responsavel[0] : item.responsavel,
         }))
@@ -246,6 +258,12 @@ export default function AtendimentoPage() {
 
     if (!atual || atual.status === novoStatus) return
 
+    /* Suspender exige motivo, observação e próxima atualização. */
+    if (novoStatus === 'suspenso') {
+      setSuspendendo(atual)
+      return
+    }
+
     /* Move na tela primeiro; se o banco recusar, volta. */
     setChamados((lista) =>
       lista.map((c) => (c.id === id ? { ...c, status: novoStatus } : c))
@@ -270,6 +288,23 @@ export default function AtendimentoPage() {
 
     avisar('status_alterado', id)
 
+    /* Saindo da suspensão o banco estende o prazo: relê o chamado. */
+    if (atual.status === 'suspenso') {
+      const { data: novo } = await supabase
+        .from('chamados')
+        .select('prazo_sla, sla_pausado_em')
+        .eq('id', id)
+        .maybeSingle()
+
+      setChamados((lista) =>
+        lista.map((c) =>
+          c.id === id
+            ? { ...c, ...(novo || {}), suspenso_em: null, suspensao_motivo: null, suspensao_proxima: null }
+            : c
+        )
+      )
+    }
+
     setAviso(
       'Chamado #' +
         atual.numero +
@@ -292,6 +327,32 @@ export default function AtendimentoPage() {
 
   return (
     <div className={'app' + (tv ? ' tv' : '')}>
+      {suspendendo && (
+        <SuspenderChamado
+          chamado={suspendendo}
+          onFechar={() => setSuspendendo(null)}
+          onSuspenso={({ motivo, proxima }) => {
+            const alvo = suspendendo
+            setSuspendendo(null)
+            setChamados((lista) =>
+              lista.map((c) =>
+                c.id === alvo.id
+                  ? {
+                      ...c,
+                      status: 'suspenso',
+                      suspenso_em: new Date().toISOString(),
+                      suspensao_motivo: motivo,
+                      suspensao_proxima: proxima,
+                    }
+                  : c
+              )
+            )
+            avisar('status_alterado', alvo.id)
+            setAviso('Chamado #' + alvo.numero + ' suspenso. O SLA está pausado.')
+          }}
+        />
+      )}
+
       <div className="topbar">
         <div>
           <div className="section-title">Atendimento</div>
@@ -466,6 +527,14 @@ export default function AtendimentoPage() {
                           {' · '}
                           {c.categoria}
                         </div>
+
+                        {c.status === 'suspenso' && c.suspensao_motivo && (
+                          <div className="card-suspensao">
+                            {c.suspensao_motivo}
+                            {c.suspensao_proxima &&
+                              ' · próx. atualização ' + dataDoBanco(c.suspensao_proxima)}
+                          </div>
+                        )}
 
                         {prog && (
                           <div
