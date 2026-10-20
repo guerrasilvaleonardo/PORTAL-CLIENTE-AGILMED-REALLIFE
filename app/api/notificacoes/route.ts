@@ -546,11 +546,33 @@ export async function POST(request: Request) {
         aberto: 'Aberto',
         em_atendimento: 'Em atendimento',
         aguardando_cliente: 'Aguardando você',
+        suspenso: 'Atendimento suspenso',
         resolvido: 'Resolvido',
         encerrado: 'Encerrado',
       }
 
       const rotulo = rotulos[chamado.status] || chamado.status
+
+      /* Suspenso: o cliente vê o motivo e a próxima atualização (não a observação). */
+      let linhaSuspensao = ''
+
+      if (chamado.status === 'suspenso') {
+        const { data: susp } = await supabaseAdmin
+          .from('chamados')
+          .select('suspensao_motivo, suspensao_proxima')
+          .eq('id', chamado.id)
+          .maybeSingle()
+
+        if (susp?.suspensao_motivo) {
+          const [a, m, d] = String(susp.suspensao_proxima || '').split('-')
+
+          linhaSuspensao =
+            '<strong>Motivo:</strong> ' +
+            escapar(susp.suspensao_motivo) +
+            (d ? '<br><strong>Próxima atualização prevista:</strong> ' + d + '/' + m + '/' + a : '') +
+            '<br>Enquanto a suspensão durar, o prazo de atendimento fica pausado.'
+        }
+      }
 
       assunto = 'Chamado ' + codigo + ' agora está ' + rotulo
 
@@ -563,6 +585,7 @@ export async function POST(request: Request) {
           chamado.status === 'aguardando_cliente'
             ? 'Estamos aguardando um retorno seu para continuar.'
             : '',
+          linhaSuspensao,
         ].filter(Boolean),
         { rotulo: 'Ver o chamado', url: portal + '/chamados/' + chamado.id }
       )
@@ -574,6 +597,7 @@ export async function POST(request: Request) {
         chamado.status === 'aguardando_cliente'
           ? 'Estamos aguardando um retorno seu para continuar.'
           : '',
+        linhaSuspensao,
       ].filter(Boolean)
     } else if (evento === 'prioridade_alterada') {
       /*
