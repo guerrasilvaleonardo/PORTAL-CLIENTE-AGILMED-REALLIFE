@@ -19,12 +19,13 @@ import '../quadro.css'
  */
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
-const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente']
+const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
 
 const ROTULO_STATUS: Record<string, string> = {
   aberto: 'Aberto',
   em_atendimento: 'Em andamento',
   aguardando_cliente: 'Aguardando cliente',
+  suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
 }
