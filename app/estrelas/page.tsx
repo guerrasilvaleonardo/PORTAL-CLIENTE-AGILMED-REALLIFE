@@ -660,7 +660,7 @@ function TextoComoFunciona({ cfg }: { cfg: ConfigEstrelas | null }) {
         <ul style={{ margin: 0, paddingLeft: 20 }}>
           <li style={item}>
             O prazo é o mesmo SLA do portal, em horas úteis: segunda a sexta, 8h–12h e 13h–17h, horário de
-            Porto Velho (RO). Feriados não são descontados. Todos os horários do portal aparecem no horário de
+            Porto Velho (RO). Feriados cadastrados no calendário do SLA não contam hora útil, e a extensão de prazo que o feriado gera já entra autorizada (não tira estrela). Todos os horários do portal aparecem no horário de
             Porto Velho.
           </li>
           <li style={item}>
