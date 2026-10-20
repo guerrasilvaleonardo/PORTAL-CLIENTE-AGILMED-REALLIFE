@@ -500,6 +500,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          criado_por,
           responsavel_id,
           prazo_sla,
           sla_pausado_em,
@@ -1017,6 +1018,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          criado_por,
           responsavel_id,
           prazo_sla,
           sla_pausado_em,
@@ -1146,6 +1148,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          criado_por,
           responsavel_id,
           prazo_sla,
           sla_pausado_em,
@@ -1299,6 +1302,7 @@ export default function AtendimentoChamadoPage() {
           descricao,
           prioridade,
           status,
+          criado_por,
           responsavel_id,
           prazo_sla,
           sla_pausado_em,
@@ -2251,7 +2255,11 @@ export default function AtendimentoChamadoPage() {
                 <Info
                   label="Atualização"
                   value={formatarData(
-                    chamado.updated_at
+                    /* updated_at nem sempre muda no banco: vale o último movimento do histórico. */
+                    [chamado.updated_at, ...historico.map((e) => e.created_at)]
+                      .filter(Boolean)
+                      .sort()
+                      .pop() || chamado.updated_at
                   )}
                 />
 
