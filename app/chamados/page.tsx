@@ -7,6 +7,8 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { AjudaSituacoes } from '@/lib/situacoes'
 import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao, { SeloAvaliar } from '@/components/PendenciasAvaliacao'
+import SeloMensagemNova from '@/components/SeloMensagemNova'
+import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 
 type Chamado = {
   id: string
@@ -84,6 +86,7 @@ export default function ChamadosPage() {
   /* Lembrete de avaliação: só para cliente, depois de saber o perfil. */
   const { pendentes } = useAvaliacoesPendentes(!carregando)
   const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
+  const mensagensNovas = useChamadosNaoLidos(!carregando)
 
   useEffect(() => {
     let ativo = true
@@ -358,6 +361,7 @@ export default function ChamadosPage() {
                       >
                         {c.assunto}
                         {idsParaAvaliar.has(c.id) && <SeloAvaliar />}
+                        <SeloMensagemNova quantidade={mensagensNovas[c.id]} />
                       </span>
 
                       <span
