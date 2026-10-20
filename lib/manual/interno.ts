@@ -417,12 +417,12 @@ const manualInterno: Manual = {
             url: '/estrelas',
             blocos: [
               menu('Estrelas'),
-              { t: 'cartoes', n: 1, itens: [{ titulo: '★ Prazo', texto: '1 estrela por resolver dentro do prazo' }, { titulo: '★ Ruim', texto: '+1 pela avaliação do cliente' }, { titulo: '★★ Bom', texto: '+2 pela avaliação do cliente' }, { titulo: '★★★ Excelente', texto: '+3 pela avaliação do cliente' }] },
+              { t: 'cartoes', n: 1, itens: [{ titulo: '★ Prazo', texto: '1 estrela por resolver dentro do prazo' }, { titulo: '★ Bom', texto: '+1 pela avaliação do cliente' }, { titulo: '★★ Excelente', texto: '+2 pela avaliação do cliente' }] },
               { t: 'botoes', n: 2, itens: [{ rotulo: 'Mensal', primario: true }, { rotulo: 'Anual' }, { rotulo: 'Meu painel' }, { rotulo: 'Gestão do programa' }] },
             ],
           },
           passos: [
-            'Até 4 estrelas por chamado: 1 por resolver dentro do prazo (no limite exato também conta) e as estrelas que quem pediu marcar na avaliação (Ruim 1, Bom 2, Excelente 3). Sem avaliação: +0. Os valores são configuráveis pelo gestor na tela de Estrelas. Nos chamados internos (empresa Real Life SSMA), quem avalia é o solicitante da equipe; ninguém avalia chamado em que é o responsável.',
+            'Até 3 estrelas por chamado: 1 por resolver dentro do prazo (no limite exato também conta) e até 2 pela avaliação de quem pediu. Ruim ou sem avaliação: +0. Nos chamados internos (empresa Real Life SSMA), quem avalia é o solicitante da equipe; ninguém avalia chamado em que é o responsável nem chamado cujas estrelas recebeu.',
             'Abas: Mensal (pódio e ranking do mês), Anual, Meu painel (seus chamados e estrelas) e Gestão do programa (gestor e admin).',
           ],
         },
