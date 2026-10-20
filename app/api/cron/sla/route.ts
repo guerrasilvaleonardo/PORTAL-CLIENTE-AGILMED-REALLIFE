@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { horasUteisEntre } from '@/lib/prazo'
+import { ehFeriado, horasUteisEntre } from '@/lib/prazo'
 import { carregarFeriados } from '@/lib/feriados'
 import {
   enderecoDoPortal,
@@ -46,6 +46,23 @@ export async function GET(request: Request) {
 
   /* Feriados do calendário do SLA (lidos de novo a cada execução). */
   await carregarFeriados(supabaseAdmin, true)
+
+  /*
+   * Sábado, domingo e feriado não têm expediente: o prazo não anda, então
+   * não há alerta novo para mandar. ?forcar=1 roda assim mesmo (teste).
+   */
+  const hojePVH = new Date(Date.now() - 4 * 60 * 60 * 1000)
+  const diaSemana = hojePVH.getUTCDay()
+  const dataPVH = hojePVH.toISOString().slice(0, 10)
+  const forcar = new URL(request.url).searchParams.get('forcar') === '1'
+
+  if (!forcar && (diaSemana === 0 || diaSemana === 6 || ehFeriado(dataPVH))) {
+    return NextResponse.json({
+      sucesso: true,
+      pulado: diaSemana === 0 || diaSemana === 6 ? 'fim de semana' : 'feriado',
+      data: dataPVH,
+    })
+  }
 
   const { data, error } = await supabaseAdmin
     .from('chamados')
