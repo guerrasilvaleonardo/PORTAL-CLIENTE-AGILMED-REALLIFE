@@ -3676,10 +3676,9 @@ export default function AtendimentoChamadoPage() {
                       lineHeight: 1.45,
                     }}
                   >
-                    Quem do cliente pediu o chamado. É quem avalia o
-                    atendimento e passa a ver o chamado. Sem indicação,
-                    avalia quem abriu (se for do cliente) ou, se a equipe
-                    abriu, qualquer usuário do cliente que veja o chamado.
+                    {clientesDaEmpresa.length === 0
+                      ? 'Esta empresa não tem nenhum usuário de cliente ativo no portal, então não há quem indicar. Cadastre o usuário em Administração › Usuários (perfil Cliente, vinculado a esta empresa) ou, se o chamado é de outro cliente, mova-o para a empresa certa acima.'
+                      : 'Quem do cliente pediu o chamado. É quem avalia o atendimento e passa a ver o chamado. Sem indicação, avalia quem abriu (se for do cliente) ou, se a equipe abriu, qualquer usuário do cliente que veja o chamado.'}
                   </p>
 
                   <button
