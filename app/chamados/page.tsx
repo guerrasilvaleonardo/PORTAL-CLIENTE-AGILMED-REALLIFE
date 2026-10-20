@@ -82,7 +82,7 @@ export default function ChamadosPage() {
   const [interno, setInterno] = useState(false)
 
   /* Lembrete de avaliação: só para cliente, depois de saber o perfil. */
-  const { pendentes } = useAvaliacoesPendentes(!carregando && !interno)
+  const { pendentes } = useAvaliacoesPendentes(!carregando)
   const idsParaAvaliar = new Set(pendentes.map((p) => p.id))
 
   useEffect(() => {
@@ -245,7 +245,7 @@ export default function ChamadosPage() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
-      {!interno && <PendenciasAvaliacao pendentes={pendentes} />}
+      <PendenciasAvaliacao pendentes={pendentes} />
 
       <div className="stats">
         <div className="stat">
