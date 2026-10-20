@@ -118,6 +118,21 @@ function validarCampos(body: any, exigirRazaoSocial: boolean) {
     return { erro: 'O CNPJ deve ter 14 dígitos.' }
   }
 
+  /*
+   * Dias parados em "Aguardando cliente" antes de cobrar o cliente
+   * (supabase/chamados-cobranca-e-suspensao.sql). Opcional: sem o campo,
+   * o banco mantém o valor atual (padrão 7).
+   */
+  let diasCobranca: number | undefined
+
+  if (body.dias_cobranca !== undefined && body.dias_cobranca !== null && body.dias_cobranca !== '') {
+    diasCobranca = Number(body.dias_cobranca)
+
+    if (!Number.isInteger(diasCobranca) || diasCobranca < 1 || diasCobranca > 60) {
+      return { erro: 'Os dias para cobrança devem ser um número inteiro entre 1 e 60.' }
+    }
+  }
+
   return {
     dados: {
       razao_social: razaoSocial,
@@ -131,8 +146,19 @@ function validarCampos(body: any, exigirRazaoSocial: boolean) {
       cep: String(body.cep ?? '').trim() || null,
       marca,
       status,
-    },
+      ...(diasCobranca !== undefined ? { dias_cobranca: diasCobranca } : {}),
+    } as Record<string, any>,
   }
+}
+
+/* Coluna nova ainda não criada no banco (SQL não rodou): erro 42703. */
+function semColunaCobranca(error: { code?: string; message?: string } | null) {
+  return !!error && (error.code === '42703' || /dias_cobranca/.test(error.message || ''))
+}
+
+function semCobranca(dados: Record<string, any>) {
+  const { dias_cobranca: _ignorado, ...resto } = dados
+  return resto
 }
 
 const colunas = `
@@ -151,6 +177,8 @@ const colunas = `
   created_at
 `
 
+const colunasComCobranca = colunas.replace('created_at', 'dias_cobranca,\n  created_at')
+
 export async function GET(request: Request) {
   const verificacao = await verificarAdministrador(request)
 
@@ -158,10 +186,14 @@ export async function GET(request: Request) {
     return verificacao.resposta
   }
 
-  const { data, error } = await supabaseAdmin
+  let { data, error }: { data: any[] | null; error: any } = await supabaseAdmin
     .from('empresas')
-    .select(colunas)
+    .select(colunasComCobranca)
     .order('razao_social')
+
+  if (semColunaCobranca(error)) {
+    ;({ data, error } = await supabaseAdmin.from('empresas').select(colunas).order('razao_social'))
+  }
 
   if (error) {
     return NextResponse.json(
@@ -227,11 +259,19 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data, error } = await supabaseAdmin
+    let { data, error } = await supabaseAdmin
       .from('empresas')
       .insert(validacao.dados)
-      .select(colunas)
+      .select(colunasComCobranca)
       .single()
+
+    if (semColunaCobranca(error)) {
+      ;({ data, error } = await supabaseAdmin
+        .from('empresas')
+        .insert(semCobranca(validacao.dados))
+        .select(colunas)
+        .single())
+    }
 
     if (error) {
       if (error.code === '23505') {
@@ -286,12 +326,23 @@ export async function PATCH(request: Request) {
       )
     }
 
-    const { data, error } = await supabaseAdmin
+    const atualizadoEm = new Date().toISOString()
+
+    let { data, error } = await supabaseAdmin
       .from('empresas')
-      .update({ ...validacao.dados, updated_at: new Date().toISOString() })
+      .update({ ...validacao.dados, updated_at: atualizadoEm })
       .eq('id', id)
-      .select(colunas)
+      .select(colunasComCobranca)
       .single()
+
+    if (semColunaCobranca(error)) {
+      ;({ data, error } = await supabaseAdmin
+        .from('empresas')
+        .update({ ...semCobranca(validacao.dados), updated_at: atualizadoEm })
+        .eq('id', id)
+        .select(colunas)
+        .single())
+    }
 
     if (error) {
       if (error.code === '23505') {
