@@ -1,12 +1,15 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { casaBusca, palavrasDaBusca } from '@/lib/busca'
+import './certificados.css'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Progresso as BarraProgressoUi } from '@/lib/graficos'
 import {
   corDoProgresso,
   CURSOS,
+  etapaDoProgresso,
   ETAPAS_MANUAIS,
   formatarDataHora,
   numeroDaNr,
@@ -42,6 +45,8 @@ type Certificado = {
   progresso_etapa?: EtapaManual | null
   progresso_manual?: number | null
   progresso_manual_em?: string | null
+  /* true = o certificado não vence (validade indeterminada). */
+  sem_vencimento?: boolean | null
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
 }
 
@@ -51,6 +56,9 @@ const COLUNAS_CERT =
 /* Colunas criadas pela migracao certificados-progresso-manual.sql. */
 const COLUNAS_PROGRESSO_MANUAL =
   ', created_at, progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
+
+/* Coluna criada por certificados-sem-vencimento.sql. */
+const COLUNA_SEM_VENCIMENTO = ', sem_vencimento'
 
 const TIPOS = [
   'NR-35 — Trabalho em Altura',
@@ -154,6 +162,7 @@ const formVazio = {
   progresso_origem: 'ead' as OrigemProgresso,
   progresso_etapa: 'agendado' as EtapaManual,
   progresso_manual: '',
+  sem_vencimento: false,
 }
 
 /*
@@ -179,16 +188,77 @@ function diasAte(validade: string | null) {
   return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
 }
 
-function situacao(validade: string | null) {
-  const d = diasAte(validade)
+/*
+ * Situação da validade. As faixas não se sobrepõem: todo certificado cai
+ * em exatamente uma (vencido, até 90 dias, em dia, sem vencimento ou
+ * sem validade informada). "Sem vencimento" só quando o cadastro diz que
+ * o certificado não vence; data em branco sem essa marcação é "não
+ * informada".
+ */
+type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade'
 
-  if (d === null) return { texto: 'Sem validade', pill: 'pill flat' }
-  if (d < 0) return { texto: 'Vencido há ' + Math.abs(d) + 'd', pill: 'pill bad' }
-  if (d <= 30) return { texto: 'Vence em ' + d + 'd', pill: 'pill bad' }
-  if (d <= 90) return { texto: 'Vence em ' + d + 'd', pill: 'pill warn' }
+function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }): Faixa {
+  const d = diasAte(c.validade)
 
-  return { texto: 'Válido', pill: 'pill good' }
+  if (d === null) return c.sem_vencimento ? 'sem_vencimento' : 'sem_validade'
+  if (d < 0) return 'vencido'
+  if (d <= 90) return 'ate90'
+
+  return 'emdia'
 }
+
+function situacao(c: { validade: string | null; sem_vencimento?: boolean | null }) {
+  const d = diasAte(c.validade)
+  const faixa = faixaDe(c)
+
+  if (faixa === 'sem_vencimento') return { texto: 'Sem vencimento', pill: 'pill neutro', icone: '∞' }
+  if (faixa === 'sem_validade') return { texto: 'Não informada', pill: 'pill flat', icone: '−' }
+  if (faixa === 'vencido') {
+    const n = Math.abs(d as number)
+    return { texto: 'Vencido há ' + n + (n === 1 ? ' dia' : ' dias'), pill: 'pill bad', icone: '!' }
+  }
+  if (faixa === 'ate90') {
+    return {
+      texto: d === 0 ? 'Vence hoje' : 'Vence em ' + d + (d === 1 ? ' dia' : ' dias'),
+      pill: (d as number) <= 30 ? 'pill bad' : 'pill warn',
+      icone: '◷',
+    }
+  }
+
+  return { texto: 'Válido', pill: 'pill good', icone: '✓' }
+}
+
+function iniciais(nome: string) {
+  const p = nome.trim().split(/\s+/)
+
+  return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase()
+}
+
+/* Cor estável do avatar pelo nome. */
+const CORES_AVATAR = ['#DEEEEF', '#E3E8FB', '#EDE4F7', '#FBE5DC', '#E2F1E6', '#F6E9CF']
+
+function corAvatar(nome: string) {
+  let h = 0
+  for (const ch of nome) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+
+  return CORES_AVATAR[h % CORES_AVATAR.length]
+}
+
+/* CSV com ; (abre direto no Excel em português). */
+function paraCsv(linhas: (string | number | null | undefined)[][]) {
+  return linhas
+    .map((l) =>
+      l
+        .map((v) => {
+          const t = String(v ?? '')
+          return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t
+        })
+        .join(';')
+    )
+    .join('\r\n')
+}
+
+const POR_PAGINA = 25
 
 function formatarData(valor: string | null) {
   if (!valor) return '—'
@@ -221,11 +291,21 @@ export default function CertificadosPage() {
 
   /* false enquanto a migracao do progresso manual nao tiver rodado. */
   const [suportaManual, setSuportaManual] = useState(true)
+  /* false enquanto certificados-sem-vencimento.sql nao tiver rodado. */
+  const [suportaSemVencimento, setSuportaSemVencimento] = useState(true)
+
+  /* Organização da tela. */
+  const [aba, setAba] = useState<'lista' | 'analise'>('lista')
+  const [visao, setVisao] = useState<'certificado' | 'colaborador'>('certificado')
+  const [pagina, setPagina] = useState(1)
+  const [maisFiltros, setMaisFiltros] = useState(false)
+  const [painelAberto, setPainelAberto] = useState(false)
+  const [menuAberto, setMenuAberto] = useState<string | null>(null)
 
   const [form, setForm] = useState(formVazio)
   const editando = form.id !== ''
 
-  function alterar(campo: keyof typeof formVazio, valor: string) {
+  function alterar(campo: Exclude<keyof typeof formVazio, 'sem_vencimento'>, valor: string) {
     /*
      * O curso e sempre gravado em MAIUSCULAS, mesmo quando digitado
      * a mao. O e-mail e sempre em minusculas, para casar com o EAD.
@@ -375,8 +455,20 @@ export default function CertificadosPage() {
        */
       let { data, error } = await supabase
         .from('certificados')
-        .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
+        .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL + COLUNA_SEM_VENCIMENTO)
         .order('validade', { ascending: true, nullsFirst: false })
+
+      setSuportaSemVencimento(!(error && error.code === '42703'))
+
+      if (error && error.code === '42703') {
+        const semColuna = await supabase
+          .from('certificados')
+          .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
+          .order('validade', { ascending: true, nullsFirst: false })
+
+        data = semColuna.data as typeof data
+        error = semColuna.error
+      }
 
       if (error && error.code === '42703') {
         const antiga = await supabase
@@ -470,6 +562,7 @@ export default function CertificadosPage() {
         tipo: form.tipo,
         emissao: form.emissao || null,
         validade: form.validade || null,
+        ...(suportaSemVencimento ? { sem_vencimento: !form.validade && form.sem_vencimento } : {}),
         observacoes: form.observacoes.trim() || null,
         link_certificado: normalizarLink(form.link_certificado),
         ...(suportaManual
@@ -514,6 +607,7 @@ export default function CertificadosPage() {
       }
 
       setForm(formVazio)
+      setPainelAberto(false)
       await carregar()
     } catch (e: any) {
       console.error(e)
@@ -542,9 +636,36 @@ export default function CertificadosPage() {
       progresso_etapa: c.progresso_etapa || 'agendado',
       progresso_manual:
         typeof c.progresso_manual === 'number' ? String(c.progresso_manual) : '',
+      sem_vencimento: !!c.sem_vencimento,
     })
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setMenuAberto(null)
+    setPainelAberto(true)
   }
+
+  function novoCertificado() {
+    setErro('')
+    setMensagem('')
+    setForm({ ...formVazio, empresa_id: filtroEmpresa || '' })
+    setPainelAberto(true)
+  }
+
+  function fecharPainel() {
+    if (salvando) return
+    setPainelAberto(false)
+    setForm(formVazio)
+  }
+
+  /* Esc fecha o painel lateral e o menu de ações. */
+  useEffect(() => {
+    function esc(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      setMenuAberto(null)
+      if (painelAberto) fecharPainel()
+    }
+
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  })
 
   /* Remoção em dois cliques: o primeiro pede confirmação na própria linha. */
   const [confirmarRemocao, setConfirmarRemocao] = useState<string | null>(null)
@@ -566,7 +687,7 @@ export default function CertificadosPage() {
   }
 
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase()
+    const palavras = palavrasDaBusca(busca)
 
     return certificados.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
@@ -581,27 +702,32 @@ export default function CertificadosPage() {
 
       if (filtroSituacao) {
         const d = diasAte(c.validade)
+        const faixa = faixaDe(c)
 
-        if (filtroSituacao === 'vencidos' && !(d !== null && d < 0)) return false
-        if (filtroSituacao === '30' && !(d !== null && d >= 0 && d <= 30)) return false
-        if (filtroSituacao === '90' && !(d !== null && d >= 0 && d <= 90)) return false
-        if (filtroSituacao === 'validos' && !(d !== null && d > 90)) return false
+        if (filtroSituacao === '30') {
+          if (!(d !== null && d >= 0 && d <= 30)) return false
+        } else if (filtroSituacao.startsWith('etapa:')) {
+          if (etapaDoProgresso(progressoDe(c)) !== filtroSituacao.slice(6)) return false
+        } else if (faixa !== filtroSituacao) {
+          return false
+        }
       }
 
-      if (!termo) return true
+      if (!palavras.length) return true
 
-      return [
-        c.colaborador,
-        c.email_colaborador,
-        c.curso,
-        c.funcao,
-        c.tipo,
-        c.empresas?.nome_fantasia,
-        c.empresas?.razao_social,
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(termo)
+      /* Sem acento e em qualquer ordem. */
+      return casaBusca(
+        [
+          c.colaborador,
+          c.email_colaborador,
+          c.curso,
+          c.funcao,
+          c.tipo,
+          c.empresas?.nome_fantasia,
+          c.empresas?.razao_social,
+        ].join(' '),
+        palavras
+      )
     })
   }, [
     certificados,
@@ -611,7 +737,13 @@ export default function CertificadosPage() {
     filtroSituacao,
     filtroMes,
     filtroOrigem,
+    progressoPorId,
   ])
+
+  /* Volta para a primeira página sempre que o filtro muda. */
+  useEffect(() => {
+    setPagina(1)
+  }, [busca, filtroEmpresa, filtroTipo, filtroSituacao, filtroMes, filtroOrigem, visao])
 
   /*
    * Painel tipo x mes. Respeita empresa e origem; tipo e mes NAO
@@ -698,12 +830,14 @@ export default function CertificadosPage() {
     }
   }, [certificados, progressos, filtroEmpresa, filtroOrigem, periodo])
 
+  /* Clique na matriz: abre a lista já filtrada por tipo e mês. */
   function focarCelula(tipo: string, mes: string) {
     setFiltroTipo(tipo)
     setFiltroMes(mes === SEM_DATA ? SEM_DATA : mes)
-    document
-      .getElementById('lista-certificados')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setFiltroSituacao('')
+    setMaisFiltros(true)
+    setAba('lista')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   /* Meses que aparecem no filtro: os que tem certificado. */
@@ -713,515 +847,376 @@ export default function CertificadosPage() {
     [certificados]
   )
 
+  /*
+   * Indicadores do topo. Respeitam o filtro de empresa (para o cliente,
+   * já é só a empresa dele). Dois grupos que NÃO se misturam:
+   *  - validade: vencido + até 90 dias + em dia + sem vencimento + não
+   *    informada = total (cada certificado em uma faixa só);
+   *  - treinamento: concluído + em andamento + não iniciado + sem dados
+   *    de progresso = total.
+   */
   const indicadores = useMemo(() => {
-    let vencidos = 0
+    const base = filtroEmpresa
+      ? certificados.filter((c) => c.empresa_id === filtroEmpresa)
+      : certificados
+
+    const faixa: Record<Faixa, number> = {
+      vencido: 0,
+      ate90: 0,
+      emdia: 0,
+      sem_vencimento: 0,
+      sem_validade: 0,
+    }
+    const etapa = { concluido: 0, andamento: 0, nao_iniciado: 0, sem_dados: 0 }
     let em30 = 0
-    let em90 = 0
-    let validos = 0
+    let presenciais = 0
 
-    for (const c of certificados) {
+    for (const c of base) {
+      faixa[faixaDe(c)] += 1
+
       const d = diasAte(c.validade)
+      if (d !== null && d >= 0 && d <= 30) em30 += 1
 
-      if (d === null) continue
-      if (d < 0) vencidos += 1
-      else if (d <= 30) em30 += 1
-      else if (d <= 90) em90 += 1
-      else validos += 1
+      etapa[etapaDoProgresso(progressoDe(c))] += 1
+      if (c.progresso_origem === 'manual') presenciais += 1
     }
 
-    return { vencidos, em30, em90, validos }
-  }, [certificados])
+    return { total: base.length, faixa, etapa, em30, presenciais, ead: base.length - presenciais }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [certificados, progressoPorId, filtroEmpresa])
+
+  /* Por colaborador: agrupa os cursos de cada pessoa (nome + empresa). */
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, { chave: string; nome: string; empresa: string; itens: Certificado[] }>()
+
+    for (const c of filtrados) {
+      const chave = c.colaborador.trim().toLowerCase() + '|' + c.empresa_id
+      const g = mapa.get(chave) || {
+        chave,
+        nome: c.colaborador,
+        empresa: c.empresas?.nome_fantasia || c.empresas?.razao_social || '',
+        itens: [],
+      }
+
+      g.itens.push(c)
+      mapa.set(chave, g)
+    }
+
+    return [...mapa.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [filtrados])
+
+  const totalItens = visao === 'certificado' ? filtrados.length : grupos.length
+  const totalPaginas = Math.max(1, Math.ceil(totalItens / POR_PAGINA))
+  const paginaAtual = Math.min(pagina, totalPaginas)
+  const inicio = (paginaAtual - 1) * POR_PAGINA
+
+  const temFiltro = !!(busca || filtroTipo || filtroMes || filtroOrigem || filtroSituacao || (interno && filtroEmpresa))
+
+  function limparFiltros() {
+    setBusca('')
+    setFiltroTipo('')
+    setFiltroMes('')
+    setFiltroOrigem('')
+    setFiltroSituacao('')
+    if (interno) setFiltroEmpresa('')
+  }
+
+  /* Exporta exatamente o que está filtrado na lista. */
+  function exportar() {
+    const linhas: (string | number | null | undefined)[][] = [
+      ['Colaborador', 'Função', 'E-mail', 'Empresa', 'Tipo', 'Curso', 'Modalidade', 'Progresso (%)', 'Emissão', 'Validade', 'Situação', 'Link'],
+    ]
+
+    for (const c of filtrados) {
+      const p = progressoDe(c)
+
+      linhas.push([
+        c.colaborador,
+        c.funcao,
+        c.email_colaborador,
+        c.empresas?.nome_fantasia || c.empresas?.razao_social,
+        c.tipo,
+        c.curso,
+        c.progresso_origem === 'manual' ? 'Presencial' : 'EAD',
+        p ? Math.round(p.progresso) : '',
+        formatarData(c.emissao),
+        formatarData(c.validade),
+        situacao(c).texto,
+        c.link_certificado,
+      ])
+    }
+
+    const blob = new Blob(['\uFEFF' + paraCsv(linhas)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'certificados-' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  /* Mês corrente (destaque na matriz). */
+  const mesAtual = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0')
 
 
-  const grade = interno ? GRADE_CERT_INTERNO : GRADE_CERT_CLIENTE
 
-  return (
-    <div className="app">
-      <div className="topbar">
-        <div>
-          <div className="section-title">
-            {interno ? 'Todos os clientes' : 'Sua empresa'}
-          </div>
+  const linhasPagina = filtrados.slice(inicio, inicio + POR_PAGINA)
+  const gruposPagina = grupos.slice(inicio, inicio + POR_PAGINA)
 
-          <h1 style={{ fontSize: 30, marginTop: 6 }}>Certificados</h1>
+  function cartaoIndicador(
+    chave: string,
+    numero: number,
+    rotulo: string,
+    tom: 'neutro' | 'ruim' | 'alerta' | 'bom' | 'cinza',
+    icone: string,
+    detalhe?: string
+  ) {
+    const ativo = filtroSituacao === chave
 
-          <p
-            style={{
-              margin: '8px 0 0',
-              color: 'var(--ink-muted)',
-              fontSize: 14,
-            }}
-          >
-            Treinamentos e exames por colaborador, com o que vence primeiro
-            no topo.
-          </p>
-        </div>
+    return (
+      <button
+        type="button"
+        className={'cert-ind tom-' + tom + (ativo ? ' ativo' : '')}
+        aria-pressed={ativo}
+        title={ativo ? 'Clique para tirar este filtro' : 'Clique para ver só estes certificados'}
+        onClick={() => {
+          setFiltroSituacao(ativo ? '' : chave)
+          setAba('lista')
+        }}
+      >
+        <span className="cert-ind-icone" aria-hidden="true">{icone}</span>
+        <span>
+          <span className="cert-ind-num">{carregando ? '—' : numero}</span>
+          <span className="cert-ind-lbl">{rotulo}</span>
+          {detalhe && <span className="cert-ind-det">{detalhe}</span>}
+        </span>
+      </button>
+    )
+  }
 
-        <div className="topbar-spacer" />
+  function celulaProgresso(c: Certificado) {
+    const p = progressoDe(c)
+    const etapa = etapaDoProgresso(p)
 
-        {/* Cliente: o botao da equipe fica no painel de cadastro, que ele nao ve. */}
-        {!interno && (
-          <button
-            type="button"
-            className="btn"
-            onClick={atualizarEad}
-            disabled={atualizandoEad}
-          >
-            {atualizandoEad ? 'Atualizando...' : 'Atualizar progresso do EAD'}
-          </button>
+    if (!p || etapa === 'sem_dados') {
+      return <span className="cert-prog cinza">− Não informado</span>
+    }
+
+    if (etapa === 'concluido') {
+      return <span className="cert-prog ok">✓ Concluído</span>
+    }
+
+    return (
+      <span title={p.atualizado_em ? 'Atualizado em ' + formatarDataHora(p.atualizado_em) : undefined}>
+        <BarraProgressoUi valor={p.progresso} cor={corDoProgresso(p.progresso)} largura={90} />
+      </span>
+    )
+  }
+
+  function menuAcoes(c: Certificado) {
+    if (!interno) return null
+
+    return (
+      <span className="cert-acoes">
+        <button
+          type="button"
+          className="cert-mais"
+          aria-label={'Ações do certificado de ' + c.colaborador}
+          aria-expanded={menuAberto === c.id}
+          onClick={(e) => {
+            e.stopPropagation()
+            setConfirmarRemocao(null)
+            setMenuAberto(menuAberto === c.id ? null : c.id)
+          }}
+        >
+          ⋯
+        </button>
+
+        {menuAberto === c.id && (
+          <span className="cert-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+            <button type="button" role="menuitem" onClick={() => editar(c)}>
+              Editar
+            </button>
+
+            {confirmarRemocao === c.id ? (
+              <>
+                <span className="cert-menu-aviso">Remover o certificado de {c.colaborador}?</span>
+                <button type="button" role="menuitem" className="perigo" onClick={() => { setMenuAberto(null); remover(c) }}>
+                  Confirmar remoção
+                </button>
+                <button type="button" role="menuitem" onClick={() => setConfirmarRemocao(null)}>
+                  Manter
+                </button>
+              </>
+            ) : (
+              <button type="button" role="menuitem" className="perigo" onClick={() => setConfirmarRemocao(c.id)}>
+                Remover
+              </button>
+            )}
+          </span>
+        )}
+      </span>
+    )
+  }
+
+  function linhaCertificado(c: Certificado, comPessoa: boolean) {
+    const s = situacao(c)
+    const empresa = c.empresas?.nome_fantasia || c.empresas?.razao_social || ''
+
+    return (
+      <div key={c.id} className={'cert-linha' + (interno ? '' : ' cliente') + (comPessoa ? '' : ' sem-pessoa')}>
+        {comPessoa && (
+          <span className="cert-pessoa">
+            <span className="cert-avatar" style={{ background: corAvatar(c.colaborador) }} aria-hidden="true">
+              {iniciais(c.colaborador)}
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span className="cert-nome">{c.colaborador}</span>
+              <span className="cert-sub">{interno ? empresa : c.funcao || c.email_colaborador || ''}</span>
+            </span>
+          </span>
         )}
 
-        <Link href="/treinamentos" className="btn">
-          Relatório de treinamentos
-        </Link>
+        <span style={{ minWidth: 0 }}>
+          <span className="cert-curso">{c.tipo}</span>
+          <span className="cert-sub" title={c.curso || undefined}>
+            {c.progresso_origem === 'manual' ? 'Presencial' : 'EAD'}
+            {c.curso ? ' · ' + c.curso : ''}
+          </span>
+        </span>
+
+        <span>{celulaProgresso(c)}</span>
+
+        <span className="cert-validade">
+          <span className="cert-data">{c.validade ? formatarData(c.validade) : ''}</span>
+          <span className={s.pill + ' cert-pill'}>
+            <span aria-hidden="true">{s.icone}</span> {s.texto}
+          </span>
+        </span>
+
+        <span>
+          {c.link_certificado ? (
+            <a className="btn btn-sm cert-ver" href={c.link_certificado} target="_blank" rel="noreferrer">
+              Ver certificado
+            </a>
+          ) : (
+            <span className="cert-sub">Sem arquivo</span>
+          )}
+        </span>
+
+        {interno && menuAcoes(c)}
+      </div>
+    )
+  }
+
+  return (
+    <div className="app" onClick={() => menuAberto && setMenuAberto(null)}>
+      {/* 1. Cabeçalho */}
+      <div className="cert-topo">
+        <div>
+          <div className="section-title">{interno ? 'Todos os clientes' : 'Sua empresa'}</div>
+          <h1 style={{ fontSize: 30, marginTop: 6 }}>Certificados</h1>
+          <p className="cert-subtitulo">Treinamentos e validades por colaborador.</p>
+        </div>
+
+        <div className="cert-topo-acoes">
+          <Link href="/treinamentos" className="btn">
+            Relatório de treinamentos
+          </Link>
+          <button type="button" className="btn" onClick={atualizarEad} disabled={atualizandoEad}>
+            {atualizandoEad ? 'Atualizando...' : 'Atualizar progresso do EAD'}
+          </button>
+          <button type="button" className="btn" onClick={exportar} disabled={carregando || filtrados.length === 0}>
+            ⤓ Exportar
+          </button>
+          {interno && (
+            <button type="button" className="btn btn-primary" onClick={novoCertificado}>
+              + Novo certificado
+            </button>
+          )}
+        </div>
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
       {mensagem && <div className="banner good">{mensagem}</div>}
 
-      <div className="stats">
-        <div
-          className={'stat' + (indicadores.vencidos > 0 ? ' bad' : '')}
-        >
-          <div className="num">
-            {carregando ? '—' : indicadores.vencidos}
-          </div>
-          <div className="lbl">Vencidos</div>
-        </div>
-
-        <div className={'stat' + (indicadores.em30 > 0 ? ' bad' : '')}>
-          <div className="num">{carregando ? '—' : indicadores.em30}</div>
-          <div className="lbl">Vencem em 30 dias</div>
-        </div>
-
-        <div className={'stat' + (indicadores.em90 > 0 ? ' warn' : '')}>
-          <div className="num">{carregando ? '—' : indicadores.em90}</div>
-          <div className="lbl">Vencem em 90 dias</div>
-        </div>
-
-        <div className="stat good">
-          <div className="num">
-            {carregando ? '—' : indicadores.validos}
-          </div>
-          <div className="lbl">Em dia</div>
-        </div>
-      </div>
-
-      {interno && (
-        <div className="panel">
-          <div className="panel-head">
-            <div className="section-title">
-              {editando ? 'Editar certificado' : 'Novo certificado'}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={atualizarEad}
-                disabled={atualizandoEad}
-              >
-                {atualizandoEad
-                  ? 'Atualizando...'
-                  : 'Atualizar progresso do EAD'}
-              </button>
-
-              {editando && (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => {
-                    setForm(formVazio)
-                    setErro('')
-                    setMensagem('')
-                  }}
-                >
-                  Cancelar edição
-                </button>
-              )}
-            </div>
-          </div>
-
-          <form onSubmit={salvar} className="panel-body">
-            <div className="field-row">
-              <div className="field">
-                <label>Empresa *</label>
-                <select
-                  value={form.empresa_id}
-                  onChange={(e) => alterar('empresa_id', e.target.value)}
-                >
-                  <option value="">Selecione</option>
-
-                  {empresas.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nome_fantasia || e.razao_social}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label>Colaborador *</label>
-                <input
-                  value={form.colaborador}
-                  onChange={(e) => alterar('colaborador', e.target.value)}
-                  placeholder="Nome de quem fez o treinamento"
-                />
-              </div>
-
-              <div className="field">
-                <label>Função</label>
-                <input
-                  value={form.funcao}
-                  onChange={(e) => alterar('funcao', e.target.value)}
-                  placeholder="Cargo na empresa"
-                />
-              </div>
-            </div>
-
-            <div className="field-row">
-              <div className="field">
-                <label>E-mail do colaborador</label>
-                <input
-                  type="email"
-                  value={form.email_colaborador}
-                  onChange={(e) =>
-                    alterar('email_colaborador', e.target.value)
-                  }
-                  placeholder="É por ele que buscamos o progresso no EAD"
-                />
-              </div>
-
-              <div className="field">
-                <label>Curso no EAD</label>
-                <input
-                  list="lista-cursos"
-                  value={form.curso}
-                  onChange={(e) => alterar('curso', e.target.value)}
-                  placeholder="Escolha ou digite — grava em MAIÚSCULAS"
-                />
-
-                <datalist id="lista-cursos">
-                  {CURSOS.map((curso) => (
-                    <option key={curso} value={curso} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {suportaManual ? (
-              <div className="field-row">
-                <div className="field">
-                  <label>Origem do progresso *</label>
-
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className={
-                        'btn btn-sm' +
-                        (form.progresso_origem === 'ead' ? ' btn-primary' : '')
-                      }
-                      aria-pressed={form.progresso_origem === 'ead'}
-                      onClick={() => escolherOrigem('ead')}
-                    >
-                      Plataforma (EAD)
-                    </button>
-
-                    <button
-                      type="button"
-                      className={
-                        'btn btn-sm' +
-                        (form.progresso_origem === 'manual' ? ' btn-primary' : '')
-                      }
-                      aria-pressed={form.progresso_origem === 'manual'}
-                      onClick={() => escolherOrigem('manual')}
-                    >
-                      Presencial (manual)
-                    </button>
-                  </div>
-
-                  <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
-                    {form.progresso_origem === 'ead'
-                      ? 'Atualiza sozinho todo dia às 06h, pelo e-mail do colaborador no EAD.'
-                      : 'A leitura do EAD não mexe neste certificado. Quem salvar fica registrado.'}
-                  </span>
-                </div>
-
-                {form.progresso_origem === 'manual' && (
-                  <>
-                    <div className="field">
-                      <label>Etapa</label>
-                      <select
-                        value={form.progresso_etapa}
-                        onChange={(e) =>
-                          escolherEtapa(e.target.value as EtapaManual)
-                        }
-                      >
-                        {ETAPAS_MANUAIS.map((etapa) => (
-                          <option key={etapa} value={etapa}>
-                            {ROTULO_ETAPA_MANUAL[etapa]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="field">
-                      <label>Progresso (%)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={5}
-                        value={form.progresso_manual}
-                        disabled={form.progresso_etapa === 'concluido'}
-                        onChange={(e) =>
-                          setForm((atual) => ({
-                            ...atual,
-                            progresso_manual: e.target.value,
-                          }))
-                        }
-                        placeholder="Opcional — 0 a 100"
-                      />
-
-                      {form.progresso_etapa === 'concluido' && !form.emissao && (
-                        <span style={{ fontSize: 11.5, color: 'var(--amber)' }}>
-                          Concluído sem data de emissão: no painel, entra no
-                          mês de cadastro.
-                        </span>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div
-                style={{
-                  fontSize: 12,
-                  color: 'var(--ink-muted)',
-                  padding: '4px 0',
-                }}
-              >
-                Lançamento manual (presencial) indisponível: falta rodar a
-                migração do progresso no Supabase.
-              </div>
-            )}
-
-            <div className="field-row">
-              <div className="field">
-                <label>Tipo *</label>
-                <select
-                  value={form.tipo}
-                  onChange={(e) => alterar('tipo', e.target.value)}
-                >
-                  <option value="">Selecione</option>
-
-                  {TIPOS.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label>Emissão</label>
-                <input
-                  type="date"
-                  value={form.emissao}
-                  onChange={(e) => alterar('emissao', e.target.value)}
-                />
-              </div>
-
-              <div className="field">
-                <label>Validade</label>
-                <input
-                  type="date"
-                  value={form.validade}
-                  onChange={(e) => alterar('validade', e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="field-row">
-              <div className="field">
-                <label>Observações</label>
-                <input
-                  value={form.observacoes}
-                  onChange={(e) => alterar('observacoes', e.target.value)}
-                  placeholder="Anotação livre"
-                />
-              </div>
-
-              <div className="field">
-                <label>Link do certificado</label>
-                <input
-                  value={form.link_certificado}
-                  onChange={(e) =>
-                    alterar('link_certificado', e.target.value)
-                  }
-                  placeholder="Endereço do arquivo, se houver"
-                />
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={salvando}
-              >
-                {salvando
-                  ? 'Salvando...'
-                  : editando
-                    ? 'Salvar alterações'
-                    : 'Registrar certificado'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="panel">
-        <div className="panel-head">
-          <div className="section-title">Painel por tipo e mês</div>
-
-          <div className="filters">
-            <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-              <option value="6">Últimos 6 meses</option>
-              <option value="12">Últimos 12 meses</option>
-              <option value="ano">Ano atual</option>
-              <option value="tudo">Todo o período</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="panel-body">
-          <div className="stats" style={{ marginBottom: 14 }}>
-            <div className="stat">
-              <div className="num">{carregando ? '—' : painel.total}</div>
-              <div className="lbl">Lançados no período</div>
-            </div>
-
-            <div className="stat good">
-              <div className="num">{carregando ? '—' : painel.concluidos}</div>
-              <div className="lbl">Com progresso 100%</div>
-            </div>
-
-            <div className="stat">
-              <div className="num">{carregando ? '—' : painel.presenciais}</div>
-              <div className="lbl">Presenciais (manual)</div>
-            </div>
-
-            <div className={'stat' + (painel.semEmissao > 0 ? ' warn' : '')}>
-              <div className="num">{carregando ? '—' : painel.semEmissao}</div>
-              <div className="lbl">Sem data de emissão</div>
-            </div>
-          </div>
-
-          {carregando ? (
-            <div className="empty-state">Carregando...</div>
-          ) : painel.total === 0 ? (
-            <div className="empty-state">Nenhum certificado no período.</div>
-          ) : (
-            <div className="table-wrap">
-              <div className="table-scroll">
-                <table className="matriz">
-                  <thead>
-                    <tr>
-                      <th>Tipo</th>
-                      {painel.meses.map((m) => (
-                        <th key={m}>{rotuloMes(m)}</th>
-                      ))}
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {painel.tipos.map((t) => (
-                      <tr key={t}>
-                        <th scope="row">{t}</th>
-
-                        {painel.meses.map((m) => {
-                          const n = painel.celula[t + '|' + m] || 0
-                          const forca = painel.maior ? n / painel.maior : 0
-
-                          return (
-                            <td key={m}>
-                              {n > 0 ? (
-                                <button
-                                  type="button"
-                                  className="matriz-cel"
-                                  title={`${t} · ${rotuloMes(m)}: ${n} — ver na lista`}
-                                  onClick={() => focarCelula(t, m)}
-                                  style={{
-                                    background: `color-mix(in srgb, var(--primary) ${Math.round(12 + forca * 70)}%, var(--surface))`,
-                                    color: forca > 0.5 ? '#fff' : 'var(--ink)',
-                                  }}
-                                >
-                                  {n}
-                                </button>
-                              ) : (
-                                <span className="matriz-zero">·</span>
-                              )}
-                            </td>
-                          )
-                        })}
-
-                        <td className="matriz-total">{painel.porTipo[t] || 0}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-
-                  <tfoot>
-                    <tr>
-                      <th scope="row">Total</th>
-                      {painel.meses.map((m) => (
-                        <td key={m} className="matriz-total">
-                          {painel.porMes[m] || 0}
-                        </td>
-                      ))}
-                      <td className="matriz-total">{painel.total}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <p className="footnote" style={{ marginTop: 10 }}>
-            Mês pela data de emissão; sem emissão, pelo mês de cadastro.
-            Clique num número para ver esses certificados na lista.
-            {painel.semDataFora > 0 &&
-              ` ${painel.semDataFora} certificado(s) sem nenhuma data aparecem só em "Todo o período".`}
-          </p>
-        </div>
-      </div>
-
-      <div className="panel" id="lista-certificados">
-        <div className="panel-head">
-          <div className="section-title">Certificados</div>
-
-          <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
-            {filtrados.length} de {certificados.length}
+      {/* 2. Indicadores: validade (faixas que somam o total) e treinamento */}
+      <div className="cert-ind-grupo">
+        <div className="cert-ind-titulo">
+          Validade dos certificados
+          <span>
+            {interno && filtroEmpresa ? 'empresa filtrada · ' : ''}
+            {indicadores.total} cadastrados, cada um em uma faixa
           </span>
         </div>
+        <div className="cert-inds">
+          {cartaoIndicador('vencido', indicadores.faixa.vencido, 'Vencidos', 'ruim', '⏱')}
+          {cartaoIndicador(
+            'ate90',
+            indicadores.faixa.ate90,
+            'Vencem em até 90 dias',
+            'alerta',
+            '⚠',
+            indicadores.em30 ? indicadores.em30 + ' em até 30 dias' : undefined
+          )}
+          {cartaoIndicador('emdia', indicadores.faixa.emdia, 'Em dia (mais de 90 dias)', 'bom', '✓')}
+          {suportaSemVencimento &&
+            cartaoIndicador('sem_vencimento', indicadores.faixa.sem_vencimento, 'Sem vencimento', 'neutro', '∞')}
+          {cartaoIndicador('sem_validade', indicadores.faixa.sem_validade, 'Validade não informada', 'cinza', '?')}
+        </div>
+      </div>
 
-        <div className="panel-body">
-          <div className="filters">
+      <div className="cert-trein">
+        <span className="cert-ind-titulo" style={{ margin: 0 }}>Treinamento</span>
+        {(
+          [
+            ['etapa:concluido', 'concluídos (100%)', indicadores.etapa.concluido],
+            ['etapa:andamento', 'em andamento', indicadores.etapa.andamento],
+            ['etapa:nao_iniciado', 'não iniciados', indicadores.etapa.nao_iniciado],
+            ['etapa:sem_dados', 'sem dados de progresso', indicadores.etapa.sem_dados],
+          ] as [string, string, number][]
+        ).map(([chave, rotulo, n]) => (
+          <button
+            key={chave}
+            type="button"
+            className={'cert-chip' + (filtroSituacao === chave ? ' ativo' : '')}
+            onClick={() => {
+              setFiltroSituacao(filtroSituacao === chave ? '' : chave)
+              setAba('lista')
+            }}
+          >
+            <strong>{carregando ? '—' : n}</strong> {rotulo}
+          </button>
+        ))}
+        <span className="cert-sub" style={{ marginLeft: 'auto' }}>
+          Modalidade: {indicadores.ead} EAD · {indicadores.presenciais} presenciais
+        </span>
+      </div>
+
+      {/* 3. Abas */}
+      <div className="cert-abas" role="tablist">
+        <button type="button" role="tab" aria-selected={aba === 'lista'} className={aba === 'lista' ? 'ativa' : ''} onClick={() => setAba('lista')}>
+          Certificados
+        </button>
+        <button type="button" role="tab" aria-selected={aba === 'analise'} className={aba === 'analise' ? 'ativa' : ''} onClick={() => setAba('analise')}>
+          Análise mensal
+        </button>
+      </div>
+
+      {aba === 'lista' && (
+        <>
+          {/* 4. Busca e filtros */}
+          <div className="cert-filtros">
             <input
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar colaborador, função ou curso"
+              placeholder="Buscar colaborador, função, e-mail ou curso..."
             />
 
             {interno && (
-              <select
-                value={filtroEmpresa}
-                onChange={(e) => setFiltroEmpresa(e.target.value)}
-              >
+              <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
                 <option value="">Todas as empresas</option>
-
                 {empresas.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.nome_fantasia || e.razao_social}
@@ -1230,288 +1225,469 @@ export default function CertificadosPage() {
               </select>
             )}
 
-            <select
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-            >
-              <option value="">Todos os tipos</option>
-
-              {TIPOS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filtroSituacao}
-              onChange={(e) => setFiltroSituacao(e.target.value)}
-            >
+            <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)}>
               <option value="">Todas as situações</option>
-              <option value="vencidos">Vencidos</option>
-              <option value="30">Vencem em 30 dias</option>
-              <option value="90">Vencem em 90 dias</option>
-              <option value="validos">Em dia</option>
+              <option value="vencido">Vencidos</option>
+              <option value="30">Vencem em até 30 dias</option>
+              <option value="ate90">Vencem em até 90 dias</option>
+              <option value="emdia">Em dia (mais de 90 dias)</option>
+              {suportaSemVencimento && <option value="sem_vencimento">Sem vencimento</option>}
+              <option value="sem_validade">Validade não informada</option>
+              <option value="etapa:concluido">Treinamento concluído</option>
+              <option value="etapa:andamento">Treinamento em andamento</option>
+              <option value="etapa:nao_iniciado">Treinamento não iniciado</option>
+              <option value="etapa:sem_dados">Sem dados de progresso</option>
             </select>
 
-            {suportaManual && (
-              <select
-                value={filtroOrigem}
-                onChange={(e) => setFiltroOrigem(e.target.value)}
-              >
-                <option value="">Todas as origens</option>
-                <option value="ead">Plataforma (EAD)</option>
-                <option value="manual">Presencial (manual)</option>
-              </select>
+            <button
+              type="button"
+              className={'btn' + (maisFiltros || filtroTipo || filtroMes || filtroOrigem ? ' cert-filtro-ativo' : '')}
+              aria-expanded={maisFiltros}
+              onClick={() => setMaisFiltros((v) => !v)}
+            >
+              ☰ Mais filtros
+            </button>
+
+            {temFiltro && (
+              <button type="button" className="btn btn-ghost" onClick={limparFiltros}>
+                Limpar
+              </button>
             )}
 
-            <select
-              value={filtroMes}
-              onChange={(e) => setFiltroMes(e.target.value)}
-            >
-              <option value="">Todos os meses</option>
+            {maisFiltros && (
+              <div className="cert-mais-filtros">
+                <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+                  <option value="">Todos os tipos</option>
+                  {TIPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
 
-              {mesesDoFiltro.map((m) => (
-                <option key={m} value={m}>
-                  {rotuloMes(m)}
-                </option>
-              ))}
-            </select>
+                {suportaManual && (
+                  <select value={filtroOrigem} onChange={(e) => setFiltroOrigem(e.target.value)}>
+                    <option value="">EAD e presencial</option>
+                    <option value="ead">Só EAD</option>
+                    <option value="manual">Só presencial</option>
+                  </select>
+                )}
 
-            {(filtroTipo || filtroMes || filtroOrigem || filtroSituacao || busca) && (
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => {
-                  setBusca('')
-                  setFiltroTipo('')
-                  setFiltroMes('')
-                  setFiltroOrigem('')
-                  setFiltroSituacao('')
-                }}
-              >
-                Limpar filtros
-              </button>
+                <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
+                  <option value="">Todos os meses</option>
+                  {mesesDoFiltro.map((m) => (
+                    <option key={m} value={m}>
+                      {rotuloMes(m)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
 
-          <div className="table-wrap">
-            <div className="table-scroll">
-              <div
-                className="trow thead"
-                style={{ gridTemplateColumns: grade }}
-              >
-                <span>Colaborador</span>
-                {interno && <span>Empresa</span>}
-                <span>Tipo</span>
-                <span>Curso no EAD</span>
+          {/* 5. Lista */}
+          <div className="panel" id="lista-certificados">
+            <div className="panel-head cert-lista-topo">
+              <h2 className="cert-lista-titulo">Lista de certificados</h2>
+              <div className="cert-lista-dir">
+                <span className="cert-sub">
+                  {filtrados.length} de {certificados.length} certificados
+                  {visao === 'colaborador' ? ' · ' + grupos.length + ' colaboradores' : ''}
+                </span>
+                <div className="cert-alternar" role="group" aria-label="Organizar a lista">
+                  <button type="button" className={visao === 'certificado' ? 'ativo' : ''} onClick={() => setVisao('certificado')}>
+                    Por certificado
+                  </button>
+                  <button type="button" className={visao === 'colaborador' ? 'ativo' : ''} onClick={() => setVisao('colaborador')}>
+                    Por colaborador
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="cert-tabela">
+              <div className={'cert-linha cert-cab' + (interno ? '' : ' cliente') + (visao === 'colaborador' ? ' sem-pessoa' : '')}>
+                {visao === 'certificado' && <span>{interno ? 'Colaborador / Empresa' : 'Colaborador'}</span>}
+                <span>Curso / Modalidade</span>
                 <span>Progresso</span>
-                <span>Validade</span>
-                <span>Situação</span>
-                {interno && <span />}
+                <span>Validade / Situação</span>
+                <span>Certificado</span>
+                {interno && <span style={{ textAlign: 'right' }}>Ações</span>}
               </div>
 
               {carregando ? (
                 <div className="empty-state">Carregando...</div>
               ) : filtrados.length === 0 ? (
                 <div className="empty-state">
-                  {certificados.length === 0
-                    ? 'Nenhum certificado cadastrado ainda.'
-                    : 'Nenhum certificado com esses filtros.'}
+                  {certificados.length === 0 ? 'Nenhum certificado cadastrado ainda.' : 'Nenhum certificado com esses filtros.'}
                 </div>
+              ) : visao === 'certificado' ? (
+                linhasPagina.map((c) => linhaCertificado(c, true))
               ) : (
-                filtrados.map((c) => {
-                  const s = situacao(c.validade)
-                  const registro = progressoDe(c)
-
-                  return (
-                    <div
-                      key={c.id}
-                      className="trow"
-                      style={{ gridTemplateColumns: grade }}
-                    >
-                      <span style={{ minWidth: 0 }}>
-                        <span className="tname">{c.colaborador}</span>
-
-                        {c.funcao && (
-                          <span
-                            style={{
-                              display: 'block',
-                              fontSize: 11.5,
-                              color: 'var(--ink-muted)',
-                            }}
-                          >
-                            {c.funcao}
-                          </span>
-                        )}
-
-                        {c.email_colaborador && (
-                          <span
-                            style={{
-                              display: 'block',
-                              fontSize: 11.5,
-                              color: 'var(--ink-faint)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {c.email_colaborador}
-                          </span>
-                        )}
-
-                        {c.link_certificado && (
-                          <a
-                            href={c.link_certificado}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              display: 'inline-block',
-                              marginTop: 3,
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              color: 'var(--primary)',
-                            }}
-                          >
-                            Abrir certificado
-                          </a>
-                        )}
+                gruposPagina.map((g) => (
+                  <div key={g.chave} className="cert-grupo">
+                    <div className="cert-grupo-cab">
+                      <span className="cert-avatar" style={{ background: corAvatar(g.nome) }} aria-hidden="true">
+                        {iniciais(g.nome)}
                       </span>
-
-                      {interno && (
-                        <span className="tmuted" style={{ minWidth: 0 }}>
-                          {c.empresas?.nome_fantasia ||
-                            c.empresas?.razao_social ||
-                            '—'}
-                        </span>
-                      )}
-
-                      <span className="tmuted" style={{ minWidth: 0 }}>
-                        {c.tipo}
-                      </span>
-
-                      <span style={{ minWidth: 0 }}>
-                        {c.curso ? (
-                          <span style={{ display: 'block' }}>{c.curso}</span>
-                        ) : (
-                          <span style={{ color: 'var(--ink-faint)' }}>—</span>
-                        )}
-
-                        {registro && (
-                          <span
-                            style={{
-                              display: 'block',
-                              fontSize: 11,
-                              color: 'var(--ink-faint)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: registro.origem === 'manual' ? 'normal' : 'nowrap',
-                            }}
-                          >
-                            {registro.origem === 'manual'
-                              ? 'Presencial · ' +
-                                registro.situacao +
-                                (registro.atualizado_em
-                                  ? ' · ' + formatarDataHora(registro.atualizado_em)
-                                  : '')
-                              : formatarDataHora(registro.atualizado_em)}
-                          </span>
-                        )}
-                      </span>
-
                       <span>
-                        {registro ? (
-                          <BarraProgressoUi
-                            valor={registro.progresso}
-                            cor={corDoProgresso(registro.progresso)}
-                            largura={70}
-                          />
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: 12,
-                              color: 'var(--ink-faint)',
-                            }}
-                          >
-                            sem dados
-                          </span>
-                        )}
-                      </span>
-
-                      <span className="tmuted">
-                        {formatarData(c.validade)}
-                      </span>
-
-                      <span>
-                        <span className={s.pill}>{s.texto}</span>
-                      </span>
-
-                      {interno && (
-                        <span className="trow-actions">
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => editar(c)}
-                          >
-                            Editar
-                          </button>
-
-                          {confirmarRemocao === c.id ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn btn-sm"
-                                onClick={() => remover(c)}
-                                style={{
-                                  borderColor: 'var(--danger)',
-                                  background: 'var(--danger)',
-                                  color: '#fff',
-                                }}
-                              >
-                                Confirmar remoção
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm"
-                                onClick={() => setConfirmarRemocao(null)}
-                              >
-                                Manter
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              onClick={() => setConfirmarRemocao(c.id)}
-                              style={{
-                                borderColor: 'var(--danger)',
-                                color: 'var(--danger)',
-                              }}
-                            >
-                              Remover
-                            </button>
-                          )}
+                        <span className="cert-nome">{g.nome}</span>
+                        <span className="cert-sub">
+                          {interno && g.empresa ? g.empresa + ' · ' : ''}
+                          {g.itens.length} {g.itens.length === 1 ? 'curso' : 'cursos'}
+                          {(() => {
+                            const v = g.itens.filter((c) => faixaDe(c) === 'vencido').length
+                            const a = g.itens.filter((c) => faixaDe(c) === 'ate90').length
+                            return (v ? ' · ' + v + ' vencido(s)' : '') + (a ? ' · ' + a + ' vencendo em até 90 dias' : '')
+                          })()}
                         </span>
-                      )}
+                      </span>
                     </div>
-                  )
-                })
+                    {g.itens.map((c) => linhaCertificado(c, false))}
+                  </div>
+                ))
               )}
             </div>
+
+            {!carregando && totalItens > 0 && (
+              <div className="cert-rodape">
+                <span className="cert-sub">
+                  Exibindo {inicio + 1}–{Math.min(inicio + POR_PAGINA, totalItens)} de {totalItens}
+                  {visao === 'colaborador' ? ' colaboradores' : ''}
+                </span>
+                {totalPaginas > 1 && (
+                  <span className="cert-paginas">
+                    <button type="button" disabled={paginaAtual === 1} onClick={() => setPagina(paginaAtual - 1)} aria-label="Página anterior">
+                      ‹
+                    </button>
+                    {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                      .filter((n) => n === 1 || n === totalPaginas || Math.abs(n - paginaAtual) <= 2)
+                      .map((n, i, lista) => (
+                        <span key={n} style={{ display: 'contents' }}>
+                          {i > 0 && n - lista[i - 1] > 1 && <span className="cert-sub">…</span>}
+                          <button type="button" className={n === paginaAtual ? 'ativo' : ''} onClick={() => setPagina(n)}>
+                            {n}
+                          </button>
+                        </span>
+                      ))}
+                    <button type="button" disabled={paginaAtual === totalPaginas} onClick={() => setPagina(paginaAtual + 1)} aria-label="Próxima página">
+                      ›
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {aba === 'analise' && (
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Painel por tipo e mês</div>
+
+            <div className="filters">
+              {interno && (
+                <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
+                  <option value="">Todas as empresas</option>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome_fantasia || e.razao_social}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                <option value="6">Últimos 6 meses</option>
+                <option value="12">Últimos 12 meses</option>
+                <option value="ano">Ano atual</option>
+                <option value="tudo">Todo o período</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="panel-body">
+            <div className="stats" style={{ marginBottom: 4 }}>
+              <div className="stat">
+                <div className="num">{carregando ? '—' : painel.total}</div>
+                <div className="lbl">Lançados no período</div>
+              </div>
+
+              <div className="stat good">
+                <div className="num">{carregando ? '—' : painel.concluidos}</div>
+                <div className="lbl">Com progresso 100%</div>
+              </div>
+
+              <div className="stat">
+                <div className="num">{carregando ? '—' : painel.presenciais}</div>
+                <div className="lbl">Presenciais (manual)</div>
+              </div>
+
+              <div className={'stat' + (painel.semEmissao > 0 ? ' warn' : '')}>
+                <div className="num">{carregando ? '—' : painel.semEmissao}</div>
+                <div className="lbl">Sem data de emissão</div>
+              </div>
+            </div>
+
+            <p className="cert-sub" style={{ margin: 0 }}>
+              Os três últimos números são partes dos lançados no período e podem se sobrepor (um presencial
+              pode estar com 100% e sem emissão ao mesmo tempo). &quot;Sem data de emissão&quot; não é o mesmo
+              que validade não informada.
+            </p>
+
+            {carregando ? (
+              <div className="empty-state">Carregando...</div>
+            ) : painel.total === 0 ? (
+              <div className="empty-state">Nenhum certificado no período.</div>
+            ) : (
+              <div className="table-wrap">
+                <div className="table-scroll">
+                  <table className="matriz">
+                    <thead>
+                      <tr>
+                        <th>Tipo</th>
+                        {painel.meses.map((m) => (
+                          <th key={m} className={m === mesAtual ? 'cert-mes-atual' : ''}>
+                            {rotuloMes(m)}
+                            {m === mesAtual && <span className="cert-mes-tag">atual</span>}
+                          </th>
+                        ))}
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {painel.tipos.map((t) => (
+                        <tr key={t}>
+                          <th scope="row">{t}</th>
+
+                          {painel.meses.map((m) => {
+                            const n = painel.celula[t + '|' + m] || 0
+                            const forca = painel.maior ? n / painel.maior : 0
+
+                            return (
+                              <td key={m} className={m === mesAtual ? 'cert-mes-atual' : ''}>
+                                {n > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="matriz-cel"
+                                    title={`${t} · ${rotuloMes(m)}: ${n} — ver na lista`}
+                                    onClick={() => focarCelula(t, m)}
+                                    style={{
+                                      background: `color-mix(in srgb, var(--primary) ${Math.round(12 + forca * 70)}%, var(--surface))`,
+                                      color: forca > 0.5 ? '#fff' : 'var(--ink)',
+                                    }}
+                                  >
+                                    {n}
+                                  </button>
+                                ) : (
+                                  <span className="matriz-zero">·</span>
+                                )}
+                              </td>
+                            )
+                          })}
+
+                          <td className="matriz-total">{painel.porTipo[t] || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+
+                    <tfoot>
+                      <tr>
+                        <th scope="row">Total</th>
+                        {painel.meses.map((m) => (
+                          <td key={m} className={'matriz-total' + (m === mesAtual ? ' cert-mes-atual' : '')}>
+                            {painel.porMes[m] || 0}
+                          </td>
+                        ))}
+                        <td className="matriz-total">{painel.total}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <p className="footnote" style={{ marginTop: 6 }}>
+              Mês pela data de emissão; sem emissão, pelo mês de cadastro. Cor mais forte = mais certificados.
+              Clique num número para abrir a lista com esses certificados.
+              {painel.semDataFora > 0 &&
+                ` ${painel.semDataFora} certificado(s) sem nenhuma data aparecem só em "Todo o período".`}
+            </p>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Formulário lateral: Novo certificado / Editar */}
+      {interno && painelAberto && (
+        <div className="cert-fundo" onMouseDown={(e) => e.target === e.currentTarget && fecharPainel()}>
+          <aside className="cert-lateral" role="dialog" aria-modal="true" aria-labelledby="cert-form-titulo">
+            <div className="cert-lateral-topo">
+              <div>
+                <div className="section-title">Certificados</div>
+                <h2 id="cert-form-titulo">{editando ? 'Editar certificado' : 'Novo certificado'}</h2>
+              </div>
+              <button type="button" className="btn btn-ghost" onClick={fecharPainel} aria-label="Fechar">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={salvar} className="cert-form">
+              {erro && <div className="banner bad">{erro}</div>}
+
+              <div className="field">
+                <label>Empresa *</label>
+                <select value={form.empresa_id} onChange={(e) => alterar('empresa_id', e.target.value)}>
+                  <option value="">Selecione</option>
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome_fantasia || e.razao_social}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field-row">
+                <div className="field">
+                  <label>Colaborador *</label>
+                  <input value={form.colaborador} onChange={(e) => alterar('colaborador', e.target.value)} placeholder="Nome de quem fez o treinamento" />
+                </div>
+                <div className="field">
+                  <label>Função</label>
+                  <input value={form.funcao} onChange={(e) => alterar('funcao', e.target.value)} placeholder="Cargo na empresa" />
+                </div>
+              </div>
+
+              <div className="field">
+                <label>E-mail do colaborador</label>
+                <input type="email" value={form.email_colaborador} onChange={(e) => alterar('email_colaborador', e.target.value)} placeholder="É por ele que buscamos o progresso no EAD" />
+              </div>
+
+              <div className="field">
+                <label>Curso no EAD</label>
+                <input list="lista-cursos" value={form.curso} onChange={(e) => alterar('curso', e.target.value)} placeholder="Escolha ou digite — grava em MAIÚSCULAS" />
+                <datalist id="lista-cursos">
+                  {CURSOS.map((curso) => (
+                    <option key={curso} value={curso} />
+                  ))}
+                </datalist>
+              </div>
+
+              {suportaManual ? (
+                <div className="field">
+                  <label>Modalidade / origem do progresso *</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" className={'btn btn-sm' + (form.progresso_origem === 'ead' ? ' btn-primary' : '')} aria-pressed={form.progresso_origem === 'ead'} onClick={() => escolherOrigem('ead')}>
+                      Plataforma (EAD)
+                    </button>
+                    <button type="button" className={'btn btn-sm' + (form.progresso_origem === 'manual' ? ' btn-primary' : '')} aria-pressed={form.progresso_origem === 'manual'} onClick={() => escolherOrigem('manual')}>
+                      Presencial (manual)
+                    </button>
+                  </div>
+                  <span className="cert-sub">
+                    {form.progresso_origem === 'ead'
+                      ? 'Atualiza sozinho todo dia às 06h, pelo e-mail do colaborador no EAD.'
+                      : 'A leitura do EAD não mexe neste certificado. Quem salvar fica registrado.'}
+                  </span>
+                </div>
+              ) : (
+                <div className="cert-sub">Lançamento manual (presencial) indisponível: falta rodar a migração do progresso no Supabase.</div>
+              )}
+
+              {suportaManual && form.progresso_origem === 'manual' && (
+                <div className="field-row">
+                  <div className="field">
+                    <label>Etapa</label>
+                    <select value={form.progresso_etapa} onChange={(e) => escolherEtapa(e.target.value as EtapaManual)}>
+                      {ETAPAS_MANUAIS.map((etapa) => (
+                        <option key={etapa} value={etapa}>
+                          {ROTULO_ETAPA_MANUAL[etapa]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Progresso (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={form.progresso_manual}
+                      disabled={form.progresso_etapa === 'concluido'}
+                      onChange={(e) => setForm((atual) => ({ ...atual, progresso_manual: e.target.value }))}
+                      placeholder="Opcional — 0 a 100"
+                    />
+                    {form.progresso_etapa === 'concluido' && !form.emissao && (
+                      <span style={{ fontSize: 11.5, color: 'var(--amber)' }}>
+                        Concluído sem data de emissão: na análise mensal, entra no mês de cadastro.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="field">
+                <label>Tipo *</label>
+                <select value={form.tipo} onChange={(e) => alterar('tipo', e.target.value)}>
+                  <option value="">Selecione</option>
+                  {TIPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field-row">
+                <div className="field">
+                  <label>Emissão</label>
+                  <input type="date" value={form.emissao} onChange={(e) => alterar('emissao', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Validade</label>
+                  <input type="date" value={form.validade} disabled={form.sem_vencimento} onChange={(e) => alterar('validade', e.target.value)} />
+                </div>
+              </div>
+
+              {suportaSemVencimento && (
+                <label className="cert-check">
+                  <input
+                    type="checkbox"
+                    checked={form.sem_vencimento}
+                    onChange={(e) =>
+                      setForm((atual) => ({ ...atual, sem_vencimento: e.target.checked, validade: e.target.checked ? '' : atual.validade }))
+                    }
+                  />
+                  Este certificado não vence (validade indeterminada)
+                </label>
+              )}
+              <span className="cert-sub" style={{ marginTop: -6 }}>
+                Sem data de validade e sem essa marcação, o certificado aparece como &quot;Validade não informada&quot;.
+              </span>
+
+              <div className="field">
+                <label>Link do certificado</label>
+                <input value={form.link_certificado} onChange={(e) => alterar('link_certificado', e.target.value)} placeholder="Endereço do arquivo, se houver" />
+              </div>
+
+              <div className="field">
+                <label>Observações</label>
+                <textarea value={form.observacoes} onChange={(e) => alterar('observacoes', e.target.value)} placeholder="Anotação livre" rows={3} />
+              </div>
+
+              <div className="cert-form-acoes">
+                <button type="button" className="btn" onClick={fecharPainel} disabled={salvando}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={salvando}>
+                  {salvando ? 'Salvando...' : editando ? 'Salvar alterações' : 'Registrar certificado'}
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
     </div>
   )
 }
-
-/*
- * O cliente nao ve a coluna de empresa nem os botoes de acao, entao
- * a grade precisa ter exatamente as colunas que foram renderizadas —
- * senao a tabela desalinha do cabecalho.
- */
-const GRADE_CERT_INTERNO =
-  'minmax(180px,1.4fr) minmax(120px,1fr) minmax(140px,1.1fr) minmax(130px,1.1fr) 130px 100px 120px 150px'
-
-const GRADE_CERT_CLIENTE =
-  'minmax(180px,1.4fr) minmax(140px,1.1fr) minmax(130px,1.1fr) 130px 100px 120px'
