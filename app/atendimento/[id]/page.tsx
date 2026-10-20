@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { marcarChamadoLido } from '@/lib/chamadosNaoLidos'
 import { carregarFeriados } from '@/lib/feriados'
 import { avisar } from '@/lib/avisar'
 import { nomeDaEmpresa } from '@/lib/empresa'
@@ -686,6 +687,9 @@ export default function AtendimentoChamadoPage() {
         .order('created_at', {
           ascending: true,
         })
+
+      /* Abriu o chamado: as mensagens dele contam como lidas. */
+      if (!mensagensError && chamadoId) marcarChamadoLido(chamadoId)
 
       if (mensagensError) {
         console.error(
@@ -3485,9 +3489,11 @@ export default function AtendimentoChamadoPage() {
                   Normal
                 </option>
 
-                <option value="media">
-                  Média
-                </option>
+                {/* "Média" saiu da lista (valia como Normal). Só aparece se o
+                    chamado ainda estiver com ela, para não trocar sem querer. */}
+                {chamado.prioridade === 'media' && (
+                  <option value="media">Média (antiga, vale Normal)</option>
+                )}
 
                 <option value="alta">
                   Alta

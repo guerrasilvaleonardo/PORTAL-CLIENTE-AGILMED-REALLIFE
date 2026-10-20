@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { marcarChamadoLido } from '@/lib/chamadosNaoLidos'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { avisar } from '@/lib/avisar'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
@@ -273,6 +274,9 @@ export default function DetalhesChamadoPage() {
           .select('id, chamado_id, autor_id, mensagem, created_at')
           .eq('chamado_id', chamadoId)
           .order('created_at', { ascending: true })
+
+      /* Abriu o chamado: as mensagens dele contam como lidas. */
+      if (!mensagensError && chamadoId) marcarChamadoLido(chamadoId)
 
       if (mensagensError) {
         console.error(mensagensError)

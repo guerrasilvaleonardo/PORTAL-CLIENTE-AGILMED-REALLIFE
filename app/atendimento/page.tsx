@@ -9,6 +9,8 @@ import { ALERTA_ATRASO_HORAS, prestesAAtrasar, situacaoSla } from '@/lib/prazo'
 import { carregarAlertaPrazoHoras } from '@/lib/estrelas'
 import { AjudaSituacoes, EXPLICACAO_EQUIPE } from '@/lib/situacoes'
 import './quadro.css'
+import SeloMensagemNova from '@/components/SeloMensagemNova'
+import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -60,6 +62,8 @@ export default function AtendimentoPage() {
     Map<string, { total: number; concluidas: number; percentual: number }>
   >(new Map())
   const [carregando, setCarregando] = useState(true)
+  /* Chamados meus (responsável, abri ou solicitei) com mensagem nova. */
+  const mensagensNovas = useChamadosNaoLidos(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [alertaHoras, setAlertaHoras] = useState(ALERTA_ATRASO_HORAS)
@@ -452,6 +456,7 @@ export default function AtendimentoPage() {
                           <span className="card-code">#{c.numero}</span>
                           {atrasado && <span className="badge-atraso">FORA DO PRAZO</span>}
                           {alerta && <span className="badge-alerta">PRÓXIMO DO PRAZO</span>}
+                          <SeloMensagemNova quantidade={mensagensNovas[c.id]} />
                         </div>
 
                         <div className="card-title">{c.assunto}</div>

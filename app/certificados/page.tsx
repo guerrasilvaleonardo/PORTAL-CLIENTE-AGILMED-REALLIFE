@@ -546,7 +546,11 @@ export default function CertificadosPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  /* Remoção em dois cliques: o primeiro pede confirmação na própria linha. */
+  const [confirmarRemocao, setConfirmarRemocao] = useState<string | null>(null)
+
   async function remover(c: Certificado) {
+    setConfirmarRemocao(null)
     setErro('')
     setMensagem('')
 
@@ -1452,17 +1456,41 @@ export default function CertificadosPage() {
                             Editar
                           </button>
 
-                          <button
-                            type="button"
-                            className="btn btn-sm"
-                            onClick={() => remover(c)}
-                            style={{
-                              borderColor: 'var(--danger)',
-                              color: 'var(--danger)',
-                            }}
-                          >
-                            Remover
-                          </button>
+                          {confirmarRemocao === c.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                onClick={() => remover(c)}
+                                style={{
+                                  borderColor: 'var(--danger)',
+                                  background: 'var(--danger)',
+                                  color: '#fff',
+                                }}
+                              >
+                                Confirmar remoção
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm"
+                                onClick={() => setConfirmarRemocao(null)}
+                              >
+                                Manter
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              onClick={() => setConfirmarRemocao(c.id)}
+                              style={{
+                                borderColor: 'var(--danger)',
+                                color: 'var(--danger)',
+                              }}
+                            >
+                              Remover
+                            </button>
+                          )}
                         </span>
                       )}
                     </div>

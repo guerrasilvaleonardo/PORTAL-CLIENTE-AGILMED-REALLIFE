@@ -55,7 +55,7 @@ const manualCliente: Manual = {
           passos: [
             'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Treinamentos ou Conversas. A área aberta fica destacada.',
             'O botão "?" abre este manual já no assunto da tela em que você está.',
-            'O botão Sair encerra o seu acesso. Use sempre que estiver em um computador compartilhado.',
+            'Meu perfil (no topo, ao lado do "?") abre seus dados e a troca de senha. O botão Sair encerra o seu acesso: use sempre que estiver em um computador compartilhado.',
           ],
           dica: 'Se você ficar muito tempo parado, o portal pede para entrar de novo ("Sua sessão expirou"). É uma proteção: basta entrar outra vez.',
         },
@@ -99,7 +99,7 @@ const manualCliente: Manual = {
             ],
           },
           passos: [
-            'Os números contam os 5 chamados mais recentes da empresa: quantos estão em andamento, resolvidos e urgentes. Para ver todos, use a área Chamados.',
+            'Os números contam todos os chamados da empresa que você pode ver: total, em andamento, resolvidos e urgentes ainda em aberto.',
             'Atalhos: "Novo chamado" abre um pedido e "Meus chamados" mostra a lista completa.',
             'Chamados recentes: clique em uma linha para abrir o chamado. O botão "O que significa cada situação?" explica cada etapa.',
           ],
@@ -334,7 +334,7 @@ const manualCliente: Manual = {
             ],
           },
           passos: [
-            'As mensagens aparecem em ordem, com quem escreveu e uma etiqueta: Cliente, Equipe ou Mensagem automática (avisos do sistema a cada mudança).',
+            'As mensagens aparecem em ordem, com quem escreveu e uma etiqueta: Cliente, Equipe ou Mensagem automática (avisos do sistema a cada mudança). Quando chega mensagem nova em um chamado seu, a aba Chamados ganha um balão vermelho piscando e o chamado aparece com o selo "nova" na lista; o aviso some quando você abre o chamado.',
             'Escreva e clique em Enviar mensagem. A equipe é avisada por e-mail. Escrevendo @Nome, a pessoa citada também recebe um e-mail.',
           ],
           atencao:

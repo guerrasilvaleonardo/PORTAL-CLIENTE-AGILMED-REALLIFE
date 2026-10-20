@@ -57,6 +57,8 @@ export type ChamadoBase = {
   encerrado_em: string | null
   created_at: string
   marca: string | null
+  /* Chamado da própria equipe (empresa marcada como interna). */
+  interno?: boolean
   empresa: string
 }
 

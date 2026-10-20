@@ -25,6 +25,7 @@ type Empresa = {
 const perfilLabels: Record<string, string> = {
   cliente: 'Cliente',
   atendimento: 'Atendimento',
+  gestor: 'Gestor',
   admin: 'Administrador',
 }
 
