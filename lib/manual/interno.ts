@@ -532,7 +532,7 @@ const manualInterno: Manual = {
           titulo: 'Chat interno e com clientes',
           passos: [
             'Sala "Equipe toda": lida por toda a equipe interna.',
-            'Equipe interna e Clientes: conversas privadas, só entre as duas pessoas. A bolinha mostra mensagens não lidas.',
+            'Equipe interna e Clientes: conversas privadas, só entre as duas pessoas. Mensagem privada nova acende um balão vermelho piscando na aba Conversas, em qualquer tela; some quando você abre a conversa.',
             'As mensagens se atualizam sozinhas a cada poucos segundos e não geram e-mail.',
           ],
           atencao: 'Se o cliente pedir um serviço pelo chat, abra um chamado para ele. Conversa não tem prazo, não entra no histórico do chamado nem nos indicadores.',
