@@ -496,7 +496,7 @@ const manualCliente: Manual = {
             'No menu ⋯: "Solicitar renovação" abre um chamado já preenchido para a nossa equipe, e "Histórico de revisões" mostra as versões anteriores com os links.',
           ],
           atencao: 'Mudou processo, função, ambiente ou número de trabalhadores? Peça a revisão mesmo antes do prazo: a data no portal não garante que o conteúdo continua atualizado.',
-          dica: 'Você recebe e-mail quando um documento se aproxima do vencimento ou da revisão programada.',
+          dica: 'Você recebe e-mail quando um documento se aproxima do vencimento ou da revisão programada. Se faltarem 60 dias ou menos e ninguém tiver pedido a renovação, abrimos o chamado automaticamente e ele aparece no documento como "Chamado #N".',
           link: { href: '/documentos', rotulo: 'Abrir Documentos SST' },
         },
       ],
