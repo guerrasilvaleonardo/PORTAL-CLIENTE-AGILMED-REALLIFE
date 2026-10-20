@@ -18,6 +18,7 @@ import {
 } from '@/lib/documentosSst'
 import '../certificados/certificados.css'
 import './documentos.css'
+import { ComModulo } from '@/components/ModuloBloqueado'
 
 /*
  * Documentos SST (supabase/documentos-sst.sql). A equipe cadastra,
@@ -102,7 +103,7 @@ function textoRevisao(d: Documento): { texto: string; pill: string } | null {
   return null
 }
 
-export default function DocumentosSstPage() {
+function DocumentosSstPageConteudo() {
   const [carregando, setCarregando] = useState(true)
   const [semTabela, setSemTabela] = useState(false)
   const [erro, setErro] = useState('')
@@ -1201,5 +1202,14 @@ export default function DocumentosSstPage() {
         </div>
       )}
     </div>
+  )
+}
+
+/* Ferramenta cobrada à parte: cliente sem contratação vê o cadeado (lib/modulos.ts). */
+export default function DocumentosSstPage() {
+  return (
+    <ComModulo modulo="documentos">
+      <DocumentosSstPageConteudo />
+    </ComModulo>
   )
 }
