@@ -26,3 +26,18 @@
 @media (prefers-reduced-motion: reduce) {
   .balao-nao-lidas { animation: none; }
 }
+
+/* Selo de mensagem nova nas listas de chamados (mesmo pulso do balão). */
+.selo-msg-nova {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: 8px;
+  font-size: 11px; font-weight: 700; color: #b91c1c; background: #fee2e2;
+  border: 1px solid #fecaca; padding: 2px 8px; border-radius: 20px; vertical-align: middle;
+  white-space: nowrap;
+}
+.selo-msg-nova::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%; background: #dc2626;
+  animation: balao-pisca 1.4s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .selo-msg-nova::before { animation: none; }
+}

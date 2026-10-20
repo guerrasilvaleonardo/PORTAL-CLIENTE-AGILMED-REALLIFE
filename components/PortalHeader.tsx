@@ -9,6 +9,7 @@ import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
 import './portal-header.css'
+import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 
 /*
  * Mensagens privadas de Conversas ainda não lidas por quem está logado
@@ -76,6 +77,7 @@ export default function PortalHeader() {
   const [carregando, setCarregando] = useState(true)
   const [saindo, setSaindo] = useState(false)
   const naoLidas = useConversasNaoLidas(!carregando && !!marca)
+  const chamadosNovos = Object.keys(useChamadosNaoLidos(!carregando && !!marca)).length
 
   useEffect(() => {
     let ativo = true
@@ -239,6 +241,20 @@ export default function PortalHeader() {
               className={ativo(item.href) ? 'active' : ''}
             >
               {item.rotulo}
+              {item.href === (interno ? '/atendimento' : '/chamados') &&
+                chamadosNovos > 0 && (
+                  <span
+                    className="balao-nao-lidas"
+                    title={
+                      chamadosNovos === 1
+                        ? '1 chamado com mensagem nova'
+                        : chamadosNovos + ' chamados com mensagem nova'
+                    }
+                    aria-label={chamadosNovos + ' chamados com mensagem nova'}
+                  >
+                    {chamadosNovos > 9 ? '9+' : chamadosNovos}
+                  </span>
+                )}
               {item.href === '/equipe' && naoLidas > 0 && (
                 <span
                   className="balao-nao-lidas"
@@ -257,6 +273,14 @@ export default function PortalHeader() {
         </nav>
 
         <ManualAjuda interno={interno} />
+
+        <Link
+          href="/perfil"
+          className={'btn btn-ghost btn-sm' + (pathname === '/perfil' ? ' active' : '')}
+          title="Meu perfil: dados e troca de senha"
+        >
+          Meu perfil
+        </Link>
 
         <button
           type="button"
