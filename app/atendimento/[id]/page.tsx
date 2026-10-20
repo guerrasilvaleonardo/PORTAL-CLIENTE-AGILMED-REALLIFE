@@ -380,6 +380,24 @@ export default function AtendimentoChamadoPage() {
   const [salvandoResponsavel, setSalvandoResponsavel] =
     useState(false)
 
+  /*
+   * Solicitante do cliente: quem pediu o chamado e avalia o
+   * atendimento (supabase/chamados-solicitante-avaliacao.sql).
+   * Guardado à parte do chamado porque as gravações desta tela
+   * recarregam o chamado com uma lista fixa de colunas.
+   */
+  const [solicitanteCliente, setSolicitanteCliente] =
+    useState<string | null>(null)
+  const [novoSolicitanteCliente, setNovoSolicitanteCliente] =
+    useState('')
+  const [clientesDaEmpresa, setClientesDaEmpresa] = useState<
+    { id: string; nome: string | null; email: string | null }[]
+  >([])
+  const [solicitanteDisponivel, setSolicitanteDisponivel] =
+    useState(false)
+  const [salvandoSolicitante, setSalvandoSolicitante] =
+    useState(false)
+
   const [novaMensagem, setNovaMensagem] =
     useState('')
 
@@ -595,6 +613,31 @@ export default function AtendimentoChamadoPage() {
           empresaData as Empresa
         )
       }
+
+      /* Solicitante do cliente (coluna nova: some se o SQL não rodou). */
+      const { data: solData, error: solErro } = await supabase
+        .from('chamados')
+        .select('solicitante_id')
+        .eq('id', chamadoAtual.id)
+        .maybeSingle()
+
+      setSolicitanteDisponivel(!solErro)
+      setSolicitanteCliente(
+        ((solData as any)?.solicitante_id as string | null) || null
+      )
+      setNovoSolicitanteCliente(
+        ((solData as any)?.solicitante_id as string) || ''
+      )
+
+      const { data: clientesData } = await supabase
+        .from('profiles')
+        .select('id, nome, email')
+        .eq('empresa_id', chamadoAtual.empresa_id)
+        .eq('perfil', 'cliente')
+        .eq('ativo', true)
+        .order('nome')
+
+      setClientesDaEmpresa(clientesData || [])
 
       /* Quem abriu o chamado, para aparecer com nome e e-mail. */
       if (chamadoAtual.criado_por) {
@@ -1236,6 +1279,35 @@ export default function AtendimentoChamadoPage() {
       )
     } finally {
       setSalvandoResponsavel(false)
+    }
+  }
+
+  async function salvarSolicitante() {
+    if (!chamado) return
+    if ((novoSolicitanteCliente || null) === solicitanteCliente) return
+
+    try {
+      setSalvandoSolicitante(true)
+      setErro('')
+
+      const { error } = await supabase
+        .from('chamados')
+        .update({ solicitante_id: novoSolicitanteCliente || null })
+        .eq('id', chamado.id)
+
+      if (error) throw error
+
+      setSolicitanteCliente(novoSolicitanteCliente || null)
+    } catch (error) {
+      console.error(error)
+      setErro(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Não foi possível salvar o solicitante.'
+      )
+      setNovoSolicitanteCliente(solicitanteCliente || '')
+    } finally {
+      setSalvandoSolicitante(false)
     }
   }
 
@@ -3566,6 +3638,70 @@ export default function AtendimentoChamadoPage() {
                   ? 'Transferindo...'
                   : 'Transferir chamado'}
               </button>
+
+              {solicitanteDisponivel && (
+                <>
+                  <div
+                    style={{
+                      height: '1px',
+                      background: '#e2e8f0',
+                      margin: '20px 0',
+                    }}
+                  />
+
+                  <label style={labelStyle}>
+                    Solicitante do cliente
+                  </label>
+
+                  <select
+                    value={novoSolicitanteCliente}
+                    onChange={(event) =>
+                      setNovoSolicitanteCliente(event.target.value)
+                    }
+                    style={selectStyle}
+                  >
+                    <option value="">Não indicado</option>
+                    {clientesDaEmpresa.map((cliente) => (
+                      <option key={cliente.id} value={cliente.id}>
+                        {cliente.nome || cliente.email || 'Sem nome'}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: '12px',
+                      color: '#64748b',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Quem do cliente pediu o chamado. É quem avalia o
+                    atendimento e passa a ver o chamado. Sem indicação,
+                    avalia quem abriu (se for do cliente) ou, se a equipe
+                    abriu, qualquer usuário do cliente que veja o chamado.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={salvarSolicitante}
+                    disabled={
+                      salvandoSolicitante ||
+                      (novoSolicitanteCliente || null) === solicitanteCliente
+                    }
+                    style={{
+                      ...saveButtonStyle,
+                      opacity:
+                        salvandoSolicitante ||
+                        (novoSolicitanteCliente || null) === solicitanteCliente
+                          ? 0.55
+                          : 1,
+                    }}
+                  >
+                    {salvandoSolicitante ? 'Salvando...' : 'Salvar solicitante'}
+                  </button>
+                </>
+              )}
             </section>
 
             <section
