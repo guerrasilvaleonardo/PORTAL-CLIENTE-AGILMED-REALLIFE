@@ -104,6 +104,8 @@ export default function DesempenhoPage() {
 
   const [periodo, setPeriodo] = useState<ChavePeriodo>('mes')
   const [marca, setMarca] = useState('')
+  /* '' = todos; 'clientes' = só empresas clientes; 'internos' = só chamados da equipe. */
+  const [origem, setOrigem] = useState('')
   const [area, setArea] = useState('')
   const [selecionado, setSelecionado] = useState('')
   const [ordem, setOrdem] = useState<{ col: Coluna; desc: boolean }>({
@@ -187,7 +189,7 @@ export default function DesempenhoPage() {
           supabase
             .from('chamados')
             .select(
-              'id, numero, assunto, categoria, prioridade, status, responsavel_id, prazo_sla, sla_pausado_em, resolvido_em, encerrado_em, created_at, empresas(marca, nome_fantasia, razao_social)'
+              'id, numero, assunto, categoria, prioridade, status, responsavel_id, prazo_sla, sla_pausado_em, resolvido_em, encerrado_em, created_at, empresas(marca, nome_fantasia, razao_social, interna)'
             )
             .or(
               `created_at.gte.${desde},resolvido_em.gte.${desde},encerrado_em.gte.${desde},status.in.(${STATUS_EM_ABERTO.join(',')})`
@@ -212,6 +214,7 @@ export default function DesempenhoPage() {
             encerrado_em: c.encerrado_em,
             created_at: c.created_at,
             marca: emp?.marca || null,
+            interno: !!emp?.interna,
             empresa: emp?.nome_fantasia || emp?.razao_social || 'Empresa',
           }
         })
@@ -332,9 +335,10 @@ export default function DesempenhoPage() {
       chamados.filter(
         (c) =>
           (!marca || c.marca === marca) &&
-          (!area || (c.categoria || 'Sem área') === area)
+          (!area || (c.categoria || 'Sem área') === area) &&
+          (!origem || (origem === 'internos' ? !!c.interno : !c.interno))
       ),
-    [chamados, marca, area]
+    [chamados, marca, area, origem]
   )
 
   const calc = (lista: ChamadoBase[]) =>
@@ -519,6 +523,17 @@ export default function DesempenhoPage() {
           <option value="">Todas as marcas</option>
           <option value="agilmed">{marcas.agilmed.nome}</option>
           <option value="reallife">{marcas.reallife.nome}</option>
+        </select>
+
+        <select
+          value={origem}
+          onChange={(e) => setOrigem(e.target.value)}
+          aria-label="Origem dos chamados"
+          title="Separa os chamados de clientes dos chamados internos da equipe"
+        >
+          <option value="">Clientes e internos</option>
+          <option value="clientes">Só clientes</option>
+          <option value="internos">Só internos</option>
         </select>
 
         <select value={area} onChange={(e) => setArea(e.target.value)}>
