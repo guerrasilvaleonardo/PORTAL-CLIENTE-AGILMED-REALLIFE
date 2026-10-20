@@ -278,6 +278,8 @@ export default function ChatEquipePage() {
       .in('id', pendentes)
       .then(({ error }) => {
         if (error) console.error('Erro ao marcar como lida:', error)
+        /* Avisa o cabeçalho para atualizar o balão de não lidas. */
+        window.dispatchEvent(new Event('conversas-lidas'))
       })
   }, [conversa, mensagens, meuId])
 
