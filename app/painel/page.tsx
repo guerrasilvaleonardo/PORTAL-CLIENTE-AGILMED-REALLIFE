@@ -7,6 +7,8 @@ import { carregarFeriados } from '@/lib/feriados'
 import { situacaoSla } from '@/lib/prazo'
 import { AjudaSituacoes } from '@/lib/situacoes'
 import { Barras, Rosca } from '@/lib/graficos'
+import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
+import PendenciasAvaliacao from '@/components/PendenciasAvaliacao'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -121,6 +123,7 @@ function emDias(dias: number) {
 }
 
 export default function PainelPage() {
+  const { pendentes: pendentesAvaliacao } = useAvaliacoesPendentes(true)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [nome, setNome] = useState('')
@@ -446,6 +449,9 @@ export default function PainelPage() {
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
+
+      {/* Chamados internos que você pediu e ainda não avaliou. */}
+      <PendenciasAvaliacao pendentes={pendentesAvaliacao} />
 
       <div className="stats">
         <div className="stat">
