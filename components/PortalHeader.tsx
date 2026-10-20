@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
+import { useModulos, type Modulo } from '@/lib/modulos'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
@@ -78,6 +79,9 @@ export default function PortalHeader() {
   const [saindo, setSaindo] = useState(false)
   const naoLidas = useConversasNaoLidas(!carregando && !!marca)
   const chamadosNovos = Object.keys(useChamadosNaoLidos(!carregando && !!marca)).length
+  /* Ferramentas cobradas à parte: cadeado no menu do cliente sem contratação. */
+  const modulos = useModulos()
+  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos' }
 
   useEffect(() => {
     let ativo = true
@@ -241,7 +245,15 @@ export default function PortalHeader() {
               key={item.href}
               href={item.href}
               className={ativo(item.href) ? 'active' : ''}
+              title={
+                !interno && MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
+                  ? 'Ferramenta não contratada: clique para conhecer e solicitar'
+                  : undefined
+              }
             >
+              {!interno && MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href]) && (
+                <span aria-label="não contratada">🔒</span>
+              )}
               {item.rotulo}
               {item.href === (interno ? '/atendimento' : '/chamados') &&
                 chamadosNovos > 0 && (
