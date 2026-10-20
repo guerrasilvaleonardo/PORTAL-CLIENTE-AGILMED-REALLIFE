@@ -3,6 +3,7 @@
 import { DragEvent, useEffect, useMemo, useState } from 'react'
 import SuspenderChamado from '@/components/SuspenderChamado'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
+import { casaBusca, padraoSemAcento, palavrasDaBusca } from '@/lib/busca'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { carregarFeriados } from '@/lib/feriados'
@@ -33,6 +34,7 @@ type Chamado = {
   empresa_id: string
   categoria: string
   assunto: string
+  descricao?: string | null
   prioridade: string
   status: string
   created_at: string
@@ -82,6 +84,61 @@ export default function AtendimentoPage() {
   const [suspendendo, setSuspendendo] = useState<Chamado | null>(null)
 
   const [busca, setBusca] = useState('')
+  /* Chamados cuja conversa contém a busca: id -> trecho da mensagem. */
+  const [achadosConversa, setAchadosConversa] = useState<Record<string, string>>({})
+  const palavras = useMemo(() => palavrasDaBusca(busca), [busca])
+
+  /*
+   * A busca também olha as mensagens (o cliente às vezes escreve o nome
+   * só na conversa). Espera a pessoa parar de digitar e consulta pela
+   * palavra mais longa; o filtro fino (todas as palavras, sem acento) é
+   * feito aqui.
+   */
+  useEffect(() => {
+    /* As palavras com mais letras "fixas" (sem vogal/ç) filtram melhor no banco. */
+    const fixas = (p: string) => p.replace(/[aeiouc]/g, '').length
+    const chaves = [...palavras]
+      .filter((p) => p.length >= 3)
+      .sort((a, b) => fixas(b) - fixas(a) || b.length - a.length)
+      .slice(0, 2)
+    const chave = chaves[0]
+
+    if (!chave) {
+      setAchadosConversa({})
+      return
+    }
+
+    let vivo = true
+    const espera = setTimeout(async () => {
+      let consulta = supabase
+        .from('chamado_mensagens')
+        .select('chamado_id, mensagem')
+        .ilike('mensagem', padraoSemAcento(chave))
+
+      if (chaves[1]) consulta = consulta.ilike('mensagem', padraoSemAcento(chaves[1]))
+
+      const { data, error } = await consulta
+        .order('created_at', { ascending: false })
+        .limit(1000)
+
+      if (!vivo || error) return
+
+      const mapa: Record<string, string> = {}
+
+      for (const m of (data || []) as { chamado_id: string; mensagem: string }[]) {
+        if (!mapa[m.chamado_id] && casaBusca(m.mensagem, palavras)) {
+          mapa[m.chamado_id] = m.mensagem
+        }
+      }
+
+      setAchadosConversa(mapa)
+    }, 400)
+
+    return () => {
+      vivo = false
+      clearTimeout(espera)
+    }
+  }, [palavras])
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [filtroPrioridade, setFiltroPrioridade] = useState('')
   const [filtroResponsavel, setFiltroResponsavel] = useState('')
@@ -139,7 +196,7 @@ export default function AtendimentoPage() {
       const { data, error } = await supabase
         .from('chamados')
         .select(
-          'id, numero, empresa_id, categoria, assunto, prioridade, status, created_at, prazo_sla, sla_pausado_em, resolvido_em, encerrado_em, responsavel_id, empresas(nome_fantasia, razao_social, marca), responsavel:profiles!chamados_responsavel_id_fkey(nome)'
+          'id, numero, empresa_id, categoria, assunto, descricao, prioridade, status, created_at, prazo_sla, sla_pausado_em, resolvido_em, encerrado_em, responsavel_id, empresas(nome_fantasia, razao_social, marca), responsavel:profiles!chamados_responsavel_id_fkey(nome)'
         )
         .order('created_at', { ascending: false })
 
@@ -215,8 +272,27 @@ export default function AtendimentoPage() {
     return [...mapa.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [chamados])
 
+  /* Onde a busca encontrou o chamado, quando não foi no título. */
+  const ondeAchou = useMemo(() => {
+    const mapa: Record<string, string> = {}
+
+    if (!palavras.length) return mapa
+
+    for (const c of chamados) {
+      const noTitulo = casaBusca(
+        [c.numero, c.assunto, c.categoria, c.empresas?.nome_fantasia, c.empresas?.razao_social].join(' '),
+        palavras
+      )
+
+      if (noTitulo) continue
+      if (casaBusca(c.descricao || '', palavras)) mapa[c.id] = 'na descrição'
+      else if (achadosConversa[c.id]) mapa[c.id] = 'na conversa'
+    }
+
+    return mapa
+  }, [chamados, palavras, achadosConversa])
+
   const filtrados = useMemo(() => {
-    const termo = busca.trim().toLowerCase()
 
     return chamados.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
@@ -233,14 +309,17 @@ export default function AtendimentoPage() {
       ) {
         return false
       }
-      if (!termo) return true
+      if (!palavras.length) return true
 
-      return [c.numero, c.assunto, c.categoria, c.empresas?.nome_fantasia, c.empresas?.razao_social]
-        .join(' ')
-        .toLowerCase()
-        .includes(termo)
+      /* Título, número, categoria, empresa, descrição ou conversa. */
+      return (
+        casaBusca(
+          [c.numero, c.assunto, c.categoria, c.empresas?.nome_fantasia, c.empresas?.razao_social, c.descricao].join(' '),
+          palavras
+        ) || !!achadosConversa[c.id]
+      )
     })
-  }, [chamados, busca, filtroEmpresa, filtroPrioridade, filtroResponsavel, meuId])
+  }, [chamados, palavras, achadosConversa, filtroEmpresa, filtroPrioridade, filtroResponsavel, meuId])
 
   const indicadores = useMemo(() => {
     const abertos = chamados.filter((c) => EM_ABERTO.includes(c.status))
@@ -424,7 +503,8 @@ export default function AtendimentoPage() {
           type="search"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar assunto, número ou empresa"
+          placeholder="Buscar nome, assunto, nº, descrição ou conversa"
+          title="Procura no título, número, empresa, descrição e mensagens do chamado. Acentos e ordem das palavras não importam."
         />
 
         <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
@@ -527,6 +607,10 @@ export default function AtendimentoPage() {
                           {' · '}
                           {c.categoria}
                         </div>
+
+                        {ondeAchou[c.id] && (
+                          <div className="card-achado">Encontrado {ondeAchou[c.id]}</div>
+                        )}
 
                         {c.status === 'suspenso' && c.suspensao_motivo && (
                           <div className="card-suspensao">
