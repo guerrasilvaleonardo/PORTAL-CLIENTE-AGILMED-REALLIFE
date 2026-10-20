@@ -146,7 +146,23 @@ async function convidarParaAvaliar(
    * portal para os usuários do cliente (avaliacoes_pendentes).
    */
   const abriu = await autorDoChamado(chamado.solicitante_id || chamado.criado_por)
-  if (!abriu || abriu.perfil !== 'cliente' || !abriu.email) return false
+  if (!abriu || !abriu.email) return false
+
+  /*
+   * Equipe só avalia chamado de empresa interna (demanda da própria
+   * equipe) e nunca o chamado em que é a responsável.
+   */
+  if (abriu.perfil !== 'cliente') {
+    const { data: emp } = await supabaseAdmin
+      .from('empresas')
+      .select('interna')
+      .eq('id', chamado.empresa_id)
+      .maybeSingle()
+
+    if (!emp?.interna) return false
+  }
+
+  if (abriu.id === chamado.responsavel_id) return false
 
   /* Reserva o convite antes de enviar: um só por chamado. */
   const { error: reservaErro } = await supabaseAdmin
