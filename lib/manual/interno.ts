@@ -186,6 +186,7 @@ const manualInterno: Manual = {
           passos: [
             'Escolha a nova situação. Aguardando cliente pausa o prazo; Resolvido entrega a solução; voltar para Aberto ou Em atendimento reabre.',
             'Clique em Salvar status. O cliente recebe e-mail e o sistema publica uma mensagem automática na conversa.',
+            'Ao pôr em Aguardando cliente, escreva na conversa exatamente o que falta (documento, dado, confirmação e de quem). O e-mail de cobrança mostra em "O que precisamos" a última mensagem da equipe no chamado: se ela não disser o que falta, o lembrete repete um texto que não ajuda o cliente.',
           ],
           dica: 'Responder na conversa de um chamado Aberto já o passa para Em atendimento automaticamente.',
           atencao:
