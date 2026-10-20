@@ -147,8 +147,23 @@ function validarCampos(body: any, exigirRazaoSocial: boolean) {
       marca,
       status,
       ...(diasCobranca !== undefined ? { dias_cobranca: diasCobranca } : {}),
+      /* Ferramentas contratadas (supabase/modulos-cliente.sql). */
+      ...Object.fromEntries(
+        MODULOS_EMPRESA.filter((m) => body[m] !== undefined).map((m) => [m, body[m] === true || body[m] === 'true'])
+      ),
     } as Record<string, any>,
   }
+}
+
+const MODULOS_EMPRESA = ['modulo_certificados', 'modulo_treinamentos', 'modulo_documentos']
+
+/* Colunas das ferramentas ainda não criadas (modulos-cliente.sql não rodou). */
+function semColunaModulos(error: { code?: string; message?: string } | null) {
+  return !!error && /modulo_/.test(error.message || '')
+}
+
+function semModulos(dados: Record<string, any>) {
+  return Object.fromEntries(Object.entries(dados).filter(([k]) => !MODULOS_EMPRESA.includes(k)))
 }
 
 /* Coluna nova ainda não criada no banco (SQL não rodou): erro 42703. */
@@ -177,7 +192,8 @@ const colunas = `
   created_at
 `
 
-const colunasComCobranca = colunas.replace('created_at', 'dias_cobranca,\n  created_at')
+const colunasSoCobranca = colunas.replace('created_at', 'dias_cobranca,\n  created_at')
+const colunasComCobranca = colunasSoCobranca.replace('created_at', MODULOS_EMPRESA.join(',\n  ') + ',\n  created_at')
 
 export async function GET(request: Request) {
   const verificacao = await verificarAdministrador(request)
@@ -190,6 +206,10 @@ export async function GET(request: Request) {
     .from('empresas')
     .select(colunasComCobranca)
     .order('razao_social')
+
+  if (semColunaModulos(error)) {
+    ;({ data, error } = await supabaseAdmin.from('empresas').select(colunasSoCobranca).order('razao_social'))
+  }
 
   if (semColunaCobranca(error)) {
     ;({ data, error } = await supabaseAdmin.from('empresas').select(colunas).order('razao_social'))
@@ -265,6 +285,11 @@ export async function POST(request: Request) {
       .select(colunasComCobranca)
       .single()
 
+    if (semColunaModulos(error)) {
+      validacao.dados = semModulos(validacao.dados)
+      ;({ data, error } = await supabaseAdmin.from('empresas').insert(validacao.dados).select(colunasSoCobranca).single())
+    }
+
     if (semColunaCobranca(error)) {
       ;({ data, error } = await supabaseAdmin
         .from('empresas')
@@ -334,6 +359,16 @@ export async function PATCH(request: Request) {
       .eq('id', id)
       .select(colunasComCobranca)
       .single()
+
+    if (semColunaModulos(error)) {
+      validacao.dados = semModulos(validacao.dados)
+      ;({ data, error } = await supabaseAdmin
+        .from('empresas')
+        .update({ ...validacao.dados, updated_at: atualizadoEm })
+        .eq('id', id)
+        .select(colunasSoCobranca)
+        .single())
+    }
 
     if (semColunaCobranca(error)) {
       ;({ data, error } = await supabaseAdmin
