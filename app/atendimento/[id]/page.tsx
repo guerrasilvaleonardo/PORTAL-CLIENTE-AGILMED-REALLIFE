@@ -395,6 +395,7 @@ export default function AtendimentoChamadoPage() {
   >([])
   const [solicitanteDisponivel, setSolicitanteDisponivel] =
     useState(false)
+  const [empresaInterna, setEmpresaInterna] = useState(false)
   const [salvandoSolicitante, setSalvandoSolicitante] =
     useState(false)
 
@@ -629,13 +630,27 @@ export default function AtendimentoChamadoPage() {
         ((solData as any)?.solicitante_id as string) || ''
       )
 
-      const { data: clientesData } = await supabase
+      /* Empresa interna (chamado da própria equipe): solicitante é da equipe. */
+      const { data: empInterna } = await supabase
+        .from('empresas')
+        .select('interna')
+        .eq('id', chamadoAtual.empresa_id)
+        .maybeSingle()
+
+      const ehInterna = !!(empInterna as any)?.interna
+      setEmpresaInterna(ehInterna)
+
+      const consultaSolicitantes = supabase
         .from('profiles')
         .select('id, nome, email')
-        .eq('empresa_id', chamadoAtual.empresa_id)
-        .eq('perfil', 'cliente')
         .eq('ativo', true)
         .order('nome')
+
+      const { data: clientesData } = ehInterna
+        ? await consultaSolicitantes.in('perfil', ['atendimento', 'gestor', 'admin'])
+        : await consultaSolicitantes
+            .eq('empresa_id', chamadoAtual.empresa_id)
+            .eq('perfil', 'cliente')
 
       setClientesDaEmpresa(clientesData || [])
 
@@ -3650,7 +3665,9 @@ export default function AtendimentoChamadoPage() {
                   />
 
                   <label style={labelStyle}>
-                    Solicitante do cliente
+                    {empresaInterna
+                      ? 'Solicitante (chamado interno)'
+                      : 'Solicitante do cliente'}
                   </label>
 
                   <select
@@ -3676,10 +3693,11 @@ export default function AtendimentoChamadoPage() {
                       lineHeight: 1.45,
                     }}
                   >
-                    Quem do cliente pediu o chamado. É quem avalia o
-                    atendimento e passa a ver o chamado. Sem indicação,
-                    avalia quem abriu (se for do cliente) ou, se a equipe
-                    abriu, qualquer usuário do cliente que veja o chamado.
+                    {clientesDaEmpresa.length === 0
+                      ? 'Esta empresa não tem nenhum usuário de cliente ativo no portal, então não há quem indicar. Cadastre o usuário em Administração › Usuários (perfil Cliente, vinculado a esta empresa) ou, se o chamado é de outro cliente, mova-o para a empresa certa acima.'
+                      : empresaInterna
+                        ? 'Quem da equipe pediu o chamado. É quem avalia o atendimento; sem indicação, avalia quem abriu. O responsável pelo chamado nunca avalia.'
+                        : 'Quem do cliente pediu o chamado. É quem avalia o atendimento e passa a ver o chamado. Sem indicação, avalia quem abriu (se for do cliente) ou, se a equipe abriu, qualquer usuário do cliente que veja o chamado.'}
                   </p>
 
                   <button
