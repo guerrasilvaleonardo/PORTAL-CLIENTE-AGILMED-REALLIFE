@@ -473,7 +473,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Até 3 estrelas por chamado: 1 por resolver dentro do prazo (no limite exato também conta) e até 2 pela avaliação de quem pediu. Ruim ou sem avaliação: +0. Nos chamados internos (empresa Real Life SSMA), quem avalia é o solicitante da equipe; ninguém avalia chamado em que é o responsável nem chamado cujas estrelas recebeu.',
-            'Abas: Mensal (pódio e ranking do mês), Anual, Meu painel (seus chamados e estrelas) e Gestão do programa (gestor e admin).',
+            'Abas: Mensal (pódio e ranking do mês), Anual (estrelas acumuladas do ano; o vencedor só aparece quando a gestão revelar o resultado pelo índice final), Meu painel (seus chamados e estrelas) e Gestão do programa (gestor e admin).',
           ],
         },
         {
@@ -490,7 +490,8 @@ const manualInterno: Manual = {
           titulo: 'Gestão do programa (gestor e admin)',
           passos: [
             'Configuração: data inicial, prazo para o cliente avaliar (1 a 365 dias), alerta "Próximo do prazo", pesos das estrelas e Programa ativo. Toda alteração exige justificativa e fica na auditoria.',
-            'Fechamento anual: defina a data; a partir dela, "Fechar classificação" congela o ranking do ano.',
+            'Resultado do ano: o vencedor sai do índice final (40% estrelas do ano, 40% % no prazo, 20% nota do cliente ajustada ao número de avaliações; mínimo de 10 chamados resolvidos). O ano é civil (1/1 a 31/12), então salve a data de fechamento em janeiro. A partir dela aparece o botão verde "Revelar o resultado": só então o índice é calculado e a classificação fica congelada. Ninguém vê o vencedor antes, nem a gestão.',
+            'Antes de revelar, decida todas as extensões de prazo pendentes do ano: com pendência, o sistema não deixa revelar. Até lá, as abas Mensal e Anual mostram só as estrelas acumuladas, sem medalhas no anual.',
             'Avaliações ruins: acompanhamento reservado. O gestor registra a ação tomada.',
             'Extensões de prazo pendentes: decida na tela do chamado, com justificativa.',
           ],

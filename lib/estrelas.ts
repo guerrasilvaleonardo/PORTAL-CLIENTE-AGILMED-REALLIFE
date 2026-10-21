@@ -42,6 +42,45 @@ export type Fechamento = {
   data_fechamento: string
   fechado_em: string | null
   classificacao: LinhaRanking[] | null
+  /* Regra do resultado final do ano (supabase/estrelas-indice-final.sql). */
+  criterio?: 'indice_final' | 'estrelas' | null
+  peso_estrelas?: number | null
+  peso_prazo?: number | null
+  peso_nota?: number | null
+  minimo_resolvidos?: number | null
+  ajuste_nota_k?: number | null
+}
+
+/* Linha da classificação final pelo índice (gravada só no fechamento). */
+export type LinhaFinal = LinhaRanking & {
+  criterio: 'indice_final'
+  posicao: number | null
+  elegivel: boolean
+  indice: number
+  comp_estrelas: number
+  comp_prazo: number
+  comp_nota: number
+  nota_ajustada: number | null
+  posicao_estrelas: number
+}
+
+export const REGRA_FINAL_PADRAO = { peso_estrelas: 40, peso_prazo: 40, peso_nota: 20, minimo_resolvidos: 10, ajuste_nota_k: 5 }
+
+/* Regra do índice final de um fechamento (com o padrão se o SQL ainda não rodou). */
+export function regraFinal(f: Fechamento | null | undefined) {
+  return {
+    peso_estrelas: Number(f?.peso_estrelas ?? REGRA_FINAL_PADRAO.peso_estrelas),
+    peso_prazo: Number(f?.peso_prazo ?? REGRA_FINAL_PADRAO.peso_prazo),
+    peso_nota: Number(f?.peso_nota ?? REGRA_FINAL_PADRAO.peso_nota),
+    minimo_resolvidos: Number(f?.minimo_resolvidos ?? REGRA_FINAL_PADRAO.minimo_resolvidos),
+    ajuste_nota_k: Number(f?.ajuste_nota_k ?? REGRA_FINAL_PADRAO.ajuste_nota_k),
+  }
+}
+
+/* O resultado do ano só pode ser revelado depois de 31/12 e a partir da data marcada. */
+export function podeRevelar(f: Fechamento | null | undefined, hojeIso: string) {
+  if (!f || f.fechado_em) return false
+  return hojeIso > f.ano + '-12-31' && hojeIso >= f.data_fechamento
 }
 
 export const ROTULO_NOTA: Record<number, string> = {
