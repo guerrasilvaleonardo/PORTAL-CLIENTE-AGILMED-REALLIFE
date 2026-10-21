@@ -106,6 +106,7 @@ const manualInterno: Manual = {
                   { titulo: 'Atendimento suspenso', cartoes: [{ texto: '#115 eSocial fora do ar', tom: 'ruim' }] },
                   { titulo: 'Resolvido', cartoes: [{ texto: '#110 Laudo', tom: 'bom' }] },
                   { titulo: 'Encerrado', cartoes: [{ texto: '#101 NR-35' }] },
+                  { titulo: 'Cancelado', cartoes: [{ texto: '#109 Duplicado' }] },
                 ],
               },
             ],
@@ -122,6 +123,7 @@ const manualInterno: Manual = {
             'Arraste o cartão para outra coluna para mudar a situação. Aparece "Chamado #N movido para X" e o cliente recebe e-mail.',
             'Levar para Aguardando cliente pausa o prazo. Levar para Resolvido ou Encerrado registra a data de resolução.',
             'Levar para Atendimento suspenso abre uma janela com motivo, observação (só a equipe vê) e próxima atualização, todos obrigatórios. O SLA pausa na hora e o cliente recebe o motivo e a data. Para retomar, arraste para outra coluna: o prazo é estendido pelas horas úteis suspensas.',
+            'Levar para Cancelado (só gestor e admin) abre a janela de cancelamento com motivo e observação obrigatórios. Para desfazer, o gestor arrasta de volta para Aberto ou Em andamento.',
             'Clique no cartão para abrir a tela de atendimento do chamado.',
             'Modo TV: tela cheia para monitor da sala, sem arrastar, atualizando sozinha a cada minuto.',
           ],
@@ -179,7 +181,7 @@ const manualInterno: Manual = {
           tela: {
             url: '/atendimento/…',
             blocos: [
-              { t: 'opcoes', n: 1, itens: [{ rotulo: 'Aberto' }, { rotulo: 'Em atendimento', ativo: true }, { rotulo: 'Aguardando cliente' }, { rotulo: 'Atendimento suspenso' }, { rotulo: 'Resolvido' }, { rotulo: 'Encerrado' }] },
+              { t: 'opcoes', n: 1, itens: [{ rotulo: 'Aberto' }, { rotulo: 'Em atendimento', ativo: true }, { rotulo: 'Aguardando cliente' }, { rotulo: 'Atendimento suspenso' }, { rotulo: 'Resolvido' }, { rotulo: 'Encerrado' }, { rotulo: 'Cancelado' }] },
               { t: 'botoes', n: 2, itens: [{ rotulo: 'Salvar status', primario: true }] },
             ],
           },
@@ -213,6 +215,29 @@ const manualInterno: Manual = {
           ],
           atencao:
             'Nas estrelas, a extensão por suspensão fica "Aguardando gestor": só vale se o gestor autorizar, e nunca se o prazo já estava vencido quando a suspensão começou. Não use para esperar o cliente: para isso existe Aguardando cliente.',
+        },
+        {
+          titulo: 'Cancelar um chamado (gestor e admin)',
+          texto:
+            'Para chamado que não deve ser atendido: duplicado, aberto por engano, desistência do cliente, fora do escopo contratado, sem retorno do cliente ou substituído por outro chamado.',
+          tela: {
+            url: '/atendimento/…',
+            blocos: [
+              { t: 'topo', sobre: 'Cancelamento', titulo: 'Cancelar o chamado #210' },
+              { t: 'campos', n: 1, itens: [{ rotulo: 'Motivo', valor: 'Chamado duplicado', obrigatorio: true }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Observação (só a equipe vê)', valor: 'Duplicado do #205, que segue em atendimento', largo: true, obrigatorio: true }] },
+              { t: 'botoes', n: 3, itens: [{ rotulo: 'Voltar' }, { rotulo: 'Cancelar chamado', primario: true }] },
+            ],
+          },
+          passos: [
+            'No Quadro, arraste o cartão para a coluna Cancelado; ou, na tela do chamado, escolha Cancelado no status e clique em Salvar status.',
+            'Escolha o motivo da lista (em "Outro", descreva o motivo, que o cliente verá) e escreva a observação interna (mínimo 10 caracteres).',
+            'O cliente recebe e-mail e mensagem automática com o motivo; a observação fica só com a equipe.',
+            'Para desfazer, mude a situação para Aberto ou Em atendimento. O cliente é avisado e o registro do cancelamento fica guardado no chamado.',
+          ],
+          dica: 'Em Atendimento > Desempenho, o quadro "Cancelados por motivo" mostra quantos chamados foram cancelados no período e por quê.',
+          atencao:
+            'Só gestor e admin cancelam ou desfazem; o atendente pede ao gestor. Só se cancela chamado em aberto (inclusive suspenso): Resolvido e Encerrado não se cancelam. Cancelado fica fora do SLA e das estrelas e não pede avaliação, por isso não use para tirar do indicador um chamado que foi atendido com atraso.',
         },
         {
           titulo: 'Prioridade e empresa (gestor e admin)',
@@ -282,7 +307,7 @@ const manualInterno: Manual = {
             ],
           },
           passos: [
-            'A linha do tempo registra tudo: mudanças de situação, prioridade, responsável e empresa, anexos, links, mensagens, etapas, participantes, pausas do SLA, suspensões e cobranças enviadas ao cliente, com data e autor.',
+            'A linha do tempo registra tudo: mudanças de situação, prioridade, responsável e empresa, anexos, links, mensagens, etapas, participantes, pausas do SLA, suspensões, cancelamentos e cobranças enviadas ao cliente, com data e autor.',
             'Nos detalhes do chamado, "Aberto por" mostra quem abriu (nome e e-mail) e "Atualização" mostra o último movimento registrado.',
           ],
           dica: 'Nesta tela, Primeira resposta e Tempo até resolver usam horas corridas. O Desempenho usa horas úteis.',

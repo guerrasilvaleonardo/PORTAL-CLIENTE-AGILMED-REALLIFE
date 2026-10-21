@@ -42,6 +42,7 @@ const statusLabels: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 const prioridadeLabels: Record<string, string> = {

@@ -16,6 +16,8 @@ import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import EstrelasDoChamado from '@/components/EstrelasDoChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
 import SuspenderChamado from '@/components/SuspenderChamado'
+import CancelarChamado from '@/components/CancelarChamado'
+import { carregarCancelamentos, motivoExibido, type RegistroCancelamento } from '@/lib/cancelamento'
 import { carregarHistoricoSuspensoes, dataDoBanco } from '@/lib/suspensao'
 import type { RegistroSuspensao } from '@/lib/suspensao'
 import { marcas } from '@/lib/marca'
@@ -59,6 +61,7 @@ const rotuloStatus: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 /* O Postgres devolve interval como "1 day 02:30:00". */
@@ -131,6 +134,10 @@ function descreverEvento(e: Evento) {
     return (acoes[e.para || ''] || 'Etapa') + ': ' + (e.de || '—')
   }
 
+  if (e.tipo === 'cancelamento') {
+    return e.para === 'cancelado' ? 'Chamado cancelado' : 'Cancelamento desfeito'
+  }
+
   if (e.tipo === 'participante') {
     return (e.para === 'removido' ? 'Participante removido: ' : 'Participante incluído: ') + (e.de || '—')
   }
@@ -200,6 +207,7 @@ const statusLabels: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 const prioridadeLabels: Record<string, string> = {
@@ -270,6 +278,12 @@ function corStatus(status: string) {
       return {
         background: '#e5e7eb',
         color: '#374151',
+      }
+
+    case 'cancelado':
+      return {
+        background: '#f1f5f9',
+        color: '#64748b',
       }
 
     default:
@@ -972,6 +986,35 @@ export default function AtendimentoChamadoPage() {
       return
     }
 
+    /* Cancelar: só gestor/admin, com motivo e observação. */
+    if (novoStatus === 'cancelado') {
+      if (!['gestor', 'admin'].includes(meuPerfil)) {
+        setErro('Somente gestor ou administrador pode cancelar um chamado.')
+        setNovoStatus(chamado.status)
+        return
+      }
+      setCancelando(true)
+      return
+    }
+
+    /* Desfazer cancelamento: só gestor/admin, de volta para atendimento. */
+    if (chamado.status === 'cancelado') {
+      if (!['gestor', 'admin'].includes(meuPerfil)) {
+        setErro('Somente gestor ou administrador pode desfazer um cancelamento.')
+        setNovoStatus(chamado.status)
+        return
+      }
+      if (!['aberto', 'em_atendimento'].includes(novoStatus)) {
+        setErro('Para desfazer o cancelamento, volte o chamado para Aberto ou Em atendimento.')
+        setNovoStatus(chamado.status)
+        return
+      }
+      if (!window.confirm('Desfazer o cancelamento do chamado #' + chamado.numero + '? O cliente será avisado.')) {
+        setNovoStatus(chamado.status)
+        return
+      }
+    }
+
     try {
       setSalvandoStatus(true)
       setErro('')
@@ -1088,6 +1131,28 @@ export default function AtendimentoChamadoPage() {
 
   const suspensaoAtual =
     chamado?.status === 'suspenso' ? suspensoes.find((s) => !s.fim) || null : null
+
+  /* Cancelamento: janela (gestor/admin) e histórico. */
+  const [cancelando, setCancelando] = useState(false)
+  const [cancelamentos, setCancelamentos] = useState<RegistroCancelamento[]>([])
+
+  useEffect(() => {
+    if (!chamado?.id) return
+
+    let vivo = true
+
+    carregarCancelamentos(chamado.id).then((lista) => {
+      if (vivo) setCancelamentos(lista)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [chamado?.id, chamado?.status])
+
+  const cancelamentoAtual =
+    chamado?.status === 'cancelado' ? cancelamentos.find((k) => !k.revertido_em) || null : null
+  const ehGestorOuAdmin = ['gestor', 'admin'].includes(meuPerfil)
 
   async function salvarPrioridade() {
     if (!chamado) return
@@ -3309,7 +3374,9 @@ export default function AtendimentoChamadoPage() {
                 <BlocoSla
                   rotulo="Prazo"
                   valor={
-                    chamado.sla_pausado_em ||
+                    chamado.status === 'cancelado'
+                      ? 'fora do SLA (cancelado)'
+                      : chamado.sla_pausado_em ||
                     chamado.status === 'aguardando_cliente' ||
                     chamado.status === 'suspenso'
                       ? 'pausado'
@@ -3319,6 +3386,7 @@ export default function AtendimentoChamadoPage() {
                   }
                   alerta={
                     !chamado.sla_pausado_em &&
+                    chamado.status !== 'cancelado' &&
                     chamado.status !== 'aguardando_cliente' &&
                     chamado.status !== 'suspenso' &&
                     Boolean(chamado.prazo_sla) &&
@@ -3439,6 +3507,76 @@ export default function AtendimentoChamadoPage() {
                 />
               )}
 
+              {cancelando && chamado && (
+                <CancelarChamado
+                  chamado={{ id: chamado.id, numero: chamado.numero ?? 0, assunto: chamado.assunto }}
+                  onFechar={() => {
+                    setCancelando(false)
+                    setNovoStatus(chamado.status)
+                  }}
+                  onCancelado={() => {
+                    setCancelando(false)
+                    avisar('status_alterado', chamado.id)
+                    carregarChamado()
+                  }}
+                />
+              )}
+
+              {chamado.status === 'cancelado' && (
+                <div
+                  style={{
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    marginBottom: 16,
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong style={{ color: '#475569' }}>Chamado cancelado</strong>
+                  {cancelamentoAtual ? (
+                    <>
+                      <div>Motivo: {motivoExibido(cancelamentoAtual)}</div>
+                      <div>
+                        Em: {formatarData(cancelamentoAtual.cancelado_em)}
+                        {cancelamentoAtual.autor?.nome ? ' · por ' + cancelamentoAtual.autor.nome : ''}
+                      </div>
+                      <div>Situação antes: {rotuloStatus[cancelamentoAtual.status_anterior] || cancelamentoAtual.status_anterior}</div>
+                      <div style={{ marginTop: 6 }}>
+                        <em>Observação (só a equipe):</em> {cancelamentoAtual.observacao}
+                      </div>
+                    </>
+                  ) : (
+                    <div>Fora do SLA e das estrelas.</div>
+                  )}
+                  <div style={{ marginTop: 6, fontSize: 12.5 }}>
+                    {ehGestorOuAdmin
+                      ? 'Para desfazer, mude a situação para Aberto ou Em atendimento. O cliente é avisado e o registro do cancelamento fica guardado.'
+                      : 'Somente gestor ou administrador pode desfazer o cancelamento.'}
+                  </div>
+                </div>
+              )}
+
+              {cancelamentos.filter((k) => k.revertido_em).length > 0 && (
+                <p style={{ fontSize: 12.5, color: '#64748b', margin: '0 0 12px' }}>
+                  Cancelamentos desfeitos:{' '}
+                  {cancelamentos
+                    .filter((k) => k.revertido_em)
+                    .map(
+                      (k) =>
+                        formatarData(k.cancelado_em) +
+                        ' (' +
+                        motivoExibido(k) +
+                        '; desfeito em ' +
+                        formatarData(k.revertido_em) +
+                        ')'
+                    )
+                    .join(' · ')}
+                </p>
+              )}
+
               {chamado.status === 'suspenso' && (
                 <div
                   style={{
@@ -3536,6 +3674,12 @@ export default function AtendimentoChamadoPage() {
                 <option value="encerrado">
                   Encerrado
                 </option>
+
+                {(ehGestorOuAdmin || chamado.status === 'cancelado') && (
+                  <option value="cancelado">
+                    Cancelado{ehGestorOuAdmin ? '' : ' (só gestor)'}
+                  </option>
+                )}
               </select>
 
               <button

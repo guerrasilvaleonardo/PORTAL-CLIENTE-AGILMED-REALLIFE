@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { marcarChamadoLido } from '@/lib/chamadosNaoLidos'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
+import { motivoDoCancelamento } from '@/lib/cancelamento'
 import type { DadosSuspensao } from '@/lib/suspensao'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { avisar } from '@/lib/avisar'
@@ -65,6 +66,7 @@ const statusLabels: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 const prioridadeLabels: Record<string, string> = {
@@ -171,6 +173,29 @@ export default function DetalhesChamadoPage() {
 
     carregarSuspensos([chamado.id]).then((mapa) => {
       if (vivo) setSuspensao(mapa[chamado.id] || null)
+    })
+
+    return () => {
+      vivo = false
+    }
+  }, [chamado?.id, chamado?.status])
+
+  /* Cancelado: o cliente vê o motivo (a observação interna fica com a equipe). */
+  const [cancelamento, setCancelamento] = useState<{
+    cancelamento_motivo: string | null
+    cancelado_em: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!chamado?.id || chamado.status !== 'cancelado') {
+      setCancelamento(null)
+      return
+    }
+
+    let vivo = true
+
+    motivoDoCancelamento(chamado.id).then((dados) => {
+      if (vivo) setCancelamento(dados)
     })
 
     return () => {
@@ -914,6 +939,29 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
 
+              {chamado.status === 'cancelado' && (
+                <div
+                  role="status"
+                  style={{
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    margin: '0 0 16px',
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <strong style={{ color: '#475569' }}>Chamado cancelado</strong>
+                  {cancelamento?.cancelamento_motivo && <div>Motivo: {cancelamento.cancelamento_motivo}</div>}
+                  {cancelamento?.cancelado_em && <div>Em: {formatarData(cancelamento.cancelado_em)}</div>}
+                  <div style={{ fontSize: 13 }}>
+                    Se ainda precisar de ajuda com este assunto, responda por aqui ou abra um novo chamado.
+                  </div>
+                </div>
+              )}
+
               {chamado.status === 'suspenso' && (
                 <div
                   role="status"
@@ -966,7 +1014,8 @@ export default function DetalhesChamadoPage() {
                     atendente
                       ? 'É quem está cuidando do seu chamado.'
                       : chamado.status === 'resolvido' ||
-                          chamado.status === 'encerrado'
+                          chamado.status === 'encerrado' ||
+                          chamado.status === 'cancelado'
                         ? undefined
                         : 'Um atendente da nossa equipe vai assumir em breve.'
                   }
@@ -998,7 +1047,9 @@ export default function DetalhesChamadoPage() {
                 <Info
                   label="Prazo SLA"
                   value={
-                    chamado.status === 'aguardando_cliente' || chamado.status === 'suspenso'
+                    chamado.status === 'cancelado'
+                      ? 'Fora do prazo (cancelado)'
+                      : chamado.status === 'aguardando_cliente' || chamado.status === 'suspenso'
                       ? 'Pausado'
                       : formatarData(chamado.prazo_sla)
                   }
@@ -1070,7 +1121,8 @@ export default function DetalhesChamadoPage() {
                 podeGerenciar={
                   !!usuarioId &&
                   chamado.criado_por === usuarioId &&
-                  chamado.status !== 'encerrado'
+                  chamado.status !== 'encerrado' &&
+                  chamado.status !== 'cancelado'
                 }
                 cor={tema.principal}
                 cardStyle={styles.card}
@@ -1577,17 +1629,27 @@ export default function DetalhesChamadoPage() {
                   tema={tema}
                 />
 
-                <TimelineItem
-                  title="Encerrado"
-                  date={formatarData(
-                    chamado.encerrado_em
-                  )}
-                  active={
-                    chamado.status === 'encerrado'
-                  }
-                  last
-                  tema={tema}
-                />
+                {chamado.status === 'cancelado' ? (
+                  <TimelineItem
+                    title="Cancelado"
+                    date={formatarData(cancelamento?.cancelado_em || null)}
+                    active
+                    last
+                    tema={tema}
+                  />
+                ) : (
+                  <TimelineItem
+                    title="Encerrado"
+                    date={formatarData(
+                      chamado.encerrado_em
+                    )}
+                    active={
+                      chamado.status === 'encerrado'
+                    }
+                    last
+                    tema={tema}
+                  />
+                )}
               </div>
             </div>
 
@@ -1735,6 +1797,11 @@ function statusStyle(status: string) {
     encerrado: {
       background: '#f1f5f9',
       color: '#475569',
+    },
+
+    cancelado: {
+      background: '#f1f5f9',
+      color: '#64748b',
     },
   }
 

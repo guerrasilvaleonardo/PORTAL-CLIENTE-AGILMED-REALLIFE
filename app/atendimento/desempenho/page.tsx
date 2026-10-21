@@ -118,8 +118,43 @@ export default function DesempenhoPage() {
   const [eventos, setEventos] = useState<Record<string, EventoStatus[]>>({})
   const [respostas, setRespostas] = useState<Record<string, string>>({})
   const [etapas, setEtapas] = useState<Record<string, number>>({})
+  /* Cancelados no período, por motivo (fora do SLA e das estrelas). */
+  const [cancelados, setCancelados] = useState<{ motivo: string; total: number }[]>([])
 
   const { ini, fim } = useMemo(() => limitesPeriodo(periodo), [periodo])
+
+  useEffect(() => {
+    let ativo = true
+
+    /* Consulta tolerante: sem o SQL de cancelamento, o quadro some. */
+    supabase
+      .from('chamado_cancelamentos')
+      .select('motivo, detalhe')
+      .is('revertido_em', null)
+      .gte('cancelado_em', ini.toISOString())
+      .lt('cancelado_em', fim.toISOString())
+      .then(({ data, error }) => {
+        if (!ativo) return
+        if (error || !data) return setCancelados([])
+
+        const conta: Record<string, number> = {}
+
+        for (const k of data as { motivo: string; detalhe: string | null }[]) {
+          const m = k.motivo === 'Outro' ? 'Outro: ' + (k.detalhe || '') : k.motivo
+          conta[m] = (conta[m] || 0) + 1
+        }
+
+        setCancelados(
+          Object.entries(conta)
+            .map(([motivo, total]) => ({ motivo, total }))
+            .sort((a, b) => b.total - a.total)
+        )
+      })
+
+    return () => {
+      ativo = false
+    }
+  }, [ini, fim])
 
   useEffect(() => {
     let ativo = true
@@ -756,6 +791,21 @@ export default function DesempenhoPage() {
                     }
                   })
                   .sort((a, b) => b.valor - a.valor)}
+              />
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Cancelados por motivo</div>
+              <span className="pill flat">
+                {cancelados.reduce((t, c) => t + c.total, 0)} no período · todas as empresas
+              </span>
+            </div>
+            <div className="panel-body">
+              <Barras
+                vazio="Nenhum chamado cancelado no período. Cancelados ficam fora do SLA e das estrelas."
+                barras={cancelados.map((c) => ({ rotulo: c.motivo, valor: c.total, detalhe: '' }))}
               />
             </div>
           </div>

@@ -302,6 +302,7 @@ export function prestesAAtrasar(
  *   cartão diz se foi resolvido no prazo ou fora dele;
  * - aguardando cliente: o relógio está pausado, então vale o saldo que
  *   havia no momento da pausa (o banco estende o prazo na retomada);
+ * - cancelado: fora do SLA;
  * - demais: horas úteis que faltam ou que passaram até o prazo.
  */
 export function situacaoSla(c: ChamadoComSla): {
@@ -310,6 +311,11 @@ export function situacaoSla(c: ChamadoComSla): {
   atrasado: boolean
   horas: number | null
 } {
+  /* Cancelado: fica fora do SLA (não conta como no prazo nem atrasado). */
+  if (c.status === 'cancelado') {
+    return { chave: 'sem_sla', texto: 'Cancelado · fora do SLA', atrasado: false, horas: null }
+  }
+
   if (!c.prazo_sla) {
     return { chave: 'sem_sla', texto: 'sem SLA', atrasado: false, horas: null }
   }

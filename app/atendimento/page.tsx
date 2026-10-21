@@ -2,6 +2,7 @@
 
 import { DragEvent, useEffect, useMemo, useState } from 'react'
 import SuspenderChamado from '@/components/SuspenderChamado'
+import CancelarChamado from '@/components/CancelarChamado'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
 import { casaBusca, padraoSemAcento, palavrasDaBusca } from '@/lib/busca'
 import Link from 'next/link'
@@ -24,6 +25,7 @@ const COLUNAS = [
   { id: 'suspenso', rotulo: 'Atendimento suspenso' },
   { id: 'resolvido', rotulo: 'Resolvido' },
   { id: 'encerrado', rotulo: 'Encerrado' },
+  { id: 'cancelado', rotulo: 'Cancelado' },
 ]
 
 const EM_ABERTO = ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso']
@@ -82,6 +84,9 @@ export default function AtendimentoPage() {
   const [tv, setTv] = useState(false)
   /* Chamado arrastado para "Atendimento suspenso", aguardando os dados. */
   const [suspendendo, setSuspendendo] = useState<Chamado | null>(null)
+  /* Chamado arrastado para "Cancelado" (só gestor/admin). */
+  const [cancelando, setCancelando] = useState<Chamado | null>(null)
+  const [ehGestor, setEhGestor] = useState(false)
 
   const [busca, setBusca] = useState('')
   /* Chamados cuja conversa contém a busca: id -> trecho da mensagem. */
@@ -177,6 +182,7 @@ export default function AtendimentoPage() {
         return
       }
 
+      setEhGestor(['gestor', 'admin'].includes(perfil?.perfil || ''))
       setMeuId(user.id)
 
       const { data: equipe } = await supabase
@@ -343,6 +349,35 @@ export default function AtendimentoPage() {
       return
     }
 
+    /* Cancelar: só gestor/admin, com motivo e observação. */
+    if (novoStatus === 'cancelado') {
+      if (!ehGestor) {
+        setErro('Somente gestor ou administrador pode cancelar um chamado.')
+        return
+      }
+      if (!EM_ABERTO.includes(atual.status)) {
+        setErro('Só é possível cancelar chamado em aberto. Resolvido ou encerrado não se cancela.')
+        return
+      }
+      setCancelando(atual)
+      return
+    }
+
+    /* Desfazer cancelamento: só gestor/admin, de volta para atendimento. */
+    if (atual.status === 'cancelado') {
+      if (!ehGestor) {
+        setErro('Somente gestor ou administrador pode desfazer um cancelamento.')
+        return
+      }
+      if (!['aberto', 'em_atendimento'].includes(novoStatus)) {
+        setErro('Para desfazer o cancelamento, arraste para Aberto ou Em andamento.')
+        return
+      }
+      if (!window.confirm('Desfazer o cancelamento do chamado #' + atual.numero + '? O cliente será avisado.')) {
+        return
+      }
+    }
+
     /* Move na tela primeiro; se o banco recusar, volta. */
     setChamados((lista) =>
       lista.map((c) => (c.id === id ? { ...c, status: novoStatus } : c))
@@ -361,7 +396,7 @@ export default function AtendimentoPage() {
       setChamados((lista) =>
         lista.map((c) => (c.id === id ? { ...c, status: atual.status } : c))
       )
-      setErro('Não foi possível mover o chamado.')
+      setErro(error.message || 'Não foi possível mover o chamado.')
       return
     }
 
@@ -428,6 +463,22 @@ export default function AtendimentoPage() {
             )
             avisar('status_alterado', alvo.id)
             setAviso('Chamado #' + alvo.numero + ' suspenso. O SLA está pausado.')
+          }}
+        />
+      )}
+
+      {cancelando && (
+        <CancelarChamado
+          chamado={cancelando}
+          onFechar={() => setCancelando(null)}
+          onCancelado={() => {
+            const alvo = cancelando
+            setCancelando(null)
+            setChamados((lista) =>
+              lista.map((c) => (c.id === alvo.id ? { ...c, status: 'cancelado' } : c))
+            )
+            avisar('status_alterado', alvo.id)
+            setAviso('Chamado #' + alvo.numero + ' cancelado. Ele fica fora do SLA e das estrelas.')
           }}
         />
       )}

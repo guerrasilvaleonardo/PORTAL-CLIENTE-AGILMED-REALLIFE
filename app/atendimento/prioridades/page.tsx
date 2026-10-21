@@ -28,6 +28,7 @@ const ROTULO_STATUS: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 const ROTULO_SLA: Partial<Record<ChaveSla, string>> = {
