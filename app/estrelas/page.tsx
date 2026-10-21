@@ -23,6 +23,9 @@ import {
   type ConfigEstrelas,
   type Fechamento,
   type LinhaRanking,
+  type LinhaFinal,
+  podeRevelar,
+  regraFinal,
 } from '@/lib/estrelas'
 import './estrelas.css'
 
@@ -190,7 +193,7 @@ export default function EstrelasPage() {
           ) : aba === 'mensal' ? (
             <AbaMensal hoje={hoje} meuId={meuId} cfg={cfg} versao={versao} />
           ) : aba === 'anual' ? (
-            <AbaAnual hoje={hoje} meuId={meuId} versao={versao} />
+            <AbaAnual hoje={hoje} meuId={meuId} ehGestor={ehGestor} versao={versao} />
           ) : aba === 'meu' ? (
             <AbaMeuPainel hoje={hoje} meuId={meuId} ehGestor={ehGestor} versao={versao} />
           ) : (
@@ -210,14 +213,14 @@ export default function EstrelasPage() {
 
 /* ------------------------------------------------------------------ */
 
-function TabelaRanking({ linhas, meuId }: { linhas: LinhaRanking[]; meuId: string }) {
+function TabelaRanking({ linhas, meuId, semMedalha = false }: { linhas: LinhaRanking[]; meuId: string; semMedalha?: boolean }) {
   const grade = '70px minmax(140px, 1.6fr) repeat(9, minmax(78px, 1fr))'
 
   return (
     <div className="table-wrap">
       <div className="table-scroll">
         <div className="trow thead" style={{ gridTemplateColumns: grade, minWidth: 1050 }}>
-          <span>Posição</span>
+          <span>{semMedalha ? 'Ordem ★' : 'Posição'}</span>
           <span>Atendente</span>
           <span style={{ textAlign: 'right' }} title="Estrelas por cumprimento do prazo">★ Prazo</span>
           <span style={{ textAlign: 'right' }} title="Estrelas pela avaliação do cliente">★ Avaliação</span>
@@ -240,7 +243,7 @@ function TabelaRanking({ linhas, meuId }: { linhas: LinhaRanking[]; meuId: strin
               style={{ gridTemplateColumns: grade, minWidth: 1050 }}
             >
               <span className="posicao-cel">
-                {l.posicao}º {medalha(l.posicao) && <span aria-label={'Medalha de ' + rotuloMedalha(l.posicao)}>{medalha(l.posicao)}</span>}
+                {l.posicao}º {!semMedalha && medalha(l.posicao) && <span aria-label={'Medalha de ' + rotuloMedalha(l.posicao)}>{medalha(l.posicao)}</span>}
               </span>
               <span className="tname">
                 {l.nome}
@@ -364,10 +367,12 @@ function AbaMensal({
 function AbaAnual({
   hoje,
   meuId,
+  ehGestor,
   versao,
 }: {
   hoje: ReturnType<typeof hojeBrasilia>
   meuId: string
+  ehGestor: boolean
   versao: number
 }) {
   const [ano, setAno] = useState(hoje.ano)
@@ -375,6 +380,8 @@ function AbaAnual({
   const [fech, setFech] = useState<Fechamento | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
+  const [revelando, setRevelando] = useState(false)
+  const [recarregar, setRecarregar] = useState(0)
 
   useEffect(() => {
     let ativo = true
@@ -382,11 +389,8 @@ function AbaAnual({
 
     async function carregar() {
       try {
-        const { data: f } = await supabase
-          .from('estrelas_fechamentos')
-          .select('ano, data_fechamento, fechado_em, classificacao')
-          .eq('ano', ano)
-          .maybeSingle()
+        /* select('*'): continua funcionando antes do SQL do índice final. */
+        const { data: f } = await supabase.from('estrelas_fechamentos').select('*').eq('ano', ano).maybeSingle()
 
         const fechamento = (f as Fechamento) || null
         let r: LinhaRanking[]
@@ -411,11 +415,26 @@ function AbaAnual({
     return () => {
       ativo = false
     }
-  }, [ano, versao])
+  }, [ano, versao, recarregar])
 
   const fechado = !!fech?.fechado_em
+  const finalPorIndice = fechado && linhas.length > 0 && (linhas[0] as any).criterio === 'indice_final'
   const anos = Array.from({ length: 4 }, (_, i) => hoje.ano - i)
   const empatadosNoTopo = linhas.filter((l) => l.posicao === 1).length
+  const regra = regraFinal(fech)
+  const liberado = podeRevelar(fech, hoje.iso)
+
+  async function revelar() {
+    if (!fech) return
+    if (!window.confirm('Revelar o resultado final de ' + ano + '? O índice é calculado agora e a classificação fica congelada para sempre.')) return
+    setRevelando(true)
+    setErro('')
+    const { error } = await supabase.rpc('estrelas_fechar_ano', { p_ano: ano, p_motivo: 'Resultado final revelado' })
+    setRevelando(false)
+    if (error) return setErro(error.message)
+    avisarAtualizacao()
+    setRecarregar((v) => v + 1)
+  }
 
   return (
     <>
@@ -427,30 +446,170 @@ function AbaAnual({
         </select>
         <span className={'selo-periodo ' + (fechado ? 'final' : 'provisorio')}>
           {fechado
-            ? 'Classificação final (fechada em ' + formatarDataHora(fech!.fechado_em) + ')'
-            : 'Resultado provisório' + (fech ? ' · fechamento em ' + formatarData(fech.data_fechamento) : '')}
+            ? 'Resultado final (revelado em ' + formatarDataHora(fech!.fechado_em) + ')'
+            : 'Em andamento' + (fech ? ' · resultado revelado a partir de ' + formatarData(fech.data_fechamento) : '')}
         </span>
       </div>
 
-      <div className="section-title">Ranking por estrelas acumuladas — janeiro a dezembro de {ano}</div>
       {erro && <div className="banner bad">{erro}</div>}
-      {carregando ? <div className="empty-state">Carregando...</div> : (
+
+      {!fechado && (
+        <div className="panel">
+          <div className="panel-body" style={{ display: 'grid', gap: 10 }}>
+            <div className="section-title">Quem ganha {ano}? Só no dia do fechamento</div>
+            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+              O vencedor do ano sai do <strong>índice final</strong>, calculado só quando a gestão revelar o resultado:
+              {' '}<strong>{regra.peso_estrelas}%</strong> estrelas do ano (volume),{' '}
+              <strong>{regra.peso_prazo}%</strong> % no prazo e <strong>{regra.peso_nota}%</strong> nota do cliente
+              ajustada ao número de avaliações. Concorre quem resolveu no mínimo{' '}
+              <strong>{regra.minimo_resolvidos}</strong> chamados no ano (1/1 a 31/12). Desempate: % no prazo, depois estrelas.
+            </p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-muted)' }}>
+              A tabela abaixo mostra só as estrelas acumuladas. Ela não é a classificação final.
+            </p>
+            {ehGestor && fech && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={!liberado || revelando}
+                  onClick={revelar}
+                  style={{
+                    background: liberado ? 'var(--success)' : undefined,
+                    borderColor: liberado ? 'var(--success)' : undefined,
+                    color: liberado ? '#fff' : undefined,
+                    fontWeight: 800,
+                  }}
+                >
+                  {revelando ? 'Calculando…' : 'Revelar o resultado de ' + ano}
+                </button>
+                <span style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+                  {liberado
+                    ? 'Liberado. Decida antes as extensões de prazo pendentes.'
+                    : fech.data_fechamento <= ano + '-12-31'
+                      ? 'A data marcada (' + formatarData(fech.data_fechamento) + ') está antes do fim do ano. Ajuste em Gestão do programa para janeiro de ' + (ano + 1) + '.'
+                      : 'Disponível a partir de ' + formatarData(fech.data_fechamento) + '.'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {finalPorIndice ? (
         <>
-          <Podio linhas={linhas} />
-          <TabelaRanking linhas={linhas} meuId={meuId} />
+          <div className="section-title">Classificação final pelo índice — janeiro a dezembro de {ano}</div>
+          {carregando ? <div className="empty-state">Carregando...</div> : (
+            <>
+              <PodioFinal linhas={linhas as LinhaFinal[]} />
+              <TabelaFinal linhas={linhas as LinhaFinal[]} meuId={meuId} minimo={regra.minimo_resolvidos} />
+            </>
+          )}
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
+            Índice = {regra.peso_estrelas}% estrelas (em relação ao maior total) + {regra.peso_prazo}% % no prazo +{' '}
+            {regra.peso_nota}% nota ajustada (média do time pesando como {regra.ajuste_nota_k} avaliações). Esta é a
+            versão final usada na premiação; ajustes posteriores não a alteram.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="section-title">
+            {fechado ? 'Ranking por estrelas acumuladas' : 'Estrelas acumuladas (não é a classificação final)'} — janeiro a dezembro de {ano}
+          </div>
+          {carregando ? <div className="empty-state">Carregando...</div> : (
+            <>
+              {fechado && <Podio linhas={linhas} />}
+              <TabelaRanking linhas={linhas} meuId={meuId} semMedalha={!fechado} />
+            </>
+          )}
+          {fechado && empatadosNoTopo > 1 && (
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--ink-muted)' }}>
+              Empate no 1º lugar: a premiação de fim de ano é compartilhada entre os empatados.
+            </p>
+          )}
+          {fechado && (
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
+              Esta é a versão final usada na premiação. Ajustes posteriores não alteram a classificação fechada.
+            </p>
+          )}
         </>
       )}
-      {empatadosNoTopo > 1 && (
-        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--ink-muted)' }}>
-          Empate no 1º lugar: a premiação de fim de ano é compartilhada entre os empatados.
-        </p>
-      )}
-      {fechado && (
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
-          Esta é a versão final usada na premiação. Ajustes posteriores não alteram a classificação fechada.
-        </p>
-      )}
     </>
+  )
+}
+
+function PodioFinal({ linhas }: { linhas: LinhaFinal[] }) {
+  const topo = linhas.filter((l) => l.elegivel && l.posicao !== null && l.posicao <= 3)
+  if (topo.length === 0) return null
+
+  return (
+    <div className="podio">
+      {topo.map((l) => (
+        <div key={l.atendente_id} className={'podio-card p' + l.posicao}>
+          <div className="podio-medalha" aria-hidden="true">{medalha(l.posicao as number)}</div>
+          <div className="podio-detalhe" style={{ fontWeight: 700 }}>
+            {l.posicao}º lugar · medalha de {rotuloMedalha(l.posicao as number)}
+          </div>
+          <div className="podio-nome">{l.nome}</div>
+          <div className="podio-total">{Number(l.indice).toLocaleString('pt-BR', { minimumFractionDigits: 1 })} pts</div>
+          <div className="podio-detalhe">
+            {l.total} ★ · {percentual(l.dentro_prazo, l.dentro_prazo + l.fora_prazo)} no prazo · nota {media(l.nota_ajustada)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function TabelaFinal({ linhas, meuId, minimo }: { linhas: LinhaFinal[]; meuId: string; minimo: number }) {
+  const grade = '70px minmax(140px, 1.6fr) repeat(7, minmax(84px, 1fr))'
+  const fmt = (n: number) => Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+  return (
+    <div className="table-wrap">
+      <div className="table-scroll">
+        <div className="trow thead" style={{ gridTemplateColumns: grade, minWidth: 960 }}>
+          <span>Posição</span>
+          <span>Atendente</span>
+          <span style={{ textAlign: 'right' }}>Índice</span>
+          <span style={{ textAlign: 'right' }}>★ Total</span>
+          <span style={{ textAlign: 'right' }}>% no prazo</span>
+          <span style={{ textAlign: 'right' }} title="Média do cliente ajustada ao número de avaliações">Nota ajustada</span>
+          <span style={{ textAlign: 'right' }}>Resolvidos</span>
+          <span style={{ textAlign: 'right' }}>Avaliações</span>
+          <span style={{ textAlign: 'right' }} title="Posição pelas estrelas acumuladas">Pelas ★</span>
+        </div>
+        {linhas.map((l) => (
+          <div
+            key={l.atendente_id}
+            className={'trow' + (l.atendente_id === meuId ? ' linha-minha' : '')}
+            style={{ gridTemplateColumns: grade, minWidth: 960, opacity: l.elegivel ? 1 : 0.6 }}
+          >
+            <span className="posicao-cel">
+              {l.elegivel && l.posicao ? (
+                <>
+                  {l.posicao}º {medalha(l.posicao) && <span aria-label={'Medalha de ' + rotuloMedalha(l.posicao)}>{medalha(l.posicao)}</span>}
+                </>
+              ) : (
+                <span title={'Menos de ' + minimo + ' chamados resolvidos no ano'}>—</span>
+              )}
+            </span>
+            <span className="tname">
+              {l.nome}
+              {l.atendente_id === meuId && <span className="pill flat" style={{ marginLeft: 6, fontSize: 10 }}>você</span>}
+              {!l.elegivel && <span className="pill flat" style={{ marginLeft: 6, fontSize: 10 }}>abaixo do mínimo</span>}
+            </span>
+            <span className="mono estrela-ouro" style={{ textAlign: 'right', fontWeight: 800 }}>{fmt(l.indice)}</span>
+            <span className="mono" style={{ textAlign: 'right' }}>{l.total} ★</span>
+            <span className="mono" style={{ textAlign: 'right' }}>{percentual(l.dentro_prazo, l.dentro_prazo + l.fora_prazo)}</span>
+            <span className="mono" style={{ textAlign: 'right' }}>{media(l.nota_ajustada)}</span>
+            <span className="mono" style={{ textAlign: 'right' }}>{l.resolvidos}</span>
+            <span className="mono" style={{ textAlign: 'right' }}>{l.avaliados}</span>
+            <span className="mono" style={{ textAlign: 'right' }}>{l.posicao_estrelas}º</span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -729,8 +888,14 @@ function TextoComoFunciona({ cfg }: { cfg: ConfigEstrelas | null }) {
             resolvidos. Empates ficam na mesma posição.
           </li>
           <li style={item}>
-            No fim do ano, na data definida pela gestão, a classificação anual é fechada e congelada. É essa
-            versão que vale para a premiação.
+            O vencedor do ano sai do <strong>índice final</strong>: 40% estrelas do ano (volume), 40% % no prazo e
+            20% nota do cliente ajustada ao número de avaliações (quem tem poucas avaliações fica perto da média do
+            time). Concorre quem resolveu no mínimo 10 chamados no ano. Desempate: % no prazo, depois estrelas.
+          </li>
+          <li style={item}>
+            O resultado cobre o ano civil (1/1 a 31/12). Ninguém vê o índice antes: ele é calculado só quando a gestão
+            clica em “Revelar o resultado”, em janeiro, e a classificação fica congelada. É essa versão que vale para a
+            premiação. Antes de revelar, todas as extensões de prazo do ano precisam estar decididas.
           </li>
           <li style={item}>
             Mudanças nas regras valem só para novas concessões. Chamados já pontuados mantêm a regra da época.
@@ -811,7 +976,7 @@ function DadosAtuais({
             ? 'Data não definida (obrigatória para ativar o programa)'
             : fech.fechado_em
               ? 'Fechado em ' + formatarDataHora(fech.fechado_em) + '. Classificação congelada.'
-              : 'Previsto para ' + formatarData(fech.data_fechamento) + ' (ainda aberto)'}
+              : 'Resultado revelado a partir de ' + formatarData(fech.data_fechamento) + ' (índice final; ainda em andamento)'}
         </span>
       </div>
 
@@ -883,7 +1048,7 @@ function AbaGestao({
 
   const carregar = useCallback(async () => {
     const [{ data: f }, { data: r }, { data: p }, { data: a }] = await Promise.all([
-      supabase.from('estrelas_fechamentos').select('ano, data_fechamento, fechado_em, classificacao').order('ano', { ascending: false }),
+      supabase.from('estrelas_fechamentos').select('*').order('ano', { ascending: false }),
       supabase
         .from('chamado_avaliacoes')
         .select('chamado_id, nota, comentario, created_at, acompanhado_em, acompanhamento, chamados(numero, assunto, responsavel_id)')
@@ -969,11 +1134,11 @@ function AbaGestao({
   }
 
   async function fecharAno(ano: number) {
-    if (!window.confirm('Fechar a classificação de ' + ano + '? A versão final não poderá mais ser alterada.')) return
+    if (!window.confirm('Revelar o resultado final de ' + ano + '? O índice é calculado agora e a classificação fica congelada para sempre.')) return
     setErro('')
     const { error } = await supabase.rpc('estrelas_fechar_ano', { p_ano: ano, p_motivo: null })
     if (error) return setErro(error.message)
-    setMsg('Classificação de ' + ano + ' fechada.')
+    setMsg('Resultado final de ' + ano + ' revelado. Veja na aba Anual.')
     avisarAtualizacao()
     carregar()
   }
@@ -1121,11 +1286,22 @@ function AbaGestao({
                 <span className="pill good">Fechado em {formatarDataHora(f.fechado_em)}</span>
               ) : (
                 <>
-                  <span className="pill warn">Provisório</span>
-                  <button type="button" className="btn btn-sm" disabled={hoje.iso < f.data_fechamento} onClick={() => fecharAno(f.ano)}
-                    title={hoje.iso < f.data_fechamento ? 'Disponível a partir da data de fechamento' : ''}>
-                    Fechar classificação de {f.ano}
+                  <span className="pill warn">Em andamento</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={!podeRevelar(f, hoje.iso)}
+                    onClick={() => fecharAno(f.ano)}
+                    title={podeRevelar(f, hoje.iso) ? '' : 'Disponível depois de 31/12 e a partir da data de fechamento'}
+                    style={podeRevelar(f, hoje.iso) ? { background: 'var(--success)', borderColor: 'var(--success)', color: '#fff', fontWeight: 800 } : undefined}
+                  >
+                    Revelar o resultado de {f.ano}
                   </button>
+                  {f.data_fechamento <= f.ano + '-12-31' && (
+                    <span style={{ fontSize: 12.5, color: 'var(--danger)' }}>
+                      Data antes do fim do ano: o resultado cobre 1/1 a 31/12. Salve uma data em janeiro de {f.ano + 1}.
+                    </span>
+                  )}
                 </>
               )}
             </div>
