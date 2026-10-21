@@ -318,6 +318,7 @@ const manualCliente: Manual = {
                   { titulo: 'Atendimento suspenso', texto: 'Impedimento fora do nosso controle. Prazo pausado.' },
                   { titulo: 'Resolvido', texto: 'Solução entregue, aguardando sua conferência.' },
                   { titulo: 'Encerrado', texto: 'Finalizado. Não recebe mais movimentação.' },
+                  { titulo: 'Cancelado', texto: 'Encerrado sem atendimento. Você vê o motivo.' },
                 ],
               },
             ],
@@ -329,6 +330,7 @@ const manualCliente: Manual = {
             'Atendimento suspenso: o atendimento parou por um impedimento fora do nosso controle (sistema indisponível, falha de software, fornecedor). Você vê o motivo e a data prevista da próxima atualização, e o prazo fica pausado.',
             'Resolvido: confira a solução. Se algo não estiver certo, é só responder na conversa que o chamado volta para atendimento.',
             'Encerrado: sem resposta em 24 horas úteis depois de resolvido, o chamado é encerrado automaticamente. Se o assunto voltar, abra um novo chamado.',
+            'Cancelado: o chamado foi encerrado sem atendimento (por exemplo, duplicado, aberto por engano ou desistência). O motivo aparece no chamado e você recebe e-mail. Se ainda precisar, responda na conversa ou abra um novo chamado.',
           ],
         },
         {
@@ -575,6 +577,7 @@ const manualCliente: Manual = {
             'Mandei um arquivo errado. Avise na conversa do chamado e envie o arquivo correto.',
             'Recebi um e-mail de lembrete. O chamado está esperando uma resposta sua há mais tempo que o combinado. Responda na conversa do chamado que o lembrete para.',
             'O que é "Atendimento suspenso"? O atendimento parou por um impedimento fora do nosso controle (sistema indisponível, fornecedor, órgão). O chamado mostra o motivo e a data da próxima atualização, e o prazo fica pausado até a retomada.',
+            'Meu chamado foi cancelado. Por quê? O motivo aparece no topo do chamado e no e-mail que você recebeu. Se ainda precisar de ajuda, responda na conversa que a nossa equipe avalia, ou abra um novo chamado.',
             'Esqueci a senha ou meu acesso está inativo. Fale com a nossa equipe para gerar uma nova senha ou reativar o acesso.',
           ],
         },

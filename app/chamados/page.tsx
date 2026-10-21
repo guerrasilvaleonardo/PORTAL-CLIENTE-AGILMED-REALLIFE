@@ -38,6 +38,7 @@ const ROTULO_STATUS: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 const PILL_STATUS: Record<string, string> = {
@@ -47,6 +48,7 @@ const PILL_STATUS: Record<string, string> = {
   suspenso: 'pill bad',
   resolvido: 'pill good',
   encerrado: 'pill flat',
+  cancelado: 'pill flat',
 }
 
 const ROTULO_PRIORIDADE: Record<string, string> = {
@@ -317,6 +319,7 @@ export default function ChamadosPage() {
               <option value="suspenso">Atendimento suspenso</option>
               <option value="resolvido">Resolvido</option>
               <option value="encerrado">Encerrado</option>
+              <option value="cancelado">Cancelado</option>
             </select>
           </div>
 

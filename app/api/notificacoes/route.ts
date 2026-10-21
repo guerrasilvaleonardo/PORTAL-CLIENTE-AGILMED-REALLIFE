@@ -549,6 +549,7 @@ export async function POST(request: Request) {
         suspenso: 'Atendimento suspenso',
         resolvido: 'Resolvido',
         encerrado: 'Encerrado',
+        cancelado: 'Cancelado',
       }
 
       const rotulo = rotulos[chamado.status] || chamado.status
@@ -572,6 +573,21 @@ export async function POST(request: Request) {
             (d ? '<br><strong>Próxima atualização prevista:</strong> ' + d + '/' + m + '/' + a : '') +
             '<br>Enquanto a suspensão durar, o prazo de atendimento fica pausado.'
         }
+      }
+
+      /* Cancelado: o cliente vê o motivo (a observação interna fica com a equipe). */
+      if (chamado.status === 'cancelado') {
+        const { data: canc } = await supabaseAdmin
+          .from('chamados')
+          .select('cancelamento_motivo')
+          .eq('id', chamado.id)
+          .maybeSingle()
+
+        linhaSuspensao =
+          (canc?.cancelamento_motivo
+            ? '<strong>Motivo:</strong> ' + escapar(canc.cancelamento_motivo) + '<br>'
+            : '') +
+          'Se ainda precisar de ajuda com este assunto, responda pelo portal ou abra um novo chamado.'
       }
 
       assunto = 'Chamado ' + codigo + ' agora está ' + rotulo

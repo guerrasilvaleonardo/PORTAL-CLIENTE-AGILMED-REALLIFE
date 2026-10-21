@@ -44,6 +44,7 @@ const rotuloSituacao: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 function iniciais(nome: string) {
@@ -96,6 +97,7 @@ const CORES_STATUS: Record<string, string> = {
   suspenso: 'var(--danger)',
   resolvido: 'var(--success)',
   encerrado: 'var(--success)',
+  cancelado: '#94a3b8',
 }
 
 type Indicadores = {

@@ -17,6 +17,7 @@ export type Situacao =
   | 'suspenso'
   | 'resolvido'
   | 'encerrado'
+  | 'cancelado'
 
 export const ORDEM_SITUACOES: Situacao[] = [
   'aberto',
@@ -25,6 +26,7 @@ export const ORDEM_SITUACOES: Situacao[] = [
   'suspenso',
   'resolvido',
   'encerrado',
+  'cancelado',
 ]
 
 export const ROTULO_SITUACAO: Record<string, string> = {
@@ -34,6 +36,7 @@ export const ROTULO_SITUACAO: Record<string, string> = {
   suspenso: 'Atendimento suspenso',
   resolvido: 'Resolvido',
   encerrado: 'Encerrado',
+  cancelado: 'Cancelado',
 }
 
 export const COR_SITUACAO: Record<string, string> = {
@@ -43,6 +46,7 @@ export const COR_SITUACAO: Record<string, string> = {
   suspenso: '#b91c1c',
   resolvido: 'var(--success)',
   encerrado: 'var(--success)',
+  cancelado: 'var(--ink-faint)',
 }
 
 export const PILL_SITUACAO: Record<string, string> = {
@@ -52,6 +56,7 @@ export const PILL_SITUACAO: Record<string, string> = {
   suspenso: 'pill bad',
   resolvido: 'pill good',
   encerrado: 'pill flat',
+  cancelado: 'pill flat',
 }
 
 /*
@@ -73,6 +78,8 @@ export const EXPLICACAO_CLIENTE: Record<string, string> = {
     'A solução foi entregue e o chamado aguarda a sua conferência. Se ainda não estiver certo, é só responder que ele volta para atendimento.',
   encerrado:
     'O chamado foi finalizado e não recebe mais movimentação. Se o assunto voltar, abra um novo chamado.',
+  cancelado:
+    'O chamado foi cancelado sem atendimento (por exemplo, duplicado, aberto por engano ou desistência). Você vê o motivo no chamado. Se ainda precisar, responda por aqui ou abra um novo chamado.',
 }
 
 export const EXPLICACAO_EQUIPE: Record<string, string> = {
@@ -88,6 +95,8 @@ export const EXPLICACAO_EQUIPE: Record<string, string> = {
     'A solução foi entregue e está em conferência pelo cliente. Ainda pode voltar para atendimento se ele responder.',
   encerrado:
     'Finalizado, sem mais movimentação. Entra na contagem de resolvidos do período.',
+  cancelado:
+    'Encerrado sem atendimento. Só gestor ou admin cancela, com motivo da lista e observação interna. Fica fora do SLA e das estrelas e não pede avaliação. O gestor pode desfazer voltando para Aberto ou Em atendimento.',
 }
 
 /*
