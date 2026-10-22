@@ -46,3 +46,17 @@
     background: var(--danger-tint, #fde8e8) !important;
   }
 }
+
+/* Ponto vermelho piscando enquanto grava áudio. */
+.gravando-ponto {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: conversa-nova-pisca-ponto 1s ease-in-out infinite;
+}
+
+@keyframes conversa-nova-pisca-ponto {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}

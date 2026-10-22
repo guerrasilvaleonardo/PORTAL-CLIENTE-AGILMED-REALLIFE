@@ -4,6 +4,15 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import './chat.css'
+import AnexoChat from '@/components/AnexoChat'
+import {
+  AUDIO_MAX_SEGUNDOS,
+  IMAGEM_MAX_BYTES,
+  TIPOS_IMAGEM,
+  duracaoTexto,
+  enviarAnexoChat,
+  formatoAudio,
+} from '@/lib/chatAnexos'
 
 /*
  * Antes este chat era uma sala unica onde todo mundo falava junto.
@@ -28,7 +37,15 @@ type Mensagem = {
   lido_em: string | null
   autor_nome: string | null
   autor_email: string | null
+  /* Áudio ou imagem (supabase/conversas-audio-imagem.sql). */
+  anexo_path?: string | null
+  anexo_tipo?: string | null
+  anexo_duracao?: number | null
 }
+
+/* Texto guardado junto do anexo (aparece na prévia da lista). */
+const TEXTO_AUDIO = '🎤 Áudio'
+const TEXTO_IMAGEM = '📷 Imagem'
 
 type Contato = {
   id: string
@@ -100,13 +117,28 @@ export default function ChatEquipePage() {
    * de cada conversa sai sem uma consulta por pessoa.
    */
   async function carregar() {
-    const { data, error } = await supabase
+    /*
+     * As 600 mais recentes (antes vinham as 600 mais antigas, e mensagens
+     * novas deixariam de aparecer quando o histórico passasse disso).
+     */
+    const campos =
+      'id, autor_id, destinatario_id, texto, created_at, lido_em, profiles!chat_equipe_autor_id_fkey(nome, email)'
+    let { data, error }: { data: any[] | null; error: any } = await supabase
       .from('chat_equipe')
-      .select(
-        'id, autor_id, destinatario_id, texto, created_at, lido_em, profiles!chat_equipe_autor_id_fkey(nome, email)'
-      )
-      .order('created_at', { ascending: true })
+      .select(campos + ', anexo_path, anexo_tipo, anexo_duracao')
+      .order('created_at', { ascending: false })
       .limit(600)
+
+    /* Sem o SQL de anexos ainda: carrega só o texto. */
+    if (error && /anexo_/i.test(error.message || '')) {
+      ;({ data, error } = await supabase
+        .from('chat_equipe')
+        .select(campos)
+        .order('created_at', { ascending: false })
+        .limit(600))
+    }
+
+    data = (data || []).slice().reverse()
 
     if (error) {
       console.error(error)
@@ -124,6 +156,9 @@ export default function ChatEquipePage() {
         lido_em: m.lido_em ?? null,
         autor_nome: m.profiles?.nome ?? null,
         autor_email: m.profiles?.email ?? null,
+        anexo_path: m.anexo_path ?? null,
+        anexo_tipo: m.anexo_tipo ?? null,
+        anexo_duracao: m.anexo_duracao ?? null,
       })) as Mensagem[]
     )
   }
@@ -375,6 +410,117 @@ export default function ChatEquipePage() {
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight + 2, 200) + 'px'
   }, [texto])
+
+  /* ---------- Áudio e imagem ---------- */
+  const [gravando, setGravando] = useState(false)
+  const [segundos, setSegundos] = useState(0)
+  const gravador = useRef<MediaRecorder | null>(null)
+  const pedacos = useRef<Blob[]>([])
+  const inicioGravacao = useRef(0)
+  const descartar = useRef(false)
+  const relogioGravacao = useRef<ReturnType<typeof setInterval> | null>(null)
+  const seletorImagem = useRef<HTMLInputElement | null>(null)
+
+  async function enviarComAnexo(arquivo: Blob, tipo: 'audio' | 'imagem', duracao?: number) {
+    if (!conversa || !meuId) return
+    try {
+      setEnviando(true)
+      setErro('')
+      const caminho = await enviarAnexoChat(meuId, arquivo)
+      const legenda = texto.trim()
+      const { error } = await supabase.from('chat_equipe').insert({
+        autor_id: meuId,
+        destinatario_id: conversa === GERAL ? null : conversa,
+        texto: tipo === 'imagem' && legenda ? legenda : tipo === 'audio' ? TEXTO_AUDIO : TEXTO_IMAGEM,
+        anexo_path: caminho,
+        anexo_tipo: tipo,
+        anexo_duracao: tipo === 'audio' ? Math.round(duracao || 0) : null,
+      })
+      if (error) throw error
+      if (tipo === 'imagem') setTexto('')
+      await carregar()
+    } catch (e: any) {
+      console.error(e)
+      setErro(e?.message || 'Não foi possível enviar o arquivo.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  function escolherImagem(arquivo: File | null | undefined) {
+    if (!arquivo) return
+    if (!TIPOS_IMAGEM.includes(arquivo.type)) {
+      setErro('Envie imagem JPG, PNG ou WEBP.')
+      return
+    }
+    if (arquivo.size > IMAGEM_MAX_BYTES) {
+      setErro('A imagem passa de 10 MB.')
+      return
+    }
+    enviarComAnexo(arquivo, 'imagem')
+  }
+
+  function pararRelogio() {
+    if (relogioGravacao.current) clearInterval(relogioGravacao.current)
+    relogioGravacao.current = null
+  }
+
+  async function iniciarGravacao() {
+    const formato = formatoAudio()
+    if (formato === null || !navigator.mediaDevices?.getUserMedia) {
+      setErro('Este navegador não grava áudio. Use o Chrome, Edge, Firefox ou Safari atualizado.')
+      return
+    }
+    try {
+      const fluxo = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = formato ? new MediaRecorder(fluxo, { mimeType: formato }) : new MediaRecorder(fluxo)
+      pedacos.current = []
+      descartar.current = false
+      rec.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) pedacos.current.push(ev.data)
+      }
+      rec.onstop = () => {
+        fluxo.getTracks().forEach((t) => t.stop())
+        pararRelogio()
+        setGravando(false)
+        const duracao = (Date.now() - inicioGravacao.current) / 1000
+        if (descartar.current || pedacos.current.length === 0 || duracao < 1) return
+        const blob = new Blob(pedacos.current, { type: rec.mimeType || formato || 'audio/webm' })
+        enviarComAnexo(blob, 'audio', Math.min(duracao, AUDIO_MAX_SEGUNDOS))
+      }
+      gravador.current = rec
+      inicioGravacao.current = Date.now()
+      setSegundos(0)
+      setGravando(true)
+      setErro('')
+      rec.start(250)
+      relogioGravacao.current = setInterval(() => {
+        const s = Math.floor((Date.now() - inicioGravacao.current) / 1000)
+        setSegundos(s)
+        if (s >= AUDIO_MAX_SEGUNDOS && gravador.current?.state === 'recording') gravador.current.stop()
+      }, 250)
+    } catch (e: any) {
+      setErro(
+        /denied|permission|NotAllowed/i.test(String(e?.name || e?.message))
+          ? 'O navegador bloqueou o microfone. Libere o microfone para este site (ícone ao lado do endereço) e tente de novo.'
+          : 'Não foi possível acessar o microfone.'
+      )
+    }
+  }
+
+  function finalizarGravacao(enviarAudio: boolean) {
+    descartar.current = !enviarAudio
+    if (gravador.current?.state === 'recording') gravador.current.stop()
+  }
+
+  /* Sair da conversa ou da tela no meio da gravação descarta o áudio. */
+  useEffect(() => {
+    return () => {
+      descartar.current = true
+      if (gravador.current?.state === 'recording') gravador.current.stop()
+      pararRelogio()
+    }
+  }, [conversa])
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -822,7 +968,16 @@ export default function ChatEquipePage() {
                                 wordBreak: 'break-word',
                               }}
                             >
-                              {m.texto}
+                              {m.anexo_path ? (
+                                <>
+                                  <AnexoChat caminho={m.anexo_path} tipo={m.anexo_tipo || null} duracao={m.anexo_duracao ?? null} />
+                                  {m.texto && m.texto !== TEXTO_AUDIO && m.texto !== TEXTO_IMAGEM && (
+                                    <div style={{ marginTop: 6 }}>{m.texto}</div>
+                                  )}
+                                </>
+                              ) : (
+                                m.texto
+                              )}
                             </div>
 
                             {/*
@@ -869,8 +1024,39 @@ export default function ChatEquipePage() {
                  * Campo cresce com o texto (até ~8 linhas, depois rola).
                  * Enter envia; Shift+Enter quebra a linha.
                  */}
+                {gravando ? (
+                  <div
+                    role="status"
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      border: '1px solid var(--danger)',
+                      borderRadius: 12,
+                      padding: '11px 14px',
+                      fontSize: 14,
+                      background: 'var(--surface)',
+                      minHeight: 44,
+                    }}
+                  >
+                    <span className="gravando-ponto" aria-hidden="true" />
+                    Gravando {duracaoTexto(segundos)} / {duracaoTexto(AUDIO_MAX_SEGUNDOS)}
+                    <span style={{ flex: 1 }} />
+                    <button type="button" className="btn btn-sm" onClick={() => finalizarGravacao(false)}>
+                      Descartar
+                    </button>
+                  </div>
+                ) : (
                 <textarea
                   ref={campoTexto}
+                  onPaste={(e) => {
+                    const img = Array.from(e.clipboardData?.files || []).find((f) => f.type.startsWith('image/'))
+                    if (img) {
+                      e.preventDefault()
+                      escolherImagem(img)
+                    }
+                  }}
                   rows={1}
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
@@ -905,14 +1091,58 @@ export default function ChatEquipePage() {
                     overflowY: 'auto',
                   }}
                 />
+                )}
 
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={enviando || !texto.trim() || !conversa}
-                >
-                  {enviando ? 'Enviando...' : 'Enviar'}
-                </button>
+                <input
+                  ref={seletorImagem}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    escolherImagem(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+
+                {!gravando && (
+                  <button
+                    type="button"
+                    className="btn"
+                    title="Enviar imagem (também dá para colar com Ctrl+V)"
+                    aria-label="Enviar imagem"
+                    disabled={enviando || !conversa}
+                    onClick={() => seletorImagem.current?.click()}
+                  >
+                    📷
+                  </button>
+                )}
+
+                {gravando ? (
+                  <button type="button" className="btn btn-primary" onClick={() => finalizarGravacao(true)}>
+                    Enviar áudio
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn"
+                    title={'Gravar áudio (até ' + AUDIO_MAX_SEGUNDOS / 60 + ' minutos)'}
+                    aria-label="Gravar áudio"
+                    disabled={enviando || !conversa}
+                    onClick={iniciarGravacao}
+                  >
+                    🎤
+                  </button>
+                )}
+
+                {!gravando && (
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={enviando || !texto.trim() || !conversa}
+                  >
+                    {enviando ? 'Enviando...' : 'Enviar'}
+                  </button>
+                )}
               </form>
             </div>
           </div>
