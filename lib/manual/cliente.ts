@@ -559,6 +559,7 @@ const manualCliente: Manual = {
             'Escolha na lista com quem quer falar. Mensagem nova acende um balão vermelho piscando na aba Conversas, em qualquer tela do portal; na lista, quem mandou mensagem nova sobe para o topo, em "Novas mensagens", piscando até você abrir a conversa.',
             'Abaixo de cada mensagem que você enviou: ✓ cinza = entregue; ✓✓ verde = a nossa equipe leu.',
             'O campo de escrever cresce conforme o texto. Enter envia; Shift+Enter pula linha.',
+            '🎤 grava um áudio de até 2 minutos (na primeira vez o navegador pede para usar o microfone). 📷 envia uma imagem ou um print (também dá para colar com Ctrl+V). Só você e a pessoa da conversa abrem os arquivos.',
             'A conversa é privada, só entre vocês dois, e se atualiza sozinha a cada poucos segundos.',
             'Escreva e clique em Enviar.',
           ],
