@@ -310,13 +310,36 @@ export default function ChatEquipePage() {
     )
   }, [contatos, busca])
 
-  const equipe = filtrados.filter((c) =>
-    PERFIS_INTERNOS.includes(c.perfil || '')
-  )
+  /*
+   * Quem mandou mensagem nova sobe para o topo ("Novas mensagens"), da
+   * mais recente para a mais antiga, piscando até a conversa ser aberta.
+   * Nas demais seções, conversas mais recentes primeiro.
+   */
+  const ultimaNaoLida = useMemo(() => {
+    const mapa: Record<string, string> = {}
+    for (const m of mensagens) {
+      if (m.destinatario_id === meuId && !m.lido_em) {
+        if (!mapa[m.autor_id] || m.created_at > mapa[m.autor_id]) mapa[m.autor_id] = m.created_at
+      }
+    }
+    return mapa
+  }, [mensagens, meuId])
 
-  const clientes = filtrados.filter(
-    (c) => !PERFIS_INTERNOS.includes(c.perfil || '')
-  )
+  const recente = (id: string) => previa[id]?.created_at || ''
+  const porRecente = (a: Contato, b: Contato) => recente(b.id).localeCompare(recente(a.id))
+
+  const novas = filtrados
+    .filter((c) => naoLidas[c.id] && c.id !== conversa)
+    .sort((a, b) => (ultimaNaoLida[b.id] || '').localeCompare(ultimaNaoLida[a.id] || ''))
+  const idsNovas = new Set(novas.map((c) => c.id))
+
+  const equipe = filtrados
+    .filter((c) => PERFIS_INTERNOS.includes(c.perfil || '') && !idsNovas.has(c.id))
+    .sort(porRecente)
+
+  const clientes = filtrados
+    .filter((c) => !PERFIS_INTERNOS.includes(c.perfil || '') && !idsNovas.has(c.id))
+    .sort(porRecente)
 
   const escolhido = contatos.find((c) => c.id === conversa) || null
 
@@ -400,6 +423,7 @@ export default function ChatEquipePage() {
     return (
       <button
         type="button"
+        className={marcador && !ativo ? 'conversa-nova' : undefined}
         onClick={() => {
           setConversa(id)
           setListaAberta(false)
@@ -456,7 +480,8 @@ export default function ChatEquipePage() {
             style={{
               display: 'block',
               fontSize: 11.5,
-              color: 'var(--ink-faint)',
+              color: marcador ? 'var(--ink)' : 'var(--ink-faint)',
+              fontWeight: marcador ? 700 : 400,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -510,6 +535,24 @@ export default function ChatEquipePage() {
       />
 
       <div style={{ display: 'grid', gap: 3 }}>
+        {novas.length > 0 && (
+          <>
+            <div className="section-title" style={{ padding: '4px 10px', color: 'var(--danger)' }}>
+              Novas mensagens ({novas.length})
+            </div>
+
+            {novas.map((c) => (
+              <ItemConversa
+                key={c.id}
+                id={c.id}
+                titulo={nomeDe(c)}
+                detalhe={c.empresa_nome || c.email || ''}
+                marcador={naoLidas[c.id]}
+              />
+            ))}
+          </>
+        )}
+
         {interno && !busca.trim() && (
           <>
             <div className="section-title" style={{ padding: '4px 10px' }}>
