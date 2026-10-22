@@ -25,3 +25,24 @@
     display: block;
   }
 }
+
+/*
+ * Conversa com mensagem nova: sobe para o topo e pisca em negrito até
+ * ser aberta (abrir marca como lida).
+ */
+.conversa-nova {
+  animation: conversa-nova-pisca 1.4s ease-in-out infinite;
+  border-color: var(--danger) !important;
+}
+
+@keyframes conversa-nova-pisca {
+  0%, 100% { background: var(--danger-tint, #fde8e8); }
+  50% { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversa-nova {
+    animation: none;
+    background: var(--danger-tint, #fde8e8) !important;
+  }
+}

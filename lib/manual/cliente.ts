@@ -556,7 +556,7 @@ const manualCliente: Manual = {
             ],
           },
           passos: [
-            'Escolha na lista com quem quer falar. Mensagem nova acende um balão vermelho piscando na aba Conversas, em qualquer tela do portal; na lista, a bolinha vermelha mostra de quem é.',
+            'Escolha na lista com quem quer falar. Mensagem nova acende um balão vermelho piscando na aba Conversas, em qualquer tela do portal; na lista, quem mandou mensagem nova sobe para o topo, em "Novas mensagens", piscando até você abrir a conversa.',
             'A conversa é privada, só entre vocês dois, e se atualiza sozinha a cada poucos segundos.',
             'Escreva e clique em Enviar.',
           ],
