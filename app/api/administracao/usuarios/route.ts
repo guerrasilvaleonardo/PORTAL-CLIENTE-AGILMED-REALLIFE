@@ -201,7 +201,7 @@ export async function GET(request: Request) {
       ativo,
       created_at,
       updated_at,
-      empresas (
+      empresas!profiles_empresa_id_fkey (
         id,
         nome_fantasia,
         razao_social,
