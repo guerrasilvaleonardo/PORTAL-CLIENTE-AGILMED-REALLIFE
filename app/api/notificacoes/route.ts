@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { pessoasDaEmpresa } from '@/lib/pessoasDaEmpresa'
 import {
   enderecoDoPortal,
   enviarEmail,
@@ -269,13 +270,9 @@ async function idsComAcessoNoCliente(chamado: any): Promise<Set<string> | null> 
 async function ladoDoCliente(chamado: any, emailDaEmpresa?: string | null) {
   const permitidos = await idsComAcessoNoCliente(chamado)
 
-  const { data } = await supabaseAdmin
-    .from('profiles')
-    .select('id, email')
-    .eq('empresa_id', chamado.empresa_id)
-    .eq('ativo', true)
+  const data = await pessoasDaEmpresa(chamado.empresa_id)
 
-  const usuarios = (data || []).filter((p: any) => !permitidos || permitidos.has(p.id))
+  const usuarios = data.filter((p: any) => !permitidos || permitidos.has(p.id))
 
   const lista = [
     permitidos ? '' : emailDaEmpresa || '',

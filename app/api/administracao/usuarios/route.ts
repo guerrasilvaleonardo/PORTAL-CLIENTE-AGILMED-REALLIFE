@@ -104,7 +104,79 @@ async function verificarAdministrador(request: Request) {
      * do portal deixaria de existir.
      */
     ehAdmin: profile?.perfil === 'admin',
+    /* Ligar uma pessoa a outras empresas libera dados: só gestor e admin. */
+    ehGestor: ['gestor', 'admin'].includes(profile?.perfil || ''),
   }
+}
+
+/*
+ * Empresas que cada pessoa pode atender (supabase/usuarios-varias-empresas.sql).
+ * Tolerante: sem a tabela, cada um fica só com a empresa do perfil.
+ */
+async function empresasPorUsuario(ids?: string[]) {
+  const mapa = new Map<string, string[]>()
+  let consulta = supabaseAdmin.from('usuario_empresas').select('usuario_id, empresa_id')
+  if (ids && ids.length) consulta = consulta.in('usuario_id', ids)
+  const { data, error } = await consulta
+  if (error) return { mapa, instalado: false }
+  for (const v of (data || []) as { usuario_id: string; empresa_id: string }[]) {
+    mapa.set(v.usuario_id, [...(mapa.get(v.usuario_id) || []), v.empresa_id])
+  }
+  return { mapa, instalado: true }
+}
+
+/*
+ * Grava a lista completa de empresas da pessoa: acrescenta as novas,
+ * retira as desmarcadas e garante que a empresa ativa continue na lista
+ * (se a ativa saiu, a primeira da lista vira a ativa).
+ */
+async function gravarEmpresasDoUsuario(usuarioId: string, empresasIds: string[], autorId?: string) {
+  const lista = [...new Set(empresasIds.filter(Boolean))]
+
+  if (lista.length === 0) {
+    return { erro: 'Marque pelo menos uma empresa.' }
+  }
+
+  const { data: validas, error: errValidas } = await supabaseAdmin.from('empresas').select('id').in('id', lista)
+  if (errValidas) return { erro: errValidas.message }
+  if ((validas || []).length !== lista.length) return { erro: 'Alguma empresa marcada não foi encontrada.' }
+
+  const { mapa, instalado } = await empresasPorUsuario([usuarioId])
+  if (!instalado) {
+    return { erro: 'Recurso de várias empresas ainda não ativado no banco (rodar supabase/usuarios-varias-empresas.sql).' }
+  }
+
+  const atuais = mapa.get(usuarioId) || []
+  const novas = lista.filter((e) => !atuais.includes(e))
+  const retiradas = atuais.filter((e) => !lista.includes(e))
+
+  const { data: perfilAtual } = await supabaseAdmin.from('profiles').select('empresa_id').eq('id', usuarioId).maybeSingle()
+
+  if (novas.length) {
+    const { error } = await supabaseAdmin
+      .from('usuario_empresas')
+      .upsert(novas.map((e) => ({ usuario_id: usuarioId, empresa_id: e, adicionado_por: autorId || null })), {
+        onConflict: 'usuario_id,empresa_id',
+      })
+    if (error) return { erro: error.message }
+  }
+
+  /* A empresa ativa saiu da lista: a primeira marcada passa a ser a ativa. */
+  if (!perfilAtual?.empresa_id || !lista.includes(perfilAtual.empresa_id)) {
+    const { error } = await supabaseAdmin.from('profiles').update({ empresa_id: lista[0] }).eq('id', usuarioId)
+    if (error) return { erro: error.message }
+  }
+
+  if (retiradas.length) {
+    const { error } = await supabaseAdmin
+      .from('usuario_empresas')
+      .delete()
+      .eq('usuario_id', usuarioId)
+      .in('empresa_id', retiradas)
+    if (error) return { erro: error.message }
+  }
+
+  return { erro: '', empresas: lista }
 }
 
 const PERFIS_QUE_SO_ADMIN_MEXE = ['admin']
@@ -148,9 +220,64 @@ export async function GET(request: Request) {
     )
   }
 
+  const { mapa } = await empresasPorUsuario()
+
   return NextResponse.json({
-    usuarios: data ?? [],
+    usuarios: (data ?? []).map((u: any) => ({
+      ...u,
+      empresas_ids: mapa.get(u.id) || (u.empresa_id ? [u.empresa_id] : []),
+    })),
+    pode_ligar_empresas: verificacao.ehGestor,
   })
+}
+
+/*
+ * PUT: define as empresas que a pessoa pode atender (só gestor e admin).
+ * Corpo: { usuario_id, empresas: string[] }.
+ */
+export async function PUT(request: Request) {
+  const verificacao = await verificarAdministrador(request)
+
+  if (!verificacao.autorizado) {
+    return verificacao.resposta
+  }
+
+  if (!verificacao.ehGestor) {
+    return NextResponse.json({ erro: 'Só gestor ou administrador liga uma pessoa a outras empresas.' }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json()
+    const usuarioId = String(body.usuario_id ?? '').trim()
+    const lista: string[] = Array.isArray(body.empresas) ? body.empresas.map((e: any) => String(e)) : []
+
+    if (!usuarioId) {
+      return NextResponse.json({ erro: 'Usuário não informado.' }, { status: 400 })
+    }
+
+    const { data: alvo } = await supabaseAdmin.from('profiles').select('id, perfil').eq('id', usuarioId).maybeSingle()
+
+    if (!alvo) {
+      return NextResponse.json({ erro: 'Usuário não encontrado.' }, { status: 404 })
+    }
+
+    if (PERFIS_QUE_SO_ADMIN_MEXE.includes(alvo.perfil || '') && !verificacao.ehAdmin) {
+      return NextResponse.json({ erro: 'Só um administrador pode editar outro administrador.' }, { status: 403 })
+    }
+
+    const resultado = await gravarEmpresasDoUsuario(usuarioId, lista, verificacao.user?.id)
+
+    if (resultado.erro) {
+      return NextResponse.json({ erro: resultado.erro }, { status: 400 })
+    }
+
+    return NextResponse.json({ sucesso: true, empresas: resultado.empresas })
+  } catch (error) {
+    return NextResponse.json(
+      { erro: 'Erro inesperado ao gravar as empresas.', detalhe: error instanceof Error ? error.message : '' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(request: Request) {
@@ -170,6 +297,16 @@ export async function POST(request: Request) {
     const cargo = String(body.cargo ?? '').trim()
     const perfil = String(body.perfil ?? '').trim()
     const empresaId = body.empresa_id || null
+    const empresasExtras: string[] = Array.isArray(body.empresas_extras)
+      ? body.empresas_extras.map((e: any) => String(e)).filter((e: string) => e && e !== empresaId)
+      : []
+
+    if (empresasExtras.length && !verificacao.ehGestor) {
+      return NextResponse.json(
+        { erro: 'Só gestor ou administrador liga uma pessoa a outras empresas.' },
+        { status: 403 }
+      )
+    }
 
     if (!nome || !email || !senha) {
       return NextResponse.json(
@@ -242,6 +379,26 @@ export async function POST(request: Request) {
     })
 
     if (authError || !authData.user) {
+      /*
+       * E-mail já cadastrado: em vez de só recusar, devolve quem é a
+       * pessoa, para a tela oferecer acrescentar a empresa ao acesso dela.
+       */
+      if (/already|registered|exists/i.test(authError?.message || '')) {
+        const { data: existente } = await supabaseAdmin
+          .from('profiles')
+          .select('id, nome, email, perfil, empresa_id')
+          .ilike('email', email)
+          .maybeSingle()
+
+        return NextResponse.json(
+          {
+            erro: 'Este e-mail já tem acesso ao portal' + (existente?.nome ? ' (' + existente.nome + ')' : '') + '.',
+            usuario_existente: existente || null,
+          },
+          { status: 409 }
+        )
+      }
+
       return NextResponse.json(
         {
           erro:
@@ -295,6 +452,10 @@ export async function POST(request: Request) {
         },
         { status: 500 }
       )
+    }
+
+    if (empresaId && empresasExtras.length) {
+      await gravarEmpresasDoUsuario(usuarioId, [empresaId, ...empresasExtras], verificacao.user?.id)
     }
 
     /*

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { trocarEmpresaAtiva, useMinhasEmpresas } from '@/lib/minhasEmpresas';
 import { carregarFeriados } from '@/lib/feriados';
 import { obterMarcaDaEmpresa } from '@/lib/empresa';
 import { avisar } from '@/lib/avisar';
@@ -107,6 +108,9 @@ export default function NovoChamadoPage() {
   /* Documento SST de origem (botão "Solicitar renovação"). */
   const [documentoSstId, setDocumentoSstId] = useState('');
   const [interno, setInterno] = useState(false);
+  /* Cliente que atende várias empresas escolhe para qual é o chamado. */
+  const minhasEmpresas = useMinhasEmpresas(true);
+  const [trocandoEmpresa, setTrocandoEmpresa] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   /*
    * Quem do cliente vê o chamado. Cliente abre restrito (só ele + quem
@@ -634,6 +638,41 @@ export default function NovoChamadoPage() {
               </div>
 
               <div style={styles.formContent}>
+                {!interno && minhasEmpresas.length > 1 && (
+                  <div style={styles.field}>
+                    <label style={styles.label}>
+                      Empresa do chamado <span style={styles.required}>*</span>
+                    </label>
+                    <select
+                      value={empresaId}
+                      disabled={trocandoEmpresa}
+                      onChange={async (event) => {
+                        const nova = event.target.value;
+                        if (!nova || nova === empresaId) return;
+                        try {
+                          setTrocandoEmpresa(true);
+                          await trocarEmpresaAtiva(nova);
+                          /* Recarrega para trazer colegas e regras da outra empresa. */
+                          window.location.reload();
+                        } catch (e: any) {
+                          setErro(e?.message || 'Não foi possível trocar de empresa.');
+                          setTrocandoEmpresa(false);
+                        }
+                      }}
+                      style={styles.input}
+                    >
+                      {minhasEmpresas.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.nome}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={styles.helper}>
+                      Você atende mais de uma empresa. Escolha primeiro a empresa: a tela recarrega com os dados dela.
+                    </span>
+                  </div>
+                )}
+
                 {interno && (
                   <div style={styles.field}>
                     <label style={styles.label}>

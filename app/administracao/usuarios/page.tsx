@@ -21,6 +21,8 @@ type Usuario = {
   empresa_id: string | null
   ativo: boolean
   created_at: string
+  /* Empresas que a pessoa pode atender (inclui a ativa). */
+  empresas_ids?: string[]
   empresas:
     | {
         id: string
@@ -58,7 +60,47 @@ export default function UsuariosPage() {
   const [empresaId, setEmpresaId] = useState('')
   const [ativo, setAtivo] = useState(true)
 
+  /* Outras empresas que a pessoa pode atender (além da empresa principal). */
+  const [extras, setExtras] = useState<string[]>([])
+  const [buscaEmpresa, setBuscaEmpresa] = useState('')
+  const [podeLigar, setPodeLigar] = useState(false)
+  /* E-mail já cadastrado: oferece acrescentar as empresas a esse acesso. */
+  const [existente, setExistente] = useState<{ id: string; nome: string | null; email: string | null } | null>(null)
+
   const editando = editandoId !== null
+
+  async function gravarEmpresas(usuarioId: string, lista: string[], token: string) {
+    const resposta = await fetch('/api/administracao/usuarios', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ usuario_id: usuarioId, empresas: lista }),
+    })
+    const resultado = await resposta.json()
+    if (!resposta.ok) throw new Error(resultado.erro || 'Não foi possível gravar as empresas.')
+  }
+
+  async function acrescentarAoExistente() {
+    if (!existente) return
+    try {
+      setSalvando(true)
+      setErro('')
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) return
+      const atual = usuarios.find((u) => u.id === existente.id)
+      const lista = [...new Set([...(atual?.empresas_ids || []), empresaId, ...extras].filter(Boolean))]
+      await gravarEmpresas(existente.id, lista, session.access_token)
+      setMensagem('Empresas acrescentadas ao acesso de ' + (existente.nome || existente.email) + '. A senha dele não mudou.')
+      setExistente(null)
+      limparFormulario()
+      await carregar()
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível acrescentar as empresas.')
+    } finally {
+      setSalvando(false)
+    }
+  }
 
   function limparFormulario() {
     setEditandoId(null)
@@ -70,6 +112,8 @@ export default function UsuariosPage() {
     setPerfil('cliente')
     setEmpresaId('')
     setAtivo(true)
+    setExtras([])
+    setBuscaEmpresa('')
   }
 
   function editarUsuario(usuario: Usuario) {
@@ -84,6 +128,8 @@ export default function UsuariosPage() {
     setPerfil(usuario.perfil || 'cliente')
     setEmpresaId(usuario.empresa_id || '')
     setAtivo(usuario.ativo !== false)
+    setExtras((usuario.empresas_ids || []).filter((e) => e !== usuario.empresa_id))
+    setExistente(null)
 
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -117,6 +163,7 @@ export default function UsuariosPage() {
       }
 
       setUsuarios(resultado.usuarios || [])
+      setPodeLigar(resultado.pode_ligar_empresas === true)
 
       const { data: empresasData, error: empresasError } =
         await supabase
@@ -222,7 +269,10 @@ export default function UsuariosPage() {
             cargo: cargo.trim(),
             perfil,
             empresa_id: empresaId || null,
+            empresas_extras: perfil === 'cliente' && podeLigar ? extras.filter((e) => e !== empresaId) : [],
           }
+
+      setExistente(null)
 
       const resposta = await fetch('/api/administracao/usuarios', {
         method: editando ? 'PATCH' : 'POST',
@@ -235,12 +285,27 @@ export default function UsuariosPage() {
 
       const resultado = await resposta.json()
 
+      if (resposta.status === 409 && resultado.usuario_existente) {
+        setExistente(resultado.usuario_existente)
+        setErro(resultado.erro)
+        return
+      }
+
       if (!resposta.ok) {
         throw new Error(
           resultado.erro ||
             resultado.detalhe ||
             'Não foi possível salvar o usuário.'
         )
+      }
+
+      /* Edição: grava a lista de empresas se mudou. */
+      if (editando && editandoId && perfil === 'cliente' && podeLigar && empresaId) {
+        const antes = [...(original?.empresas_ids || [])].sort().join(',')
+        const depois = [...new Set([empresaId, ...extras])].sort()
+        if (antes !== depois.join(',')) {
+          await gravarEmpresas(editandoId, depois, session.access_token)
+        }
       }
 
       setMensagem(
@@ -301,6 +366,22 @@ export default function UsuariosPage() {
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
+      {existente && (
+        <div className="banner" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span>
+            {existente.nome || existente.email} já tem acesso. Em vez de criar outro, acrescente{' '}
+            {[empresaId, ...extras].filter(Boolean).length} empresa(s) marcada(s) ao acesso dele. A senha atual dele continua
+            valendo.
+          </span>
+          {podeLigar ? (
+            <button type="button" className="btn btn-sm btn-primary" disabled={salvando} onClick={acrescentarAoExistente}>
+              Acrescentar ao acesso de {existente.nome || existente.email}
+            </button>
+          ) : (
+            <span style={{ fontSize: 12.5 }}>Peça a um gestor ou administrador.</span>
+          )}
+        </div>
+      )}
       {mensagem && <div className="banner good">{mensagem}</div>}
 
       <div className="stats">
@@ -450,6 +531,69 @@ export default function UsuariosPage() {
             )}
           </div>
 
+          {perfil === 'cliente' && (
+            <div className="field">
+              <label>Outras empresas que pode atender (abrir e acompanhar chamados)</label>
+              {!podeLigar ? (
+                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--ink-muted)' }}>
+                  Só gestor ou administrador liga uma pessoa a outras empresas.
+                  {extras.length > 0 && ' Hoje: ' + extras.length + ' outra(s) empresa(s).'}
+                </p>
+              ) : (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, display: 'grid', gap: 8 }}>
+                  <input
+                    value={buscaEmpresa}
+                    onChange={(e) => setBuscaEmpresa(e.target.value)}
+                    placeholder="Buscar empresa ou CNPJ"
+                    aria-label="Buscar empresa"
+                  />
+                  <div style={{ maxHeight: 180, overflowY: 'auto', display: 'grid', gap: 4 }}>
+                    {empresas
+                      .filter((e) => e.id !== empresaId)
+                      .filter((e) =>
+                        !buscaEmpresa.trim()
+                          ? true
+                          : nomeDaEmpresa(e).toLowerCase().includes(buscaEmpresa.trim().toLowerCase())
+                      )
+                      .sort((a, b) => Number(extras.includes(b.id)) - Number(extras.includes(a.id)))
+                      .map((e) => (
+                        <label
+                          key={e.id}
+                          style={{
+                            display: 'flex',
+                            gap: 8,
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            fontSize: 13.5,
+                            fontWeight: 500,
+                            textTransform: 'none',
+                            letterSpacing: 0,
+                            color: 'var(--ink)',
+                            margin: 0,
+                          }}
+                        >
+                          <input
+                            style={{ width: 'auto', margin: 0, flex: '0 0 auto' }}
+                            type="checkbox"
+                            checked={extras.includes(e.id)}
+                            onChange={(ev) =>
+                              setExtras((atual) =>
+                                ev.target.checked ? [...atual, e.id] : atual.filter((x) => x !== e.id)
+                              )
+                            }
+                          />
+                          {nomeDaEmpresa(e)}
+                        </label>
+                      ))}
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
+                    {extras.length} marcada(s). A empresa acima é a principal; no portal a pessoa troca entre elas no topo da tela.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <button
               type="submit"
@@ -545,6 +689,11 @@ export default function UsuariosPage() {
 
                     <span className="tmuted" style={{ minWidth: 0 }}>
                       {u.empresas ? nomeDaEmpresa(u.empresas) : '—'}
+                      {(u.empresas_ids || []).length > 1 && (
+                        <span style={{ display: 'block', fontSize: 11.5 }}>
+                          + {(u.empresas_ids || []).length - 1} outra(s) empresa(s)
+                        </span>
+                      )}
                     </span>
 
                     <span className="tmuted" style={{ minWidth: 0 }}>

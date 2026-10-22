@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { useModulos, type Modulo } from '@/lib/modulos'
+import SeletorEmpresa from '@/components/SeletorEmpresa'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
@@ -236,6 +237,8 @@ export default function PortalHeader() {
             <span>Portal do Cliente</span>
           </div>
         </Link>
+
+        {!carregando && !interno && <SeletorEmpresa />}
 
         <div className="topbar-spacer" />
 

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { marcarChamadoLido } from '@/lib/chamadosNaoLidos'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
 import { motivoDoCancelamento } from '@/lib/cancelamento'
+import { trocarParaEmpresaDoChamado } from '@/lib/minhasEmpresas'
 import type { DadosSuspensao } from '@/lib/suspensao'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { avisar } from '@/lib/avisar'
@@ -329,6 +330,16 @@ export default function DetalhesChamadoPage() {
         .single()
 
       if (chamadoError) {
+        /*
+         * Chamado de outra empresa da pessoa (ex.: link do e-mail): troca a
+         * empresa ativa para a do chamado e recarrega. Só uma tentativa.
+         */
+        const chave = 'troca-empresa-' + chamadoId
+        if (!sessionStorage.getItem(chave) && (await trocarParaEmpresaDoChamado(String(chamadoId)))) {
+          sessionStorage.setItem(chave, '1')
+          window.location.reload()
+          return
+        }
         console.error(chamadoError)
         setErro('Não foi possível carregar o chamado.')
         setLoading(false)
