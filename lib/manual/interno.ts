@@ -647,6 +647,8 @@ const manualInterno: Manual = {
             'Sala "Equipe toda": lida por toda a equipe interna.',
             'Equipe interna e Clientes: conversas privadas, só entre as duas pessoas. Mensagem privada nova acende um balão vermelho piscando na aba Conversas, em qualquer tela; some quando você abre a conversa.',
             'Quem mandou mensagem nova sobe para o topo da lista, em "Novas mensagens" (a mais recente primeiro), piscando e em negrito até você abrir a conversa. Nas demais seções, as conversas mais recentes ficam em cima.',
+            'Abaixo de cada mensagem privada que você enviou: ✓ cinza = entregue; ✓✓ verde = a pessoa abriu a conversa e leu (passe o mouse para ver quando).',
+            'O campo de escrever cresce com o texto. Enter envia; Shift+Enter quebra a linha.',
             'As mensagens se atualizam sozinhas a cada poucos segundos e não geram e-mail.',
           ],
           atencao: 'Se o cliente pedir um serviço pelo chat, abra um chamado para ele. Conversa não tem prazo, não entra no histórico do chamado nem nos indicadores.',
