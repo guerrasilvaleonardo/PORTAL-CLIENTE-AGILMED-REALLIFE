@@ -212,6 +212,60 @@ export default function DetalhesChamadoPage() {
   const [editandoLink, setEditandoLink] = useState<string | null>(null)
 
   const [usuarioId, setUsuarioId] = useState('')
+  const [perfilAtual, setPerfilAtual] = useState('')
+
+  useEffect(() => {
+    if (!usuarioId) return
+    supabase
+      .from('profiles')
+      .select('perfil')
+      .eq('id', usuarioId)
+      .maybeSingle()
+      .then(({ data }) => setPerfilAtual(data?.perfil || ''))
+  }, [usuarioId])
+
+  /* Chamado Resolvido: o cliente confirma ou reabre dizendo o que falta. */
+  const [confirmacao, setConfirmacao] = useState<'' | 'reabrir'>('')
+  const [motivoReabrir, setMotivoReabrir] = useState('')
+  const [confirmando, setConfirmando] = useState(false)
+  const [erroConfirmacao, setErroConfirmacao] = useState('')
+
+  async function confirmarResolucao(resolvido: boolean) {
+    if (!chamado) return
+    if (!resolvido && motivoReabrir.trim().length < 5) {
+      setErroConfirmacao('Conte o que ainda falta para reabrir (mínimo de 5 caracteres).')
+      return
+    }
+    setConfirmando(true)
+    setErroConfirmacao('')
+    const { data, error } = await supabase.rpc('cliente_confirmar_resolucao', {
+      p_chamado: chamado.id,
+      p_resolvido: resolvido,
+      p_motivo: resolvido ? null : motivoReabrir.trim(),
+    })
+    setConfirmando(false)
+    if (error) {
+      setErroConfirmacao(
+        /cliente_confirmar_resolucao|does not exist|schema cache/i.test(error.message || '')
+          ? 'Recurso ainda não ativado. Responda na conversa que a nossa equipe verifica.'
+          : error.message || 'Não foi possível registrar.'
+      )
+      return
+    }
+    const novo = String(data || (resolvido ? 'encerrado' : 'em_atendimento'))
+    setChamado((atual) =>
+      atual
+        ? {
+            ...atual,
+            status: novo,
+            encerrado_em: novo === 'encerrado' ? new Date().toISOString() : atual.encerrado_em,
+          }
+        : atual
+    )
+    setConfirmacao('')
+    setMotivoReabrir('')
+    avisar(resolvido ? 'status_alterado' : 'mensagem_nova', String(chamado.id), resolvido ? undefined : { mensagem: 'Chamado reaberto pelo cliente' })
+  }
 
   const [novoLinkTitulo, setNovoLinkTitulo] = useState('')
   const [novoLinkUrl, setNovoLinkUrl] = useState('')
@@ -490,14 +544,13 @@ export default function DetalhesChamadoPage() {
     setMensagens((atual) => [...atual, mensagemFormatada])
 
     /*
-     * Resposta do cliente em chamado resolvido: o banco devolve o
+     * Resposta do cliente em "Aguardando cliente": o banco devolve o
      * chamado para "Em atendimento" (trigger em chamado_mensagens).
-     * Aqui só espelhamos isso na tela, sem esperar recarregar.
+     * Em "Resolvido" a mensagem NÃO reabre: o cliente usa os botões
+     * "Sim, pode encerrar" / "Não, reabrir".
      */
-    if (chamado?.status === 'resolvido') {
-      setChamado((atual) =>
-        atual ? { ...atual, status: 'em_atendimento', resolvido_em: null } : atual
-      )
+    if (chamado?.status === 'aguardando_cliente' && perfilAtual === 'cliente') {
+      setChamado((atual) => (atual ? { ...atual, status: 'em_atendimento' } : atual))
     }
 
     avisar('mensagem_nova', String(chamadoId), {
@@ -936,6 +989,80 @@ export default function DetalhesChamadoPage() {
                       rotulo="Ver as outras situações"
                     />
                   </div>
+                </div>
+              )}
+
+              {chamado.status === 'resolvido' && perfilAtual === 'cliente' && (
+                <div
+                  role="region"
+                  aria-label="Confirmar a resolução"
+                  style={{
+                    border: '1px solid #bbf7d0',
+                    background: '#f0fdf4',
+                    color: '#14532d',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    margin: '0 0 16px',
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                    display: 'grid',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <strong style={{ color: '#15803d' }}>Está resolvido?</strong>
+                    <div style={{ fontSize: 13 }}>
+                      Confira a solução. Pode agradecer ou comentar na conversa sem reabrir o chamado. Sem resposta
+                      em 24 horas úteis, ele é encerrado automaticamente.
+                    </div>
+                  </div>
+
+                  {confirmacao === 'reabrir' ? (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ fontSize: 13, fontWeight: 700 }} htmlFor="motivo-reabrir">
+                        O que ainda falta? *
+                      </label>
+                      <textarea
+                        id="motivo-reabrir"
+                        rows={3}
+                        maxLength={2000}
+                        value={motivoReabrir}
+                        onChange={(e) => setMotivoReabrir(e.target.value)}
+                        placeholder="Ex.: o relatório veio sem o anexo B"
+                        style={{ width: '100%', borderRadius: 10, border: '1px solid #cbd5e1', padding: 10, font: 'inherit' }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" className="btn" disabled={confirmando} onClick={() => setConfirmacao('')}>
+                          Voltar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          disabled={confirmando}
+                          onClick={() => confirmarResolucao(false)}
+                        >
+                          {confirmando ? 'Reabrindo…' : 'Reabrir chamado'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={confirmando}
+                        onClick={() => confirmarResolucao(true)}
+                        style={{ background: '#15803d', borderColor: '#15803d', color: '#fff', fontWeight: 700 }}
+                      >
+                        {confirmando ? 'Registrando…' : 'Sim, pode encerrar'}
+                      </button>
+                      <button type="button" className="btn" disabled={confirmando} onClick={() => setConfirmacao('reabrir')}>
+                        Não, reabrir
+                      </button>
+                    </div>
+                  )}
+
+                  {erroConfirmacao && <div className="banner bad">{erroConfirmacao}</div>}
                 </div>
               )}
 

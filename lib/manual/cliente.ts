@@ -328,7 +328,7 @@ const manualCliente: Manual = {
             'Aguardando cliente: a bola está com você. Responda na conversa ou envie o que foi pedido. Enquanto isso, o prazo fica pausado.',
             'Se o chamado ficar em Aguardando cliente além do prazo combinado com a sua empresa (normalmente 7 dias), aparece um aviso vermelho piscando no Início e em Chamados, e você recebe um e-mail de lembrete a cada 3 dias úteis até responder.',
             'Atendimento suspenso: o atendimento parou por um impedimento fora do nosso controle (sistema indisponível, falha de software, fornecedor). Você vê o motivo e a data prevista da próxima atualização, e o prazo fica pausado.',
-            'Resolvido: confira a solução. Se algo não estiver certo, é só responder na conversa que o chamado volta para atendimento.',
+            'Resolvido: confira a solução e use os botões do chamado: "Sim, pode encerrar" ou "Não, reabrir" (conte o que falta). Agradecer ou comentar na conversa não reabre o chamado. Sem resposta em 24 horas úteis, ele é encerrado sozinho.',
             'Encerrado: sem resposta em 24 horas úteis depois de resolvido, o chamado é encerrado automaticamente. Se o assunto voltar, abra um novo chamado.',
             'Cancelado: o chamado foi encerrado sem atendimento (por exemplo, duplicado, aberto por engano ou desistência). O motivo aparece no chamado e você recebe e-mail. Se ainda precisar, responda na conversa ou abra um novo chamado.',
           ],
@@ -365,7 +365,7 @@ const manualCliente: Manual = {
             'Escreva e clique em Enviar mensagem. A equipe é avisada por e-mail. Escrevendo @Nome, a pessoa citada também recebe um e-mail.',
           ],
           atencao:
-            'Responder num chamado "Aguardando cliente" ou "Resolvido" devolve o chamado para "Em atendimento". A tela não se atualiza sozinha: recarregue a página para ver respostas novas. Mensagens enviadas não podem ser editadas nem apagadas.',
+            'Responder num chamado "Aguardando cliente" devolve o chamado para "Em atendimento". Em "Resolvido", a resposta fica na conversa e não reabre: para reabrir, use o botão "Não, reabrir". A tela não se atualiza sozinha: recarregue a página para ver respostas novas. Mensagens enviadas não podem ser editadas nem apagadas.',
         },
         {
           titulo: 'Enviar arquivos e links',

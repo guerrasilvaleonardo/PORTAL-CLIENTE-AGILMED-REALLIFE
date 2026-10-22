@@ -320,6 +320,13 @@ export default function ChatEquipePage() {
 
   const escolhido = contatos.find((c) => c.id === conversa) || null
 
+  /*
+   * O cliente não lê o perfil da equipe direto (regra de acesso), então o
+   * nome do autor vem da lista de contatos quando a consulta não traz.
+   */
+  const autorNome = (m: Mensagem) => m.autor_nome || contatos.find((c) => c.id === m.autor_id)?.nome || null
+  const autorEmail = (m: Mensagem) => m.autor_email || contatos.find((c) => c.id === m.autor_id)?.email || null
+
   const tituloConversa =
     conversa === GERAL
       ? 'Equipe toda'
@@ -331,7 +338,7 @@ export default function ChatEquipePage() {
     conversa === GERAL
       ? 'Todos da equipe interna leem esta sala'
       : escolhido
-        ? escolhido.empresa_nome
+        ? escolhido.empresa_nome && !PERFIS_INTERNOS.includes(escolhido.perfil || '')
           ? 'Cliente · ' + escolhido.empresa_nome
           : 'Conversa privada, só entre vocês dois'
         : ''
@@ -356,7 +363,11 @@ export default function ChatEquipePage() {
 
     if (error) {
       console.error(error)
-      setErro('Não foi possível enviar a mensagem.')
+      setErro(
+        /row-level security|violates/i.test(error.message || '')
+          ? 'Não foi possível enviar a mensagem: sem permissão para falar com esta pessoa.'
+          : 'Não foi possível enviar a mensagem.'
+      )
       return
     }
 
@@ -726,7 +737,7 @@ export default function ChatEquipePage() {
                               flexShrink: 0,
                             }}
                           >
-                            {iniciais(m.autor_nome, m.autor_email)}
+                            {iniciais(autorNome(m), autorEmail(m))}
                           </div>
 
                           <div style={{ maxWidth: '76%' }}>
@@ -738,7 +749,7 @@ export default function ChatEquipePage() {
                                 textAlign: meu ? 'right' : 'left',
                               }}
                             >
-                              {(m.autor_nome || m.autor_email || 'Equipe') +
+                              {(autorNome(m) || autorEmail(m) || 'Equipe') +
                                 ' · ' +
                                 horario(m.created_at)}
                             </div>
