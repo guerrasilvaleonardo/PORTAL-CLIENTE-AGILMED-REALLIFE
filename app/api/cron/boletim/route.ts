@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { pessoasDaEmpresa } from '@/lib/pessoasDaEmpresa'
 import {
   diasAte,
   enderecoDoPortal,
@@ -138,13 +139,9 @@ export async function GET(request: Request) {
     const marca = marcaDaEmpresa(empresa?.marca)
     const portal = enderecoDoPortal(marca)
 
-    const { data: pessoas } = await supabaseAdmin
-      .from('profiles')
-      .select('email')
-      .eq('empresa_id', empresaId)
-      .eq('ativo', true)
+    const pessoas = await pessoasDaEmpresa(empresaId)
 
-    const para = (pessoas || []).map((p) => p.email || '')
+    const para = pessoas.map((p) => p.email || '')
 
     const vencidos = itens.filter((c) => (c.dias as number) < 0).length
 

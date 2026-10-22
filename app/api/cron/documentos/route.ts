@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { pessoasDaEmpresa } from '@/lib/pessoasDaEmpresa'
 import { HORAS_SLA, ehFeriado, prazoEmHorasUteis } from '@/lib/prazo'
 import { carregarFeriados } from '@/lib/feriados'
 import { enderecoDoPortal, enviarEmail, escapar, marcaDaEmpresa, montarEmail } from '@/lib/email'
@@ -265,13 +266,9 @@ export async function GET(request: Request) {
     const empresa = lista[0].doc.empresas
     const marca = marcaDaEmpresa(empresa?.marca)
 
-    const { data: pessoas } = await supabaseAdmin
-      .from('profiles')
-      .select('email')
-      .eq('empresa_id', empresaId)
-      .eq('ativo', true)
+    const pessoas = await pessoasDaEmpresa(empresaId)
 
-    const para = (pessoas || []).map((p: any) => p.email || '').filter(Boolean)
+    const para = pessoas.map((p) => p.email || '').filter(Boolean)
     if (!para.length) continue
 
     const vencidos = lista.filter((i) => i.dias < 0).length

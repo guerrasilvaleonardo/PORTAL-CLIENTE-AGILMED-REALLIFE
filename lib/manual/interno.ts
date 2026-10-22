@@ -687,6 +687,8 @@ const manualInterno: Manual = {
           passos: [
             'Nome, e-mail, senha inicial (mínimo 6), telefone e cargo.',
             'Perfil: Cliente (exige empresa), Atendimento, Gestor ou Administrador. Ao criar, a pessoa recebe e-mail com o endereço e a senha.',
+            'Cliente que cuida de vários CNPJs: marque em "Outras empresas que pode atender" (só gestor e admin). A empresa do campo Empresa é a principal. No portal, ele troca de empresa no topo da tela e escolhe a empresa ao abrir o chamado. Ele vê uma empresa por vez, mas recebe os e-mails de todas.',
+            'E-mail já cadastrado? A tela avisa e oferece "Acrescentar ao acesso de…": a empresa entra na lista da pessoa e a senha dela não muda. Não crie um segundo e-mail para a mesma pessoa.',
           ],
           atencao:
             'Só administrador cria ou edita administradores. Ninguém altera o próprio perfil ou situação, e o último administrador ativo não pode ser rebaixado. Para desligar alguém, edite e marque Inativo. Esqueceu a senha? Edite o usuário e defina uma nova senha.',
