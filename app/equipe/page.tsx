@@ -366,6 +366,16 @@ export default function ChatEquipePage() {
           : 'Conversa privada, só entre vocês dois'
         : ''
 
+  /* Campo de mensagem que cresce com o texto. */
+  const campoTexto = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    const el = campoTexto.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight + 2, 200) + 'px'
+  }, [texto])
+
   async function enviar(e: FormEvent) {
     e.preventDefault()
 
@@ -814,6 +824,33 @@ export default function ChatEquipePage() {
                             >
                               {m.texto}
                             </div>
+
+                            {/*
+                             * Confirmação de leitura (só em conversa privada,
+                             * nas mensagens que eu enviei): ✓ cinza = entregue;
+                             * ✓✓ verde = a pessoa abriu a conversa e leu.
+                             */}
+                            {meu && m.destinatario_id && (
+                              <div
+                                title={
+                                  m.lido_em
+                                    ? 'Lida em ' + horario(m.lido_em)
+                                    : 'Entregue. Ainda não lida.'
+                                }
+                                aria-label={m.lido_em ? 'Lida' : 'Entregue, não lida'}
+                                style={{
+                                  textAlign: 'right',
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  letterSpacing: -3,
+                                  paddingRight: 3,
+                                  marginTop: 2,
+                                  color: m.lido_em ? 'var(--success)' : 'var(--ink-faint)',
+                                }}
+                              >
+                                {m.lido_em ? '✓✓' : '✓'}
+                              </div>
+                            )}
                           </div>
                         </div>
                       )
@@ -826,11 +863,24 @@ export default function ChatEquipePage() {
 
               <form
                 onSubmit={enviar}
-                style={{ display: 'flex', gap: 10, marginTop: 14 }}
+                style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'flex-end' }}
               >
-                <input
+                {/*
+                 * Campo cresce com o texto (até ~8 linhas, depois rola).
+                 * Enter envia; Shift+Enter quebra a linha.
+                 */}
+                <textarea
+                  ref={campoTexto}
+                  rows={1}
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault()
+                      e.currentTarget.form?.requestSubmit()
+                    }
+                  }}
+                  title="Enter envia · Shift+Enter quebra a linha"
                   disabled={!conversa}
                   placeholder={
                     !conversa
@@ -847,6 +897,12 @@ export default function ChatEquipePage() {
                     fontSize: 14,
                     background: 'var(--surface)',
                     color: 'var(--ink)',
+                    font: 'inherit',
+                    lineHeight: 1.45,
+                    resize: 'none',
+                    minHeight: 44,
+                    maxHeight: 200,
+                    overflowY: 'auto',
                   }}
                 />
 
