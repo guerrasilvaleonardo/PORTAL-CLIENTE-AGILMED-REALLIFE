@@ -75,7 +75,7 @@ export const EXPLICACAO_CLIENTE: Record<string, string> = {
   suspenso:
     'O atendimento está parado por um impedimento fora do nosso controle (por exemplo, sistema indisponível ou dependência de fornecedor). Você vê o motivo e a data prevista da próxima atualização. O prazo fica pausado.',
   resolvido:
-    'A solução foi entregue e o chamado aguarda a sua conferência. Se ainda não estiver certo, é só responder que ele volta para atendimento.',
+    'A solução foi entregue e o chamado aguarda a sua conferência. No chamado, clique em "Sim, pode encerrar" ou, se algo ainda não estiver certo, em "Não, reabrir" e conte o que falta. Agradecer ou comentar na conversa não reabre.',
   encerrado:
     'O chamado foi finalizado e não recebe mais movimentação. Se o assunto voltar, abra um novo chamado.',
   cancelado:
@@ -92,7 +92,7 @@ export const EXPLICACAO_EQUIPE: Record<string, string> = {
   suspenso:
     'Impedimento fora do controle do atendente (sistema, software, fornecedor). Motivo, observação e próxima atualização são obrigatórios. O SLA pausa na hora; para as estrelas, o tempo suspenso só vale depois que o gestor autorizar.',
   resolvido:
-    'A solução foi entregue e está em conferência pelo cliente. Ainda pode voltar para atendimento se ele responder.',
+    'A solução foi entregue e está em conferência pelo cliente. Ele confirma (vai para Encerrado) ou reabre dizendo o que falta. Mensagem dele, como um "obrigado", não reabre nem suspende as estrelas.',
   encerrado:
     'Finalizado, sem mais movimentação. Entra na contagem de resolvidos do período.',
   cancelado:

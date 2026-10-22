@@ -344,7 +344,7 @@ const manualInterno: Manual = {
           titulo: 'Pausa, retomada e encerramento automático',
           passos: [
             'Aguardando cliente: o prazo pausa. Ao sair, ele é estendido pelas horas úteis da espera. Chamado pausado nunca conta como atrasado.',
-            'Se o cliente responder num chamado Aguardando cliente ou Resolvido, o chamado volta sozinho para Em atendimento e o relógio volta a contar.',
+            'Se o cliente responder num chamado Aguardando cliente, o chamado volta sozinho para Em atendimento e o relógio volta a contar. Em Resolvido, a mensagem do cliente (um "obrigado", por exemplo) NÃO reabre nem suspende as estrelas: o cliente tem os botões "Sim, pode encerrar" (vai para Encerrado) e "Não, reabrir" (precisa dizer o que falta; volta para Em atendimento). Leia a conversa: se o cliente relatar problema sem clicar em reabrir, reabra você.',
             'Resolvido sem manifestação do cliente por 24 horas úteis vira Encerrado automaticamente (verificação de hora em hora).',
             'Alerta amarelo "Próximo do prazo": aparece quando faltam poucas horas úteis (o gestor define quantas em Estrelas › Gestão).',
           ],
