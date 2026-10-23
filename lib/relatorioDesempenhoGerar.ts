@@ -66,10 +66,12 @@ export async function escreverAnalise(db: SupabaseClient, id: number, dados?: Da
   if (acesso) {
     try {
       const r = await analisarComIA(acesso, dados, regras)
+      const tudoFalhou = r.erros.length >= dados.pessoas.length + 1
       analise = r.analise
-      origem = 'ia'
-      modelo = acesso.modelo
-      if (r.erros.length) erro = 'Partes feitas por regras porque a IA falhou: ' + r.erros.join(' | ')
+      origem = tudoFalhou ? 'regras' : 'ia'
+      modelo = tudoFalhou ? null : acesso.modelo
+      if (tudoFalhou) erro = 'IA indisponível, análise feita por regras: ' + r.erros[0]
+      else if (r.erros.length) erro = 'Partes feitas por regras porque a IA falhou: ' + r.erros.join(' | ')
     } catch (e: any) {
       erro = 'IA indisponível, análise feita por regras: ' + (e?.message || 'erro')
     }
