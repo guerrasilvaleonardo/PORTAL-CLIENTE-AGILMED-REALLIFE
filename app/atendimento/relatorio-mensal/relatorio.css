@@ -1,0 +1,31 @@
+/* Relatório mensal de desempenho (tela e impressão em PDF). */
+.rel-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.rel-lista { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 1.5; }
+.rel-tab { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rel-tab th, .rel-tab td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.rel-tab th { font-size: 11.5px; color: var(--ink-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.rel-tab td.n, .rel-tab th.n { text-align: right; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
+.rel-achado { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+.rel-achado .pill { flex: none; margin-top: 2px; }
+.rel-ficha-nome { font-size: 22px; margin: 0; }
+.rel-sub { color: var(--ink-muted); font-size: 13px; margin: 2px 0 0; }
+.rel-aviso { background: var(--amber-tint); color: var(--ink); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.rel-sigilo { font-size: 11.5px; color: var(--ink-faint); }
+.rel-delta { font-size: 11.5px; font-weight: 700; margin-left: 6px; }
+.rel-delta.up { color: var(--success); }
+.rel-delta.down { color: var(--danger); }
+
+@media (max-width: 860px) {
+  .rel-grid2 { grid-template-columns: 1fr; }
+}
+
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  header, .nao-imprimir { display: none !important; }
+  body { background: #fff !important; }
+  .app { padding: 0 !important; max-width: none !important; }
+  .panel, .stat { box-shadow: none !important; break-inside: avoid; }
+  .rel-ficha { break-before: page; }
+  .rel-tab tr { break-inside: avoid; }
+  .rel-sigilo { color: #444; }
+}
