@@ -222,12 +222,20 @@ export async function GET(request: Request) {
 
   const { mapa } = await empresasPorUsuario()
 
+  /* Trava de horário (supabase/trava-horario-equipe.sql): consulta à parte, tolerante. */
+  const foraHorario = new Map<string, boolean>()
+  const { data: marcas, error: erroMarcas } = await supabaseAdmin.from('profiles').select('id, pode_fora_horario')
+  if (!erroMarcas) for (const m of (marcas || []) as any[]) foraHorario.set(m.id, m.pode_fora_horario === true)
+
   return NextResponse.json({
     usuarios: (data ?? []).map((u: any) => ({
       ...u,
       empresas_ids: mapa.get(u.id) || (u.empresa_id ? [u.empresa_id] : []),
+      pode_fora_horario: foraHorario.get(u.id) === true,
     })),
     pode_ligar_empresas: verificacao.ehGestor,
+    trava_horario_instalada: !erroMarcas,
+    eh_admin: verificacao.ehAdmin,
   })
 }
 
@@ -452,6 +460,10 @@ export async function POST(request: Request) {
         },
         { status: 500 }
       )
+    }
+
+    if (body.pode_fora_horario === true && verificacao.ehAdmin && perfil !== 'cliente') {
+      await supabaseAdmin.from('profiles').update({ pode_fora_horario: true }).eq('id', usuarioId)
     }
 
     if (empresaId && empresasExtras.length) {
@@ -789,6 +801,25 @@ export async function PATCH(request: Request) {
         },
         { status: 500 }
       )
+    }
+
+    /* "Pode atender fora do horário": só administrador muda. */
+    if (typeof body.pode_fora_horario === 'boolean') {
+      const { data: atual, error: erroAtual } = await supabaseAdmin
+        .from('profiles')
+        .select('pode_fora_horario')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (!erroAtual && atual && atual.pode_fora_horario !== body.pode_fora_horario) {
+        if (!verificacao.ehAdmin) {
+          return NextResponse.json(
+            { erro: 'Os dados foram salvos, mas só um administrador muda quem pode atender fora do horário.' },
+            { status: 403 }
+          )
+        }
+        await supabaseAdmin.from('profiles').update({ pode_fora_horario: body.pode_fora_horario }).eq('id', id)
+      }
     }
 
     if (senha) {

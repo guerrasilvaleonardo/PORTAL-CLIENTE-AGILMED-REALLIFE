@@ -177,6 +177,18 @@ const manualInterno: Manual = {
           atencao: 'Não existe botão "Assumir": assumir é transferir para si mesmo. Chamado sem responsável não entra no desempenho de ninguém e, se for resolvido assim, não gera estrelas.',
         },
         {
+          titulo: 'Horário de atendimento (trava)',
+          texto:
+            'Fora do horário de atendimento (segunda a sexta, 8h às 17h, horário de Porto Velho, exceto feriados cadastrados), a equipe só consulta os chamados.',
+          passos: [
+            'Nesse período aparece uma faixa amarela no topo: "Fora do horário de atendimento".',
+            'Ficam bloqueados: responder ao cliente, mudar situação, assumir ou transferir, prioridade, etapas, anexos, links e abrir chamado. Consultar, ler e usar Conversas continua liberado.',
+            'Das 12h às 13h fica liberado, para não travar quem estende um atendimento.',
+            'Quem tem "Pode atender chamados fora do horário" marcado no cadastro (Administração › Usuários) trabalha normalmente a qualquer hora. Só administrador marca ou desmarca.',
+          ],
+          atencao: 'O bloqueio é feito pelo banco de dados: não adianta tentar por outra tela. Clientes e as rotinas automáticas (encerramento, cobrança, alertas) não são afetados.',
+        },
+        {
           titulo: 'Mudar o status',
           tela: {
             url: '/atendimento/…',
@@ -693,6 +705,7 @@ const manualInterno: Manual = {
             'Perfil: Cliente (exige empresa), Atendimento, Gestor ou Administrador. Ao criar, a pessoa recebe e-mail com o endereço e a senha.',
             'Cliente que cuida de vários CNPJs: marque em "Outras empresas que pode atender" (só gestor e admin). A empresa do campo Empresa é a principal. No portal, ele troca de empresa no topo da tela e escolhe a empresa ao abrir o chamado. Ele vê uma empresa por vez, mas recebe os e-mails de todas.',
             'E-mail já cadastrado? A tela avisa e oferece "Acrescentar ao acesso de…": a empresa entra na lista da pessoa e a senha dela não muda. Não crie um segundo e-mail para a mesma pessoa.',
+            'Equipe interna: "Pode atender chamados fora do horário" libera a pessoa da trava de horário (seg a sex, 8h às 17h). Só administrador marca; na lista aparece "fora do horário".',
           ],
           atencao:
             'Só administrador cria ou edita administradores. Ninguém altera o próprio perfil ou situação, e o último administrador ativo não pode ser rebaixado. Para desligar alguém, edite e marque Inativo. Esqueceu a senha? Edite o usuário e defina uma nova senha.',

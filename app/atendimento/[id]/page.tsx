@@ -88,6 +88,15 @@ function duracao(de: string | null, ate: string | null) {
   return Math.round(h / 24) + ' dias'
 }
 
+/*
+ * Erros do banco (ex.: trava de horário, permissões) chegam como objeto
+ * com "message", não como Error: mostra o texto real em vez do genérico.
+ */
+function mensagemDeErro(erro: unknown) {
+  const m = (erro as any)?.message
+  return typeof m === 'string' && m.trim() ? m : ''
+}
+
 function descreverEvento(e: Evento) {
   if (e.tipo === 'abertura') return 'Chamado aberto'
 
@@ -865,8 +874,8 @@ export default function AtendimentoChamadoPage() {
       )
 
       setErro(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível carregar o chamado.'
       )
     } finally {
@@ -1096,8 +1105,8 @@ export default function AtendimentoChamadoPage() {
       console.error(error)
 
       setErro(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível alterar o status.'
       )
 
@@ -1252,8 +1261,8 @@ export default function AtendimentoChamadoPage() {
       console.error(error)
 
       setErro(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível alterar a prioridade.'
       )
 
@@ -1327,8 +1336,8 @@ export default function AtendimentoChamadoPage() {
       console.error(error)
 
       setErro(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível trocar a empresa.'
       )
 
@@ -1395,8 +1404,8 @@ export default function AtendimentoChamadoPage() {
       console.error(error)
 
       setErro(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível transferir o chamado.'
       )
 
@@ -1427,8 +1436,8 @@ export default function AtendimentoChamadoPage() {
     } catch (error) {
       console.error(error)
       setErro(
-        error instanceof Error && error.message
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível salvar o solicitante.'
       )
       setNovoSolicitanteCliente(solicitanteCliente || '')
@@ -1590,8 +1599,8 @@ export default function AtendimentoChamadoPage() {
       )
 
       setErro(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível enviar a mensagem.'
       )
     } finally {
@@ -1671,8 +1680,8 @@ export default function AtendimentoChamadoPage() {
       console.error(error)
 
       setErroAnexo(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível abrir o arquivo.'
       )
     } finally {
@@ -1815,8 +1824,8 @@ export default function AtendimentoChamadoPage() {
       )
 
       setErroAnexo(
-        error instanceof Error
-          ? error.message
+        mensagemDeErro(error)
+          ? mensagemDeErro(error)
           : 'Não foi possível enviar o arquivo.'
       )
     } finally {
