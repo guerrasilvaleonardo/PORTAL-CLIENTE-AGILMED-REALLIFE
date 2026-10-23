@@ -21,6 +21,8 @@ import { carregarCancelamentos, motivoExibido, type RegistroCancelamento } from 
 import { carregarHistoricoSuspensoes, dataDoBanco } from '@/lib/suspensao'
 import type { RegistroSuspensao } from '@/lib/suspensao'
 import { marcas } from '@/lib/marca'
+import Reacoes from '@/components/Reacoes'
+import { aplicarReacao, carregarReacoes, reagir, type Reacao } from '@/lib/reacoes'
 import '../../chamado-selecao.css'
 
 type Chamado = {
@@ -466,6 +468,9 @@ export default function AtendimentoChamadoPage() {
   const [links, setLinks] = useState<ChamadoLink[]>([])
 
   const [meuId, setMeuId] = useState('')
+  /* Reações com emoji (supabase/nomes-e-reacoes.sql). */
+  const [reacoes, setReacoes] = useState<Reacao[]>([])
+  const [nomesReacao, setNomesReacao] = useState<Record<string, string>>({})
   const [meuPerfil, setMeuPerfil] = useState('')
   const [empresas, setEmpresas] = useState<
     { id: string; nome: string }[]
@@ -807,6 +812,10 @@ export default function AtendimentoChamadoPage() {
           setMensagens(
             mensagensFormatadas
           )
+
+          setReacoes(await carregarReacoes('chamado_mensagem_reacoes', mensagensBase.map((m) => m.id)))
+          const { data: pessoasData } = await supabase.rpc('pessoas_do_chamado', { p_chamado: chamadoId })
+          setNomesReacao(Object.fromEntries(((pessoasData || []) as { id: string; nome: string }[]).map((x) => [x.id, x.nome])))
         } else {
           setMensagens([])
         }
@@ -2637,6 +2646,22 @@ export default function AtendimentoChamadoPage() {
                                 mensagem.mensagem
                               }
                             </div>
+
+                            <Reacoes
+                              reacoes={reacoes.filter((r) => r.mensagem_id === mensagem.id)}
+                              meuId={meuId || null}
+                              nomes={nomesReacao}
+                              onReagir={async (emoji) => {
+                                if (!meuId) return
+                                const atual = reacoes.find((r) => r.mensagem_id === mensagem.id && r.usuario_id === meuId)?.emoji || null
+                                try {
+                                  const novo = await reagir('chamado_mensagem_reacoes', mensagem.id, meuId, emoji, atual)
+                                  setReacoes((lista) => aplicarReacao(lista, mensagem.id, meuId, novo))
+                                } catch (e) {
+                                  console.error(e)
+                                }
+                              }}
+                            />
                           </div>
                         </div>
                       )
