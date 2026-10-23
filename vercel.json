@@ -5,6 +5,7 @@
     { "path": "/api/cron/boletim", "schedule": "0 11 * * 1" },
     { "path": "/api/cron/treinamentos", "schedule": "0 9 * * *" },
     { "path": "/api/cron/documentos", "schedule": "10 12 * * *" },
-    { "path": "/api/cron/relatorio-desempenho", "schedule": "0 11 1 * *" }
+    { "path": "/api/cron/relatorio-desempenho", "schedule": "0 11 1 * *" },
+    { "path": "/api/cron/treinamentos-andamento", "schedule": "30 11 * * 1-5" }
   ]
 }

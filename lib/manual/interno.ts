@@ -657,6 +657,7 @@ const manualInterno: Manual = {
             'Indicadores (Concluídos, Em andamento, Não iniciados) e gráficos por situação, empresa e cursos que mais travam.',
             '"Por colaborador": filtre por empresa, curso e situação. Atualizar do EAD busca o dado na hora; Baixar CSV gera planilha para o Excel.',
             'O aviso de e-mails com matrícula no EAD sem certificado cadastrado indica cadastros faltando em Certificados.',
+            'Aviso diário ao cliente (seg a sex, 7h30, exceto feriados cadastrados): cada empresa com a ferramenta Treinamentos recebe por e-mail os treinamentos em aberto (certificado ainda não emitido e curso não concluído) de cada colaborador, com percentual e "sem avanço há N dias". Concluídos aparecem uma vez. Empresa sem pendência, sem a ferramenta ou interna não recebe. Cada envio fica registrado; no máximo um por empresa por dia.',
           ],
           dica: 'A leitura automática do EAD roda todo dia às 05h de Porto Velho. Certificados de origem manual não são alterados por ela. Quando o curso no EAD não traz "NR" no nome (ex.: "Integração de Segurança e Saúde Ocupacional"), o portal casa pelo nome do curso; se mesmo assim aparecer "Não informado", confira o e-mail e o curso no EAD do certificado.',
         },
