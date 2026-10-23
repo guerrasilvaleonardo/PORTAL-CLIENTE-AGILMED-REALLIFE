@@ -23,6 +23,8 @@ type Usuario = {
   created_at: string
   /* Empresas que a pessoa pode atender (inclui a ativa). */
   empresas_ids?: string[]
+  /* Trava de horário: pode responder chamados fora do horário. */
+  pode_fora_horario?: boolean
   empresas:
     | {
         id: string
@@ -59,6 +61,9 @@ export default function UsuariosPage() {
   const [perfil, setPerfil] = useState('cliente')
   const [empresaId, setEmpresaId] = useState('')
   const [ativo, setAtivo] = useState(true)
+  const [foraHorario, setForaHorario] = useState(false)
+  const [ehAdmin, setEhAdmin] = useState(false)
+  const [travaInstalada, setTravaInstalada] = useState(false)
 
   /* Outras empresas que a pessoa pode atender (além da empresa principal). */
   const [extras, setExtras] = useState<string[]>([])
@@ -112,6 +117,7 @@ export default function UsuariosPage() {
     setPerfil('cliente')
     setEmpresaId('')
     setAtivo(true)
+    setForaHorario(false)
     setExtras([])
     setBuscaEmpresa('')
   }
@@ -128,6 +134,7 @@ export default function UsuariosPage() {
     setPerfil(usuario.perfil || 'cliente')
     setEmpresaId(usuario.empresa_id || '')
     setAtivo(usuario.ativo !== false)
+    setForaHorario(usuario.pode_fora_horario === true)
     setExtras((usuario.empresas_ids || []).filter((e) => e !== usuario.empresa_id))
     setExistente(null)
 
@@ -164,6 +171,8 @@ export default function UsuariosPage() {
 
       setUsuarios(resultado.usuarios || [])
       setPodeLigar(resultado.pode_ligar_empresas === true)
+      setEhAdmin(resultado.eh_admin === true)
+      setTravaInstalada(resultado.trava_horario_instalada === true)
 
       const { data: empresasData, error: empresasError } =
         await supabase
@@ -260,6 +269,7 @@ export default function UsuariosPage() {
             empresa_id: empresaId || null,
             ativo,
             senha: senha || '',
+            ...(travaInstalada && perfil !== 'cliente' ? { pode_fora_horario: foraHorario } : {}),
           }
         : {
             nome: nome.trim(),
@@ -270,6 +280,7 @@ export default function UsuariosPage() {
             perfil,
             empresa_id: empresaId || null,
             empresas_extras: perfil === 'cliente' && podeLigar ? extras.filter((e) => e !== empresaId) : [],
+            ...(travaInstalada && perfil !== 'cliente' && foraHorario ? { pode_fora_horario: true } : {}),
           }
 
       setExistente(null)
@@ -531,6 +542,32 @@ export default function UsuariosPage() {
             )}
           </div>
 
+          {perfil !== 'cliente' && travaInstalada && (
+            <label
+              style={{
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                fontSize: 13.5,
+                fontWeight: 600,
+                textTransform: 'none',
+                letterSpacing: 0,
+                color: 'var(--ink)',
+              }}
+              title={ehAdmin ? '' : 'Só administrador muda esta marcação.'}
+            >
+              <input
+                type="checkbox"
+                style={{ width: 'auto', margin: 0 }}
+                checked={foraHorario}
+                disabled={!ehAdmin}
+                onChange={(e) => setForaHorario(e.target.checked)}
+              />
+              Pode atender chamados fora do horário (seg a sex, 8h às 17h)
+              {!ehAdmin && <span style={{ fontWeight: 400, color: 'var(--ink-muted)' }}> · só administrador muda</span>}
+            </label>
+          )}
+
           {perfil === 'cliente' && (
             <div className="field">
               <label>Outras empresas que pode atender (abrir e acompanhar chamados)</label>
@@ -716,6 +753,11 @@ export default function UsuariosPage() {
                       >
                         {u.ativo ? 'ativo' : 'inativo'}
                       </span>
+                      {u.pode_fora_horario && u.perfil !== 'cliente' && (
+                        <span className="pill flat" style={{ display: 'inline-block', marginTop: 4, fontSize: 10 }} title="Pode atender fora do horário">
+                          fora do horário
+                        </span>
+                      )}
                     </span>
 
                     <span className="trow-actions">

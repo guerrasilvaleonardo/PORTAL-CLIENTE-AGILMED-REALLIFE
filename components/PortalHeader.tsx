@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { useModulos, type Modulo } from '@/lib/modulos'
 import SeletorEmpresa from '@/components/SeletorEmpresa'
+import AvisoForaHorario from '@/components/AvisoForaHorario'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
@@ -309,6 +310,7 @@ export default function PortalHeader() {
         </button>
       </div>
 
+      {interno && <AvisoForaHorario />}
       {interno && <CelebracaoEstrelas />}
     </header>
   )
