@@ -120,6 +120,14 @@ export default function DesempenhoPage() {
   const [etapas, setEtapas] = useState<Record<string, number>>({})
   /* Cancelados no período, por motivo (fora do SLA e das estrelas). */
   const [cancelados, setCancelados] = useState<{ motivo: string; total: number }[]>([])
+  /* Relatório mensal de gestão: só quem tem a marcação no banco (supabase/relatorio-desempenho.sql). */
+  const [verRelatorio, setVerRelatorio] = useState(false)
+
+  useEffect(() => {
+    supabase.rpc('pode_ver_relatorio_gestao').then(({ data, error }) => {
+      if (!error && data === true) setVerRelatorio(true)
+    })
+  }, [])
 
   const { ini, fim } = useMemo(() => limitesPeriodo(periodo), [periodo])
 
@@ -592,6 +600,12 @@ export default function DesempenhoPage() {
         )}
 
         <div style={{ flex: 1 }} />
+
+        {verRelatorio && (
+          <Link href="/atendimento/relatorio-mensal" className="btn btn-sm btn-primary">
+            🔒 Relatório mensal
+          </Link>
+        )}
 
         <Link href="/estrelas" className="btn btn-sm">
           ★ Estrelas

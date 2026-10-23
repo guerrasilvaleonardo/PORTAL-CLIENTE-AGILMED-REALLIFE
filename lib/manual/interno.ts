@@ -446,7 +446,7 @@ const manualInterno: Manual = {
     {
       id: 'desempenho',
       titulo: 'Desempenho',
-      rotas: ['/atendimento/desempenho'],
+      rotas: ['/atendimento/desempenho', '/atendimento/relatorio-mensal'],
       slides: [
         {
           titulo: 'Indicadores da equipe',
@@ -464,6 +464,19 @@ const manualInterno: Manual = {
           ],
           dica: 'O chamado conta para o responsável atual. Tempos em horas úteis e pela mediana; mensagens automáticas não contam como 1ª resposta; a resolução desconta a espera do cliente.',
           atencao: 'Gestor e admin veem todos e podem detalhar cada atendente. O atendente vê só o próprio resultado.',
+        },
+        {
+          titulo: 'Relatório mensal de gestão (restrito à direção)',
+          texto:
+            'Todo dia 1º o portal gera o relatório do mês anterior: visão da equipe e uma ficha por pessoa com os mesmos indicadores desta tela, comparação com o mês anterior e com a mediana da equipe, pontos fortes, pontos de atenção, plano de ação e roteiro para a conversa individual.',
+          passos: [
+            'Só a direção (Leonardo Guerra e Priscila Vanzini) abre o relatório, pelo botão "🔒 Relatório mensal" desta tela. A liberação é feita no banco de dados; nem administrador libera pelo portal.',
+            'Cada ponto citado mostra o dado e os números dos chamados que o comprovam. O relatório avalia resultados registrados no portal, não perfil, saúde ou motivação.',
+            'Os dados de cada mês ficam congelados, como uma ata. Gerar de novo cria uma nova versão; refazer o texto da análise guarda o texto anterior. Toda abertura e todo PDF ficam registrados.',
+            'O texto da análise pode ser escrito por IA a partir dos números. A IA recebe só números e códigos: sem nomes, clientes ou textos de mensagens.',
+          ],
+          dica: 'O resultado de cada pessoa é conversado com ela na reunião individual do mês, com o plano de ação combinado em conjunto.',
+          atencao: 'É apoio à decisão da gestão: nenhuma conclusão sobre uma pessoa é automática.',
         },
       ],
     },
