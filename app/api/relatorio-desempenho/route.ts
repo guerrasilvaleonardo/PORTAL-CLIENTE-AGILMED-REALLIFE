@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   try {
     if (body.acao === 'gerar') {
       if (!mesValido(body.mes)) return NextResponse.json({ erro: 'Mês inválido.' }, { status: 400 })
-      const r = await gerarRelatorio(supabaseAdmin, body.mes, usuario)
+      const r = await gerarRelatorio(supabaseAdmin, body.mes, usuario, request.headers.get('x-vercel-oidc-token'))
       return NextResponse.json({ ok: true, id: r.id, versao: r.versao })
     }
 
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ erro: 'A análise acabou de ser feita. Aguarde 2 minutos para refazer.' }, { status: 429 })
       }
 
-      const r = await escreverAnalise(supabaseAdmin, id)
+      const r = await escreverAnalise(supabaseAdmin, id, undefined, request.headers.get('x-vercel-oidc-token'))
       await supabaseAdmin.from('relatorios_desempenho_acessos').insert({ relatorio_id: id, usuario_id: usuario, acao: 'reanalisou' })
       return NextResponse.json({ ok: true, origem: r.origem, aviso: r.erro })
     }
