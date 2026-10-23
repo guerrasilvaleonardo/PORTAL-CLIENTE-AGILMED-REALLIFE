@@ -14,6 +14,8 @@ import { avisar } from '@/lib/avisar'
 import { normalizarUrl, rotuloDoLink } from '@/lib/links'
 import type { ChamadoLink } from '@/lib/links'
 import type { Marca } from '@/lib/marca'
+import Reacoes from '@/components/Reacoes'
+import { aplicarReacao, carregarReacoes, reagir, type Reacao } from '@/lib/reacoes'
 import { AjudaSituacoes, EXPLICACAO_CLIENTE } from '@/lib/situacoes'
 import EtapasChamado from '@/components/EtapasChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
@@ -302,6 +304,10 @@ export default function DetalhesChamadoPage() {
    */
   const [atendente, setAtendente] = useState<string | null>(null)
 
+  /* Reações com emoji e nome de quem reagiu (supabase/nomes-e-reacoes.sql). */
+  const [reacoes, setReacoes] = useState<Reacao[]>([])
+  const [nomesPessoas, setNomesPessoas] = useState<Record<string, string>>({})
+
   useEffect(() => {
     async function carregar() {
       setLoading(true)
@@ -414,7 +420,23 @@ export default function DetalhesChamadoPage() {
             console.error(perfisError)
           }
 
-          const perfis = perfisData ?? []
+          /*
+           * A leitura de perfis não mostra a equipe ao cliente: o nome de
+           * quem respondeu vem de uma função do banco que devolve só nome e
+           * se é da equipe. Sem a função, segue como antes.
+           */
+          const { data: pessoasData } = await supabase.rpc('pessoas_do_chamado', { p_chamado: chamadoId })
+          const pessoasChamado = ((pessoasData || []) as { id: string; nome: string; equipe: boolean }[])
+          setNomesPessoas(Object.fromEntries(pessoasChamado.map((x) => [x.id, x.nome])))
+
+          const perfis = [
+            ...(perfisData ?? []),
+            ...pessoasChamado
+              .filter((x) => !(perfisData ?? []).some((p) => p.id === x.id))
+              .map((x) => ({ id: x.id, nome: x.nome, perfil: x.equipe ? 'atendimento' : 'cliente' })),
+          ]
+
+          setReacoes(await carregarReacoes('chamado_mensagem_reacoes', mensagensBase.map((m) => m.id)))
 
           const mensagensFormatadas: Mensagem[] = mensagensBase.map(
             (item) => {
@@ -1651,7 +1673,7 @@ export default function DetalhesChamadoPage() {
                               : mensagem.autor_perfil ===
                                   'cliente'
                                 ? 'Cliente'
-                                : 'Equipe'}
+                                : 'Equipe ' + (marca === 'agilmed' ? 'ÁgilMed' : 'Real Life')}
                           </span>
 
                           <span
@@ -1671,6 +1693,23 @@ export default function DetalhesChamadoPage() {
                         >
                           {mensagem.mensagem}
                         </div>
+
+                        <Reacoes
+                          reacoes={reacoes.filter((r) => r.mensagem_id === mensagem.id)}
+                          meuId={usuarioId || null}
+                          nomes={nomesPessoas}
+                          onReagir={async (emoji) => {
+                            if (!usuarioId) return
+                            const atual = reacoes.find((r) => r.mensagem_id === mensagem.id && r.usuario_id === usuarioId)?.emoji || null
+                            try {
+                              const novo = await reagir('chamado_mensagem_reacoes', mensagem.id, usuarioId, emoji, atual)
+                              setReacoes((lista) => aplicarReacao(lista, mensagem.id, usuarioId, novo))
+                            } catch (e) {
+                              console.error(e)
+                              setErro('Não foi possível registrar a reação.')
+                            }
+                          }}
+                        />
                       </div>
                     </div>
                   ))}

@@ -282,6 +282,8 @@ const manualInterno: Manual = {
           passos: [
             'Etiquetas: Cliente, Equipe ou Automática (aviso gerado pelo sistema a cada mudança de situação).',
             'Escreva e clique em Responder cliente: o cliente recebe e-mail. Escreva @Nome para chamar um colega; ele recebe e-mail se tiver acesso ao chamado.',
+            'O cliente vê o seu nome em cada resposta, com a etiqueta "Equipe Real Life" ou "Equipe ÁgilMed".',
+            'Reações: ☺+ abaixo da mensagem (👍 ❤️ 😂 😮 🙏 ✅). Uma por pessoa por mensagem; clicar de novo retira. O cliente também reage e vê quem reagiu. Reagir não muda situação, prazo nem estrelas e não gera e-mail.',
           ],
           atencao: 'Tudo o que você escreve aqui o cliente lê. Assuntos internos vão para Conversas (chat da equipe).',
         },
@@ -674,6 +676,7 @@ const manualInterno: Manual = {
             'Quem mandou mensagem nova sobe para o topo da lista, em "Novas mensagens" (a mais recente primeiro), piscando e em negrito até você abrir a conversa. Nas demais seções, as conversas mais recentes ficam em cima.',
             'Abaixo de cada mensagem privada que você enviou: ✓ cinza = entregue; ✓✓ verde = a pessoa abriu a conversa e leu (passe o mouse para ver quando).',
             'O campo de escrever cresce com o texto. Enter envia; Shift+Enter quebra a linha.',
+            'Reações: ☺+ abaixo da mensagem (👍 ❤️ 😂 😮 🙏 ✅), uma por pessoa; clicar de novo retira. Passe o mouse para ver quem reagiu.',
             '🎤 grava áudio de até 2 minutos (o navegador pede permissão do microfone na primeira vez): "Enviar áudio" manda, "Descartar" apaga. 📷 envia imagem (JPG, PNG ou WEBP até 10 MB); também dá para colar um print com Ctrl+V. O texto escrito no campo vai junto como legenda da imagem. Só quem está na conversa abre os arquivos.',
             'As mensagens se atualizam sozinhas a cada poucos segundos e não geram e-mail.',
           ],

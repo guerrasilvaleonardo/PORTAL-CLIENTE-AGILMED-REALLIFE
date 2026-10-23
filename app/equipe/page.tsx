@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import './chat.css'
 import AnexoChat from '@/components/AnexoChat'
+import Reacoes from '@/components/Reacoes'
+import { aplicarReacao, carregarReacoes, reagir, type Reacao } from '@/lib/reacoes'
 import {
   AUDIO_MAX_SEGUNDOS,
   IMAGEM_MAX_BYTES,
@@ -97,6 +99,8 @@ export default function ChatEquipePage() {
 
   const [contatos, setContatos] = useState<Contato[]>([])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  /* Reações com emoji (supabase/nomes-e-reacoes.sql), das 200 mensagens mais recentes. */
+  const [reacoes, setReacoes] = useState<Reacao[]>([])
 
   /* 'geral' = sala da equipe; qualquer outro valor = id da pessoa. */
   const [conversa, setConversa] = useState<string>(GERAL)
@@ -137,6 +141,8 @@ export default function ChatEquipePage() {
         .order('created_at', { ascending: false })
         .limit(600))
     }
+
+    carregarReacoes('chat_reacoes', (data || []).slice(0, 200).map((m: any) => m.id)).then(setReacoes)
 
     data = (data || []).slice().reverse()
 
@@ -238,6 +244,14 @@ export default function ChatEquipePage() {
       if (relogio) clearInterval(relogio)
     }
   }, [router])
+
+  /* Nomes para "quem reagiu": contatos + autores das mensagens. */
+  const nomesReacao = useMemo(() => {
+    const n: Record<string, string> = {}
+    for (const c of contatos as any[]) if (c.id && c.nome) n[c.id] = c.nome
+    for (const m of mensagens) if (m.autor_id && m.autor_nome) n[m.autor_id] = m.autor_nome
+    return n
+  }, [contatos, mensagens])
 
   /* Mensagens da conversa aberta agora. */
   const visiveis = useMemo(() => {
@@ -1006,6 +1020,22 @@ export default function ChatEquipePage() {
                                 {m.lido_em ? '✓✓' : '✓'}
                               </div>
                             )}
+
+                            <Reacoes
+                              reacoes={reacoes.filter((r) => r.mensagem_id === m.id)}
+                              meuId={meuId || null}
+                              nomes={nomesReacao}
+                              alinharDireita={meu}
+                              onReagir={async (emoji) => {
+                                const atual = reacoes.find((r) => r.mensagem_id === m.id && r.usuario_id === meuId)?.emoji || null
+                                try {
+                                  const novo = await reagir('chat_reacoes', m.id, meuId, emoji, atual)
+                                  setReacoes((lista) => aplicarReacao(lista, m.id, meuId, novo))
+                                } catch (e) {
+                                  console.error(e)
+                                }
+                              }}
+                            />
                           </div>
                         </div>
                       )

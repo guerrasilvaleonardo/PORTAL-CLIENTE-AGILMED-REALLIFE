@@ -365,6 +365,8 @@ const manualCliente: Manual = {
           passos: [
             'As mensagens aparecem em ordem, com quem escreveu e uma etiqueta: Cliente, Equipe ou Mensagem automática (avisos do sistema a cada mudança). Quando chega mensagem nova em um chamado seu, a aba Chamados ganha um balão vermelho piscando e o chamado aparece com o selo "nova" na lista; o aviso some quando você abre o chamado.',
             'Escreva e clique em Enviar mensagem. A equipe é avisada por e-mail. Escrevendo @Nome, a pessoa citada também recebe um e-mail.',
+            'As respostas da equipe mostram o nome de quem respondeu e a etiqueta "Equipe Real Life" ou "Equipe ÁgilMed".',
+            'Para reagir a uma mensagem, clique em ☺+ abaixo dela e escolha um emoji (👍 ❤️ 😂 😮 🙏 ✅). Cada pessoa deixa uma reação por mensagem; clicar de novo na sua retira, escolher outra troca. Passe o mouse sobre a reação para ver quem reagiu.',
           ],
           atencao:
             'Responder num chamado "Aguardando cliente" devolve o chamado para "Em atendimento". Em "Resolvido", a resposta fica na conversa e não reabre: para reabrir, use o botão "Não, reabrir". A tela não se atualiza sozinha: recarregue a página para ver respostas novas. Mensagens enviadas não podem ser editadas nem apagadas.',
