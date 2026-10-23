@@ -532,6 +532,7 @@ const manualCliente: Manual = {
             'Concluído = 100%. Em andamento = começou. Não iniciado = 0%. Sem matrícula = não encontramos o colaborador no EAD.',
             '"Situação geral" e "Cursos que mais travam" mostram onde a turma está parada.',
             '"Atualizar do EAD" busca o dado mais recente (de novo, só depois de 10 minutos). "Baixar CSV" gera uma planilha da lista para abrir no Excel.',
+            'Aviso diário por e-mail: de segunda a sexta, por volta das 7h30 (Porto Velho), os usuários da empresa recebem os treinamentos ainda em aberto de cada colaborador, com o percentual e há quantos dias não avança. Concluídos aparecem uma vez, no aviso seguinte. Sem treinamento em aberto, o e-mail não é enviado.',
           ],
           dica: 'Colaborador "Não iniciado" ou travado? Cobre internamente e, se precisar de apoio, abra um chamado na categoria Treinamentos.',
         },
