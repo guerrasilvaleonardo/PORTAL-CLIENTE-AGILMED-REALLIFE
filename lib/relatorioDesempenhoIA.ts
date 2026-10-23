@@ -7,22 +7,41 @@
  * (P1, P2...) e os chamados aparecem só pelo número e pela área. O nome é
  * recolocado aqui, depois da resposta.
  *
- * Sem a variável ANTHROPIC_API_KEY (ou se a chamada falhar), quem chama
- * usa a análise por regras (lib/relatorioDesempenho.ts).
+ * Caminho da IA (sem chave para criar):
+ * - Padrão: AI Gateway da Vercel, autenticado pelo token OIDC que a própria
+ *   Vercel entrega a cada função (cabeçalho x-vercel-oidc-token). O custo
+ *   sai dos créditos de AI Gateway da conta Vercel.
+ * - Se existir ANTHROPIC_API_KEY, usa a API da Anthropic direto.
+ * Sem nenhum dos dois (ex.: rodando fora da Vercel) ou se a chamada falhar,
+ * quem chama usa a análise por regras (lib/relatorioDesempenho.ts).
  */
 
 import type { AcaoPlano, Analise, AnalisePessoa, DadosRelatorio, FichaPessoa } from '@/lib/relatorioDesempenho'
 
-const URL_API = 'https://api.anthropic.com/v1/messages'
-const MODELO_PADRAO = 'claude-sonnet-5-5'
+const URL_ANTHROPIC = 'https://api.anthropic.com/v1/messages'
+const URL_GATEWAY = 'https://ai-gateway.vercel.sh/v1/messages'
 const TEMPO_LIMITE_MS = 50000
 
-export function iaConfigurada() {
-  return !!process.env.ANTHROPIC_API_KEY
-}
+/* Como a IA é acessada nesta execução. `oidc` vem do cabeçalho da requisição. */
+export type AcessoIA = { url: string; headers: Record<string, string>; modelo: string; via: 'anthropic' | 'gateway' }
 
-export function modeloIA() {
-  return process.env.ANTHROPIC_MODEL || MODELO_PADRAO
+export function acessoIA(oidc?: string | null): AcessoIA | null {
+  if (process.env.ANTHROPIC_API_KEY) {
+    return {
+      url: URL_ANTHROPIC,
+      headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY },
+      modelo: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+      via: 'anthropic',
+    }
+  }
+  const token = process.env.AI_GATEWAY_API_KEY || oidc || process.env.VERCEL_OIDC_TOKEN
+  if (!token) return null
+  return {
+    url: URL_GATEWAY,
+    headers: { authorization: 'Bearer ' + token },
+    modelo: process.env.AI_GATEWAY_MODEL || 'anthropic/claude-sonnet-5',
+    via: 'gateway',
+  }
 }
 
 const SISTEMA = `Você atua ao mesmo tempo como conselheiro de governança corporativa e como master coach de desenvolvimento profissional, apoiando a direção de uma empresa de engenharia de SST e saúde ocupacional na gestão da equipe de atendimento de chamados.
@@ -101,20 +120,20 @@ function contextoEquipe(d: DadosRelatorio) {
   }
 }
 
-async function chamar(usuario: string, maxTokens: number) {
+async function chamar(acesso: AcessoIA, usuario: string, maxTokens: number) {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), TEMPO_LIMITE_MS)
   try {
-    const r = await fetch(URL_API, {
+    const r = await fetch(acesso.url, {
       method: 'POST',
       signal: ctrl.signal,
       headers: {
         'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY || '',
         'anthropic-version': '2023-06-01',
+        ...acesso.headers,
       },
       body: JSON.stringify({
-        model: modeloIA(),
+        model: acesso.modelo,
         max_tokens: maxTokens,
         temperature: 0.3,
         system: SISTEMA,
@@ -166,7 +185,7 @@ function limpar<T>(v: T, nomes: Map<string, string>): T {
  * paralelo) para caber no tempo da função; quem falhar fica com a
  * análise por regras, e o erro é devolvido para registro.
  */
-export async function analisarComIA(d: DadosRelatorio, porRegras: Analise): Promise<{ analise: Analise; erros: string[] }> {
+export async function analisarComIA(acesso: AcessoIA, d: DadosRelatorio, porRegras: Analise): Promise<{ analise: Analise; erros: string[] }> {
   const codigos = codigoDe(d)
   const nomes = new Map<string, string>()
   for (const p of d.pessoas) nomes.set(codigos.get(p.id)!, p.nome.split(' ')[0])
@@ -179,7 +198,7 @@ export async function analisarComIA(d: DadosRelatorio, porRegras: Analise): Prom
       'Analise o mês da equipe de atendimento como conselheiro de governança. Dados (JSON):\n' +
       JSON.stringify({ ...ctx, pessoas: d.pessoas.map((p) => resumoPessoa(p, codigos.get(p.id)!)) }) +
       '\n\nResponda neste formato JSON: {"sintese": "3 a 5 frases sobre o mês da equipe", "destaques": ["..."], "riscos": ["riscos para o cliente, para o prazo ou para a operação, com evidência"], "recomendacoes": ["até 5 recomendações de gestão para o próximo mês, cada uma com responsável sugerido (gestão/equipe) e indicador de acompanhamento"]}'
-    const r = await chamar(pedido, 1800)
+    const r = await chamar(acesso, pedido, 1800)
     return {
       sintese: typeof r.sintese === 'string' ? r.sintese : porRegras.equipe.sintese,
       destaques: strs(r.destaques),
@@ -197,7 +216,7 @@ export async function analisarComIA(d: DadosRelatorio, porRegras: Analise): Prom
         `\n\nDados de ${codigo} (JSON):\n` +
         JSON.stringify(resumoPessoa(p, codigo)) +
         '\n\nResponda neste formato JSON: {"sintese": "2 a 4 frases sobre o mês da pessoa", "pontos_fortes": ["com evidência"], "pontos_atencao": ["com evidência"], "plano_acao": [{"acao": "...", "indicador": "...", "meta": "...", "prazo": "..."}], "roteiro_conversa": ["passo 1", "..."]}'
-      const r = await chamar(pedido, 1600)
+      const r = await chamar(acesso, pedido, 1600)
       const base = porRegras.pessoas[p.id]
       const plano = planoValido(r.plano_acao)
       return [

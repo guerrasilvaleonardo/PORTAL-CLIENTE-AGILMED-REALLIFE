@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   if (existente && existente.length) return NextResponse.json({ ok: true, mes, situacao: 'já existia' })
 
   try {
-    const r = await gerarRelatorio(supabaseAdmin, mes, null)
+    const r = await gerarRelatorio(supabaseAdmin, mes, null, request.headers.get('x-vercel-oidc-token'))
     return NextResponse.json({ ok: true, mes, situacao: 'gerado', versao: r.versao })
   } catch (e: any) {
     console.error('cron relatorio-desempenho', e)
