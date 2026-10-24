@@ -11,7 +11,7 @@ export const maxDuration = 60
 /*
  * AVISO DIÁRIO DO ANDAMENTO DOS TREINAMENTOS (supabase/treinamentos-aviso-diario.sql)
  *
- * Seg a sex, 7h30 de Porto Velho (depois da leitura do EAD das 5h): cada
+ * Segundas e sextas, 7h30 de Porto Velho (exceto feriado cadastrado) (depois da leitura do EAD das 5h): cada
  * empresa com a ferramenta Treinamentos recebe os treinamentos em aberto
  * de cada colaborador. Sem pendência, não recebe.
  *

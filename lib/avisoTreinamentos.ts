@@ -319,7 +319,7 @@ export function emailDoAviso(a: AvisoEmpresa) {
     'Andamento dos treinamentos',
     paragrafos,
     { rotulo: 'Ver os treinamentos', url: portal + '/treinamentos' },
-    'Aviso automático em dias úteis, com os dados da plataforma EAD lidos às 5h (Porto Velho). Só é enviado quando há treinamento em aberto ou concluído.'
+    'Aviso automático às segundas e sextas, com os dados da plataforma EAD lidos às 5h (Porto Velho). Só é enviado quando há treinamento em aberto ou concluído.'
   )
 
   return { assunto, html }
