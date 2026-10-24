@@ -411,6 +411,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Escolha o atendente e navegue pelas semanas (Hoje volta para a atual).',
+            'Faixa “Com o atendente” no topo de cada dia: no dia de hoje aparece tudo o que está com a pessoa (atrasados em vermelho, em atendimento, abertos e aguardando cliente); nos demais dias, o que vence em breve (amarelo). Clique para abrir o chamado.',
             'Grade de segunda a sexta, 08h–17h: blocos verdes são compromissos; etiquetas ⏱ são prazos de chamados (vermelho atrasado, amarelo vence em breve); feriado aparece hachurado.',
             '+ Compromisso (ou clique num horário livre): título, dia, início, término e, se quiser, nº do chamado, local e observação.',
           ],
