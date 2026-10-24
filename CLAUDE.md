@@ -12,10 +12,16 @@ Regras do projeto para o Claude Code. Leia antes de qualquer alteração.
 
 ## Stack
 
-- Next.js 16 (App Router, `'use client'` na maioria das telas), React 19, TypeScript, Tailwind 4.
+- Next.js 16 (App Router, `'use client'` na maioria das telas), React 19, TypeScript.
+- Estilos: inline (`style={{}}`), `app/globals.css` e arquivos `.css` por tela. O pacote Tailwind 4 está instalado, mas **não está ativo** (sem PostCSS nem `@import "tailwindcss"`). Não usar classes Tailwind sem antes configurá-lo.
 - Supabase (banco, auth e arquivos). O Leonardo chama o banco de **"projeto ticket"**.
 - Hospedagem e crons na Vercel (`vercel.json`). E-mail por `lib/email.ts`.
-- Variáveis: ver `.env.example`. A `SUPABASE_SERVICE_ROLE_KEY` é só do servidor.
+- Variáveis: o `.env.example` lista só as do Supabase. O código também usa:
+  - Supabase: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (esta é só do servidor).
+  - Crons: `CRON_SECRET`.
+  - E-mail: `RESEND_API_KEY`, `EMAIL_REMETENTE_AGILMED`, `EMAIL_REMETENTE_REALLIFE`.
+  - EAD Maestrus: `MAESTRUS_URL`, `MAESTRUS_EMAIL`, `MAESTRUS_SENHA`.
+  - IA do relatório mensal: `AI_GATEWAY_API_KEY`, `AI_GATEWAY_MODEL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (`VERCEL_OIDC_TOKEN` vem da própria Vercel).
 - O código vive só no GitHub/Vercel. Não existe cópia local no PC do Leonardo.
 
 ## Checklist de todo PR
