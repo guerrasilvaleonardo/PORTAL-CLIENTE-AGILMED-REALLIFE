@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { carregarFeriados, type Feriado } from '@/lib/feriados'
 import { situacaoSla } from '@/lib/prazo'
+import { ROTULO_SITUACAO } from '@/lib/situacoes'
 
 /*
  * Agenda semanal por atendente.
@@ -13,6 +14,9 @@ import { situacaoSla } from '@/lib/prazo'
  *   - compromissos com dia e hora (tabela agenda_compromissos);
  *   - prazos (SLA) dos chamados em aberto sob responsabilidade dele;
  *   - etapas pendentes desses chamados;
+ *   - faixa "Com o atendente" no topo de cada dia: o que vence em breve
+ *     naquele dia e, no dia de hoje, tudo o que está com ele (atrasados,
+ *     em atendimento com prazo mais adiante, abertos e pausados);
  *   - feriados do calendário do SLA.
  *
  * Carga do dia = horas de compromissos dentro do expediente / 8h.
@@ -326,6 +330,36 @@ export default function AgendaPage() {
     )
     return { atrasados, pausados, naSemana, depois }
   }, [comSla, inicioSemana, fimSemana])
+
+  /*
+   * Faixa "Com o atendente" (topo de cada dia).
+   * Em cada dia: chamados que vencem em breve naquele dia.
+   * No dia âncora (hoje, ou a sexta no fim de semana; a segunda, se a
+   * semana for futura) entra todo o resto que está com o atendente:
+   * atrasados, em atendimento, abertos e pausados.
+   * Semana passada não tem dia âncora (é histórico).
+   */
+  const faixa = useMemo(() => {
+    const m: Record<string, typeof comSla> = {}
+    dias.forEach((d) => (m[d] = []))
+
+    const semanaAtual = hoje >= dias[0] && hoje < somarDias(semana, 7)
+    const ancora = semanaAtual ? (dias.includes(hoje) ? hoje : dias[4]) : dias[0] > hoje ? dias[0] : null
+
+    const ordem = (c: (typeof comSla)[number]) =>
+      c.sla.chave === 'atrasado' ? 0 : c.sla.chave === 'vence_em_breve' ? 1 : c.sla.chave === 'pausado' ? 4 : c.status === 'em_atendimento' ? 2 : 3
+
+    comSla.forEach((c) => {
+      const t = c.prazo_sla ? Date.parse(c.prazo_sla) : NaN
+      const dia = !isNaN(t) && t >= inicioSemana && t < fimSemana ? diaLocal(t) : ''
+
+      if (c.sla.chave === 'vence_em_breve' && m[dia]) m[dia].push(c)
+      else if (ancora) m[ancora].push(c)
+    })
+
+    dias.forEach((d) => m[d].sort((a, b) => ordem(a) - ordem(b)))
+    return m
+  }, [comSla, dias, hoje, semana, inicioSemana, fimSemana])
 
   const cargaDia = useMemo(() => {
     const m: Record<string, number> = {}
@@ -728,6 +762,79 @@ export default function AgendaPage() {
               )
             })}
 
+            {/* faixa "Com o atendente" */}
+            <div
+              style={{
+                padding: '6px 4px',
+                fontSize: 9.5,
+                lineHeight: 1.2,
+                color: 'var(--ink-faint)',
+                borderTop: '1px solid var(--border)',
+                textAlign: 'right',
+              }}
+            >
+              Com o atendente
+            </div>
+            {dias.map((d) => {
+              const lista = faixa[d] || []
+              return (
+                <div
+                  key={'f' + d}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    padding: 4,
+                    minHeight: 28,
+                    maxHeight: 150,
+                    overflowY: 'auto',
+                    borderLeft: '1px solid var(--border)',
+                    borderTop: '1px solid var(--border)',
+                    background: d === hoje ? 'var(--primary-tint)' : undefined,
+                  }}
+                >
+                  {lista.map((c) => {
+                    const cor = corPrazo(c.sla.chave)
+                    const vence =
+                      c.prazo_sla && c.sla.chave !== 'pausado'
+                        ? dataCurta(diaLocal(Date.parse(c.prazo_sla))) + ' ' + hhmm(Date.parse(c.prazo_sla))
+                        : ''
+                    const rotulo =
+                      c.sla.chave === 'atrasado'
+                        ? 'Atrasado'
+                        : c.sla.chave === 'vence_em_breve'
+                          ? 'Vence ' + hhmm(Date.parse(c.prazo_sla as string))
+                          : ROTULO_SITUACAO[c.status] || c.status
+                    return (
+                      <Link
+                        key={'f' + c.id}
+                        href={'/atendimento/' + c.id}
+                        title={
+                          '#' + c.numero + ' ' + c.assunto + ' — ' + (ROTULO_SITUACAO[c.status] || c.status) +
+                          (vence ? ' · prazo ' + vence : '') + ' · ' + c.sla.texto
+                        }
+                        style={{
+                          display: 'block',
+                          padding: '2px 5px',
+                          borderRadius: 5,
+                          borderLeft: '3px solid ' + cor.fg,
+                          background: cor.bg,
+                          color: cor.fg,
+                          fontSize: 10.5,
+                          lineHeight: 1.25,
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        <strong>{rotulo}</strong> #{c.numero} {c.assunto}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )
+            })}
+
             {/* coluna de horas */}
             <div style={{ position: 'relative', height: alturaGrade }}>
               {Array.from({ length: FIM_H - INICIO_H + 1 }, (_, i) => (
@@ -869,6 +976,8 @@ export default function AgendaPage() {
         </div>
 
         <div className="panel-body" style={{ fontSize: 12, color: 'var(--ink-muted)', paddingTop: 10 }}>
+          Faixa “Com o atendente”: no dia de hoje, tudo o que está com a pessoa (atrasados,
+          em atendimento, abertos e aguardando cliente); nos outros dias, o que vence em breve.
           Blocos verdes: compromissos (clique para abrir). ⏱ Etiquetas: prazo do chamado
           (vermelho = atrasado, amarelo = vence em breve). Faixa cinza: almoço. Dias
           hachurados: feriado. A carga do dia considera só compromissos; chamados não têm
