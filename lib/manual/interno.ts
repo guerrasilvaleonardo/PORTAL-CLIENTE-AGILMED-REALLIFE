@@ -579,7 +579,8 @@ const manualInterno: Manual = {
         {
           titulo: 'Acompanhar vencimentos',
           passos: [
-            'Validade dos certificados: Vencidos, Vencem em até 90 dias (com quantos em até 30), Em dia (mais de 90 dias), Sem vencimento e Validade não informada. Cada certificado entra em uma só faixa, então os cartões somam o total. Clique num cartão para filtrar a lista.',
+            'Validade dos certificados: Vencidos, Vencem em até 90 dias (com quantos em até 30), Em dia (mais de 90 dias), Sem vencimento, Validade não informada e, quando houver, Histórico (substituído). Cada certificado entra em uma só faixa, então os cartões somam o total. Clique num cartão para filtrar a lista.',
+            'Histórico (substituído): pode cadastrar certificados antigos, já renovados, para guardar o histórico. O portal reconhece sozinho: quando a mesma pessoa (mesmo nome, na mesma empresa) tem outro certificado do mesmo curso com emissão mais nova, o antigo vira "Substituído · renovado em dd/mm/aaaa". Ele continua na lista com o link, depois dos atuais, mas não conta como vencido nem a vencer, não entra no Boletim de Antecedência e não soma nos cartões do Painel. Sem emissão, a comparação usa a validade; datas iguais não substituem.',
             'Treinamento: concluídos (100%), em andamento, não iniciados e sem dados de progresso. É outra régua, independente da validade; também filtra ao clicar.',
             'Aba Certificados: busca (colaborador, função, e-mail ou curso, sem ligar para acento ou ordem), empresa, situação, "Mais filtros" (tipo, origem, mês) e Limpar. "Por colaborador" agrupa os cursos de cada pessoa. A lista mostra 25 por página; "‹ Anterior" e "Próxima ›" ficam no topo e no fim da lista. A tela carrega todos os certificados cadastrados, sem o antigo limite de 1.000 registros; com muitos certificados ela pode levar alguns segundos a mais para abrir.',
             'Menu ⋯ em cada linha: Editar abre o formulário lateral; Remover pede confirmação antes de apagar.',
@@ -587,7 +588,7 @@ const manualInterno: Manual = {
             'Aba Análise mensal: o Painel por tipo e mês completo (lançados, 100%, presenciais, sem data de emissão e a matriz). O mês atual vem destacado e a cor mais forte indica mais certificados; clique num número para ver esses certificados na lista.',
             'Toda segunda-feira o Boletim de Antecedência é enviado por e-mail aos clientes e à equipe com o que vence em 90, 30 e 7 dias.',
           ],
-          dica: '"Sem data de emissão" (Análise mensal) não é o mesmo que "Validade não informada" (cartões): um fala da emissão, o outro do vencimento.',
+          dica: '"Sem data de emissão" (Análise mensal) não é o mesmo que "Validade não informada" (cartões): um fala da emissão, o outro do vencimento. Para o Histórico funcionar, escreva o nome do colaborador igual nos dois cadastros (acento e maiúsculas não importam) e deixe claro no curso o que muda dentro da NR: NR-10 Básico x SEP, NR-33/35 Supervisor, nível da NR-20, equipamento da NR-11 e máquina da NR-12. Na dúvida, o portal NÃO junta: o antigo continua aparecendo como vencido.',
         },
       ],
     },

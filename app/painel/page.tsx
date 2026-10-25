@@ -9,6 +9,8 @@ import { AjudaSituacoes } from '@/lib/situacoes'
 import { Barras, Rosca } from '@/lib/graficos'
 import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao from '@/components/PendenciasAvaliacao'
+import { lerTudo } from '@/lib/lerTudo'
+import { idsHistorico } from '@/lib/historicoCertificados'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -197,7 +199,37 @@ export default function PainelPage() {
 
         const contar = (q: any) => q.then((r: any) => r.count ?? 0)
 
-        const [abertos, urgentes, vencidos, vencendo, empresas, usuarios] =
+        /*
+         * Certificados vencidos e a vencer em 30 dias. Antes eram duas
+         * contagens direto no banco; agora lê os certificados (todos,
+         * sem o limite de 1000) para tirar da conta os que já foram
+         * renovados — o certificado antigo fica como histórico
+         * (lib/historicoCertificados.ts) e não é mais "vencido".
+         */
+        const contarCertificados = async () => {
+          const { data, error } = await lerTudo<any>(() =>
+            supabase
+              .from('certificados')
+              .select('id, empresa_id, colaborador, tipo, curso, emissao, validade')
+              .order('id')
+          )
+
+          if (error || !data) return { vencidos: 0, vencendo: 0 }
+
+          const historico = idsHistorico(data)
+          let vencidos = 0
+          let vencendo = 0
+
+          for (const c of data) {
+            if (!c.validade || historico.has(c.id)) continue
+            if (c.validade < hoje) vencidos += 1
+            else if (c.validade <= daqui30) vencendo += 1
+          }
+
+          return { vencidos, vencendo }
+        }
+
+        const [abertos, urgentes, certs, empresas, usuarios] =
           await Promise.all([
             contar(
               supabase
@@ -212,19 +244,7 @@ export default function PainelPage() {
                 .eq('prioridade', 'urgente')
                 .in('status', ['aberto', 'em_atendimento', 'aguardando_cliente', 'suspenso'])
             ),
-            contar(
-              supabase
-                .from('certificados')
-                .select('id', { count: 'exact', head: true })
-                .lt('validade', hoje)
-            ),
-            contar(
-              supabase
-                .from('certificados')
-                .select('id', { count: 'exact', head: true })
-                .gte('validade', hoje)
-                .lte('validade', daqui30)
-            ),
+            contarCertificados(),
             contar(
               supabase
                 .from('empresas')
@@ -244,8 +264,8 @@ export default function PainelPage() {
         setI({
           chamadosAbertos: abertos,
           chamadosUrgentes: urgentes,
-          certVencidos: vencidos,
-          certVencendo: vencendo,
+          certVencidos: certs.vencidos,
+          certVencendo: certs.vencendo,
           empresas,
           usuarios,
         })

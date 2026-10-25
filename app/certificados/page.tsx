@@ -22,6 +22,7 @@ import {
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import { lerTudo } from '@/lib/lerTudo'
+import { substitutosHistorico } from '@/lib/historicoCertificados'
 
 type Empresa = {
   id: string
@@ -196,8 +197,13 @@ function diasAte(validade: string | null) {
  * sem validade informada). "Sem vencimento" só quando o cadastro diz que
  * o certificado não vence; data em branco sem essa marcação é "não
  * informada".
+ *
+ * "historico" é a faixa do certificado substituído por um mais novo do
+ * mesmo curso e da mesma pessoa (lib/historicoCertificados.ts). Ele sai
+ * de todas as outras faixas: não conta como vencido nem como a vencer.
+ * faixaDe() não conhece o histórico; quem decide é faixaDo() na tela.
  */
-type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade'
+type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade' | 'historico'
 
 function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }): Faixa {
   const d = diasAte(c.validade)
@@ -228,6 +234,15 @@ function situacao(c: { validade: string | null; sem_vencimento?: boolean | null 
   }
 
   return { texto: 'Válido', pill: 'pill good', icone: '✓' }
+}
+
+/* Situação do certificado substituído (histórico). */
+function situacaoHistorico(substituto: { emissao: string | null } | null | undefined) {
+  return {
+    texto: 'Substituído' + (substituto?.emissao ? ' · renovado em ' + formatarData(substituto.emissao) : ''),
+    pill: 'pill flat historico',
+    icone: '↺',
+  }
 }
 
 function iniciais(nome: string) {
@@ -425,6 +440,27 @@ function CertificadosPageConteudo() {
 
   function progressoDe(c: Certificado): Progresso | null {
     return progressoPorId.get(c.id) ?? null
+  }
+
+  /*
+   * Certificados substituídos por um mais novo do mesmo curso e da mesma
+   * pessoa (lib/historicoCertificados.ts). Calculado sobre TODOS os
+   * certificados carregados, antes de qualquer filtro, para o filtro da
+   * tela não mudar o que é histórico.
+   */
+  const substitutos = useMemo(() => substitutosHistorico(certificados), [certificados])
+
+  function ehHistorico(c: Certificado) {
+    return substitutos.has(c.id)
+  }
+
+  /* Faixa considerando o histórico: substituído não é vencido nem a vencer. */
+  function faixaDo(c: Certificado): Faixa {
+    return ehHistorico(c) ? 'historico' : faixaDe(c)
+  }
+
+  function situacaoDo(c: Certificado) {
+    return ehHistorico(c) ? situacaoHistorico(substitutos.get(c.id)) : situacao(c)
   }
 
   async function atualizarEad() {
@@ -761,7 +797,7 @@ function CertificadosPageConteudo() {
   const filtrados = useMemo(() => {
     const palavras = palavrasDaBusca(busca)
 
-    return certificados.filter((c) => {
+    const lista = certificados.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
       if (filtroTipo && c.tipo !== filtroTipo) return false
       if (filtroMes && mesDoCertificado(c) !== filtroMes) return false
@@ -774,10 +810,10 @@ function CertificadosPageConteudo() {
 
       if (filtroSituacao) {
         const d = diasAte(c.validade)
-        const faixa = faixaDe(c)
+        const faixa = faixaDo(c)
 
         if (filtroSituacao === '30') {
-          if (!(d !== null && d >= 0 && d <= 30)) return false
+          if (faixa === 'historico' || !(d !== null && d >= 0 && d <= 30)) return false
         } else if (filtroSituacao.startsWith('etapa:')) {
           if (etapaDoProgresso(progressoDe(c)) !== filtroSituacao.slice(6)) return false
         } else if (faixa !== filtroSituacao) {
@@ -801,6 +837,14 @@ function CertificadosPageConteudo() {
         palavras
       )
     })
+
+    /*
+     * Histórico vai para o fim, mantendo a ordem de validade entre os
+     * atuais e entre os substituídos. Assim o que vence primeiro continua
+     * no topo e, em "Por colaborador", o histórico fica depois dos atuais.
+     */
+    return [...lista.filter((c) => !ehHistorico(c)), ...lista.filter((c) => ehHistorico(c))]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     certificados,
     busca,
@@ -810,6 +854,7 @@ function CertificadosPageConteudo() {
     filtroMes,
     filtroOrigem,
     progressoPorId,
+    substitutos,
   ])
 
   /* Volta para a primeira página sempre que o filtro muda. */
@@ -923,7 +968,8 @@ function CertificadosPageConteudo() {
    * Indicadores do topo. Respeitam o filtro de empresa (para o cliente,
    * já é só a empresa dele). Dois grupos que NÃO se misturam:
    *  - validade: vencido + até 90 dias + em dia + sem vencimento + não
-   *    informada = total (cada certificado em uma faixa só);
+   *    informada + histórico = total (cada certificado em uma faixa só;
+   *    o substituído conta só em histórico);
    *  - treinamento: concluído + em andamento + não iniciado + sem dados
    *    de progresso = total.
    */
@@ -938,16 +984,18 @@ function CertificadosPageConteudo() {
       emdia: 0,
       sem_vencimento: 0,
       sem_validade: 0,
+      historico: 0,
     }
     const etapa = { concluido: 0, andamento: 0, nao_iniciado: 0, sem_dados: 0 }
     let em30 = 0
     let presenciais = 0
 
     for (const c of base) {
-      faixa[faixaDe(c)] += 1
+      const f = faixaDo(c)
+      faixa[f] += 1
 
       const d = diasAte(c.validade)
-      if (d !== null && d >= 0 && d <= 30) em30 += 1
+      if (f !== 'historico' && d !== null && d >= 0 && d <= 30) em30 += 1
 
       etapa[etapaDoProgresso(progressoDe(c))] += 1
       if (c.progresso_origem === 'manual') presenciais += 1
@@ -955,7 +1003,7 @@ function CertificadosPageConteudo() {
 
     return { total: base.length, faixa, etapa, em30, presenciais, ead: base.length - presenciais }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [certificados, progressoPorId, filtroEmpresa])
+  }, [certificados, progressoPorId, filtroEmpresa, substitutos])
 
   /* Por colaborador: agrupa os cursos de cada pessoa (nome + empresa). */
   const grupos = useMemo(() => {
@@ -1013,7 +1061,7 @@ function CertificadosPageConteudo() {
         p ? Math.round(p.progresso) : '',
         formatarData(c.emissao),
         formatarData(c.validade),
-        situacao(c).texto,
+        ehHistorico(c) ? 'Histórico — ' + situacaoDo(c).texto.toLowerCase() : situacao(c).texto,
         c.link_certificado,
       ])
     }
@@ -1162,11 +1210,15 @@ function CertificadosPageConteudo() {
   }
 
   function linhaCertificado(c: Certificado, comPessoa: boolean) {
-    const s = situacao(c)
+    const s = situacaoDo(c)
+    const historico = ehHistorico(c)
     const empresa = c.empresas?.nome_fantasia || c.empresas?.razao_social || ''
 
     return (
-      <div key={c.id} className={'cert-linha' + (interno ? '' : ' cliente') + (comPessoa ? '' : ' sem-pessoa')}>
+      <div
+        key={c.id}
+        className={'cert-linha' + (interno ? '' : ' cliente') + (comPessoa ? '' : ' sem-pessoa') + (historico ? ' historico' : '')}
+      >
         {comPessoa && (
           <span className="cert-pessoa">
             <span className="cert-avatar" style={{ background: corAvatar(c.colaborador) }} aria-hidden="true">
@@ -1191,7 +1243,10 @@ function CertificadosPageConteudo() {
 
         <span className="cert-validade">
           <span className="cert-data">{c.validade ? formatarData(c.validade) : ''}</span>
-          <span className={s.pill + ' cert-pill'}>
+          <span
+            className={s.pill + ' cert-pill'}
+            title={historico ? 'Histórico: já existe um certificado mais novo deste curso para esta pessoa. Não conta como vencido.' : undefined}
+          >
             <span aria-hidden="true">{s.icone}</span> {s.texto}
           </span>
         </span>
@@ -1265,6 +1320,15 @@ function CertificadosPageConteudo() {
           {suportaSemVencimento &&
             cartaoIndicador('sem_vencimento', indicadores.faixa.sem_vencimento, 'Sem vencimento', 'neutro', '∞')}
           {cartaoIndicador('sem_validade', indicadores.faixa.sem_validade, 'Validade não informada', 'cinza', '?')}
+          {(indicadores.faixa.historico > 0 || filtroSituacao === 'historico') &&
+            cartaoIndicador(
+              'historico',
+              indicadores.faixa.historico,
+              'Histórico (substituído)',
+              'cinza',
+              '↺',
+              'já renovados; não contam como vencidos'
+            )}
         </div>
       </div>
 
@@ -1335,6 +1399,7 @@ function CertificadosPageConteudo() {
               <option value="emdia">Em dia (mais de 90 dias)</option>
               {suportaSemVencimento && <option value="sem_vencimento">Sem vencimento</option>}
               <option value="sem_validade">Validade não informada</option>
+              <option value="historico">Histórico (substituídos)</option>
               <option value="etapa:concluido">Treinamento concluído</option>
               <option value="etapa:andamento">Treinamento em andamento</option>
               <option value="etapa:nao_iniciado">Treinamento não iniciado</option>
@@ -1447,9 +1512,14 @@ function CertificadosPageConteudo() {
                           {interno && g.empresa ? g.empresa + ' · ' : ''}
                           {g.itens.length} {g.itens.length === 1 ? 'curso' : 'cursos'}
                           {(() => {
-                            const v = g.itens.filter((c) => faixaDe(c) === 'vencido').length
-                            const a = g.itens.filter((c) => faixaDe(c) === 'ate90').length
-                            return (v ? ' · ' + v + ' vencido(s)' : '') + (a ? ' · ' + a + ' vencendo em até 90 dias' : '')
+                            const v = g.itens.filter((c) => faixaDo(c) === 'vencido').length
+                            const a = g.itens.filter((c) => faixaDo(c) === 'ate90').length
+                            const h = g.itens.filter((c) => faixaDo(c) === 'historico').length
+                            return (
+                              (v ? ' · ' + v + ' vencido(s)' : '') +
+                              (a ? ' · ' + a + ' vencendo em até 90 dias' : '') +
+                              (h ? ' · ' + h + ' no histórico' : '')
+                            )
                           })()}
                         </span>
                       </span>
