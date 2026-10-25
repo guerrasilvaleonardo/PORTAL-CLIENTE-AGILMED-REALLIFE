@@ -184,6 +184,11 @@
 .cert-data { font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
 .cert-pill { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .cert-pill.neutro { background: var(--primary-tint); color: var(--primary-strong); }
+/* Histórico: certificado substituído por um mais novo. Cinza e discreto, mas legível e com o link. */
+.cert-pill.historico { white-space: normal; text-align: left; }
+.cert-linha.historico .cert-curso,
+.cert-linha.historico .cert-data { color: var(--ink-muted); }
+.cert-linha.historico .cert-data { text-decoration: line-through; }
 .cert-ver { white-space: nowrap; }
 
 .cert-acoes { position: relative; display: flex; justify-content: flex-end; }
