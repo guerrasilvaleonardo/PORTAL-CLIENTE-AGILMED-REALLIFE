@@ -23,6 +23,13 @@ import {
 import { ComModulo } from '@/components/ModuloBloqueado'
 import { lerTudo } from '@/lib/lerTudo'
 import { substitutosHistorico } from '@/lib/historicoCertificados'
+import {
+  carregarDesligados,
+  chaveNomeColaborador,
+  desligamentoDe,
+  type ColaboradorDesligado,
+  type MapaDesligados,
+} from '@/lib/colaboradoresDesligados'
 
 type Empresa = {
   id: string
@@ -202,8 +209,13 @@ function diasAte(validade: string | null) {
  * mesmo curso e da mesma pessoa (lib/historicoCertificados.ts). Ele sai
  * de todas as outras faixas: não conta como vencido nem como a vencer.
  * faixaDe() não conhece o histórico; quem decide é faixaDo() na tela.
+ *
+ * "desligado" é a faixa do certificado de colaborador desligado
+ * (lib/colaboradoresDesligados.ts). Vale acima de todas as outras,
+ * inclusive do histórico. Por padrão esses certificados nem aparecem;
+ * só entram na lista e nos cartões com "Mostrar desligados".
  */
-type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade' | 'historico'
+type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade' | 'historico' | 'desligado'
 
 function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }): Faixa {
   const d = diasAte(c.validade)
@@ -243,6 +255,22 @@ function situacaoHistorico(substituto: { emissao: string | null } | null | undef
     pill: 'pill flat historico',
     icone: '↺',
   }
+}
+
+/* Situação do certificado de colaborador desligado. */
+function situacaoDesligado(d: ColaboradorDesligado) {
+  return {
+    texto: 'Desligado em ' + formatarData(d.desligado_em),
+    pill: 'pill flat desligado',
+    icone: '⊘',
+  }
+}
+
+/* Hoje no formato AAAA-MM-DD, pelo relógio de quem está na tela. */
+function hojeIso() {
+  const d = new Date()
+
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
 }
 
 function iniciais(nome: string) {
@@ -320,6 +348,20 @@ function CertificadosPageConteudo() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
 
   const [form, setForm] = useState(formVazio)
+
+  /*
+   * Colaboradores desligados (supabase/colaboradores-desligados.sql).
+   * suportaDesligados = a tabela existe; sem ela, botões escondidos e
+   * ninguém é tratado como desligado.
+   */
+  const [desligados, setDesligados] = useState<MapaDesligados>(new Map())
+  const [suportaDesligados, setSuportaDesligados] = useState(false)
+  const [mostrarDesligados, setMostrarDesligados] = useState(false)
+  const [desligar, setDesligar] = useState<{ empresa_id: string; nome: string; empresa: string } | null>(null)
+  const [formDesligar, setFormDesligar] = useState({ data: '', motivo: '' })
+  const [salvandoDesligar, setSalvandoDesligar] = useState(false)
+  /* Reativação em dois cliques: guarda o id do desligamento a confirmar. */
+  const [confirmarReativar, setConfirmarReativar] = useState<string | null>(null)
 
   const [sugerirPessoa, setSugerirPessoa] = useState(false)
 
@@ -454,13 +496,127 @@ function CertificadosPageConteudo() {
     return substitutos.has(c.id)
   }
 
-  /* Faixa considerando o histórico: substituído não é vencido nem a vencer. */
+  function desligamentoDo(c: Certificado) {
+    return desligamentoDe(desligados, c)
+  }
+
+  /*
+   * Faixa considerando desligamento e histórico: desligado vale acima de
+   * tudo; substituído não é vencido nem a vencer.
+   */
   function faixaDo(c: Certificado): Faixa {
+    if (desligamentoDo(c)) return 'desligado'
+
     return ehHistorico(c) ? 'historico' : faixaDe(c)
   }
 
   function situacaoDo(c: Certificado) {
+    const d = desligamentoDo(c)
+
+    if (d) return situacaoDesligado(d)
+
     return ehHistorico(c) ? situacaoHistorico(substitutos.get(c.id)) : situacao(c)
+  }
+
+  /*
+   * Base de todas as contas da tela: sem os desligados, a não ser que
+   * "Mostrar desligados" esteja marcado. O histórico (substitutos) é
+   * calculado sobre todos os certificados, para não mudar com isso.
+   */
+  const qtdDesligados = useMemo(
+    () => (desligados.size ? certificados.filter((c) => desligamentoDe(desligados, c)).length : 0),
+    [certificados, desligados]
+  )
+
+  const visiveis = useMemo(
+    () => (mostrarDesligados || !qtdDesligados ? certificados : certificados.filter((c) => !desligamentoDe(desligados, c))),
+    [certificados, desligados, mostrarDesligados, qtdDesligados]
+  )
+
+  async function recarregarDesligados() {
+    const r = await carregarDesligados(supabase)
+
+    setDesligados(r.mapa)
+    setSuportaDesligados(r.suportado)
+  }
+
+  function abrirDesligar(empresa_id: string, nome: string, empresa: string) {
+    setErro('')
+    setMensagem('')
+    setMenuAberto(null)
+    setConfirmarReativar(null)
+    setFormDesligar({ data: hojeIso(), motivo: '' })
+    setDesligar({ empresa_id, nome, empresa })
+  }
+
+  function fecharDesligar() {
+    if (salvandoDesligar) return
+    setDesligar(null)
+  }
+
+  async function confirmarDesligamento(event: FormEvent) {
+    event.preventDefault()
+
+    if (!desligar || salvandoDesligar) return
+
+    if (!formDesligar.data) {
+      setErro('Informe a data do desligamento.')
+      return
+    }
+
+    try {
+      setSalvandoDesligar(true)
+      setErro('')
+
+      const { error } = await supabase.from('colaboradores_desligados').insert({
+        empresa_id: desligar.empresa_id,
+        nome: desligar.nome.trim(),
+        nome_chave: chaveNomeColaborador(desligar.nome),
+        desligado_em: formDesligar.data,
+        motivo: formDesligar.motivo.trim() || null,
+      })
+
+      if (error) {
+        if (error.code === '23505') throw new Error(desligar.nome + ' já está marcado como desligado.')
+        throw error
+      }
+
+      setMensagem(
+        desligar.nome +
+          ' marcado como desligado em ' +
+          formatarData(formDesligar.data) +
+          '. Os certificados dessa pessoa saem da lista, dos cartões e dos avisos.'
+      )
+      setDesligar(null)
+      await recarregarDesligados()
+    } catch (e: any) {
+      console.error(e)
+      setErro(e?.message || 'Não foi possível marcar como desligado.')
+    } finally {
+      setSalvandoDesligar(false)
+    }
+  }
+
+  async function reativar(d: ColaboradorDesligado) {
+    setConfirmarReativar(null)
+    setMenuAberto(null)
+    setErro('')
+    setMensagem('')
+
+    const { data, error } = await supabase
+      .from('colaboradores_desligados')
+      .update({ reativado_em: new Date().toISOString() })
+      .eq('id', d.id)
+      .select('id')
+
+    if (error || !data?.length) {
+      if (error) console.error(error)
+      setErro('Não foi possível reativar ' + d.nome + '.')
+      return
+    }
+
+    setMensagem(d.nome + ' reativado. Os certificados dessa pessoa voltam a contar normalmente.')
+    await recarregarDesligados()
   }
 
   async function atualizarEad() {
@@ -592,6 +748,12 @@ function CertificadosPageConteudo() {
       }
 
       if (error) throw error
+
+      /* Falha aberta: sem a tabela, ninguém é desligado e os botões somem. */
+      const desl = await carregarDesligados(supabase)
+
+      setDesligados(desl.mapa)
+      setSuportaDesligados(desl.suportado)
 
       setCertificados(
         (data || []).map((item: any) => ({
@@ -768,7 +930,8 @@ function CertificadosPageConteudo() {
     function esc(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
       setMenuAberto(null)
-      if (painelAberto) fecharPainel()
+      if (desligar) fecharDesligar()
+      else if (painelAberto) fecharPainel()
     }
 
     document.addEventListener('keydown', esc)
@@ -797,7 +960,7 @@ function CertificadosPageConteudo() {
   const filtrados = useMemo(() => {
     const palavras = palavrasDaBusca(busca)
 
-    const lista = certificados.filter((c) => {
+    const lista = visiveis.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
       if (filtroTipo && c.tipo !== filtroTipo) return false
       if (filtroMes && mesDoCertificado(c) !== filtroMes) return false
@@ -813,7 +976,7 @@ function CertificadosPageConteudo() {
         const faixa = faixaDo(c)
 
         if (filtroSituacao === '30') {
-          if (faixa === 'historico' || !(d !== null && d >= 0 && d <= 30)) return false
+          if (faixa === 'historico' || faixa === 'desligado' || !(d !== null && d >= 0 && d <= 30)) return false
         } else if (filtroSituacao.startsWith('etapa:')) {
           if (etapaDoProgresso(progressoDe(c)) !== filtroSituacao.slice(6)) return false
         } else if (faixa !== filtroSituacao) {
@@ -843,10 +1006,14 @@ function CertificadosPageConteudo() {
      * atuais e entre os substituídos. Assim o que vence primeiro continua
      * no topo e, em "Por colaborador", o histórico fica depois dos atuais.
      */
-    return [...lista.filter((c) => !ehHistorico(c)), ...lista.filter((c) => ehHistorico(c))]
+    /* Desligados (quando mostrados) vão para o fim, depois do histórico. */
+    const ordem = (c: Certificado) => (desligamentoDo(c) ? 2 : ehHistorico(c) ? 1 : 0)
+
+    return [0, 1, 2].flatMap((n) => lista.filter((c) => ordem(c) === n))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    certificados,
+    visiveis,
+    desligados,
     busca,
     filtroEmpresa,
     filtroTipo,
@@ -860,14 +1027,14 @@ function CertificadosPageConteudo() {
   /* Volta para a primeira página sempre que o filtro muda. */
   useEffect(() => {
     setPagina(1)
-  }, [busca, filtroEmpresa, filtroTipo, filtroSituacao, filtroMes, filtroOrigem, visao])
+  }, [busca, filtroEmpresa, filtroTipo, filtroSituacao, filtroMes, filtroOrigem, visao, mostrarDesligados])
 
   /*
    * Painel tipo x mes. Respeita empresa e origem; tipo e mes NAO
    * entram, porque sao justamente o que o painel ajuda a escolher.
    */
   const painel = useMemo(() => {
-    const base = certificados.filter((c) => {
+    const base = visiveis.filter((c) => {
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
 
       if (filtroOrigem) {
@@ -945,7 +1112,8 @@ function CertificadosPageConteudo() {
       semEmissao,
       semDataFora: periodo === 'tudo' ? 0 : semData.length,
     }
-  }, [certificados, progressos, filtroEmpresa, filtroOrigem, periodo])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visiveis, progressos, filtroEmpresa, filtroOrigem, periodo])
 
   /* Clique na matriz: abre a lista já filtrada por tipo e mês. */
   function focarCelula(tipo: string, mes: string) {
@@ -960,8 +1128,8 @@ function CertificadosPageConteudo() {
   /* Meses que aparecem no filtro: os que tem certificado. */
   const mesesDoFiltro = useMemo(
     () =>
-      [...new Set(certificados.map(mesDoCertificado))].sort().reverse(),
-    [certificados]
+      [...new Set(visiveis.map(mesDoCertificado))].sort().reverse(),
+    [visiveis]
   )
 
   /*
@@ -975,8 +1143,8 @@ function CertificadosPageConteudo() {
    */
   const indicadores = useMemo(() => {
     const base = filtroEmpresa
-      ? certificados.filter((c) => c.empresa_id === filtroEmpresa)
-      : certificados
+      ? visiveis.filter((c) => c.empresa_id === filtroEmpresa)
+      : visiveis
 
     const faixa: Record<Faixa, number> = {
       vencido: 0,
@@ -985,6 +1153,7 @@ function CertificadosPageConteudo() {
       sem_vencimento: 0,
       sem_validade: 0,
       historico: 0,
+      desligado: 0,
     }
     const etapa = { concluido: 0, andamento: 0, nao_iniciado: 0, sem_dados: 0 }
     let em30 = 0
@@ -995,7 +1164,7 @@ function CertificadosPageConteudo() {
       faixa[f] += 1
 
       const d = diasAte(c.validade)
-      if (f !== 'historico' && d !== null && d >= 0 && d <= 30) em30 += 1
+      if (f !== 'historico' && f !== 'desligado' && d !== null && d >= 0 && d <= 30) em30 += 1
 
       etapa[etapaDoProgresso(progressoDe(c))] += 1
       if (c.progresso_origem === 'manual') presenciais += 1
@@ -1003,17 +1172,18 @@ function CertificadosPageConteudo() {
 
     return { total: base.length, faixa, etapa, em30, presenciais, ead: base.length - presenciais }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [certificados, progressoPorId, filtroEmpresa, substitutos])
+  }, [visiveis, progressoPorId, filtroEmpresa, substitutos, desligados])
 
   /* Por colaborador: agrupa os cursos de cada pessoa (nome + empresa). */
   const grupos = useMemo(() => {
-    const mapa = new Map<string, { chave: string; nome: string; empresa: string; itens: Certificado[] }>()
+    const mapa = new Map<string, { chave: string; nome: string; empresa_id: string; empresa: string; itens: Certificado[] }>()
 
     for (const c of filtrados) {
       const chave = c.colaborador.trim().toLowerCase() + '|' + c.empresa_id
       const g = mapa.get(chave) || {
         chave,
         nome: c.colaborador,
+        empresa_id: c.empresa_id,
         empresa: c.empresas?.nome_fantasia || c.empresas?.razao_social || '',
         itens: [],
       }
@@ -1061,7 +1231,11 @@ function CertificadosPageConteudo() {
         p ? Math.round(p.progresso) : '',
         formatarData(c.emissao),
         formatarData(c.validade),
-        ehHistorico(c) ? 'Histórico — ' + situacaoDo(c).texto.toLowerCase() : situacao(c).texto,
+        desligamentoDo(c)
+          ? situacaoDo(c).texto + ' (' + situacao(c).texto.toLowerCase() + ')'
+          : ehHistorico(c)
+            ? 'Histórico — ' + situacaoDo(c).texto.toLowerCase()
+            : situacao(c).texto,
         c.link_certificado,
       ])
     }
@@ -1133,8 +1307,53 @@ function CertificadosPageConteudo() {
     )
   }
 
+  /*
+   * Ações sobre a pessoa (desligar/reativar). Só aparecem com a tabela
+   * criada. `emMenu` = dentro do menu ⋯ da linha (itens de menu); senão,
+   * botões pequenos no cabeçalho do grupo "Por colaborador".
+   */
+  function acoesPessoa(empresa_id: string, nome: string, empresa: string, d: ColaboradorDesligado | null, emMenu: boolean) {
+    if (!suportaDesligados) return null
+
+    const classe = emMenu ? undefined : 'btn btn-sm'
+    const papel = emMenu ? 'menuitem' : undefined
+
+    if (!d) {
+      return (
+        <button type="button" role={papel} className={classe} onClick={() => abrirDesligar(empresa_id, nome, empresa)}>
+          Marcar como desligado
+        </button>
+      )
+    }
+
+    if (confirmarReativar === d.id) {
+      return (
+        <>
+          <span className={emMenu ? 'cert-menu-aviso' : 'cert-sub'}>Reativar {d.nome}? Os certificados voltam a contar.</span>
+          <button type="button" role={papel} className={classe} onClick={() => reativar(d)}>
+            Confirmar reativação
+          </button>
+          <button type="button" role={papel} className={emMenu ? undefined : 'btn btn-sm btn-ghost'} onClick={() => setConfirmarReativar(null)}>
+            Manter desligado
+          </button>
+        </>
+      )
+    }
+
+    return (
+      <button type="button" role={papel} className={classe} onClick={() => setConfirmarReativar(d.id)}>
+        Reativar
+      </button>
+    )
+  }
+
+  /* A coluna "Ações" aparece para a equipe e, com a tabela criada, para o cliente. */
+  const comAcoes = interno || suportaDesligados
+
   function menuAcoes(c: Certificado) {
-    if (!interno) return null
+    if (!comAcoes) return null
+
+    const empresa = c.empresas?.nome_fantasia || c.empresas?.razao_social || ''
 
     return (
       <span className="cert-acoes">
@@ -1146,6 +1365,7 @@ function CertificadosPageConteudo() {
           onClick={(e) => {
             e.stopPropagation()
             setConfirmarRemocao(null)
+            setConfirmarReativar(null)
             setMenuAberto(menuAberto === c.id ? null : c.id)
           }}
         >
@@ -1154,11 +1374,15 @@ function CertificadosPageConteudo() {
 
         {menuAberto === c.id && (
           <span className="cert-menu" role="menu" onClick={(e) => e.stopPropagation()}>
-            <button type="button" role="menuitem" onClick={() => editar(c)}>
-              Editar
-            </button>
+            {interno && (
+              <button type="button" role="menuitem" onClick={() => editar(c)}>
+                Editar
+              </button>
+            )}
 
-            {confirmarRemocao === c.id ? (
+            {acoesPessoa(c.empresa_id, c.colaborador, empresa, desligamentoDo(c), true)}
+
+            {!interno ? null : confirmarRemocao === c.id ? (
               <>
                 <span className="cert-menu-aviso">Remover o certificado de {c.colaborador}?</span>
                 <button type="button" role="menuitem" className="perigo" onClick={() => { setMenuAberto(null); remover(c) }}>
@@ -1211,13 +1435,30 @@ function CertificadosPageConteudo() {
 
   function linhaCertificado(c: Certificado, comPessoa: boolean) {
     const s = situacaoDo(c)
-    const historico = ehHistorico(c)
+    const deslig = desligamentoDo(c)
+    const historico = !deslig && ehHistorico(c)
     const empresa = c.empresas?.nome_fantasia || c.empresas?.razao_social || ''
+
+    const dica = deslig
+      ? 'Colaborador desligado' +
+        (deslig.motivo ? ' (' + deslig.motivo + ')' : '') +
+        '. Situação do certificado: ' +
+        (ehHistorico(c) ? 'substituído por um mais novo' : situacao(c).texto.toLowerCase()) +
+        '. Não entra nos cartões nem nos avisos.'
+      : historico
+        ? 'Histórico: já existe um certificado mais novo deste curso para esta pessoa. Não conta como vencido.'
+        : undefined
 
     return (
       <div
         key={c.id}
-        className={'cert-linha' + (interno ? '' : ' cliente') + (comPessoa ? '' : ' sem-pessoa') + (historico ? ' historico' : '')}
+        className={
+          'cert-linha' +
+          (comAcoes ? '' : ' cliente') +
+          (comPessoa ? '' : ' sem-pessoa') +
+          (historico ? ' historico' : '') +
+          (deslig ? ' desligado' : '')
+        }
       >
         {comPessoa && (
           <span className="cert-pessoa">
@@ -1226,7 +1467,10 @@ function CertificadosPageConteudo() {
             </span>
             <span style={{ minWidth: 0 }}>
               <span className="cert-nome">{c.colaborador}</span>
-              <span className="cert-sub">{interno ? empresa : c.funcao || c.email_colaborador || ''}</span>
+              <span className="cert-sub">
+                {deslig ? 'Desligado · ' : ''}
+                {interno ? empresa : c.funcao || c.email_colaborador || ''}
+              </span>
             </span>
           </span>
         )}
@@ -1243,10 +1487,7 @@ function CertificadosPageConteudo() {
 
         <span className="cert-validade">
           <span className="cert-data">{c.validade ? formatarData(c.validade) : ''}</span>
-          <span
-            className={s.pill + ' cert-pill'}
-            title={historico ? 'Histórico: já existe um certificado mais novo deste curso para esta pessoa. Não conta como vencido.' : undefined}
-          >
+          <span className={s.pill + ' cert-pill'} title={dica}>
             <span aria-hidden="true">{s.icone}</span> {s.texto}
           </span>
         </span>
@@ -1261,7 +1502,7 @@ function CertificadosPageConteudo() {
           )}
         </span>
 
-        {interno && menuAcoes(c)}
+        {comAcoes && menuAcoes(c)}
       </div>
     )
   }
@@ -1304,6 +1545,7 @@ function CertificadosPageConteudo() {
           <span>
             {interno && filtroEmpresa ? 'empresa filtrada · ' : ''}
             {indicadores.total} cadastrados, cada um em uma faixa
+            {!mostrarDesligados && qtdDesligados > 0 ? ' · ' + qtdDesligados + ' de desligados fora da conta' : ''}
           </span>
         </div>
         <div className="cert-inds">
@@ -1328,6 +1570,16 @@ function CertificadosPageConteudo() {
               'cinza',
               '↺',
               'já renovados; não contam como vencidos'
+            )}
+          {mostrarDesligados &&
+            (indicadores.faixa.desligado > 0 || filtroSituacao === 'desligado') &&
+            cartaoIndicador(
+              'desligado',
+              indicadores.faixa.desligado,
+              'De desligados',
+              'cinza',
+              '⊘',
+              'não contam como vencidos nem entram nos avisos'
             )}
         </div>
       </div>
@@ -1400,6 +1652,7 @@ function CertificadosPageConteudo() {
               {suportaSemVencimento && <option value="sem_vencimento">Sem vencimento</option>}
               <option value="sem_validade">Validade não informada</option>
               <option value="historico">Histórico (substituídos)</option>
+              {mostrarDesligados && <option value="desligado">De colaboradores desligados</option>}
               <option value="etapa:concluido">Treinamento concluído</option>
               <option value="etapa:andamento">Treinamento em andamento</option>
               <option value="etapa:nao_iniciado">Treinamento não iniciado</option>
@@ -1414,6 +1667,20 @@ function CertificadosPageConteudo() {
             >
               ☰ Mais filtros
             </button>
+
+            {suportaDesligados && (qtdDesligados > 0 || mostrarDesligados) && (
+              <label className="cert-check" title="Certificados de quem saiu da empresa ficam escondidos e fora das contas.">
+                <input
+                  type="checkbox"
+                  checked={mostrarDesligados}
+                  onChange={(e) => {
+                    setMostrarDesligados(e.target.checked)
+                    if (!e.target.checked && filtroSituacao === 'desligado') setFiltroSituacao('')
+                  }}
+                />
+                Mostrar desligados ({qtdDesligados})
+              </label>
+            )}
 
             {temFiltro && (
               <button type="button" className="btn btn-ghost" onClick={limparFiltros}>
@@ -1458,7 +1725,7 @@ function CertificadosPageConteudo() {
               <h2 className="cert-lista-titulo">Lista de certificados</h2>
               <div className="cert-lista-dir">
                 <span className="cert-sub">
-                  {filtrados.length} de {certificados.length} certificados
+                  {filtrados.length} de {visiveis.length} certificados
                   {visao === 'colaborador' ? ' · ' + grupos.length + ' colaboradores' : ''}
                 </span>
                 <div className="cert-alternar" role="group" aria-label="Organizar a lista">
@@ -1482,26 +1749,33 @@ function CertificadosPageConteudo() {
             )}
 
             <div className="cert-tabela">
-              <div className={'cert-linha cert-cab' + (interno ? '' : ' cliente') + (visao === 'colaborador' ? ' sem-pessoa' : '')}>
+              <div className={'cert-linha cert-cab' + (comAcoes ? '' : ' cliente') + (visao === 'colaborador' ? ' sem-pessoa' : '')}>
                 {visao === 'certificado' && <span>{interno ? 'Colaborador / Empresa' : 'Colaborador'}</span>}
                 <span>Curso / Modalidade</span>
                 <span>Progresso</span>
                 <span>Validade / Situação</span>
                 <span>Certificado</span>
-                {interno && <span style={{ textAlign: 'right' }}>Ações</span>}
+                {comAcoes && <span style={{ textAlign: 'right' }}>Ações</span>}
               </div>
 
               {carregando ? (
                 <div className="empty-state">Carregando...</div>
               ) : filtrados.length === 0 ? (
                 <div className="empty-state">
-                  {certificados.length === 0 ? 'Nenhum certificado cadastrado ainda.' : 'Nenhum certificado com esses filtros.'}
+                  {certificados.length === 0
+                    ? 'Nenhum certificado cadastrado ainda.'
+                    : visiveis.length === 0
+                      ? 'Todos os certificados são de colaboradores desligados. Marque "Mostrar desligados" para vê-los.'
+                      : 'Nenhum certificado com esses filtros.'}
                 </div>
               ) : visao === 'certificado' ? (
                 linhasPagina.map((c) => linhaCertificado(c, true))
               ) : (
-                gruposPagina.map((g) => (
-                  <div key={g.chave} className="cert-grupo">
+                gruposPagina.map((g) => {
+                  const dg = desligamentoDe(desligados, { empresa_id: g.empresa_id, colaborador: g.nome })
+
+                  return (
+                  <div key={g.chave} className={'cert-grupo' + (dg ? ' desligado' : '')}>
                     <div className="cert-grupo-cab">
                       <span className="cert-avatar" style={{ background: corAvatar(g.nome) }} aria-hidden="true">
                         {iniciais(g.nome)}
@@ -1522,11 +1796,22 @@ function CertificadosPageConteudo() {
                             )
                           })()}
                         </span>
+                        {dg && (
+                          <span className="pill flat desligado cert-pill" title={dg.motivo ? 'Motivo: ' + dg.motivo : undefined} style={{ marginTop: 4 }}>
+                            <span aria-hidden="true">⊘</span> Desligado em {formatarData(dg.desligado_em)}
+                          </span>
+                        )}
                       </span>
+                      {suportaDesligados && (
+                        <span className="cert-grupo-acoes">
+                          {acoesPessoa(g.empresa_id, g.nome, g.empresa, dg, false)}
+                        </span>
+                      )}
                     </div>
                     {g.itens.map((c) => linhaCertificado(c, false))}
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
 
@@ -1677,6 +1962,67 @@ function CertificadosPageConteudo() {
                 ` ${painel.semDataFora} certificado(s) sem nenhuma data aparecem só em "Todo o período".`}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Marcar colaborador como desligado (confirmação com data e motivo) */}
+      {desligar && (
+        <div className="cert-fundo" onMouseDown={(e) => e.target === e.currentTarget && fecharDesligar()}>
+          <aside className="cert-lateral" role="dialog" aria-modal="true" aria-labelledby="cert-desligar-titulo">
+            <div className="cert-lateral-topo">
+              <div>
+                <div className="section-title">Certificados</div>
+                <h2 id="cert-desligar-titulo">Marcar como desligado</h2>
+              </div>
+              <button type="button" className="btn btn-ghost" onClick={fecharDesligar} aria-label="Fechar">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={confirmarDesligamento} className="cert-form">
+              {erro && <div className="banner bad">{erro}</div>}
+
+              <p style={{ margin: 0, fontSize: 14 }}>
+                <strong>{desligar.nome}</strong>
+                {desligar.empresa ? ' · ' + desligar.empresa : ''}
+              </p>
+
+              <p className="cert-sub" style={{ margin: 0, whiteSpace: 'normal' }}>
+                Os certificados desta pessoa saem da lista, dos cartões, do painel, do Boletim de Antecedência e
+                dos avisos de treinamento. Nada é apagado: dá para ver com &quot;Mostrar desligados&quot; e
+                reativar quando quiser.
+              </p>
+
+              <div className="field">
+                <label>Data do desligamento *</label>
+                <input
+                  type="date"
+                  value={formDesligar.data}
+                  onChange={(e) => setFormDesligar((atual) => ({ ...atual, data: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="field">
+                <label>Motivo (opcional)</label>
+                <textarea
+                  value={formDesligar.motivo}
+                  onChange={(e) => setFormDesligar((atual) => ({ ...atual, motivo: e.target.value }))}
+                  placeholder="Ex.: pediu demissão, fim de contrato, transferido"
+                  rows={3}
+                />
+              </div>
+
+              <div className="cert-form-acoes">
+                <button type="button" className="btn" onClick={fecharDesligar} disabled={salvandoDesligar}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={salvandoDesligar}>
+                  {salvandoDesligar ? 'Salvando...' : 'Confirmar desligamento'}
+                </button>
+              </div>
+            </form>
+          </aside>
         </div>
       )}
 
