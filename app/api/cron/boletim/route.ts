@@ -10,6 +10,7 @@ import {
   marcaDaEmpresa,
   montarEmail,
 } from '@/lib/email'
+import { lerTudo } from '@/lib/lerTudo'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -59,14 +60,17 @@ export async function GET(request: Request) {
   const limite = new Date()
   limite.setDate(limite.getDate() + Math.max(...JANELAS))
 
-  const { data: certificados, error } = await supabaseAdmin
-    .from('certificados')
-    .select(
-      'id, numero, colaborador, funcao, tipo, validade, empresa_id, empresas(nome_fantasia, razao_social, marca)'
-    )
-    .not('validade', 'is', null)
-    .lte('validade', limite.toISOString().slice(0, 10))
-    .order('validade')
+  const { data: certificados, error } = await lerTudo<any>(() =>
+    supabaseAdmin
+      .from('certificados')
+      .select(
+        'id, numero, colaborador, funcao, tipo, validade, empresa_id, empresas(nome_fantasia, razao_social, marca)'
+      )
+      .not('validade', 'is', null)
+      .lte('validade', limite.toISOString().slice(0, 10))
+      .order('validade')
+      .order('id')
+  )
 
   if (error) {
     return NextResponse.json(
