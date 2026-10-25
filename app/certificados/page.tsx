@@ -23,7 +23,7 @@ import {
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import { lerTudo } from '@/lib/lerTudo'
-import { chaveCertificado, substitutosHistorico } from '@/lib/historicoCertificados'
+import { chaveCertificado, chavePessoa, formatarCpf, pessoasPorCpf, soDigitosCpf, substitutosHistorico } from '@/lib/historicoCertificados'
 import {
   carregarDesligados,
   chaveNomeColaborador,
@@ -58,6 +58,8 @@ type Certificado = {
   progresso_manual_em?: string | null
   /* true = o certificado não vence (validade indeterminada). */
   sem_vencimento?: boolean | null
+  /* CPF do colaborador, só dígitos (supabase/certificados-cpf.sql). */
+  cpf?: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
 }
 
@@ -170,6 +172,7 @@ const formVazio = {
   validade: '',
   observacoes: '',
   link_certificado: '',
+  cpf: '',
   progresso_origem: 'ead' as OrigemProgresso,
   progresso_etapa: 'agendado' as EtapaManual,
   progresso_manual: '',
@@ -339,6 +342,8 @@ function CertificadosPageConteudo() {
   const [suportaManual, setSuportaManual] = useState(true)
   /* false enquanto certificados-sem-vencimento.sql nao tiver rodado. */
   const [suportaSemVencimento, setSuportaSemVencimento] = useState(true)
+  /* Coluna cpf (supabase/certificados-cpf.sql). Sem ela, o campo some. */
+  const [suportaCpf, setSuportaCpf] = useState(false)
 
   /* Organização da tela. */
   const [aba, setAba] = useState<'lista' | 'analise'>('lista')
@@ -378,21 +383,26 @@ function CertificadosPageConteudo() {
   const pessoasDaEmpresa = useMemo(() => {
     if (!form.empresa_id) return []
 
-    const mapa = new Map<string, { nome: string; funcao: string; email: string; cursos: number; recente: string }>()
+    const mapa = new Map<string, { nome: string; funcao: string; email: string; cpf: string; cursos: number; recente: string }>()
 
     for (const c of certificados) {
       if (c.empresa_id !== form.empresa_id || !c.colaborador) continue
 
-      const chave = normalizar(c.colaborador).replace(/\s+/g, ' ').trim() + '|' + (c.email_colaborador || '').toLowerCase().trim()
+      /* Mesmo CPF = mesma pessoa, mesmo com o nome escrito diferente. */
+      const cpf = soDigitosCpf(c.cpf)
+      const chave = cpf
+        ? 'CPF ' + cpf
+        : normalizar(c.colaborador).replace(/\s+/g, ' ').trim() + '|' + (c.email_colaborador || '').toLowerCase().trim()
       const data = c.created_at || c.emissao || ''
       const atual = mapa.get(chave)
 
       if (!atual) {
-        mapa.set(chave, { nome: c.colaborador, funcao: c.funcao || '', email: c.email_colaborador || '', cursos: 1, recente: data })
+        mapa.set(chave, { nome: c.colaborador, funcao: c.funcao || '', email: c.email_colaborador || '', cpf: cpf || '', cursos: 1, recente: data })
         continue
       }
 
       atual.cursos += 1
+      if (!atual.email && c.email_colaborador) atual.email = c.email_colaborador
       if (data >= atual.recente) {
         atual.recente = data
         atual.nome = c.colaborador
@@ -412,15 +422,16 @@ function CertificadosPageConteudo() {
     const palavras = palavrasDaBusca(termo)
 
     return pessoasDaEmpresa
-      .filter((p) => casaBusca(p.nome + ' ' + p.email + ' ' + p.funcao, palavras))
+      .filter((p) => casaBusca(p.nome + ' ' + p.email + ' ' + p.funcao + ' ' + p.cpf, palavras))
       .filter((p) => !(p.nome === form.colaborador && p.email === form.email_colaborador))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
       .slice(0, 6)
   }, [pessoasDaEmpresa, form.colaborador, form.email_colaborador])
 
-  function escolherPessoa(p: { nome: string; funcao: string; email: string }) {
+  function escolherPessoa(p: { nome: string; funcao: string; email: string; cpf: string }) {
     setForm((atual) => ({
       ...atual,
+      cpf: p.cpf ? formatarCpf(p.cpf) : atual.cpf,
       colaborador: p.nome,
       funcao: p.funcao || atual.funcao,
       email_colaborador: p.email || atual.email_colaborador,
@@ -436,7 +447,9 @@ function CertificadosPageConteudo() {
      * a mao. O e-mail e sempre em minusculas, para casar com o EAD.
      */
     const tratado =
-      campo === 'curso'
+      campo === 'cpf'
+        ? valor.replace(/[^\d.\-\s]/g, '').slice(0, 14)
+        : campo === 'curso'
         ? valor.toUpperCase()
         : campo === 'email_colaborador'
           ? valor.toLowerCase().trim()
@@ -502,11 +515,21 @@ function CertificadosPageConteudo() {
    * novo para o mais antigo. O mais novo é o atual; os anteriores são o
    * histórico, mostrado dentro do cadastro e não como linhas da lista.
    */
+  /*
+   * Colaborador de cada certificado: pelo CPF quando houver (nomes
+   * diferentes da mesma pessoa viram um só), senão pelo nome.
+   */
+  const pessoaPorId = useMemo(() => pessoasPorCpf(certificados), [certificados])
+
+  function pessoaDe(c: Pick<Certificado, 'id' | 'empresa_id' | 'colaborador'>) {
+    return pessoaPorId.get(c.id) ?? chavePessoa(c)
+  }
+
   const porCadastro = useMemo(() => {
     const mapa = new Map<string, Certificado[]>()
 
     for (const c of certificados) {
-      const chave = chaveCertificado(c)
+      const chave = chaveCertificado(c, pessoaDe(c))
 
       if (!chave) continue
 
@@ -523,11 +546,12 @@ function CertificadosPageConteudo() {
     }
 
     return mapa
-  }, [certificados])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [certificados, pessoaPorId])
 
   /* Certificados anteriores (histórico) do cadastro deste certificado. */
   function anterioresDe(c: Pick<Certificado, 'id' | 'empresa_id' | 'colaborador' | 'tipo' | 'curso'>) {
-    const chave = chaveCertificado(c)
+    const chave = chaveCertificado(c, pessoaDe(c))
 
     if (!chave) return []
 
@@ -538,8 +562,29 @@ function CertificadosPageConteudo() {
     return substitutos.has(c.id)
   }
 
+  /*
+   * Desligamento vale para o colaborador inteiro: marcado em qualquer
+   * grafia do nome (mesmo CPF), vale para todos os certificados dele.
+   */
+  const desligadoPorPessoa = useMemo(() => {
+    const mapa = new Map<string, ColaboradorDesligado>()
+
+    if (!desligados.size) return mapa
+
+    for (const c of certificados) {
+      const d = desligamentoDe(desligados, c)
+      const p = pessoaPorId.get(c.id)
+
+      if (d && p && !mapa.has(p)) mapa.set(p, d)
+    }
+
+    return mapa
+  }, [certificados, desligados, pessoaPorId])
+
   function desligamentoDo(c: Certificado) {
-    return desligamentoDe(desligados, c)
+    const p = pessoaPorId.get(c.id)
+
+    return desligamentoDe(desligados, c) || (p ? desligadoPorPessoa.get(p) ?? null : null)
   }
 
   /*
@@ -801,6 +846,22 @@ function CertificadosPageConteudo() {
 
       if (error) throw error
 
+      /*
+       * CPF em consulta separada: sem a coluna (SQL não rodou, 42703) a
+       * tela segue como antes, só sem o campo CPF.
+       */
+      const cpfs = await lerTudo<{ id: string; cpf: string | null }>(() =>
+        supabase.from('certificados').select('id, cpf').not('cpf', 'is', null).order('id')
+      )
+      const cpfPorId = new Map<string, string>()
+
+      if (cpfs.error) {
+        setSuportaCpf(false)
+      } else {
+        setSuportaCpf(true)
+        for (const r of cpfs.data || []) if (r.cpf) cpfPorId.set(r.id, r.cpf)
+      }
+
       /* Falha aberta: sem a tabela, ninguém é desligado e os botões somem. */
       const desl = await carregarDesligados(supabase)
 
@@ -810,6 +871,7 @@ function CertificadosPageConteudo() {
       setCertificados(
         (data || []).map((item: any) => ({
           ...item,
+          cpf: cpfPorId.get(item.id) || null,
           empresas: Array.isArray(item.empresas) ? item.empresas[0] : item.empresas,
         }))
       )
@@ -869,6 +931,13 @@ function CertificadosPageConteudo() {
       return
     }
 
+    const cpfDigitos = soDigitosCpf(form.cpf)
+
+    if (suportaCpf && form.cpf.trim() && !cpfDigitos) {
+      setErro('CPF incompleto: informe os 11 números ou deixe em branco.')
+      return
+    }
+
     const manual = suportaManual && form.progresso_origem === 'manual'
     const textoPct = String(form.progresso_manual).trim()
     const pct = textoPct === '' ? null : Number(textoPct)
@@ -893,6 +962,7 @@ function CertificadosPageConteudo() {
         ...(suportaSemVencimento ? { sem_vencimento: !form.validade && form.sem_vencimento } : {}),
         observacoes: form.observacoes.trim() || null,
         link_certificado: normalizarLink(form.link_certificado),
+        ...(suportaCpf ? { cpf: cpfDigitos } : {}),
         ...(suportaManual
           ? manual
             ? {
@@ -966,6 +1036,7 @@ function CertificadosPageConteudo() {
       validade: c.validade || '',
       observacoes: c.observacoes || '',
       link_certificado: c.link_certificado || '',
+      cpf: formatarCpf(c.cpf),
       progresso_origem: c.progresso_origem === 'manual' ? 'manual' : 'ead',
       progresso_etapa: c.progresso_etapa || 'agendado',
       progresso_manual:
@@ -1088,6 +1159,8 @@ function CertificadosPageConteudo() {
           c.tipo,
           c.empresas?.nome_fantasia,
           c.empresas?.razao_social,
+          /* CPF (só a equipe vê o campo; com ou sem pontuação). */
+          interno && c.cpf ? c.cpf + ' ' + formatarCpf(c.cpf) : '',
         ].join(' '),
         palavras
       )
@@ -1274,8 +1347,15 @@ function CertificadosPageConteudo() {
     const mapa = new Map<string, { chave: string; nome: string; empresa_id: string; empresa: string; itens: Certificado[] }>()
 
     for (const c of filtrados) {
-      const chave = c.colaborador.trim().toLowerCase() + '|' + c.empresa_id
-      const g = mapa.get(chave) || {
+      const chave = pessoaDe(c) || c.colaborador.trim().toLowerCase() + '|' + c.empresa_id
+      const existente = mapa.get(chave)
+
+      /* Mesmo CPF com grafias diferentes: mostra o nome mais completo. */
+      if (existente && c.colaborador.trim().split(/\s+/).length > existente.nome.trim().split(/\s+/).length) {
+        existente.nome = c.colaborador
+      }
+
+      const g = existente || {
         chave,
         nome: c.colaborador,
         empresa_id: c.empresa_id,
@@ -1292,7 +1372,7 @@ function CertificadosPageConteudo() {
 
     return [...mapa.values()].sort((a, b) => aguarda(a) - aguarda(b) || a.nome.localeCompare(b.nome, 'pt-BR'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtrados])
+  }, [filtrados, pessoaPorId])
 
   const totalItens = visao === 'certificado' ? filtrados.length : grupos.length
   const totalPaginas = Math.max(1, Math.ceil(totalItens / POR_PAGINA))
@@ -1557,12 +1637,12 @@ function CertificadosPageConteudo() {
   const historicoNoForm = (() => {
     if (!painelAberto || !form.empresa_id || !form.colaborador.trim()) return []
 
-    const chave = chaveCertificado({
-      empresa_id: form.empresa_id,
-      colaborador: form.colaborador,
-      tipo: form.tipo,
-      curso: form.curso,
-    })
+    const doForm = { id: form.id, empresa_id: form.empresa_id, colaborador: form.colaborador, tipo: form.tipo, curso: form.curso }
+    const cpfForm = soDigitosCpf(form.cpf)
+    const chave = chaveCertificado(
+      doForm,
+      form.id ? pessoaDe(doForm) : cpfForm ? form.empresa_id + '|CPF ' + cpfForm : null
+    )
 
     return chave ? (porCadastro.get(chave) || []).filter((c) => c.id !== form.id) : []
   })()
@@ -2314,7 +2394,7 @@ function CertificadosPageConteudo() {
                           >
                             <span className="cert-nome">{p.nome}</span>
                             <span className="cert-sub">
-                              {[p.funcao, p.email, p.cursos + (p.cursos === 1 ? ' certificado' : ' certificados')].filter(Boolean).join(' · ')}
+                              {[p.cpf ? 'CPF ' + formatarCpf(p.cpf) : '', p.funcao, p.email, p.cursos + (p.cursos === 1 ? ' certificado' : ' certificados')].filter(Boolean).join(' · ')}
                             </span>
                           </button>
                         ))}
@@ -2327,6 +2407,20 @@ function CertificadosPageConteudo() {
                   <input value={form.funcao} onChange={(e) => alterar('funcao', e.target.value)} placeholder="Cargo na empresa" />
                 </div>
               </div>
+
+              {suportaCpf && (
+                <div className="field">
+                  <label>CPF do colaborador</label>
+                  <input
+                    value={form.cpf}
+                    onChange={(e) => alterar('cpf', e.target.value)}
+                    onBlur={() => soDigitosCpf(form.cpf) && setForm((atual) => ({ ...atual, cpf: formatarCpf(atual.cpf) }))}
+                    placeholder="000.000.000-00 — liga os certificados da mesma pessoa"
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
+                </div>
+              )}
 
               <div className="field">
                 <label>E-mail do colaborador</label>
