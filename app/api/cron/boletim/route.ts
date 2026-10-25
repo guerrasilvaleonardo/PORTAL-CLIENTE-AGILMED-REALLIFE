@@ -11,6 +11,7 @@ import {
   montarEmail,
 } from '@/lib/email'
 import { lerTudo } from '@/lib/lerTudo'
+import { idsHistorico } from '@/lib/historicoCertificados'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -57,18 +58,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
 
-  const limite = new Date()
-  limite.setDate(limite.getDate() + Math.max(...JANELAS))
-
+  /*
+   * Lê TODOS os certificados (não só os que vencem em até 90 dias):
+   * para saber se um certificado vencido já foi renovado, é preciso ver
+   * também o certificado novo do mesmo curso, que pode vencer daqui a
+   * anos. O recorte de 90/30/7 dias e vencidos é feito logo abaixo,
+   * por faixa(), como antes.
+   */
   const { data: certificados, error } = await lerTudo<any>(() =>
     supabaseAdmin
       .from('certificados')
       .select(
-        'id, numero, colaborador, funcao, tipo, validade, empresa_id, empresas(nome_fantasia, razao_social, marca)'
+        'id, numero, colaborador, funcao, tipo, curso, emissao, validade, empresa_id, empresas(nome_fantasia, razao_social, marca)'
       )
-      .not('validade', 'is', null)
-      .lte('validade', limite.toISOString().slice(0, 10))
-      .order('validade')
+      .order('validade', { ascending: true, nullsFirst: false })
       .order('id')
   )
 
@@ -79,7 +82,15 @@ export async function GET(request: Request) {
     )
   }
 
+  /*
+   * Certificado substituído por um mais novo do mesmo curso e da mesma
+   * pessoa é histórico (lib/historicoCertificados.ts): não entra no
+   * boletim, nem para o cliente nem no consolidado da equipe.
+   */
+  const historico = idsHistorico(certificados || [])
+
   const relevantes = (certificados || [])
+    .filter((c: any) => !historico.has(c.id))
     .map((c: any) => ({
       ...c,
       empresas: Array.isArray(c.empresas) ? c.empresas[0] : c.empresas,
