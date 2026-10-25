@@ -461,6 +461,7 @@ const manualCliente: Manual = {
           },
           passos: [
             'Os cartões de validade separam cada certificado em uma faixa: Vencidos, Vencem em até 90 dias, Em dia (mais de 90 dias), Sem vencimento (não tem prazo) e Validade não informada (falta a data no cadastro). Clique num cartão para ver só esses certificados.',
+            'Histórico (substituído): quando o colaborador renova um treinamento, o certificado anterior continua na lista, com o documento, marcado como "Substituído · renovado em dd/mm/aaaa". Ele aparece depois dos certificados atuais e não conta como vencido nem entra no e-mail de vencimentos.',
             'Logo abaixo, a linha Treinamento mostra o andamento dos cursos: concluídos, em andamento, não iniciados e sem dados de progresso.',
             'Aba Certificados: busque por colaborador, função, e-mail ou curso e use os filtros (Mais filtros traz tipo, origem e mês). "Por colaborador" junta os cursos de cada pessoa. "Ver certificado" abre o documento, quando houver; Exportar baixa a lista em planilha.',
             'Aba Análise mensal: quantos certificados de cada tipo saíram em cada mês, com o mês atual destacado. Clique em um número para ver esses certificados na lista.',
