@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react'
 import { casaBusca, normalizar, palavrasDaBusca } from '@/lib/busca'
 import './certificados.css'
 import Link from 'next/link'
@@ -23,7 +23,7 @@ import {
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import { lerTudo } from '@/lib/lerTudo'
-import { substitutosHistorico } from '@/lib/historicoCertificados'
+import { chaveCertificado, substitutosHistorico } from '@/lib/historicoCertificados'
 import {
   carregarDesligados,
   chaveNomeColaborador,
@@ -347,6 +347,10 @@ function CertificadosPageConteudo() {
   const [maisFiltros, setMaisFiltros] = useState(false)
   const [painelAberto, setPainelAberto] = useState(false)
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
+  /* Linha com o histórico aberto logo abaixo (certificados anteriores). */
+  const [historicoAberto, setHistoricoAberto] = useState<string | null>(null)
+  /* Lançamento de renovação: id do certificado que vai para o histórico. */
+  const [renovandoDe, setRenovandoDe] = useState<string | null>(null)
 
   const [form, setForm] = useState(formVazio)
 
@@ -492,6 +496,43 @@ function CertificadosPageConteudo() {
    * tela não mudar o que é histórico.
    */
   const substitutos = useMemo(() => substitutosHistorico(certificados), [certificados])
+
+  /*
+   * Cadastro de cada certificado (mesma pessoa + mesmo curso), do mais
+   * novo para o mais antigo. O mais novo é o atual; os anteriores são o
+   * histórico, mostrado dentro do cadastro e não como linhas da lista.
+   */
+  const porCadastro = useMemo(() => {
+    const mapa = new Map<string, Certificado[]>()
+
+    for (const c of certificados) {
+      const chave = chaveCertificado(c)
+
+      if (!chave) continue
+
+      const g = mapa.get(chave)
+
+      if (g) g.push(c)
+      else mapa.set(chave, [c])
+    }
+
+    const data = (c: Certificado) => c.emissao || c.validade || ''
+
+    for (const g of mapa.values()) {
+      g.sort((a, b) => data(b).localeCompare(data(a)) || String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    }
+
+    return mapa
+  }, [certificados])
+
+  /* Certificados anteriores (histórico) do cadastro deste certificado. */
+  function anterioresDe(c: Pick<Certificado, 'id' | 'empresa_id' | 'colaborador' | 'tipo' | 'curso'>) {
+    const chave = chaveCertificado(c)
+
+    if (!chave) return []
+
+    return (porCadastro.get(chave) || []).filter((o) => o.id !== c.id && substitutos.has(o.id))
+  }
 
   function ehHistorico(c: Certificado) {
     return substitutos.has(c.id)
@@ -822,6 +863,12 @@ function CertificadosPageConteudo() {
       return
     }
 
+    /* Sem data, o novo não substitui o anterior: ficariam os dois como atuais. */
+    if (renovandoDe && !form.emissao && !form.validade) {
+      setErro('Informe a emissão do novo certificado para o anterior ir para o histórico.')
+      return
+    }
+
     const manual = suportaManual && form.progresso_origem === 'manual'
     const textoPct = String(form.progresso_manual).trim()
     const pct = textoPct === '' ? null : Number(textoPct)
@@ -884,9 +931,14 @@ function CertificadosPageConteudo() {
 
         if (error) throw error
 
-        setMensagem('Certificado registrado.')
+        setMensagem(
+          renovandoDe
+            ? 'Novo certificado lançado. O anterior ficou no histórico do cadastro.'
+            : 'Certificado registrado.'
+        )
       }
 
+      setRenovandoDe(null)
       setForm(formVazio)
       setPainelAberto(false)
       await carregar()
@@ -901,6 +953,7 @@ function CertificadosPageConteudo() {
   function editar(c: Certificado) {
     setErro('')
     setMensagem('')
+    setRenovandoDe(null)
     setForm({
       id: c.id,
       empresa_id: c.empresa_id,
@@ -923,15 +976,39 @@ function CertificadosPageConteudo() {
     setPainelAberto(true)
   }
 
+  /*
+   * Renovação: abre um certificado NOVO com a mesma pessoa e o mesmo
+   * curso. Ao salvar, ele vira o atual e o que estava aberto vai para o
+   * histórico do cadastro (lib/historicoCertificados.ts). Nada é apagado.
+   */
+  function lancarRenovacao() {
+    setErro('')
+    setMensagem('')
+    setRenovandoDe(form.id)
+    setForm((atual) => ({
+      ...atual,
+      id: '',
+      emissao: '',
+      validade: '',
+      sem_vencimento: false,
+      link_certificado: '',
+      observacoes: '',
+      progresso_etapa: 'agendado',
+      progresso_manual: '',
+    }))
+  }
+
   function novoCertificado() {
     setErro('')
     setMensagem('')
+    setRenovandoDe(null)
     setForm({ ...formVazio, empresa_id: filtroEmpresa || '' })
     setPainelAberto(true)
   }
 
   function fecharPainel() {
     if (salvando) return
+    setRenovandoDe(null)
     setPainelAberto(false)
     setForm(formVazio)
   }
@@ -972,6 +1049,8 @@ function CertificadosPageConteudo() {
     const palavras = palavrasDaBusca(busca)
 
     const lista = visiveis.filter((c) => {
+      /* Histórico fica dentro do cadastro do atual; só aparece na lista com o filtro "Histórico". */
+      if (ehHistorico(c) && filtroSituacao !== 'historico') return false
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
       if (filtroTipo && c.tipo !== filtroTipo) return false
       if (filtroMes && mesDoCertificado(c) !== filtroMes) return false
@@ -1464,6 +1543,30 @@ function CertificadosPageConteudo() {
     )
   }
 
+  /* Certificado aberto no painel já emitido (tem emissão, validade ou arquivo). */
+  const emitidoNoForm = Boolean(
+    certificados.find((c) => c.id === form.id && (c.emissao || c.validade || c.link_certificado))
+  )
+
+  /*
+   * Histórico mostrado no painel: os outros certificados do mesmo
+   * cadastro (pessoa + curso do formulário). Editando o atual, são os
+   * anteriores; editando um antigo, aparecem os demais (inclusive o
+   * atual); na renovação, todos os que existem hoje.
+   */
+  const historicoNoForm = (() => {
+    if (!painelAberto || !form.empresa_id || !form.colaborador.trim()) return []
+
+    const chave = chaveCertificado({
+      empresa_id: form.empresa_id,
+      colaborador: form.colaborador,
+      tipo: form.tipo,
+      curso: form.curso,
+    })
+
+    return chave ? (porCadastro.get(chave) || []).filter((c) => c.id !== form.id) : []
+  })()
+
   function linhaCertificado(c: Certificado, comPessoa: boolean) {
     const s = situacaoDo(c)
     const deslig = desligamentoDo(c)
@@ -1480,9 +1583,13 @@ function CertificadosPageConteudo() {
         ? 'Histórico: já existe um certificado mais novo deste curso para esta pessoa. Não conta como vencido.'
         : undefined
 
+    /* Anteriores do mesmo cadastro (só na linha do certificado atual). */
+    const anteriores = historico ? [] : anterioresDe(c)
+    const abertoHist = historicoAberto === c.id
+
     return (
+      <Fragment key={c.id}>
       <div
-        key={c.id}
         className={
           'cert-linha' +
           (comAcoes ? '' : ' cliente') +
@@ -1513,6 +1620,19 @@ function CertificadosPageConteudo() {
             {c.progresso_origem === 'manual' ? 'Presencial' : 'EAD'}
             {c.curso ? ' · ' + c.curso : ''}
           </span>
+          {anteriores.length > 0 && (
+            <button
+              type="button"
+              className="cert-hist-botao"
+              aria-expanded={abertoHist}
+              onClick={(e) => {
+                e.stopPropagation()
+                setHistoricoAberto(abertoHist ? null : c.id)
+              }}
+            >
+              ↺ {anteriores.length} {anteriores.length === 1 ? 'anterior' : 'anteriores'} {abertoHist ? '▴' : '▾'}
+            </button>
+          )}
         </span>
 
         <span>{celulaProgresso(c)}</span>
@@ -1535,6 +1655,50 @@ function CertificadosPageConteudo() {
         </span>
 
         {comAcoes && menuAcoes(c)}
+      </div>
+      {abertoHist && anteriores.length > 0 && listaHistorico(anteriores, comPessoa ? '' : ' sem-pessoa')}
+      </Fragment>
+    )
+  }
+
+  /*
+   * Histórico de um cadastro: certificados anteriores do mesmo curso e da
+   * mesma pessoa, do mais novo para o mais antigo. Usado abaixo da linha
+   * da lista e dentro do painel de edição.
+   */
+  function listaHistorico(itens: Certificado[], extra = '', noPainel = false) {
+    return (
+      <div className={'cert-hist' + extra + (noPainel ? ' no-painel' : '')}>
+        {itens.map((h) => (
+          <div key={h.id} className="cert-hist-item">
+            <span>
+              <span className="cert-hist-datas">
+                Emissão {h.emissao ? formatarData(h.emissao) : '—'} · Validade{' '}
+                {h.validade ? formatarData(h.validade) : h.sem_vencimento ? 'sem vencimento' : '—'}
+              </span>
+              <span className="cert-sub">
+                {h.tipo}
+                {h.curso ? ' · ' + h.curso : ''}
+                {substitutos.get(h.id)?.emissao ? ' · substituído em ' + formatarData(substitutos.get(h.id)!.emissao) : ''}
+              </span>
+              {!substitutos.has(h.id) && <span className="pill good cert-pill">Atual</span>}
+            </span>
+            <span className="cert-hist-acoes">
+              {h.link_certificado ? (
+                <a className="btn btn-sm" href={h.link_certificado} target="_blank" rel="noreferrer">
+                  Ver certificado
+                </a>
+              ) : (
+                <span className="cert-sub">Sem arquivo</span>
+              )}
+              {interno && (
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => editar(h)}>
+                  Abrir
+                </button>
+              )}
+            </span>
+          </div>
+        ))}
       </div>
     )
   }
@@ -1826,13 +1990,16 @@ function CertificadosPageConteudo() {
                           {(() => {
                             const v = g.itens.filter((c) => faixaDo(c) === 'vencido').length
                             const a = g.itens.filter((c) => faixaDo(c) === 'ate90').length
-                            const h = g.itens.filter((c) => faixaDo(c) === 'historico').length
+                            const h =
+                              filtroSituacao === 'historico'
+                                ? g.itens.filter((c) => faixaDo(c) === 'historico').length
+                                : g.itens.reduce((n, c) => n + (ehHistorico(c) ? 0 : anterioresDe(c).length), 0)
                             const ag = g.itens.filter(aguardaDo).length
                             return (
                               (ag ? ' · ' + ag + ' aguardando certificado' : '') +
                               (v ? ' · ' + v + ' vencido(s)' : '') +
                               (a ? ' · ' + a + ' vencendo em até 90 dias' : '') +
-                              (h ? ' · ' + h + ' no histórico' : '')
+                              (h ? ' · ' + h + ' anterior(es) no histórico' : '')
                             )
                           })()}
                         </span>
@@ -2073,7 +2240,9 @@ function CertificadosPageConteudo() {
             <div className="cert-lateral-topo">
               <div>
                 <div className="section-title">Certificados</div>
-                <h2 id="cert-form-titulo">{editando ? 'Editar certificado' : 'Novo certificado'}</h2>
+                <h2 id="cert-form-titulo">
+                  {editando ? 'Editar certificado' : renovandoDe ? 'Novo certificado (renovação)' : 'Novo certificado'}
+                </h2>
               </div>
               <button type="button" className="btn btn-ghost" onClick={fecharPainel} aria-label="Fechar">
                 ✕
@@ -2082,6 +2251,23 @@ function CertificadosPageConteudo() {
 
             <form onSubmit={salvar} className="cert-form">
               {erro && <div className="banner bad">{erro}</div>}
+
+              {editando && emitidoNoForm && (
+                <div className="cert-renovar">
+                  <span>
+                    Fez a reciclagem? Lance o novo certificado: ele vira o atual e este vai para o histórico, sem apagar nada.
+                  </span>
+                  <button type="button" className="btn btn-sm btn-primary" onClick={lancarRenovacao} disabled={salvando}>
+                    + Lançar novo certificado
+                  </button>
+                </div>
+              )}
+
+              {renovandoDe && (
+                <div className="banner">
+                  Renovação: mesma pessoa e mesmo curso já preenchidos. Informe emissão, validade e link do novo certificado.
+                </div>
+              )}
 
               <div className="field">
                 <label>Empresa *</label>
@@ -2259,6 +2445,15 @@ function CertificadosPageConteudo() {
                 <label>Observações</label>
                 <textarea value={form.observacoes} onChange={(e) => alterar('observacoes', e.target.value)} placeholder="Anotação livre" rows={3} />
               </div>
+
+              {historicoNoForm.length > 0 && (
+                <div className="cert-hist-painel">
+                  <div className="cert-hist-titulo">
+                    {renovandoDe ? 'Vão para o histórico ao salvar' : 'Histórico deste certificado'} ({historicoNoForm.length})
+                  </div>
+                  {listaHistorico(historicoNoForm, '', true)}
+                </div>
+              )}
 
               <div className="cert-form-acoes">
                 <button type="button" className="btn" onClick={fecharPainel} disabled={salvando}>
