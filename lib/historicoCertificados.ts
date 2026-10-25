@@ -300,6 +300,18 @@ export function substitutosHistorico<T extends CertificadoParaHistorico>(lista: 
   return resultado
 }
 
+/*
+ * Chave do "cadastro" do certificado: mesma pessoa + mesmo curso. Todos
+ * os certificados com a mesma chave são o mesmo treinamento em datas
+ * diferentes: o mais novo é o atual, os demais são o histórico dele.
+ */
+export function chaveCertificado(c: Pick<CertificadoParaHistorico, 'empresa_id' | 'colaborador' | 'tipo' | 'curso'>) {
+  const pessoa = chavePessoa(c)
+  const curso = chaveCurso(c)
+
+  return pessoa && curso ? pessoa + '#' + curso : null
+}
+
 /* Ids dos certificados substituídos (histórico). */
 export function idsHistorico(lista: CertificadoParaHistorico[]): Set<string> {
   return new Set(substitutosHistorico(lista).keys())
