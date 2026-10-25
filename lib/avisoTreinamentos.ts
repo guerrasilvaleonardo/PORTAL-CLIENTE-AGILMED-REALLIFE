@@ -22,6 +22,7 @@ import {
   type Etapa,
   type Progresso,
 } from '@/lib/treinamentos'
+import { lerTudo } from '@/lib/lerTudo'
 
 const FUSO = -4 * 3600000
 
@@ -105,11 +106,14 @@ export async function montarAvisos(db: SupabaseClient, agora = new Date()) {
     empresas.set(e.id, e)
   }
 
-  let { data: certsData, error: erroCerts } = await db
-    .from('certificados')
-    .select(
-      'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, emissao, validade, link_certificado, created_at, progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
-    )
+  let { data: certsData, error: erroCerts } = await lerTudo<any>(() =>
+    db
+      .from('certificados')
+      .select(
+        'id, empresa_id, colaborador, funcao, email_colaborador, curso, tipo, emissao, validade, link_certificado, created_at, progresso_origem, progresso_etapa, progresso_manual, progresso_manual_em'
+      )
+      .order('id')
+  )
   if (erroCerts) throw erroCerts
 
   let { data: progData, error: erroProg } = await db
