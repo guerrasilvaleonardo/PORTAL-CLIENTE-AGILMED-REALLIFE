@@ -581,7 +581,7 @@ const manualInterno: Manual = {
           passos: [
             'Validade dos certificados: Vencidos, Vencem em até 90 dias (com quantos em até 30), Em dia (mais de 90 dias), Sem vencimento e Validade não informada. Cada certificado entra em uma só faixa, então os cartões somam o total. Clique num cartão para filtrar a lista.',
             'Treinamento: concluídos (100%), em andamento, não iniciados e sem dados de progresso. É outra régua, independente da validade; também filtra ao clicar.',
-            'Aba Certificados: busca (colaborador, função, e-mail ou curso, sem ligar para acento ou ordem), empresa, situação, "Mais filtros" (tipo, origem, mês) e Limpar. "Por colaborador" agrupa os cursos de cada pessoa. A lista mostra 25 por página; "‹ Anterior" e "Próxima ›" ficam no topo e no fim da lista.',
+            'Aba Certificados: busca (colaborador, função, e-mail ou curso, sem ligar para acento ou ordem), empresa, situação, "Mais filtros" (tipo, origem, mês) e Limpar. "Por colaborador" agrupa os cursos de cada pessoa. A lista mostra 25 por página; "‹ Anterior" e "Próxima ›" ficam no topo e no fim da lista. A tela carrega todos os certificados cadastrados, sem o antigo limite de 1.000 registros; com muitos certificados ela pode levar alguns segundos a mais para abrir.',
             'Menu ⋯ em cada linha: Editar abre o formulário lateral; Remover pede confirmação antes de apagar.',
             '⤓ Exportar baixa a lista filtrada em CSV (abre no Excel).',
             'Aba Análise mensal: o Painel por tipo e mês completo (lançados, 100%, presenciais, sem data de emissão e a matriz). O mês atual vem destacado e a cor mais forte indica mais certificados; clique num número para ver esses certificados na lista.',
