@@ -381,6 +381,27 @@ export function progressosDosCertificados<T extends CertificadoComProgresso>(
   return resultado
 }
 
+/*
+ * Concluiu 100% no EAD (Maestrus) e o certificado ainda não foi
+ * atualizado no portal. Vale quando:
+ *   - o certificado ainda não foi emitido (sem emissão, validade nem
+ *     arquivo), ou
+ *   - a matrícula concluída começou DEPOIS da emissão registrada
+ *     (reciclagem feita, certificado antigo ainda no lugar).
+ * Para de valer sozinho quando a equipe lança a nova emissão/arquivo.
+ * Presencial (manual) fica de fora: a própria equipe marca "Concluído".
+ */
+export function aguardandoCertificado(
+  c: CertificadoComProgresso,
+  p: Progresso | null
+): boolean {
+  if (c.progresso_origem === 'manual') return false
+  if (!p || p.origem === 'manual' || p.progresso < 100) return false
+  if (!jaEmitido(c)) return true
+
+  return Boolean(p.inicio && c.emissao && p.inicio > c.emissao)
+}
+
 export type Etapa = 'concluido' | 'andamento' | 'nao_iniciado' | 'sem_dados'
 
 /* Em que ponto o colaborador esta naquele curso. */
