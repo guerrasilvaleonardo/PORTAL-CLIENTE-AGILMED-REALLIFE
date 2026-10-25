@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { lerTudo } from '@/lib/lerTudo'
+import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -320,7 +321,7 @@ export async function GET(request: Request) {
     let { data: certificados, error: erroCertificados } = await lerTudo<any>(() => {
       let c = supabaseAdmin
         .from('certificados')
-        .select('email_colaborador')
+        .select('email_colaborador, empresa_id, colaborador')
         .not('email_colaborador', 'is', null)
         .neq('progresso_origem', 'manual')
       if (empresaId) c = c.eq('empresa_id', empresaId)
@@ -331,7 +332,7 @@ export async function GET(request: Request) {
       const antiga = await lerTudo<any>(() => {
         let c = supabaseAdmin
           .from('certificados')
-          .select('email_colaborador')
+          .select('email_colaborador, empresa_id, colaborador')
           .not('email_colaborador', 'is', null)
         if (empresaId) c = c.eq('empresa_id', empresaId)
         return c.order('id')
@@ -343,9 +344,18 @@ export async function GET(request: Request) {
 
     if (erroCertificados) throw erroCertificados
 
+    /*
+     * Colaborador desligado (lib/colaboradoresDesligados.ts) não é
+     * procurado no EAD nem gera "sem matrícula". Se o mesmo e-mail também
+     * está num certificado de quem segue ativo, continua na leitura.
+     * Sem a tabela, ninguém é tirado.
+     */
+    const { mapa: desligados } = await carregarDesligados(supabaseAdmin)
+
     const emails = [
       ...new Set(
         (certificados || [])
+          .filter((c) => !estaDesligado(desligados, c))
           .map((c) => (c.email_colaborador || '').toLowerCase().trim())
           .filter(Boolean)
       ),
