@@ -12,6 +12,7 @@ import {
 } from '@/lib/email'
 import { lerTudo } from '@/lib/lerTudo'
 import { idsHistorico } from '@/lib/historicoCertificados'
+import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -89,8 +90,14 @@ export async function GET(request: Request) {
    */
   const historico = idsHistorico(certificados || [])
 
+  /*
+   * Colaborador desligado (lib/colaboradoresDesligados.ts) também não
+   * entra. Sem a tabela (SQL não rodou), ninguém é tirado.
+   */
+  const { mapa: desligados } = await carregarDesligados(supabaseAdmin)
+
   const relevantes = (certificados || [])
-    .filter((c: any) => !historico.has(c.id))
+    .filter((c: any) => !historico.has(c.id) && !estaDesligado(desligados, c))
     .map((c: any) => ({
       ...c,
       empresas: Array.isArray(c.empresas) ? c.empresas[0] : c.empresas,
