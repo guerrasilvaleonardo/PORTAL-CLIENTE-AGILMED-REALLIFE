@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { lerTudo } from '@/lib/lerTudo'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -316,25 +317,25 @@ export async function GET(request: Request) {
      * Se a coluna ainda nao existir (migracao nao rodada), cai na
      * leitura antiga em vez de derrubar a rotina.
      */
-    let consulta = supabaseAdmin
-      .from('certificados')
-      .select('email_colaborador')
-      .not('email_colaborador', 'is', null)
-      .neq('progresso_origem', 'manual')
-
-    if (empresaId) consulta = consulta.eq('empresa_id', empresaId)
-
-    let { data: certificados, error: erroCertificados } = await consulta
-
-    if (erroCertificados && erroCertificados.code === '42703') {
-      let consultaAntiga = supabaseAdmin
+    let { data: certificados, error: erroCertificados } = await lerTudo<any>(() => {
+      let c = supabaseAdmin
         .from('certificados')
         .select('email_colaborador')
         .not('email_colaborador', 'is', null)
+        .neq('progresso_origem', 'manual')
+      if (empresaId) c = c.eq('empresa_id', empresaId)
+      return c.order('id')
+    })
 
-      if (empresaId) consultaAntiga = consultaAntiga.eq('empresa_id', empresaId)
-
-      const antiga = await consultaAntiga
+    if (erroCertificados && erroCertificados.code === '42703') {
+      const antiga = await lerTudo<any>(() => {
+        let c = supabaseAdmin
+          .from('certificados')
+          .select('email_colaborador')
+          .not('email_colaborador', 'is', null)
+        if (empresaId) c = c.eq('empresa_id', empresaId)
+        return c.order('id')
+      })
 
       certificados = antiga.data
       erroCertificados = antiga.error
