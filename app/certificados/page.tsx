@@ -21,6 +21,7 @@ import {
   type Progresso,
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import { lerTudo } from '@/lib/lerTudo'
 
 type Empresa = {
   id: string
@@ -515,28 +516,37 @@ function CertificadosPageConteudo() {
        * rodou (coluna inexistente, 42703), le do jeito antigo e esconde
        * a opcao de lancamento manual, em vez de quebrar a tela.
        */
-      let { data, error } = await supabase
-        .from('certificados')
-        .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL + COLUNA_SEM_VENCIMENTO)
-        .order('validade', { ascending: true, nullsFirst: false })
+      let { data, error } = await lerTudo<any>(() =>
+        supabase
+          .from('certificados')
+          .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL + COLUNA_SEM_VENCIMENTO)
+          .order('validade', { ascending: true, nullsFirst: false })
+          .order('id')
+      )
 
       setSuportaSemVencimento(!(error && error.code === '42703'))
 
       if (error && error.code === '42703') {
-        const semColuna = await supabase
-          .from('certificados')
-          .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
-          .order('validade', { ascending: true, nullsFirst: false })
+        const semColuna = await lerTudo<any>(() =>
+          supabase
+            .from('certificados')
+            .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
+            .order('validade', { ascending: true, nullsFirst: false })
+            .order('id')
+        )
 
         data = semColuna.data as typeof data
         error = semColuna.error
       }
 
       if (error && error.code === '42703') {
-        const antiga = await supabase
-          .from('certificados')
-          .select(COLUNAS_CERT)
-          .order('validade', { ascending: true, nullsFirst: false })
+        const antiga = await lerTudo<any>(() =>
+          supabase
+            .from('certificados')
+            .select(COLUNAS_CERT)
+            .order('validade', { ascending: true, nullsFirst: false })
+            .order('id')
+        )
 
         data = antiga.data as typeof data
         error = antiga.error

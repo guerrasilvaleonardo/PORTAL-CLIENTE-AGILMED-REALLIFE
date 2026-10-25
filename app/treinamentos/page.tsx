@@ -17,6 +17,7 @@ import {
   type Progresso,
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import { lerTudo } from '@/lib/lerTudo'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -132,16 +133,22 @@ function TreinamentosPageConteudo() {
        * Tenta ler ja com o progresso manual. Se a migracao ainda nao
        * rodou (coluna inexistente, 42703), le do jeito antigo.
        */
-      let { data: certs, error: erroCerts } = await supabase
-        .from('certificados')
-        .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
-        .order('colaborador')
+      let { data: certs, error: erroCerts } = await lerTudo<any>(() =>
+        supabase
+          .from('certificados')
+          .select(COLUNAS_CERT + COLUNAS_PROGRESSO_MANUAL)
+          .order('colaborador')
+          .order('id')
+      )
 
       if (erroCerts && erroCerts.code === '42703') {
-        const antiga = await supabase
-          .from('certificados')
-          .select(COLUNAS_CERT)
-          .order('colaborador')
+        const antiga = await lerTudo<any>(() =>
+          supabase
+            .from('certificados')
+            .select(COLUNAS_CERT)
+            .order('colaborador')
+            .order('id')
+        )
 
         certs = antiga.data as typeof certs
         erroCerts = antiga.error
