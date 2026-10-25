@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Progresso as BarraProgressoUi } from '@/lib/graficos'
 import {
+  aguardandoCertificado,
   corDoProgresso,
   CURSOS,
   etapaDoProgresso,
@@ -510,6 +511,16 @@ function CertificadosPageConteudo() {
     return ehHistorico(c) ? 'historico' : faixaDe(c)
   }
 
+  /*
+   * Concluiu 100% no EAD e o certificado ainda não foi atualizado
+   * (lib/treinamentos.ts). Desligado e histórico ficam de fora.
+   */
+  function aguardaDo(c: Certificado) {
+    if (desligamentoDo(c) || ehHistorico(c)) return false
+
+    return aguardandoCertificado(c, progressoDe(c))
+  }
+
   function situacaoDo(c: Certificado) {
     const d = desligamentoDo(c)
 
@@ -975,7 +986,9 @@ function CertificadosPageConteudo() {
         const d = diasAte(c.validade)
         const faixa = faixaDo(c)
 
-        if (filtroSituacao === '30') {
+        if (filtroSituacao === 'aguardando') {
+          if (!aguardaDo(c)) return false
+        } else if (filtroSituacao === '30') {
           if (faixa === 'historico' || faixa === 'desligado' || !(d !== null && d >= 0 && d <= 30)) return false
         } else if (filtroSituacao.startsWith('etapa:')) {
           if (etapaDoProgresso(progressoDe(c)) !== filtroSituacao.slice(6)) return false
@@ -1007,9 +1020,10 @@ function CertificadosPageConteudo() {
      * no topo e, em "Por colaborador", o histórico fica depois dos atuais.
      */
     /* Desligados (quando mostrados) vão para o fim, depois do histórico. */
-    const ordem = (c: Certificado) => (desligamentoDo(c) ? 2 : ehHistorico(c) ? 1 : 0)
+    /* Concluídos no EAD aguardando certificado vão para o topo, piscando. */
+    const ordem = (c: Certificado) => (desligamentoDo(c) ? 2 : ehHistorico(c) ? 1 : aguardaDo(c) ? -1 : 0)
 
-    return [0, 1, 2].flatMap((n) => lista.filter((c) => ordem(c) === n))
+    return [-1, 0, 1, 2].flatMap((n) => lista.filter((c) => ordem(c) === n))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     visiveis,
@@ -1158,6 +1172,7 @@ function CertificadosPageConteudo() {
     const etapa = { concluido: 0, andamento: 0, nao_iniciado: 0, sem_dados: 0 }
     let em30 = 0
     let presenciais = 0
+    let aguardando = 0
 
     for (const c of base) {
       const f = faixaDo(c)
@@ -1168,9 +1183,10 @@ function CertificadosPageConteudo() {
 
       etapa[etapaDoProgresso(progressoDe(c))] += 1
       if (c.progresso_origem === 'manual') presenciais += 1
+      if (aguardaDo(c)) aguardando += 1
     }
 
-    return { total: base.length, faixa, etapa, em30, presenciais, ead: base.length - presenciais }
+    return { total: base.length, faixa, etapa, em30, presenciais, aguardando, ead: base.length - presenciais }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visiveis, progressoPorId, filtroEmpresa, substitutos, desligados])
 
@@ -1192,7 +1208,11 @@ function CertificadosPageConteudo() {
       mapa.set(chave, g)
     }
 
-    return [...mapa.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    /* Quem tem certificado aguardando atualização vem primeiro. */
+    const aguarda = (g: { itens: Certificado[] }) => (g.itens.some(aguardaDo) ? 0 : 1)
+
+    return [...mapa.values()].sort((a, b) => aguarda(a) - aguarda(b) || a.nome.localeCompare(b.nome, 'pt-BR'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtrados])
 
   const totalItens = visao === 'certificado' ? filtrados.length : grupos.length
@@ -1297,6 +1317,17 @@ function CertificadosPageConteudo() {
     }
 
     if (etapa === 'concluido') {
+      if (aguardaDo(c)) {
+        return (
+          <span
+            className="cert-prog aguardando"
+            title="Concluiu 100% no EAD. Emita o certificado e atualize emissão, validade e arquivo; o alerta some sozinho."
+          >
+            ✓ Concluído · atualizar certificado
+          </span>
+        )
+      }
+
       return <span className="cert-prog ok">✓ Concluído</span>
     }
 
@@ -1457,7 +1488,8 @@ function CertificadosPageConteudo() {
           (comAcoes ? '' : ' cliente') +
           (comPessoa ? '' : ' sem-pessoa') +
           (historico ? ' historico' : '') +
-          (deslig ? ' desligado' : '')
+          (deslig ? ' desligado' : '') +
+          (aguardaDo(c) ? ' aguardando' : '')
         }
       >
         {comPessoa && (
@@ -1588,6 +1620,7 @@ function CertificadosPageConteudo() {
         <span className="cert-ind-titulo" style={{ margin: 0 }}>Treinamento</span>
         {(
           [
+            ['aguardando', 'concluídos no EAD aguardando certificado', indicadores.aguardando],
             ['etapa:concluido', 'concluídos (100%)', indicadores.etapa.concluido],
             ['etapa:andamento', 'em andamento', indicadores.etapa.andamento],
             ['etapa:nao_iniciado', 'não iniciados', indicadores.etapa.nao_iniciado],
@@ -1597,7 +1630,11 @@ function CertificadosPageConteudo() {
           <button
             key={chave}
             type="button"
-            className={'cert-chip' + (filtroSituacao === chave ? ' ativo' : '')}
+            className={
+              'cert-chip' +
+              (filtroSituacao === chave ? ' ativo' : '') +
+              (chave === 'aguardando' && n > 0 ? ' aguardando' : '')
+            }
             onClick={() => {
               setFiltroSituacao(filtroSituacao === chave ? '' : chave)
               setAba('lista')
@@ -1653,6 +1690,7 @@ function CertificadosPageConteudo() {
               <option value="sem_validade">Validade não informada</option>
               <option value="historico">Histórico (substituídos)</option>
               {mostrarDesligados && <option value="desligado">De colaboradores desligados</option>}
+              <option value="aguardando">Concluído no EAD, aguardando certificado</option>
               <option value="etapa:concluido">Treinamento concluído</option>
               <option value="etapa:andamento">Treinamento em andamento</option>
               <option value="etapa:nao_iniciado">Treinamento não iniciado</option>
@@ -1789,7 +1827,9 @@ function CertificadosPageConteudo() {
                             const v = g.itens.filter((c) => faixaDo(c) === 'vencido').length
                             const a = g.itens.filter((c) => faixaDo(c) === 'ate90').length
                             const h = g.itens.filter((c) => faixaDo(c) === 'historico').length
+                            const ag = g.itens.filter(aguardaDo).length
                             return (
+                              (ag ? ' · ' + ag + ' aguardando certificado' : '') +
                               (v ? ' · ' + v + ' vencido(s)' : '') +
                               (a ? ' · ' + a + ' vencendo em até 90 dias' : '') +
                               (h ? ' · ' + h + ' no histórico' : '')
