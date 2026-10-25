@@ -461,7 +461,7 @@ const manualCliente: Manual = {
           },
           passos: [
             'Os cartões de validade separam cada certificado em uma faixa: Vencidos, Vencem em até 90 dias, Em dia (mais de 90 dias), Sem vencimento (não tem prazo) e Validade não informada (falta a data no cadastro). Clique num cartão para ver só esses certificados.',
-            'Histórico (substituído): quando o colaborador renova um treinamento, o certificado anterior continua na lista, com o documento, marcado como "Substituído · renovado em dd/mm/aaaa". Ele aparece depois dos certificados atuais e não conta como vencido nem entra no e-mail de vencimentos.',
+            'Histórico (substituído): quando o colaborador renova um treinamento, a lista mostra só o certificado atual. Os anteriores ficam guardados no histórico, com o documento: clique em "↺ N anteriores" na linha do curso para vê-los. Eles não contam como vencido nem entra no e-mail de vencimentos.',
             'Logo abaixo, a linha Treinamento mostra o andamento dos cursos: concluídos, em andamento, não iniciados e sem dados de progresso.',
             'Quando um colaborador conclui 100% do curso no EAD e o certificado ainda não foi atualizado, ele aparece no topo da lista, com a linha verde piscando e "Concluído · atualizar certificado". É a nossa equipe emitindo o certificado; quando ele for lançado, o destaque some sozinho.',
             'Colaborador que saiu da empresa: no menu ⋯ da linha ou em "Por colaborador", clique em "Marcar como desligado", informe a data e, se quiser, o motivo. Os certificados dessa pessoa deixam de aparecer na lista, nos cartões e nos e-mails de vencimento e de treinamentos. Nada é apagado: marque "Mostrar desligados" para vê-los e use "Reativar" se a pessoa voltar.',
