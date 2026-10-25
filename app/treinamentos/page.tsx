@@ -18,6 +18,7 @@ import {
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import { lerTudo } from '@/lib/lerTudo'
+import { carregarDesligados, estaDesligado, type MapaDesligados } from '@/lib/colaboradoresDesligados'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -85,6 +86,8 @@ function TreinamentosPageConteudo() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [certificados, setCertificados] = useState<Certificado[]>([])
   const [progressos, setProgressos] = useState<Progresso[]>([])
+  /* Colaboradores desligados (lib/colaboradoresDesligados.ts): ficam fora do relatório. */
+  const [desligados, setDesligados] = useState<MapaDesligados>(new Map())
 
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [filtroCurso, setFiltroCurso] = useState('')
@@ -169,8 +172,12 @@ function TreinamentosPageConteudo() {
         prog = antiga.data as typeof prog
       }
 
+      /* Sem a tabela (SQL não rodou), ninguém é tirado. */
+      const { mapa } = await carregarDesligados(supabase)
+
       setCertificados((certs || []) as unknown as Certificado[])
       setProgressos((prog || []) as Progresso[])
+      setDesligados(mapa)
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível carregar os treinamentos.')
@@ -237,11 +244,15 @@ function TreinamentosPageConteudo() {
     return mapa
   }, [empresas])
 
-  /* Uma linha por certificado, com a matricula do EAD ao lado. */
+  /*
+   * Uma linha por certificado, com a matricula do EAD ao lado. O
+   * casamento com o EAD usa todos os certificados (igual a tela
+   * Certificados e ao aviso diario); o desligado so sai da lista.
+   */
   const linhas = useMemo<Linha[]>(() => {
     const porCertificado = progressosDosCertificados(certificados, progressos)
 
-    return certificados.map((c) => {
+    return certificados.filter((c) => !estaDesligado(desligados, c)).map((c) => {
       const registro = porCertificado.get(c) ?? null
 
       return {
@@ -260,7 +271,12 @@ function TreinamentosPageConteudo() {
         atualizado: registro?.atualizado_em || null,
       }
     })
-  }, [certificados, progressos, empresaPorId])
+  }, [certificados, progressos, empresaPorId, desligados])
+
+  const qtdDesligados = useMemo(
+    () => certificados.filter((c) => estaDesligado(desligados, c)).length,
+    [certificados, desligados]
+  )
 
   const filtradas = useMemo(() => {
     const termo = normalizarCurso(busca)
@@ -446,6 +462,8 @@ function TreinamentosPageConteudo() {
         >
           O andamento de cada colaborador no EAD, por empresa e por curso.
           O progresso vem do Maestrus e é atualizado todo dia de manhã.
+          {qtdDesligados > 0 &&
+            ' ' + qtdDesligados + ' treinamento(s) de colaboradores desligados não aparecem aqui (veja em Certificados, com "Mostrar desligados").'}
         </p>
       </div>
 

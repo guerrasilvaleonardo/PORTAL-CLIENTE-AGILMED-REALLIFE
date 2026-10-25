@@ -386,3 +386,12 @@
   min-width: 0;
 }
 .cert-sugestoes button:hover, .cert-sugestoes button:focus-visible { background: var(--primary-tint); }
+
+/* Colaborador desligado: escondido por padrão; com "Mostrar desligados", cinza e com a data. */
+.cert-pill.desligado { background: var(--surface-sunken); color: var(--ink-muted); border: 1px dashed var(--border); }
+.cert-linha.desligado .cert-nome,
+.cert-linha.desligado .cert-curso,
+.cert-linha.desligado .cert-data { color: var(--ink-muted); }
+.cert-grupo.desligado .cert-grupo-cab .cert-nome { color: var(--ink-muted); }
+.cert-grupo-acoes { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.cert-grupo-acoes .cert-sub { white-space: normal; }

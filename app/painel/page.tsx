@@ -11,6 +11,7 @@ import { useAvaliacoesPendentes } from '@/lib/avaliacoesPendentes'
 import PendenciasAvaliacao from '@/components/PendenciasAvaliacao'
 import { lerTudo } from '@/lib/lerTudo'
 import { idsHistorico } from '@/lib/historicoCertificados'
+import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -205,14 +206,19 @@ export default function PainelPage() {
          * sem o limite de 1000) para tirar da conta os que já foram
          * renovados — o certificado antigo fica como histórico
          * (lib/historicoCertificados.ts) e não é mais "vencido".
+         * Certificados de colaborador desligado também ficam de fora
+         * (lib/colaboradoresDesligados.ts; sem a tabela, ninguém sai).
          */
         const contarCertificados = async () => {
-          const { data, error } = await lerTudo<any>(() =>
-            supabase
-              .from('certificados')
-              .select('id, empresa_id, colaborador, tipo, curso, emissao, validade')
-              .order('id')
-          )
+          const [{ data, error }, { mapa: desligados }] = await Promise.all([
+            lerTudo<any>(() =>
+              supabase
+                .from('certificados')
+                .select('id, empresa_id, colaborador, tipo, curso, emissao, validade')
+                .order('id')
+            ),
+            carregarDesligados(supabase),
+          ])
 
           if (error || !data) return { vencidos: 0, vencendo: 0 }
 
@@ -221,7 +227,7 @@ export default function PainelPage() {
           let vencendo = 0
 
           for (const c of data) {
-            if (!c.validade || historico.has(c.id)) continue
+            if (!c.validade || historico.has(c.id) || estaDesligado(desligados, c)) continue
             if (c.validade < hoje) vencidos += 1
             else if (c.validade <= daqui30) vencendo += 1
           }
