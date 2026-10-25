@@ -45,8 +45,12 @@ export type CertificadoParaHistorico = {
   validade: string | null
 }
 
-/* Maiúsculas, sem acento e com espaços simples. */
-function normalizarTexto(texto: string | null | undefined) {
+/*
+ * Maiúsculas, sem acento e com espaços simples. Também é a chave do nome
+ * em colaboradores desligados (lib/colaboradoresDesligados.ts e a função
+ * nome_colaborador_chave em supabase/colaboradores-desligados.sql).
+ */
+export function normalizarTexto(texto: string | null | undefined) {
   return String(texto ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')

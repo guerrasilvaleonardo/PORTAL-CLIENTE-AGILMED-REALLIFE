@@ -9,6 +9,8 @@
  * - Pendente: certificado ainda não emitido (sem emissão, validade nem
  *   arquivo) e treinamento não concluído (inclui "sem matrícula").
  * - Concluído: chegou a 100% e ainda não foi avisado; aparece uma vez.
+ * Colaborador desligado (lib/colaboradoresDesligados.ts) não entra no
+ * aviso nem tem o estado gravado. Sem a tabela, ninguém é tirado.
  * Empresa sem pendente nem concluído novo não recebe e-mail.
  */
 
@@ -23,6 +25,7 @@ import {
   type Progresso,
 } from '@/lib/treinamentos'
 import { lerTudo } from '@/lib/lerTudo'
+import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
 
 const FUSO = -4 * 3600000
 
@@ -129,6 +132,8 @@ export async function montarAvisos(db: SupabaseClient, agora = new Date()) {
     .select('certificado_id, progresso, mudou_em, concluido_avisado_em')
   if (erroEstado) throw new Error('Tabela treinamentos_aviso ausente: rode supabase/treinamentos-aviso-diario.sql. ' + erroEstado.message)
 
+  const { mapa: desligados } = await carregarDesligados(db)
+
   const estado = new Map<string, Estado>()
   for (const s of (estadosData || []) as Estado[]) estado.set(s.certificado_id, s)
 
@@ -152,6 +157,9 @@ export async function montarAvisos(db: SupabaseClient, agora = new Date()) {
 
     for (const c of lista) {
       if (emitido(c)) continue
+
+      /* O casamento com o EAD (mapa) usa todos; o desligado só sai do aviso. */
+      if (estaDesligado(desligados, c)) continue
 
       const reg = mapa.get(c) ?? null
       const etapa = etapaDoProgresso(reg)
