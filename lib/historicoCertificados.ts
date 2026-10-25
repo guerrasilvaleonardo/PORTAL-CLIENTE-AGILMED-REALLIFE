@@ -11,8 +11,8 @@
  *
  * Regra:
  *   Um certificado é HISTÓRICO quando existe outro certificado da MESMA
- *   pessoa (mesma empresa + mesmo nome, sem acento/maiúsculas/espaços
- *   extras) e do MESMO curso (chaveCurso) com data de emissão
+ *   pessoa (mesma empresa + mesmo CPF; sem CPF, mesmo nome, sem
+ *   acento/maiúsculas/espaços extras — ver pessoasPorCpf) e do MESMO curso (chaveCurso) com data de emissão
  *   estritamente mais nova. Se algum dos dois não tiver emissão, compara
  *   pela validade. Sem data comparável, nenhum substitui o outro. Datas
  *   iguais (empate) também não substituem.
@@ -43,6 +43,8 @@ export type CertificadoParaHistorico = {
   curso: string | null
   emissao: string | null
   validade: string | null
+  /* CPF do colaborador (só dígitos), quando conhecido. */
+  cpf?: string | null
 }
 
 /*
@@ -66,6 +68,62 @@ export function chavePessoa(c: Pick<CertificadoParaHistorico, 'empresa_id' | 'co
   if (!c.empresa_id || !nome) return null
 
   return c.empresa_id + '|' + nome
+}
+
+/* CPF só com dígitos (11). Vazio ou incompleto vira null. */
+export function soDigitosCpf(cpf: string | null | undefined) {
+  const d = String(cpf ?? '').replace(/\D/g, '')
+
+  if (d.length === 10) return '0' + d
+  return d.length === 11 ? d : null
+}
+
+/* 000.000.000-00 */
+export function formatarCpf(cpf: string | null | undefined) {
+  const d = soDigitosCpf(cpf)
+
+  return d ? d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9) : ''
+}
+
+/*
+ * Pessoa de cada certificado, considerando o CPF.
+ *
+ * Com CPF: empresa + CPF (nomes diferentes da mesma pessoa, ex. "Pedro
+ * Luis" e "Pedro Luis Fregadolli", viram um colaborador só).
+ * Sem CPF: empresa + nome; se nesse nome, na mesma empresa, existir
+ * exatamente um CPF, o certificado entra nessa pessoa. Dois CPFs com o
+ * mesmo nome (homônimos) ficam separados e o sem CPF fica pelo nome.
+ */
+export function pessoasPorCpf<T extends CertificadoParaHistorico>(lista: T[]): Map<string, string> {
+  const cpfsPorNome = new Map<string, Set<string>>()
+
+  for (const c of lista) {
+    const nome = chavePessoa(c)
+    const cpf = soDigitosCpf(c.cpf)
+
+    if (!nome || !cpf) continue
+
+    const s = cpfsPorNome.get(nome)
+
+    if (s) s.add(cpf)
+    else cpfsPorNome.set(nome, new Set([cpf]))
+  }
+
+  const resultado = new Map<string, string>()
+
+  for (const c of lista) {
+    const nome = chavePessoa(c)
+
+    if (!nome) continue
+
+    const cpf = soDigitosCpf(c.cpf)
+    const unico = cpfsPorNome.get(nome)
+    const usado = cpf || (unico && unico.size === 1 ? [...unico][0] : null)
+
+    resultado.set(c.id, usado ? c.empresa_id + '|CPF ' + usado : nome)
+  }
+
+  return resultado
 }
 
 /* "NR 35", "NR-35", "NR |35", "NR_06", "NR.10" -> "35", "06"... */
@@ -253,9 +311,10 @@ function compararDatas(a: CertificadoParaHistorico, b: CertificadoParaHistorico)
  */
 export function substitutosHistorico<T extends CertificadoParaHistorico>(lista: T[]): Map<string, T> {
   const grupos = new Map<string, T[]>()
+  const pessoas = pessoasPorCpf(lista)
 
   for (const c of lista) {
-    const pessoa = chavePessoa(c)
+    const pessoa = pessoas.get(c.id) ?? null
     const curso = chaveCurso(c)
 
     if (!pessoa || !curso) continue
@@ -305,8 +364,11 @@ export function substitutosHistorico<T extends CertificadoParaHistorico>(lista: 
  * os certificados com a mesma chave são o mesmo treinamento em datas
  * diferentes: o mais novo é o atual, os demais são o histórico dele.
  */
-export function chaveCertificado(c: Pick<CertificadoParaHistorico, 'empresa_id' | 'colaborador' | 'tipo' | 'curso'>) {
-  const pessoa = chavePessoa(c)
+export function chaveCertificado(
+  c: Pick<CertificadoParaHistorico, 'empresa_id' | 'colaborador' | 'tipo' | 'curso'>,
+  pessoaResolvida?: string | null
+) {
+  const pessoa = pessoaResolvida ?? chavePessoa(c)
   const curso = chaveCurso(c)
 
   return pessoa && curso ? pessoa + '#' + curso : null
