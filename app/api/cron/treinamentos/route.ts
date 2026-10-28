@@ -156,6 +156,8 @@ type Linha = {
   progresso: number
   situacao: string | null
   inicio: string | null
+  /* Numero da matricula no Maestrus (link do relatorio de desempenho). */
+  matricula: number | null
 }
 
 const SITUACOES = ['ativo', 'inativo', 'expirado', 'cancelado', 'trancado']
@@ -232,10 +234,104 @@ function lerLinhas(conteudo: string): Linha[] {
       celulas.find((c) => /^\d{2}\/\d{2}\/\d{4}$/.test(c)) || null
     )
 
-    linhas.push({ email, aluno, curso, progresso, situacao, inicio })
+    const idMatricula = bloco.match(/relatorio-de-desempenho\/(\d+)/)
+    const matricula = idMatricula ? Number(idMatricula[1]) : null
+
+    linhas.push({ email, aluno, curso, progresso, situacao, inicio, matricula })
   }
 
   return linhas
+}
+
+/* ------------------------------------------------------------------ */
+/* Tempo de estudo (relatorio de desempenho)                           */
+/* ------------------------------------------------------------------ */
+
+/*
+ * O relatorio de desempenho do Maestrus traz, por aula online, a
+ * "Frequencia" (tempo gasto) e a "Data de Finalizacao". O Maestrus nao
+ * guarda o tempo de cada acesso, so o de cada aula. Por isso:
+ *   - aula finalizada: o tempo conta no dia da finalizacao;
+ *   - aula em andamento (tempo sem data): conta no dia da ultima
+ *     atividade da Linha do tempo.
+ * A soma de tudo bate com a "Frequencia Total" das aulas online.
+ */
+type Tempo = { total: number; porDia: Record<string, number> }
+
+function segundos(texto: string) {
+  const p = texto.trim().split(':').map(Number)
+
+  if (p.length !== 3 || p.some((n) => Number.isNaN(n))) return 0
+
+  return p[0] * 3600 + p[1] * 60 + p[2]
+}
+
+function lerTempo(html: string): Tempo | null {
+  const aulas = [
+    ...html.matchAll(/data-timelog=["']([^"']*)["'][^>]*?data-finish-date=["']([^"']*)["']/gi),
+  ]
+
+  if (aulas.length === 0) return null
+
+  const ultimaAtividade = html.match(
+    /id=["']timeline-grid["'][\s\S]*?<tbody>\s*<tr>\s*<td>\s*(\d{2}\/\d{2}\/\d{4})/i
+  )
+
+  let diaSemData = ultimaAtividade ? paraDataIso(ultimaAtividade[1]) : null
+
+  const porDia: Record<string, number> = {}
+  let total = 0
+  let semData = 0
+
+  for (const [, tempo, fim] of aulas) {
+    const s = segundos(tempo)
+
+    if (s <= 0) continue
+
+    total += s
+
+    const dia = paraDataIso(fim)
+
+    if (dia) porDia[dia] = (porDia[dia] || 0) + s
+    else semData += s
+  }
+
+  if (semData > 0) {
+    if (!diaSemData) diaSemData = Object.keys(porDia).sort().pop() || null
+
+    if (diaSemData) porDia[diaSemData] = (porDia[diaSemData] || 0) + semData
+  }
+
+  return { total, porDia }
+}
+
+/*
+ * Precisa (re)ler o tempo desta matricula?
+ *   - nunca lido;
+ *   - o percentual mudou desde a ultima leitura do tempo;
+ *   - curso em andamento e a ultima leitura do tempo e anterior a
+ *     ultima leitura do progresso (o colaborador pode ter estudado sem
+ *     mudar o %).
+ * Concluido (100%) e ja lido com 100% nao e relido.
+ */
+function precisaLerTempo(r: {
+  progresso: number | null
+  tempo_lido_em: string | null
+  tempo_progresso: number | null
+  atualizado_em: string | null
+}) {
+  if (!r.tempo_lido_em) return true
+
+  const progresso = Math.round(Number(r.progresso) || 0)
+
+  if (r.tempo_progresso === null || Number(r.tempo_progresso) !== progresso) return true
+
+  if (progresso >= 100) return false
+
+  const lido = new Date(r.tempo_lido_em).getTime()
+  const atualizado = r.atualizado_em ? new Date(r.atualizado_em).getTime() : 0
+
+  return lido < atualizado
 }
 
 /* ------------------------------------------------------------------ */
@@ -250,6 +346,19 @@ export async function GET(request: Request) {
   }
 
   const { empresaId, cliente } = acesso
+
+  const inicioRotina = Date.now()
+
+  /*
+   * /api/cron/treinamentos-tempo (ou ?etapa=tempo): so le o tempo de
+   * estudo das matriculas ja gravadas. Roda 40 min depois da leitura do
+   * progresso, para o tempo nao depender da sobra daquela rotina.
+   */
+  const url = new URL(request.url)
+  const soTempo =
+    !cliente &&
+    (url.pathname.replace(/\/+$/, '').endsWith('/treinamentos-tempo') ||
+      url.searchParams.get('etapa') === 'tempo')
 
   const base = (process.env.MAESTRUS_URL || PADRAO_URL).replace(/\/+$/, '')
   const usuario = process.env.MAESTRUS_EMAIL || ''
@@ -306,6 +415,149 @@ export async function GET(request: Request) {
       sucesso,
       detalhe: (quem + detalhe).slice(0, 900),
     })
+  }
+
+  async function entrar() {
+    const paginaLogin = await pedir('/ead/login/')
+    const htmlLogin = await paginaLogin.text()
+    const token = tokenDoFormulario(htmlLogin) || jar.get('csrftoken') || ''
+
+    const dadosLogin = new URLSearchParams()
+    dadosLogin.set('csrfmiddlewaretoken', token)
+    dadosLogin.set('username', usuario)
+    dadosLogin.set('password', senha)
+    dadosLogin.set('fp', '')
+    dadosLogin.set('remember', 'on')
+    dadosLogin.set('next', '')
+
+    const entrada = await fetch(base + '/ead/login/', {
+      method: 'POST',
+      redirect: 'manual',
+      headers: {
+        'User-Agent': 'PortalDoCliente/1.0',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Cookie: cabecalhoCookie(jar),
+        Referer: base + '/ead/login/',
+      },
+      body: dadosLogin.toString(),
+    })
+
+    guardarCookies(jar, entrada)
+
+    return Boolean(jar.get('sessionid'))
+  }
+
+  /*
+   * Le o tempo de estudo (relatorio de desempenho) das matriculas
+   * gravadas que precisam (precisaLerTempo), ate o limite de tempo da
+   * rotina. O que nao couber fica para a proxima leitura, sem apagar o
+   * tempo ja gravado. `soEmails` restringe aos colaboradores de uma
+   * empresa (botao do cliente).
+   *
+   * Sem as colunas (supabase/treinamentos-tempo-por-dia.sql nao rodado),
+   * devolve null e nao faz nada.
+   */
+  async function atualizarTempos(limiteMs: number, soEmails: string[] | null) {
+    const prazo = inicioRotina + limiteMs
+
+    const lidas = await lerTudo<any>(() =>
+      supabaseAdmin
+        .from('treinamentos_progresso')
+        .select('email, curso, inicio, progresso, atualizado_em, matricula_ead, tempo_lido_em, tempo_progresso')
+        .not('matricula_ead', 'is', null)
+        .gt('progresso', 0)
+        .order('email')
+        .order('curso')
+        .order('inicio', { nullsFirst: true })
+    )
+
+    if (lidas.error) return null
+
+    const filtro = soEmails ? new Set(soEmails) : null
+
+    const fila = (lidas.data || [])
+      .filter((r) => !filtro || filtro.has(String(r.email || '').toLowerCase()))
+      .filter(precisaLerTempo)
+      /* Nunca lidos primeiro; depois os lidos ha mais tempo. */
+      .sort((a, b) => String(a.tempo_lido_em || '').localeCompare(String(b.tempo_lido_em || '')))
+
+    const PARALELO = 4
+    let lidos = 0
+
+    for (let i = 0; i < fila.length; i += PARALELO) {
+      if (Date.now() > prazo) break
+
+      await Promise.all(
+        fila.slice(i, i + PARALELO).map(async (r) => {
+          try {
+            const resposta = await pedir(
+              '/ead/gestao-educacao/relatorio-de-desempenho/' + r.matricula_ead + '/'
+            )
+
+            if (!resposta.ok) return
+
+            const tempo = lerTempo(await resposta.text())
+
+            if (!tempo) return
+
+            let alvo = supabaseAdmin
+              .from('treinamentos_progresso')
+              .update({
+                tempo_total_seg: tempo.total,
+                tempo_por_dia: tempo.porDia,
+                tempo_lido_em: new Date().toISOString(),
+                tempo_progresso: Math.round(Number(r.progresso) || 0),
+              })
+              .eq('email', r.email)
+              .eq('curso', r.curso)
+
+            alvo = r.inicio ? alvo.eq('inicio', r.inicio) : alvo.is('inicio', null)
+
+            const { error } = await alvo
+
+            if (!error) lidos += 1
+          } catch {
+            /* Relatorio indisponivel: fica o tempo ja gravado. */
+          }
+        })
+      )
+    }
+
+    return { lidos, pendentes: fila.length - lidos }
+  }
+
+  if (soTempo) {
+    try {
+      if (!(await entrar())) {
+        await registrar(false, 0, 'Tempo de estudo: não foi possível entrar no EAD.')
+
+        return NextResponse.json({ sucesso: false, erro: 'O EAD não aceitou o login.' })
+      }
+
+      const tempo = await atualizarTempos(280000, null)
+
+      if (!tempo) {
+        return NextResponse.json({
+          sucesso: false,
+          erro: 'Rode supabase/treinamentos-tempo-por-dia.sql para ligar o tempo de estudo.',
+        })
+      }
+
+      await registrar(
+        true,
+        tempo.lidos,
+        'Tempo de estudo: ' + tempo.lidos + ' matrícula(s) lida(s)' +
+          (tempo.pendentes > 0 ? ', ' + tempo.pendentes + ' para a próxima leitura.' : '.')
+      )
+
+      return NextResponse.json({ sucesso: true, tempo_lido: tempo.lidos, tempo_pendente: tempo.pendentes })
+    } catch (erro) {
+      const mensagem = erro instanceof Error ? erro.message : String(erro)
+
+      await registrar(false, 0, 'Tempo de estudo: ' + mensagem)
+
+      return NextResponse.json({ sucesso: false, erro: mensagem })
+    }
   }
 
   try {
@@ -410,33 +662,7 @@ export async function GET(request: Request) {
 
     /* 2. Entrar na plataforma ------------------------------------- */
 
-    const paginaLogin = await pedir('/ead/login/')
-    const htmlLogin = await paginaLogin.text()
-    const token = tokenDoFormulario(htmlLogin) || jar.get('csrftoken') || ''
-
-    const dadosLogin = new URLSearchParams()
-    dadosLogin.set('csrfmiddlewaretoken', token)
-    dadosLogin.set('username', usuario)
-    dadosLogin.set('password', senha)
-    dadosLogin.set('fp', '')
-    dadosLogin.set('remember', 'on')
-    dadosLogin.set('next', '')
-
-    const entrada = await fetch(base + '/ead/login/', {
-      method: 'POST',
-      redirect: 'manual',
-      headers: {
-        'User-Agent': 'PortalDoCliente/1.0',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Cookie: cabecalhoCookie(jar),
-        Referer: base + '/ead/login/',
-      },
-      body: dadosLogin.toString(),
-    })
-
-    guardarCookies(jar, entrada)
-
-    if (!jar.get('sessionid')) {
+    if (!(await entrar())) {
       await registrar(false, 0, 'Não foi possível entrar no EAD com o usuário configurado.')
 
       return NextResponse.json(
@@ -551,6 +777,14 @@ export async function GET(request: Request) {
       }
     }
 
+    /* Coluna do numero da matricula (treinamentos-tempo-por-dia.sql). */
+    const sonda = await supabaseAdmin
+      .from('treinamentos_progresso')
+      .select('matricula_ead')
+      .limit(1)
+
+    const suportaTempo = !sonda.error
+
     const paraRegistro = (l: Linha) => ({
       email: l.email,
       aluno: l.aluno,
@@ -560,6 +794,7 @@ export async function GET(request: Request) {
       inicio: l.inicio,
       origem: 'maestrus',
       atualizado_em: agora,
+      ...(suportaTempo ? { matricula_ead: l.matricula } : {}),
     })
 
     let registros = [...porMatricula.values()].map(paraRegistro)
@@ -598,12 +833,21 @@ export async function GET(request: Request) {
       }
     }
 
+    /*
+     * 6. Tempo de estudo, no que sobrar do tempo da rotina. O agendador
+     * tambem chama /api/cron/treinamentos-tempo depois, so para isso.
+     */
+    const tempo = suportaTempo
+      ? await atualizarTempos(250000, cliente || empresaId ? emails : null)
+      : null
+
     await registrar(
       true,
       registros.length,
-      semCadastro.length
+      (semCadastro.length
         ? 'Sem matrícula no EAD: ' + semCadastro.join(', ')
-        : 'Leitura concluída.'
+        : 'Leitura concluída.') +
+        (tempo ? ' Tempo de estudo: ' + tempo.lidos + ' lido(s), ' + tempo.pendentes + ' pendente(s).' : '')
     )
 
     return NextResponse.json({
@@ -611,6 +855,8 @@ export async function GET(request: Request) {
       colaboradores: emails.length,
       registros: registros.length,
       gravados: registros.length,
+      tempo_lido: tempo?.lidos ?? 0,
+      tempo_pendente: tempo?.pendentes ?? 0,
       sem_cadastro_no_ead: semCadastro,
     })
   } catch (erro) {
