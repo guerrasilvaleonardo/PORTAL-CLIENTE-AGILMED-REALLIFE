@@ -11,6 +11,8 @@ import AvisoForaHorario from '@/components/AvisoForaHorario'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
+import { comLimiteDeTempo, irParaLoginSessaoExpirada, TempoEsgotadoError } from '@/lib/sessao'
+import { marcaDoDominio } from '@/lib/marca'
 import './portal-header.css'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 
@@ -92,9 +94,24 @@ export default function PortalHeader() {
       try {
         setCarregando(true)
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        /*
+         * Com limite de tempo: sessão expirada que não renova deixava o
+         * cabeçalho (e o menu) sumido para sempre. Estourou: login de novo.
+         */
+        let user = null
+
+        try {
+          const resposta = await comLimiteDeTempo(supabase.auth.getUser())
+
+          user = resposta.data.user
+        } catch (erro) {
+          if (erro instanceof TempoEsgotadoError) {
+            await irParaLoginSessaoExpirada()
+            return
+          }
+
+          throw erro
+        }
 
         if (!user) {
           if (ativo) {
@@ -113,13 +130,18 @@ export default function PortalHeader() {
           return
         }
 
-        const { data: perfil } = await supabase
-          .from('profiles')
-          .select('perfil')
-          .eq('id', user.id)
-          .single()
+        /*
+         * Perfil e marca também com limite. Se não vierem, o menu aparece
+         * mesmo assim (menu do cliente, marca do domínio): a segurança dos
+         * dados está no banco (RLS), não no menu.
+         */
+        const perfilResp = await comLimiteDeTempo(
+          supabase.from('profiles').select('perfil').eq('id', user.id).maybeSingle()
+        ).catch(() => null)
+        const perfil = perfilResp?.data || null
 
-        const marcaEmpresa = await obterMarcaDaEmpresa()
+        const marcaEmpresa =
+          (await comLimiteDeTempo(obterMarcaDaEmpresa()).catch(() => null)) || marcaDoDominio()
 
         if (!ativo) {
           return
@@ -145,8 +167,9 @@ export default function PortalHeader() {
       } catch (erro) {
         console.error('Erro ao carregar o cabeçalho:', erro)
 
+        /* Erro inesperado não esconde o menu: usa a marca do domínio. */
         if (ativo) {
-          setMarca(null)
+          setMarca(marcaDoDominio())
         }
       } finally {
         if (ativo) {
