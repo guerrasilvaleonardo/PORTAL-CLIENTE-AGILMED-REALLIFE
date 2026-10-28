@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 
 /*
  * Trava de horário (supabase/trava-horario-equipe.sql): fora do horário de
- * atendimento (seg a sex, 8h às 17h, Porto Velho, exceto feriados), quem
+ * atendimento (seg a qui, 8h às 18h; sex, 8h às 17h; Porto Velho, exceto feriados), quem
  * não tem autorização só consulta os chamados. O banco é quem bloqueia;
  * este aviso só explica, para ninguém estranhar o erro ao responder.
  */
@@ -44,7 +44,7 @@ export default function AvisoForaHorario() {
         padding: '7px 14px',
       }}
     >
-      🕔 Fora do horário de atendimento (seg a sex, 8h às 17h). Você pode consultar os chamados, mas responder e
+      🕔 Fora do horário de atendimento (seg a qui, 8h às 18h; sex, 8h às 17h). Você pode consultar os chamados, mas responder e
       movimentar fica liberado só no horário ou para quem a gestão autorizou.
     </div>
   )
