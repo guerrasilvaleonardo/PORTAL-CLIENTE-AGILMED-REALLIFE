@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Progresso as BarraProgressoUi } from '@/lib/graficos'
 import {
+  lerProgressos,
   aguardandoCertificado,
   corDoProgresso,
   CURSOS,
@@ -877,19 +878,10 @@ function CertificadosPageConteudo() {
       )
 
       /* "inicio" separa matriculas repetidas do mesmo curso. */
-      let { data: progressoData, error: erroProgresso } = await supabase
-        .from('treinamentos_progresso')
-        .select('email, curso, progresso, situacao, atualizado_em, inicio')
+      /* Todas as matrículas, sem o corte de 1000 linhas do Supabase. */
+      const { data: progressoData } = await lerProgressos(supabase)
 
-      if (erroProgresso) {
-        const antiga = await supabase
-          .from('treinamentos_progresso')
-          .select('email, curso, progresso, situacao, atualizado_em')
-
-        progressoData = antiga.data as typeof progressoData
-      }
-
-      setProgressos((progressoData || []) as Progresso[])
+      setProgressos(progressoData)
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível carregar os certificados.')

@@ -17,6 +17,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { enderecoDoPortal, escapar, marcaDaEmpresa, montarEmail } from '@/lib/email'
 import {
+  lerProgressos,
   etapaDoProgresso,
   progressosDosCertificados,
   ROTULO_ETAPA,
@@ -119,13 +120,8 @@ export async function montarAvisos(db: SupabaseClient, agora = new Date()) {
   )
   if (erroCerts) throw erroCerts
 
-  let { data: progData, error: erroProg } = await db
-    .from('treinamentos_progresso')
-    .select('email, curso, progresso, situacao, atualizado_em, inicio')
-  if (erroProg) {
-    const r = await db.from('treinamentos_progresso').select('email, curso, progresso, situacao, atualizado_em')
-    progData = r.data as any
-  }
+  /* Todas as matrículas, sem o corte de 1000 linhas do Supabase. */
+  const { data: progData } = await lerProgressos(db)
 
   const { data: estadosData, error: erroEstado } = await db
     .from('treinamentos_aviso')
