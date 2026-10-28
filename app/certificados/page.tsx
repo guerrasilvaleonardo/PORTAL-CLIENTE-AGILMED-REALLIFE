@@ -732,7 +732,7 @@ function CertificadosPageConteudo() {
         data: { session },
       } = await supabase.auth.getSession()
 
-      const resposta = await fetch('/api/cron/treinamentos', {
+      const resposta = await fetch('/api/cron/treinamentos' + (filtroEmpresa ? '?empresa=' + encodeURIComponent(filtroEmpresa) : ''), {
         headers: { Authorization: 'Bearer ' + (session?.access_token || '') },
       })
 

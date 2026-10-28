@@ -345,16 +345,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
 
-  const { empresaId, cliente } = acesso
+  const { cliente } = acesso
 
   const inicioRotina = Date.now()
+
+  const url = new URL(request.url)
+
+  /*
+   * Equipe interna com uma empresa escolhida no filtro da tela
+   * (?empresa=<id>): le so os colaboradores dessa empresa. Fica rapido
+   * e sobra tempo para o tempo de estudo. Cliente continua preso a
+   * empresa dele.
+   */
+  const empresaPedida = (url.searchParams.get('empresa') || '').trim()
+  const empresaId =
+    acesso.empresaId ??
+    (/^[0-9a-f-]{36}$/i.test(empresaPedida) ? empresaPedida : null)
 
   /*
    * /api/cron/treinamentos-tempo (ou ?etapa=tempo): so le o tempo de
    * estudo das matriculas ja gravadas. Roda 40 min depois da leitura do
    * progresso, para o tempo nao depender da sobra daquela rotina.
    */
-  const url = new URL(request.url)
   const soTempo =
     !cliente &&
     (url.pathname.replace(/\/+$/, '').endsWith('/treinamentos-tempo') ||
