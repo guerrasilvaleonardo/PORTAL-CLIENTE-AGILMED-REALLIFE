@@ -24,6 +24,52 @@ export type Progresso = {
   inicio?: string | null
   /* 'manual' quando veio do lancamento presencial, nao do EAD. */
   origem?: OrigemProgresso
+  /* Tempo total nas aulas online do EAD, em segundos. */
+  tempo_total_seg?: number | null
+  /* Tempo por dia, em segundos: { 'AAAA-MM-DD': segundos }. */
+  tempo_por_dia?: Record<string, number> | null
+}
+
+/*
+ * 8h47, 45 min, 30 s. Tempo de estudo do EAD, em segundos.
+ */
+export function formatarDuracao(segundos: number | null | undefined) {
+  const s = Math.max(0, Math.round(Number(segundos) || 0))
+
+  if (s < 60) return s + ' s'
+
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+
+  if (h === 0) return m + ' min'
+
+  return h + 'h' + String(m).padStart(2, '0')
+}
+
+/* Dias com estudo no EAD, do mais recente para o mais antigo. */
+export function diasDeEstudo(p: Progresso | null | undefined): { dia: string; segundos: number }[] {
+  const mapa = p?.tempo_por_dia
+
+  if (!mapa || typeof mapa !== 'object') return []
+
+  return Object.entries(mapa)
+    .map(([dia, segundos]) => ({ dia, segundos: Number(segundos) || 0 }))
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.dia) && d.segundos > 0)
+    .sort((a, b) => b.dia.localeCompare(a.dia))
+}
+
+/* 2026-10-28 -> 28/10/2026 */
+export function formatarDia(iso: string) {
+  const [a, m, d] = iso.split('-')
+
+  return d + '/' + m + '/' + a
+}
+
+/* "28/10/2026: 7h58; 27/10/2026: 45 min" (para exportar). */
+export function textoTempoPorDia(p: Progresso | null | undefined) {
+  return diasDeEstudo(p)
+    .map((d) => formatarDia(d.dia) + ': ' + formatarDuracao(d.segundos))
+    .join('; ')
 }
 
 /*
@@ -465,6 +511,18 @@ export function formatarDataHora(iso: string | null) {
  * Sem a coluna "inicio" (SQL antigo), lê do jeito anterior.
  */
 export async function lerProgressos(db: SupabaseClient): Promise<{ data: Progresso[]; error: any }> {
+  /* Com o tempo de estudo (supabase/treinamentos-tempo-por-dia.sql). */
+  const comTempo = await lerTudo<Progresso>(() =>
+    db
+      .from('treinamentos_progresso')
+      .select('email, curso, progresso, situacao, atualizado_em, inicio, tempo_total_seg, tempo_por_dia')
+      .order('email')
+      .order('curso')
+      .order('inicio', { nullsFirst: true })
+  )
+
+  if (!comTempo.error) return { data: comTempo.data || [], error: null }
+
   const nova = await lerTudo<Progresso>(() =>
     db
       .from('treinamentos_progresso')
