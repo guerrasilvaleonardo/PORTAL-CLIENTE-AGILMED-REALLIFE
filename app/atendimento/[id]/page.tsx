@@ -472,6 +472,12 @@ export default function AtendimentoChamadoPage() {
   const [reacoes, setReacoes] = useState<Reacao[]>([])
   const [nomesReacao, setNomesReacao] = useState<Record<string, string>>({})
   const [meuPerfil, setMeuPerfil] = useState('')
+  /*
+   * Quem pode trocar o responsável / transferir o chamado
+   * (profiles.pode_transferir_chamado, supabase/chamados-transferir-autorizados.sql).
+   * Sem a coluna (SQL não rodou), vale a regra antiga: a equipe toda.
+   */
+  const [podeTransferir, setPodeTransferir] = useState(false)
   const [empresas, setEmpresas] = useState<
     { id: string; nome: string }[]
   >([])
@@ -596,6 +602,20 @@ export default function AtendimentoChamadoPage() {
       const perfilAtual = meuPerfilData?.perfil || ''
 
       setMeuPerfil(perfilAtual)
+
+      {
+        const { data: marcaTransferir, error: erroTransferir } = await supabase
+          .from('profiles')
+          .select('pode_transferir_chamado')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        setPodeTransferir(
+          erroTransferir
+            ? true
+            : (marcaTransferir as { pode_transferir_chamado?: boolean } | null)?.pode_transferir_chamado === true
+        )
+      }
 
       if (['gestor', 'admin'].includes(perfilAtual)) {
         const { data: empresasData } = await supabase
@@ -1358,6 +1378,11 @@ export default function AtendimentoChamadoPage() {
 
   async function salvarResponsavel() {
     if (!chamado) return
+
+    if (!podeTransferir) {
+      setErro('Só quem tem autorização (Leonardo e Priscila) altera o responsável do chamado.')
+      return
+    }
 
     if (
       (novoResponsavel || null) ===
@@ -3911,6 +3936,18 @@ export default function AtendimentoChamadoPage() {
                 Responsável
               </label>
 
+              {!podeTransferir ? (
+                <div style={{ fontSize: 14, color: 'var(--ink)' }}>
+                  <strong>
+                    {agentes.find((a) => a.id === chamado.responsavel_id)?.nome ||
+                      (chamado.responsavel_id ? 'Responsável definido' : 'Sem responsável')}
+                  </strong>
+                  <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 4 }}>
+                    Só quem tem autorização (Leonardo e Priscila) altera o responsável ou transfere o chamado.
+                  </div>
+                </div>
+              ) : (
+              <>
               <select
                 value={novoResponsavel}
                 onChange={(event) =>
@@ -3956,6 +3993,8 @@ export default function AtendimentoChamadoPage() {
                   ? 'Transferindo...'
                   : 'Transferir chamado'}
               </button>
+              </>
+              )}
 
               {solicitanteDisponivel && (
                 <>
