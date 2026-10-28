@@ -1,3 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { lerTudo } from '@/lib/lerTudo'
+
 /*
  * Casamento entre o certificado cadastrado aqui e a matricula no EAD.
  *
@@ -450,4 +453,36 @@ export function formatarDataHora(iso: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+/*
+ * Lê TODAS as matrículas do EAD (treinamentos_progresso), página por
+ * página. Antes a leitura era única e o Supabase devolve no máximo 1000
+ * linhas: quando a tabela passou de 1000 matrículas, parte dos
+ * colaboradores aparecia como "Sem matrícula", sem nenhum aviso.
+ *
+ * A ordem termina na chave única da matrícula (e-mail + curso + início).
+ * Sem a coluna "inicio" (SQL antigo), lê do jeito anterior.
+ */
+export async function lerProgressos(db: SupabaseClient): Promise<{ data: Progresso[]; error: any }> {
+  const nova = await lerTudo<Progresso>(() =>
+    db
+      .from('treinamentos_progresso')
+      .select('email, curso, progresso, situacao, atualizado_em, inicio')
+      .order('email')
+      .order('curso')
+      .order('inicio', { nullsFirst: true })
+  )
+
+  if (!nova.error) return { data: nova.data || [], error: null }
+
+  const antiga = await lerTudo<Progresso>(() =>
+    db
+      .from('treinamentos_progresso')
+      .select('email, curso, progresso, situacao, atualizado_em')
+      .order('email')
+      .order('curso')
+  )
+
+  return { data: antiga.data || [], error: antiga.error }
 }
