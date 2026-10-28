@@ -337,7 +337,10 @@ export default function PainelPage() {
               .from('chamados')
               .select('id, status, empresa_id, empresas(nome_fantasia, razao_social)')
               .gte('created_at', inicioJanela.toISOString()),
-            supabase.from('treinamentos_progresso').select('progresso'),
+            /* Todas as matrículas (sem o corte de 1000 linhas). */
+            lerTudo<{ progresso: number }>(() =>
+              supabase.from('treinamentos_progresso').select('progresso, email, curso, inicio').order('email').order('curso').order('inicio', { nullsFirst: true })
+            ),
           ])
 
         if (!ativo) return
