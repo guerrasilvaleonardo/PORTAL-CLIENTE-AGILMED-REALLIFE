@@ -80,6 +80,7 @@ Regras do projeto para o Claude Code. Leia antes de qualquer alteração.
 
 - Esses três módulos são **contratados à parte, por empresa** (`lib/modulos.ts`). Sem contrato, o cliente vê o módulo com cadeado, pede por chamado e não recebe os e-mails automáticos.
 - EAD: Maestrus (reallifessma.maestrus.com). Leitura diária do curso e do % de cada aluno, casando pelo e-mail do colaborador.
+- Tempo de estudo no EAD (total e por dia) vem do relatório de desempenho do Maestrus (`tempo_total_seg`, `tempo_por_dia` em `treinamentos_progresso`). Cada aula conta no dia em que foi finalizada.
 - O progresso do certificado vem do EAD ou é manual/presencial (etapas + %). Painel e filtro por mês usam a **data de emissão**.
 - Documentos SST: PGR, PCMSO, AET, AEP, LTCAT, laudos e tipos personalizáveis. Não existe validade automática igual para todos os tipos. A 60 dias do prazo, sem pedido de renovação, o portal abre chamado automaticamente, inclusive para documentos já vencidos.
 

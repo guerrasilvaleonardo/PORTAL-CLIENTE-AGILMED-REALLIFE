@@ -8,16 +8,19 @@ import {
   corDoProgresso,
   etapaDoProgresso,
   formatarDataHora,
+  formatarDuracao,
   normalizarCurso,
   PILL_ETAPA,
   progressosDosCertificados,
   ROTULO_ETAPA,
+  textoTempoPorDia,
   type EtapaManual,
   type Etapa,
   type OrigemProgresso,
   type Progresso,
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import TempoEad from '@/components/TempoEad'
 import { lerTudo } from '@/lib/lerTudo'
 import { carregarDesligados, estaDesligado, type MapaDesligados } from '@/lib/colaboradoresDesligados'
 
@@ -67,6 +70,8 @@ type Linha = {
   etapa: Etapa
   situacao: string | null
   atualizado: string | null
+  /* Matricula do EAD (com o tempo de estudo), ou null. */
+  registro: Progresso | null
 }
 
 function nomeEmpresa(e: Empresa) {
@@ -261,6 +266,7 @@ function TreinamentosPageConteudo() {
         etapa: etapaDoProgresso(registro),
         situacao: registro?.situacao ?? null,
         atualizado: registro?.atualizado_em || null,
+        registro,
       }
     })
   }, [certificados, progressos, empresaPorId, desligados])
@@ -401,6 +407,8 @@ function TreinamentosPageConteudo() {
       'Curso',
       'Curso no EAD',
       'Progresso (%)',
+      'Tempo no EAD',
+      'Tempo por dia no EAD',
       'Situacao',
       'Atualizado em',
     ]
@@ -414,6 +422,8 @@ function TreinamentosPageConteudo() {
         l.curso,
         l.presencial ? 'PRESENCIAL (manual)' : l.cursoEad || '',
         String(l.progresso),
+        !l.presencial && l.registro?.tempo_total_seg ? formatarDuracao(l.registro.tempo_total_seg) : '',
+        l.presencial ? '' : textoTempoPorDia(l.registro),
         ROTULO_ETAPA[l.etapa],
         l.atualizado ? formatarDataHora(l.atualizado) : '',
       ]
@@ -736,6 +746,8 @@ function TreinamentosPageConteudo() {
                           cor={corDoProgresso(l.progresso)}
                         />
                       )}
+
+                      <TempoEad progresso={l.registro} />
                     </span>
 
                     <span>

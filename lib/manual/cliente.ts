@@ -477,6 +477,7 @@ const manualCliente: Manual = {
           passos: [
             'Se quiser o dado mais recente na hora, clique em "Atualizar progresso do EAD".',
             'O botão pode ser usado de novo depois de 10 minutos.',
+            'Tempo de estudo no EAD: abaixo do progresso aparece "⏱ 8h47 no EAD · 28/10: 7h58" (tempo total nas aulas online e o tempo do dia mais recente). Clique para ver o tempo de cada dia. O EAD registra o tempo por aula, então cada aula conta no dia em que foi finalizada (a aula em andamento conta no dia da última atividade). O total é o mesmo da "Frequência Total" da plataforma EAD.',
             'Cadastro, correção e exclusão de certificados são feitos pela nossa equipe. Se algo estiver errado (inclusive um certificado em "Validade não informada"), abra um chamado na categoria Treinamentos ou Documentos.',
           ],
           link: { href: '/certificados', rotulo: 'Abrir Certificados' },
@@ -535,6 +536,7 @@ const manualCliente: Manual = {
           passos: [
             'Concluído = 100%. Em andamento = começou. Não iniciado = 0%. Sem matrícula = não encontramos o colaborador no EAD.',
             '"Situação geral" e "Cursos que mais travam" mostram onde a turma está parada.',
+            'Abaixo da barra de progresso aparece o tempo de estudo no EAD (total e do dia mais recente); clique para ver por dia. O CSV traz as colunas "Tempo no EAD" e "Tempo por dia no EAD".',
             '"Atualizar do EAD" busca o dado mais recente (de novo, só depois de 10 minutos). "Baixar CSV" gera uma planilha da lista para abrir no Excel.',
             'Aviso por e-mail às segundas e sextas, por volta das 7h30 (Porto Velho), os usuários da empresa recebem os treinamentos ainda em aberto de cada colaborador, com o percentual e há quantos dias não avança. Concluídos aparecem uma vez, no aviso seguinte. Sem treinamento em aberto, o e-mail não é enviado.',
           ],
