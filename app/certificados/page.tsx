@@ -14,15 +14,18 @@ import {
   etapaDoProgresso,
   ETAPAS_MANUAIS,
   formatarDataHora,
+  formatarDuracao,
   numeroDaNr,
   percentualManual,
   progressosDosCertificados,
   ROTULO_ETAPA_MANUAL,
+  textoTempoPorDia,
   type EtapaManual,
   type OrigemProgresso,
   type Progresso,
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import TempoEad from '@/components/TempoEad'
 import { lerTudo } from '@/lib/lerTudo'
 import { chaveCertificado, chavePessoa, formatarCpf, pessoasPorCpf, soDigitosCpf, substitutosHistorico } from '@/lib/historicoCertificados'
 import {
@@ -1385,7 +1388,7 @@ function CertificadosPageConteudo() {
   /* Exporta exatamente o que está filtrado na lista. */
   function exportar() {
     const linhas: (string | number | null | undefined)[][] = [
-      ['Colaborador', 'Função', 'E-mail', 'Empresa', 'Tipo', 'Curso', 'Modalidade', 'Progresso (%)', 'Emissão', 'Validade', 'Situação', 'Link'],
+      ['Colaborador', 'Função', 'E-mail', 'Empresa', 'Tipo', 'Curso', 'Modalidade', 'Progresso (%)', 'Tempo no EAD', 'Tempo por dia no EAD', 'Emissão', 'Validade', 'Situação', 'Link'],
     ]
 
     for (const c of filtrados) {
@@ -1400,6 +1403,8 @@ function CertificadosPageConteudo() {
         c.curso,
         c.progresso_origem === 'manual' ? 'Presencial' : 'EAD',
         p ? Math.round(p.progresso) : '',
+        p && p.origem !== 'manual' && p.tempo_total_seg ? formatarDuracao(p.tempo_total_seg) : '',
+        p && p.origem !== 'manual' ? textoTempoPorDia(p) : '',
         formatarData(c.emissao),
         formatarData(c.validade),
         desligamentoDo(c)
@@ -1707,7 +1712,12 @@ function CertificadosPageConteudo() {
           )}
         </span>
 
-        <span>{celulaProgresso(c)}</span>
+        <span>
+          {celulaProgresso(c)}
+          <span onClick={(e) => e.stopPropagation()}>
+            <TempoEad progresso={progressoDe(c)} />
+          </span>
+        </span>
 
         <span className="cert-validade">
           <span className="cert-data">{c.validade ? formatarData(c.validade) : ''}</span>
