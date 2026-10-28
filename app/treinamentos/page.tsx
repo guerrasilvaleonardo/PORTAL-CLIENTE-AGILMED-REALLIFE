@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Barras, Progresso as BarraProgresso, Rosca } from '@/lib/graficos'
 import {
+  lerProgressos,
   corDoProgresso,
   etapaDoProgresso,
   formatarDataHora,
@@ -160,17 +161,8 @@ function TreinamentosPageConteudo() {
       if (erroCerts) throw erroCerts
 
       /* "inicio" separa matriculas repetidas do mesmo curso. */
-      let { data: prog, error: erroProgresso } = await supabase
-        .from('treinamentos_progresso')
-        .select('email, curso, progresso, situacao, atualizado_em, inicio')
-
-      if (erroProgresso) {
-        const antiga = await supabase
-          .from('treinamentos_progresso')
-          .select('email, curso, progresso, situacao, atualizado_em')
-
-        prog = antiga.data as typeof prog
-      }
+      /* Todas as matrículas, sem o corte de 1000 linhas do Supabase. */
+      const { data: prog } = await lerProgressos(supabase)
 
       /* Sem a tabela (SQL não rodou), ninguém é tirado. */
       const { mapa } = await carregarDesligados(supabase)
