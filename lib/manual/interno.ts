@@ -173,8 +173,9 @@ const manualInterno: Manual = {
           passos: [
             'Para assumir, escolha o seu nome na lista Responsável. Para passar adiante, escolha o colega.',
             'Clique em Transferir chamado. O novo responsável recebe o e-mail "Chamado #N está com você".',
+            'Só quem tem autorização no cadastro altera o responsável ou transfere: hoje, Leonardo e Priscila. Para os demais, o campo Responsável aparece só para consulta; peça a um deles a distribuição do chamado.',
           ],
-          atencao: 'Não existe botão "Assumir": assumir é transferir para si mesmo. Chamado sem responsável não entra no desempenho de ninguém e, se for resolvido assim, não gera estrelas.',
+          atencao: 'Não existe botão "Assumir": assumir é transferir para si mesmo (só para os autorizados). Chamado sem responsável não entra no desempenho de ninguém e, se for resolvido assim, não gera estrelas.',
         },
         {
           titulo: 'Horário de atendimento (trava)',
