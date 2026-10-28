@@ -13,7 +13,12 @@ export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
       usuarioError
     )
 
-    return null
+    /*
+     * Falha passageira na sessão não pode sumir com o menu: usa a
+     * marca do domínio. Sem sessão de verdade, o cabeçalho manda
+     * para o login (user vazio, logo abaixo).
+     */
+    return marcaDoDominio()
   }
 
   if (!user) {
@@ -33,7 +38,12 @@ export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
       perfilError
     )
 
-    return null
+    /*
+     * Perfil ausente ou ilegível (RLS, cadastro incompleto): antes o
+     * cabeçalho inteiro sumia e o cliente ficava sem o menu. Agora o
+     * menu aparece com a marca do domínio; o erro fica no console.
+     */
+    return marcaDoDominio()
   }
 
   /*
@@ -56,7 +66,8 @@ export async function obterMarcaDaEmpresa(): Promise<Marca | null> {
       empresaError
     )
 
-    return null
+    /* Empresa ativa que a pessoa não consegue ler: menu com a marca do domínio. */
+    return marcaDoDominio()
   }
 
   if (!empresa?.marca) {
