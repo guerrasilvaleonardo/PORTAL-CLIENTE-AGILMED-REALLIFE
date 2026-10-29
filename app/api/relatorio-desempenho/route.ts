@@ -5,7 +5,7 @@ import { escreverAnalise, gerarRelatorio } from '@/lib/relatorioDesempenhoGerar'
 import { mesValido } from '@/lib/relatorioDesempenhoServidor'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 300
 
 /*
  * Relatório mensal de desempenho (supabase/relatorio-desempenho.sql).
