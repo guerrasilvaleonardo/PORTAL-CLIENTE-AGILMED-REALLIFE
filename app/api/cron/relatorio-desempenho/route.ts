@@ -4,7 +4,7 @@ import { gerarRelatorio } from '@/lib/relatorioDesempenhoGerar'
 import { mesAnteriorAoAtual } from '@/lib/relatorioDesempenhoServidor'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 300
 
 function autorizado(request: Request) {
   const segredo = process.env.CRON_SECRET
