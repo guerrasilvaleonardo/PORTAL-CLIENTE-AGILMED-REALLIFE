@@ -533,6 +533,10 @@ export default function RelatorioMensalPage() {
           </button>
         )}
 
+        <Link href="/atendimento/relatorio-mensal/cadastros" className="btn btn-sm">
+          Cadastros e metas
+        </Link>
+
         <div style={{ flex: 1 }} />
 
         <input
