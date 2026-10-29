@@ -20,7 +20,8 @@ import type { AcaoPlano, Analise, AnalisePessoa, DadosRelatorio, FichaPessoa } f
 
 const URL_ANTHROPIC = 'https://api.anthropic.com/v1/messages'
 const URL_GATEWAY = 'https://ai-gateway.vercel.sh/v1/messages'
-const TEMPO_LIMITE_MS = 50000
+/* Por chamada. A rota tem até 300 s (maxDuration); as chamadas correm em paralelo. */
+const TEMPO_LIMITE_MS = 120000
 
 /* Como a IA é acessada nesta execução. `oidc` vem do cabeçalho da requisição. */
 export type AcessoIA = { url: string; headers: Record<string, string>; modelo: string; via: 'anthropic' | 'gateway' }
@@ -55,7 +56,8 @@ Regras obrigatórias:
 6. Plano de ação: no máximo 3 ações por pessoa, cada uma específica, mensurável, com indicador, meta numérica quando possível e prazo. Priorize o que tem mais impacto no cliente e no prazo.
 7. Roteiro de conversa: 4 a 6 passos, no estilo de coaching (perguntas abertas, escuta, acordo), para uma conversa individual de 20 a 30 minutos.
 8. Português do Brasil, direto, profissional e respeitoso. Frases curtas.
-9. Responda APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown.`
+9. Responda APENAS com um objeto JSON válido, sem texto antes ou depois, sem markdown.
+10. Dentro dos textos do JSON, NUNCA use aspas duplas ("). Para citar um termo, use aspas simples ('Aguardando cliente').`
 
 function codigoDe(d: DadosRelatorio) {
   const mapa = new Map<string, string>()
@@ -120,7 +122,54 @@ function contextoEquipe(d: DadosRelatorio) {
   }
 }
 
+/*
+ * Lê o JSON da resposta. Se vier inválido (ex.: aspas duplas dentro de um
+ * texto, ou resposta cortada), pede UMA vez para a IA devolver o mesmo
+ * conteúdo como JSON válido.
+ */
 async function chamar(acesso: AcessoIA, usuario: string, maxTokens: number) {
+  const primeira = await pedirTexto(acesso, [{ role: 'user', content: usuario }], maxTokens)
+
+  try {
+    return lerJson(primeira.texto, primeira.cortada)
+  } catch (e: any) {
+    const segunda = await pedirTexto(
+      acesso,
+      [
+        { role: 'user', content: usuario },
+        { role: 'assistant', content: primeira.texto || '{}' },
+        {
+          role: 'user',
+          content:
+            'A resposta acima não é um JSON válido (' + (e?.message || 'erro de leitura') + '). ' +
+            'Devolva o MESMO conteúdo, completo e mais enxuto se precisar, como um único objeto JSON válido. ' +
+            'Dentro dos textos use aspas simples, nunca aspas duplas. Sem texto fora do JSON.',
+        },
+      ],
+      maxTokens
+    )
+    return lerJson(segunda.texto, segunda.cortada)
+  }
+}
+
+function lerJson(texto: string, cortada: boolean) {
+  const ini = texto.indexOf('{')
+  const fim = texto.lastIndexOf('}')
+  if (ini < 0 || fim <= ini) {
+    throw new Error(cortada ? 'A resposta da IA foi cortada (limite de tamanho).' : 'A IA não devolveu JSON.')
+  }
+  try {
+    return JSON.parse(texto.slice(ini, fim + 1))
+  } catch (e: any) {
+    throw new Error((cortada ? 'Resposta cortada pelo limite de tamanho; ' : '') + (e?.message || 'JSON inválido'))
+  }
+}
+
+async function pedirTexto(
+  acesso: AcessoIA,
+  mensagens: { role: 'user' | 'assistant'; content: string }[],
+  maxTokens: number
+): Promise<{ texto: string; cortada: boolean }> {
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), TEMPO_LIMITE_MS)
   try {
@@ -137,7 +186,7 @@ async function chamar(acesso: AcessoIA, usuario: string, maxTokens: number) {
         max_tokens: maxTokens,
         temperature: 0.3,
         system: SISTEMA,
-        messages: [{ role: 'user', content: usuario }],
+        messages: mensagens,
       }),
     })
     const corpo = await r.json().catch(() => null)
@@ -145,10 +194,7 @@ async function chamar(acesso: AcessoIA, usuario: string, maxTokens: number) {
       throw new Error('API da IA respondeu ' + r.status + ': ' + (corpo?.error?.message || 'erro desconhecido'))
     }
     const texto = (corpo?.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
-    const ini = texto.indexOf('{')
-    const fim = texto.lastIndexOf('}')
-    if (ini < 0 || fim <= ini) throw new Error('A IA não devolveu JSON.')
-    return JSON.parse(texto.slice(ini, fim + 1))
+    return { texto, cortada: corpo?.stop_reason === 'max_tokens' }
   } finally {
     clearTimeout(t)
   }
@@ -198,7 +244,7 @@ export async function analisarComIA(acesso: AcessoIA, d: DadosRelatorio, porRegr
       'Analise o mês da equipe de atendimento como conselheiro de governança. Dados (JSON):\n' +
       JSON.stringify({ ...ctx, pessoas: d.pessoas.map((p) => resumoPessoa(p, codigos.get(p.id)!)) }) +
       '\n\nResponda neste formato JSON: {"sintese": "3 a 5 frases sobre o mês da equipe", "destaques": ["..."], "riscos": ["riscos para o cliente, para o prazo ou para a operação, com evidência"], "recomendacoes": ["até 5 recomendações de gestão para o próximo mês, cada uma com responsável sugerido (gestão/equipe) e indicador de acompanhamento"]}'
-    const r = await chamar(acesso, pedido, 1800)
+    const r = await chamar(acesso, pedido, 4000)
     return {
       sintese: typeof r.sintese === 'string' ? r.sintese : porRegras.equipe.sintese,
       destaques: strs(r.destaques),
@@ -216,7 +262,7 @@ export async function analisarComIA(acesso: AcessoIA, d: DadosRelatorio, porRegr
         `\n\nDados de ${codigo} (JSON):\n` +
         JSON.stringify(resumoPessoa(p, codigo)) +
         '\n\nResponda neste formato JSON: {"sintese": "2 a 4 frases sobre o mês da pessoa", "pontos_fortes": ["com evidência"], "pontos_atencao": ["com evidência"], "plano_acao": [{"acao": "...", "indicador": "...", "meta": "...", "prazo": "..."}], "roteiro_conversa": ["passo 1", "..."]}'
-      const r = await chamar(acesso, pedido, 1600)
+      const r = await chamar(acesso, pedido, 3500)
       const base = porRegras.pessoas[p.id]
       const plano = planoValido(r.plano_acao)
       return [
