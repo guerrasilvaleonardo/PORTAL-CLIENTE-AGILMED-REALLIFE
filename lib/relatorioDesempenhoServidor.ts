@@ -18,6 +18,8 @@ import {
   type EventoStatus,
 } from '@/lib/desempenho'
 import { carregarFeriados } from '@/lib/feriados'
+import { montarLinhaDoTempo, type EventoLinha, type SuspensaoLinha } from '@/lib/metricas/linhaTempo'
+import { diagnosticar, VERSAO_METRICAS, type ChamadoDiag } from '@/lib/metricas/diagnostico'
 import { situacaoSla } from '@/lib/prazo'
 import {
   VERSAO_REGRAS,
@@ -399,8 +401,71 @@ export async function coletarDadosRelatorio(db: SupabaseClient, mes: string, ago
     motivos.set(k.motivo, (motivos.get(k.motivo) || 0) + 1)
   }
 
+  /* ---------- Diagnóstico detalhado (linha do tempo de cada chamado) ---------- */
+  const nomePorId = new Map(pessoas.map((p) => [p.id, (p.nome || '').trim()]))
+  const evsLinha: Record<string, EventoLinha[]> = {}
+  const susp: Record<string, SuspensaoLinha[]> = {}
+  let diagnostico: DadosRelatorio['diagnostico'] = undefined
+  try {
+    for (const lote of partes(chamados.map((c) => c.id), LOTE)) {
+      const evs = await buscarTudo<any>(() =>
+        db.from('chamado_eventos').select('chamado_id, tipo, de, para, created_at').in('tipo', ['status', 'responsavel']).in('chamado_id', lote).order('created_at')
+      )
+      for (const e of evs) (evsLinha[e.chamado_id] ||= []).push(e)
+    }
+    try {
+      for (const lote of partes(chamados.map((c) => c.id), LOTE)) {
+        const ss = await buscarTudo<any>(() => db.from('chamado_suspensoes').select('chamado_id, inicio, fim, motivo').in('chamado_id', lote))
+        for (const s of ss) (susp[s.chamado_id] ||= []).push(s)
+      }
+      fontes.push('Suspensões (motivo, início e fim)')
+    } catch {
+      limitacoes.push('Suspensões indisponíveis: o tempo suspenso aparece sem motivo.')
+    }
+
+    const diag: ChamadoDiag[] = chamados.map((c) => {
+      const responsavelNome = c.responsavel_id ? nomePorId.get(c.responsavel_id) || null : null
+      return {
+        id: c.id,
+        numero: c.numero,
+        categoria: c.categoria,
+        prioridade: c.prioridade,
+        status: c.status,
+        prazo_sla: c.prazo_sla,
+        sla_pausado_em: c.sla_pausado_em,
+        resolvido_em: c.resolvido_em,
+        encerrado_em: c.encerrado_em,
+        created_at: c.created_at,
+        empresa: c.empresa,
+        interno: !!c.interno,
+        responsavelNome,
+        eventos: evsLinha[c.id] || [],
+        linha: montarLinhaDoTempo({ created_at: c.created_at, status: c.status, responsavelAtual: responsavelNome }, evsLinha[c.id] || [], susp[c.id] || [], fim),
+      }
+    })
+
+    const notasLista = (ex.notas || []).map((n) => ({ chamado_id: n.chamado_id, created_at: n.created_at }))
+    const rodar = (pessoa: string | null, i: Date, f: Date) =>
+      diagnosticar({ chamados: diag, ini: i, fim: f, pessoa, primeiraResposta: primeira, notas: notasLista, agora })
+
+    diagnostico = {
+      versaoMetricas: VERSAO_METRICAS,
+      equipe: { atual: rodar(null, ini, fim), anterior: rodar(null, iniAnt, fimAnt) },
+      pessoas: {},
+    }
+    for (const f of fichas) {
+      const nome = (f.nome || '').trim()
+      diagnostico.pessoas[f.id] = { atual: rodar(nome, ini, fim), anterior: rodar(nome, iniAnt, fimAnt) }
+    }
+    fontes.push('Linha do tempo de cada chamado (situação e responsável em cada trecho)')
+  } catch (e: any) {
+    limitacoes.push('Diagnóstico detalhado indisponível neste relatório: ' + (e?.message || 'erro ao ler o histórico') + '.')
+  }
+
   limitacoes.push(
-    'O chamado conta para o responsável ATUAL: se foi transferido, o resultado inteiro fica com quem está com ele.',
+    'Indicadores principais: o chamado conta para o responsável ATUAL. No diagnóstico detalhado, a entrega conta para quem CONCLUIU (responsável no momento da conclusão).',
+    'O histórico de responsável guarda o nome da pessoa; nomes iguais ou alterados podem confundir a atribuição.',
+    '"Tempo com responsável" não é tempo de trabalho efetivo: o portal não tem apontamento de horas.',
     'Tempos em horas úteis (seg–sex, 8h–12h e 13h–17h, Porto Velho), sem o tempo aguardando o cliente.',
     'A carteira (em aberto e atrasados) é o retrato do momento em que o relatório foi gerado.',
     'Os indicadores não medem complexidade técnica, qualidade de documentos entregues nem atividades fora do portal.'
@@ -424,5 +489,6 @@ export async function coletarDadosRelatorio(db: SupabaseClient, mes: string, ago
     pessoas: fichas,
     fontes,
     limitacoes,
+    diagnostico,
   }
 }

@@ -21,6 +21,7 @@ export const MOTIVOS_SUSPENSAO = [
   'Falha de software',
   'Dependência de fornecedor',
   'Dependência de terceiros (órgão/concessionária)',
+  'Aguardando aprovação interna',
 ] as const
 
 export type DadosSuspensao = {

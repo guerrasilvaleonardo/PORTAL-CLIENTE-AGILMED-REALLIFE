@@ -13,6 +13,7 @@ import {
   type IndicadoresMes,
 } from '@/lib/relatorioDesempenho'
 import './relatorio.css'
+import { DiagnosticoDetalhado, DicionarioIndicadores } from './Diagnostico'
 
 /*
  * Relatório mensal de desempenho — governança (supabase/relatorio-desempenho.sql).
@@ -180,6 +181,10 @@ function Ficha({ p, d, an }: { p: FichaPessoa; d: DadosRelatorio; an: Analise | 
               </tbody>
             </table>
           </div>
+        )}
+
+        {d.diagnostico?.pessoas?.[p.id] && (
+          <DiagnosticoDetalhado atual={d.diagnostico.pessoas[p.id].atual} anterior={d.diagnostico.pessoas[p.id].anterior} />
         )}
 
         <div>
@@ -528,6 +533,10 @@ export default function RelatorioMensalPage() {
           </button>
         )}
 
+        <Link href="/atendimento/relatorio-mensal/cadastros" className="btn btn-sm">
+          Cadastros e metas
+        </Link>
+
         <div style={{ flex: 1 }} />
 
         <input
@@ -703,6 +712,17 @@ export default function RelatorioMensalPage() {
                   </div>
                 </div>
               </div>
+              {d.diagnostico ? (
+                <div className="panel">
+                  <div className="panel-body">
+                    <DiagnosticoDetalhado atual={d.diagnostico.equipe.atual} anterior={d.diagnostico.equipe.anterior} equipe />
+                  </div>
+                </div>
+              ) : (
+                <p className="rel-sub nao-imprimir">
+                  Este relatório foi gerado antes do diagnóstico detalhado. Use &ldquo;Gerar relatório do mês&rdquo; para criar uma nova versão com ele (a versão atual continua guardada).
+                </p>
+              )}
             </>
           )}
 
@@ -730,6 +750,7 @@ export default function RelatorioMensalPage() {
                   <ul className="rel-lista">{d.limitacoes.map((t, i) => <li key={i}>{t}</li>)}</ul>
                 </div>
               </div>
+              <DicionarioIndicadores />
               <p className="rel-sigilo">
                 Documento confidencial de gestão. É apoio à decisão: as conclusões sobre cada pessoa são da direção, depois de ouvir o
                 colaborador. Os indicadores medem comportamentos e resultados registrados no portal; não avaliam perfil, saúde ou
