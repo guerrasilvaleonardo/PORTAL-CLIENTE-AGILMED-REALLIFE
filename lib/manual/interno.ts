@@ -115,6 +115,8 @@ const manualInterno: Manual = {
             'Filtros: busca, empresa, prioridade e responsável ("Meus atendimentos", "Sem responsável" ou uma pessoa).',
             'A busca procura no título, número, categoria, empresa, descrição e nas mensagens da conversa, sem diferenciar acentos, maiúsculas ou ordem das palavras ("antonio da conceicao lopes" acha "Lopes, Antônio Conceição"). Quando acha fora do título, o cartão mostra "Encontrado na descrição" ou "Encontrado na conversa".',
             'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO. O selo "nova" piscando indica mensagem não lida num chamado seu.',
+
+            'Chamados pelo site: o botão de WhatsApp do site da Real Life abre um formulário que cria o chamado aqui, com assunto "Site: ..." e prazo Normal. Se o e-mail é de um usuário cliente, o chamado entra na empresa dele; se não, na empresa "Contatos do site" (pedido novo/lead). Nome, empresa, e-mail e telefone estão na descrição; a pessoa recebe o protocolo por e-mail e pode seguir no WhatsApp citando o número. Quando o contato virar cliente, cadastre a empresa e o usuário dele: os próximos pedidos com esse e-mail entram direto na empresa.',
           ],
         },
         {
