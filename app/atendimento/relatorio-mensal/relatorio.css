@@ -29,3 +29,25 @@
   .rel-tab tr { break-inside: avoid; }
   .rel-sigilo { color: #444; }
 }
+
+/* Diagnóstico detalhado e dicionário (módulo de desempenho, etapa 1). */
+.rel-diag { margin-top: 4px; }
+.rel-tab .rel-grupo td {
+  background: var(--surface-2, #f2f4f3);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.rel-obs { font-size: 12px; color: var(--ink-faint); }
+.rel-sub-linha td { font-size: 12.5px; color: var(--ink-faint); }
+.rel-dicionario { margin: 12px 0; }
+.rel-dicionario .rel-tab td { vertical-align: top; }
+@media print {
+  .rel-dicionario { display: block; }
+  .rel-dicionario > summary { list-style: none; }
+  .rel-diag .rel-tab, .rel-dicionario .rel-tab { break-inside: auto; }
+  .rel-diag tr, .rel-dicionario tr { break-inside: avoid; }
+  .rel-tab .rel-grupo td { background: none; border-bottom: 1px solid #999; }
+}
