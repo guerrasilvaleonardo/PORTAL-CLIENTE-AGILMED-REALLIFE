@@ -17,8 +17,9 @@
  */
 
 import type { Indicadores } from '@/lib/desempenho'
+import type { Diagnostico } from '@/lib/metricas/diagnostico'
 
-export const VERSAO_REGRAS = 1
+export const VERSAO_REGRAS = 2
 
 /* Abaixo disso o indicador é mostrado, mas não gera achado. */
 export const AMOSTRA_MINIMA = 5
@@ -109,6 +110,12 @@ export type DadosRelatorio = {
   pessoas: FichaPessoa[]
   fontes: string[]
   limitacoes: string[]
+  /* Diagnóstico detalhado (versão 2 das regras). Relatórios antigos não têm. */
+  diagnostico?: {
+    versaoMetricas: number
+    equipe: { atual: Diagnostico; anterior: Diagnostico }
+    pessoas: Record<string, { atual: Diagnostico; anterior: Diagnostico }>
+  }
 }
 
 export type AcaoPlano = { acao: string; indicador: string; meta: string; prazo: string }
