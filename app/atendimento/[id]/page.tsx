@@ -1376,16 +1376,25 @@ export default function AtendimentoChamadoPage() {
     }
   }
 
-  async function salvarResponsavel() {
+  /*
+   * `alvo` = assumir: quem não é autorizado pode assumir para si um
+   * chamado SEM responsável (supabase/chamados-assumir-sem-responsavel.sql).
+   * Trocar ou transferir um chamado que já tem responsável continua só
+   * com os autorizados.
+   */
+  async function salvarResponsavel(alvo?: string) {
     if (!chamado) return
 
-    if (!podeTransferir) {
-      setErro('Só quem tem autorização (Leonardo e Priscila) altera o responsável do chamado.')
+    const destino = alvo !== undefined ? alvo : novoResponsavel
+    const assumindo = !chamado.responsavel_id && !!meuId && destino === meuId
+
+    if (!podeTransferir && !assumindo) {
+      setErro('Só quem tem autorização (Leonardo e Priscila) altera o responsável do chamado. Chamado sem responsável você pode assumir.')
       return
     }
 
     if (
-      (novoResponsavel || null) ===
+      (destino || null) ===
       (chamado.responsavel_id || null)
     ) {
       return
@@ -1398,7 +1407,7 @@ export default function AtendimentoChamadoPage() {
       const { data, error } = await supabase
         .from('chamados')
         .update({
-          responsavel_id: novoResponsavel || null,
+          responsavel_id: destino || null,
         })
         .eq('id', chamado.id)
         .select(`
@@ -3942,8 +3951,21 @@ export default function AtendimentoChamadoPage() {
                     {agentes.find((a) => a.id === chamado.responsavel_id)?.nome ||
                       (chamado.responsavel_id ? 'Responsável definido' : 'Sem responsável')}
                   </strong>
+                  {!chamado.responsavel_id && meuId && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      style={{ marginTop: 8 }}
+                      disabled={salvandoResponsavel}
+                      onClick={() => salvarResponsavel(meuId)}
+                    >
+                      {salvandoResponsavel ? 'Assumindo...' : 'Assumir este chamado'}
+                    </button>
+                  )}
                   <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginTop: 4 }}>
-                    Só quem tem autorização (Leonardo e Priscila) altera o responsável ou transfere o chamado.
+                    {chamado.responsavel_id
+                      ? 'Só quem tem autorização (Leonardo e Priscila) altera o responsável ou transfere o chamado.'
+                      : 'Chamado sem responsável: você pode assumir. Transferir para outra pessoa só com autorização (Leonardo e Priscila).'}
                   </div>
                 </div>
               ) : (
@@ -3973,7 +3995,7 @@ export default function AtendimentoChamadoPage() {
 
               <button
                 type="button"
-                onClick={salvarResponsavel}
+                onClick={() => salvarResponsavel()}
                 disabled={
                   salvandoResponsavel ||
                   (novoResponsavel || null) ===
