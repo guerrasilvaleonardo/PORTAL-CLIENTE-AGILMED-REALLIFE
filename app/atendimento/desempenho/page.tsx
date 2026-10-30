@@ -601,6 +601,10 @@ export default function DesempenhoPage() {
 
         <div style={{ flex: 1 }} />
 
+        <Link href="/meu-desempenho" className="btn btn-sm">
+          Meus relatórios mensais
+        </Link>
+
         {verRelatorio && (
           <Link href="/atendimento/relatorio-mensal" className="btn btn-sm btn-primary">
             🔒 Relatório mensal

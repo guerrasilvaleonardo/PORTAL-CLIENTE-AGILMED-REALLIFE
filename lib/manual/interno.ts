@@ -452,7 +452,7 @@ const manualInterno: Manual = {
     {
       id: 'desempenho',
       titulo: 'Desempenho',
-      rotas: ['/atendimento/desempenho', '/atendimento/relatorio-mensal'],
+      rotas: ['/atendimento/desempenho', '/atendimento/relatorio-mensal', '/meu-desempenho'],
       slides: [
         {
           titulo: 'Indicadores da equipe',
@@ -487,6 +487,33 @@ const manualInterno: Manual = {
           ],
           dica: 'O resultado de cada pessoa é conversado com ela na reunião individual do mês, com o plano de ação combinado em conjunto.',
           atencao: 'É apoio à decisão da gestão: nenhuma conclusão sobre uma pessoa é automática.',
+        },
+        {
+          titulo: 'Devolutiva: liberar o relatório para a pessoa (direção)',
+          passos: [
+            'Em cada ficha do relatório mensal há o quadro "Devolutiva ao colaborador". Revise a ficha e clique em "Liberar para [nome]". Escolha se a análise escrita vai junto (síntese, pontos fortes, pontos de atenção e plano de ação) e, se quiser, escreva uma mensagem (ex.: data da conversa individual).',
+            'O portal guarda uma cópia congelada do que foi liberado. O roteiro da conversa nunca vai para a pessoa. A pessoa recebe e-mail e vê um aviso azul no topo do portal.',
+            'O quadro mostra quando a pessoa abriu, quando deu ciência e a manifestação dela. Na "Visão por pessoa" há a coluna Devolutiva (não liberado, aguardando ciência ou ciência com a data).',
+            'Antes da ciência dá para revogar ou liberar de novo (atualiza a cópia). Depois da ciência a cópia não muda: para corrigir, gere nova versão do relatório e libere de novo. Nada é apagado.',
+            'Só a direção (quem tem acesso ao relatório de gestão) libera e revoga.',
+          ],
+        },
+        {
+          titulo: 'Meu desempenho: ler o relatório e dar ciência (toda a equipe)',
+          tela: {
+            url: '/meu-desempenho',
+            blocos: [
+              { t: 'botoes', n: 1, itens: [{ rotulo: 'Outubro de 2026 · aguardando ciência' }, { rotulo: 'Imprimir cópia', primario: true }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Manifestação (opcional)', valor: 'Concordo; no dia 12 o sistema ficou fora do ar.' }, { rotulo: 'Li o relatório e tomei ciência', valor: '☑' }] },
+            ],
+          },
+          passos: [
+            'Quando a direção libera o seu relatório, chega um e-mail e aparece um aviso azul no topo do portal. Clique em "Ler e registrar ciência" ou vá em Desempenho > "Meus relatórios mensais".',
+            'Leia a ficha, marque "Li o relatório e tomei ciência" e clique em "Registrar ciência". Se quiser, escreva a sua manifestação: concordância, discordância ou contexto. Ciência não significa concordância.',
+            'A manifestação pode ir junto com a ciência ou ser acrescentada depois, uma vez. O que foi registrado não pode ser editado.',
+            '"Imprimir cópia" gera a versão em papel/PDF com campos de assinatura (colaborador, direção e data).',
+          ],
+          atencao: 'Só você e a direção veem o seu relatório.',
         },
       ],
     },

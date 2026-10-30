@@ -14,6 +14,7 @@ import {
 } from '@/lib/relatorioDesempenho'
 import './relatorio.css'
 import { DiagnosticoDetalhado, DicionarioIndicadores } from './Diagnostico'
+import { linhasIndicadores, v } from '@/lib/relatorioFichaLinhas'
 
 /*
  * Relatório mensal de desempenho — governança (supabase/relatorio-desempenho.sql).
@@ -42,6 +43,190 @@ type Completo = Resumo & {
 
 type Acesso = { usuario_id: string; acao: string; em: string }
 
+/* Cópia liberada à pessoa (supabase/desempenho-ciencia.sql). */
+type Publicacao = {
+  id: number
+  pessoa_id: string
+  mensagem: string | null
+  liberado_em: string
+  revogado_em: string | null
+  primeira_abertura_em: string | null
+  aberturas: number
+  ciente_em: string | null
+  manifestacao: string | null
+  manifestacao_em: string | null
+}
+
+async function chamarApiRelatorio(corpo: any) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const r = await fetch('/api/relatorio-desempenho', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (session?.access_token || '') },
+    body: JSON.stringify(corpo),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.erro || 'Falha na operação.')
+  return j
+}
+
+/*
+ * Devolutiva ao colaborador: a direção revisa a ficha e libera uma cópia
+ * congelada para a pessoa ler em "Meu desempenho" e registrar ciência.
+ * O roteiro da conversa nunca vai na cópia.
+ */
+function Devolutiva({
+  relatorioId,
+  pessoa,
+  pub,
+  instalado,
+  temAnalise,
+  onMudou,
+}: {
+  relatorioId: number
+  pessoa: FichaPessoa
+  pub: Publicacao | null
+  instalado: boolean
+  temAnalise: boolean
+  onMudou: () => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [mensagem, setMensagem] = useState('')
+  const [incluirAnalise, setIncluirAnalise] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
+
+  if (!instalado) {
+    return (
+      <div className="rel-aviso nao-imprimir">
+        Liberação ao colaborador: rode o SQL supabase/desempenho-ciencia.sql para ativar.
+      </div>
+    )
+  }
+
+  const ativa = pub && !pub.revogado_em ? pub : null
+
+  async function liberar() {
+    setSalvando(true)
+    setErro('')
+    setAviso('')
+    try {
+      const { data, error } = await supabase.rpc('liberar_relatorio_pessoa', {
+        p_relatorio: relatorioId,
+        p_pessoa: pessoa.id,
+        p_mensagem: mensagem.trim() || null,
+        p_incluir_analise: incluirAnalise,
+      })
+      if (error) throw error
+      setAberto(false)
+      setMensagem('')
+      try {
+        await chamarApiRelatorio({ acao: 'avisar_liberacao', id: data })
+        setAviso('Liberado. ' + pessoa.nome + ' recebeu o aviso por e-mail e vê o aviso no portal.')
+      } catch {
+        setAviso('Liberado. O e-mail de aviso não saiu, mas ' + pessoa.nome + ' vê o aviso ao entrar no portal.')
+      }
+      onMudou()
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível liberar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function revogar() {
+    if (!ativa) return
+    if (!window.confirm('Revogar a liberação? ' + pessoa.nome + ' deixa de ver esta cópia. O registro fica guardado.')) return
+    setSalvando(true)
+    setErro('')
+    setAviso('')
+    try {
+      const { error } = await supabase.rpc('revogar_relatorio_pessoa', { p_id: ativa.id })
+      if (error) throw error
+      setAviso('Liberação revogada.')
+      onMudou()
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível revogar.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="nao-imprimir rel-devolutiva">
+      <div className="section-title" style={{ marginBottom: 6 }}>Devolutiva ao colaborador</div>
+      {ativa ? (
+        <div style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+          Liberado em {dataHora(ativa.liberado_em)} ·{' '}
+          {ativa.primeira_abertura_em ? `aberto pela pessoa em ${dataHora(ativa.primeira_abertura_em)} (${ativa.aberturas}x)` : 'ainda não aberto'} ·{' '}
+          {ativa.ciente_em ? <strong>ciência em {dataHora(ativa.ciente_em)}</strong> : 'aguardando ciência'}
+          {ativa.mensagem && <div className="rel-sub">Mensagem enviada: {ativa.mensagem}</div>}
+          {ativa.manifestacao && (
+            <div style={{ marginTop: 6 }}>
+              <strong>Manifestação de {pessoa.nome}</strong> ({dataHora(ativa.manifestacao_em)}):
+              <div style={{ whiteSpace: 'pre-wrap' }}>{ativa.manifestacao}</div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="rel-sub" style={{ marginTop: 0 }}>
+          {pub?.revogado_em ? `Liberação revogada em ${dataHora(pub.revogado_em)}. ` : ''}
+          {pessoa.nome} ainda não vê esta ficha.
+        </p>
+      )}
+
+      {!aberto ? (
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          {!ativa?.ciente_em && (
+            <button className="btn btn-sm btn-primary" onClick={() => setAberto(true)} disabled={salvando}>
+              {ativa ? 'Liberar de novo (atualizar)' : 'Liberar para ' + pessoa.nome}
+            </button>
+          )}
+          {ativa && !ativa.ciente_em && (
+            <button className="btn btn-sm" onClick={revogar} disabled={salvando}>
+              Revogar
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          <p className="rel-sub" style={{ color: 'var(--ink)' }}>
+            Vai para {pessoa.nome}: os números da ficha, o diagnóstico, o que os dados mostram e os chamados citados
+            {temAnalise ? ' e, se marcado abaixo, a síntese, os pontos fortes e de atenção e o plano de ação' : ''}. O roteiro da conversa não vai.
+            Revise o texto antes de liberar.
+          </p>
+          {temAnalise && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13.5 }}>
+              <input type="checkbox" checked={incluirAnalise} onChange={(e) => setIncluirAnalise(e.target.checked)} />
+              Incluir a análise escrita (síntese, pontos fortes, pontos de atenção e plano de ação)
+            </label>
+          )}
+          <textarea
+            value={mensagem}
+            onChange={(e) => setMensagem(e.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="Mensagem da direção para a pessoa (opcional). Ex.: data da conversa individual."
+            style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 10, fontSize: 13.5, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--ink)' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sm btn-primary" onClick={liberar} disabled={salvando}>
+              {salvando ? 'Liberando...' : 'Confirmar liberação'}
+            </button>
+            <button className="btn btn-sm" onClick={() => setAberto(false)} disabled={salvando}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      {erro && <div className="rel-aviso" style={{ background: 'var(--danger-tint)', marginTop: 8 }}>{erro}</div>}
+      {aviso && <div className="rel-aviso" style={{ marginTop: 8 }}>{aviso}</div>}
+    </div>
+  )
+}
+
 const ACAO: Record<string, string> = { abriu: 'abriu', pdf: 'baixou o PDF', gerou: 'gerou', reanalisou: 'refez a análise' }
 
 function mesAnterior() {
@@ -62,10 +247,6 @@ function dataHora(v: string | null | undefined) {
 
 function dataCurta(v: string) {
   return new Date(v).toLocaleDateString('pt-BR', { timeZone: 'America/Porto_Velho' })
-}
-
-function v(x: number | null | undefined, sufixo = '') {
-  return x === null || x === undefined ? '—' : x.toLocaleString('pt-BR') + sufixo
 }
 
 function Delta({ atual, anterior, melhorMenor = false, sufixo = '' }: { atual: number | null; anterior: number | null; melhorMenor?: boolean; sufixo?: string }) {
@@ -93,31 +274,29 @@ function Indicador({ titulo, valor, extra, classe }: { titulo: string; valor: st
   )
 }
 
-function linhasIndicadores(a: IndicadoresMes, ant: IndicadoresMes, med?: DadosRelatorio['equipe']['medianas']) {
-  return [
-    { k: 'Recebidos', a: v(a.recebidos), ant: v(ant.recebidos), m: '' },
-    { k: 'Concluídos', a: v(a.concluidos), ant: v(ant.concluidos), m: med ? v(med.concluidos) : '' },
-    { k: 'Prazo cumprido', a: v(a.slaPct, '%') + ` (${a.slaCumpridos}/${a.slaAvaliados})`, ant: v(ant.slaPct, '%'), m: med ? v(med.slaPct, '%') : '' },
-    { k: '1ª resposta (mediana)', a: horas(a.primeiraRespostaMediana), ant: horas(ant.primeiraRespostaMediana), m: med ? horas(med.primeiraResposta) : '' },
-    { k: 'Resolução (mediana)', a: horas(a.resolucaoMediana), ant: horas(ant.resolucaoMediana), m: med ? horas(med.resolucao) : '' },
-    { k: 'Reabertos', a: v(a.reabertos) + (a.reaberturaPct !== null ? ` (${a.reaberturaPct}%)` : ''), ant: v(ant.reabertos), m: med ? v(med.reaberturaPct, '%') : '' },
-    { k: 'Avaliações do cliente', a: `${a.notas.excelente} Excelente · ${a.notas.bom} Bom · ${a.notas.ruim} Ruim`, ant: `${ant.notas.excelente} · ${ant.notas.bom} · ${ant.notas.ruim}`, m: '' },
-    { k: 'Estrelas válidas', a: `${a.estrelas.total} (${a.estrelas.prazo} prazo + ${a.estrelas.avaliacao} avaliação)`, ant: v(ant.estrelas.total), m: '' },
-    { k: 'Estrelas suspensas / estornadas', a: `${a.estrelas.suspensas} / ${a.estrelas.estornadas}`, ant: `${ant.estrelas.suspensas} / ${ant.estrelas.estornadas}`, m: '' },
-    { k: 'Alterações de prazo (não autorizadas)', a: `${a.prazoAlteracoes.total} (${a.prazoAlteracoes.negadas})`, ant: `${ant.prazoAlteracoes.total} (${ant.prazoAlteracoes.negadas})`, m: '' },
-    { k: 'Cancelados', a: v(a.cancelados), ant: v(ant.cancelados), m: '' },
-    { k: 'Mensagens escritas nos chamados', a: v(a.mensagens), ant: '—', m: '' },
-    { k: 'Carteira em aberto / atrasados (na geração)', a: `${a.carteira} / ${a.atrasados}`, ant: '—', m: '' },
-  ]
-}
-
 function PillAchado({ a }: { a: Achado }) {
   const cls = a.tipo === 'forte' ? 'good' : a.tipo === 'atencao' ? 'warn' : 'flat'
   const txt = a.tipo === 'forte' ? 'Forte' : a.tipo === 'atencao' ? 'Atenção' : 'Contexto'
   return <span className={'pill ' + cls}>{txt}</span>
 }
 
-function Ficha({ p, d, an }: { p: FichaPessoa; d: DadosRelatorio; an: Analise | null }) {
+function Ficha({
+  p,
+  d,
+  an,
+  relatorioId,
+  pub,
+  pubInstalado,
+  onPubMudou,
+}: {
+  p: FichaPessoa
+  d: DadosRelatorio
+  an: Analise | null
+  relatorioId: number
+  pub: Publicacao | null
+  pubInstalado: boolean
+  onPubMudou: () => void
+}) {
   const a = an?.pessoas?.[p.id]
   const linhas = linhasIndicadores(p.atual, p.anterior, d.equipe.medianas)
 
@@ -135,6 +314,8 @@ function Ficha({ p, d, an }: { p: FichaPessoa; d: DadosRelatorio; an: Analise | 
         </div>
       </div>
       <div className="panel-body">
+        <Devolutiva relatorioId={relatorioId} pessoa={p} pub={pub} instalado={pubInstalado} temAnalise={!!a} onMudou={onPubMudou} />
+
         {a?.sintese && <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6 }}>{a.sintese}</p>}
 
         <div className="table-scroll">
@@ -314,6 +495,8 @@ export default function RelatorioMensalPage() {
   const [trabalhando, setTrabalhando] = useState('')
   const [nomes, setNomes] = useState<Record<string, string>>({})
   const [acessos, setAcessos] = useState<Acesso[]>([])
+  const [pubs, setPubs] = useState<Publicacao[]>([])
+  const [pubInstalado, setPubInstalado] = useState(true)
 
   const carregarLista = useCallback(async () => {
     const { data, error } = await supabase
@@ -381,12 +564,27 @@ export default function RelatorioMensalPage() {
       }
       setRel(data as Completo)
       setPessoaSel('')
+      carregarPubs(selId)
       supabase.rpc('registrar_acesso_relatorio', { p_relatorio: selId, p_acao: 'abriu' }).then(() => carregarAcessos(selId))
     })()
     return () => {
       vivo = false
     }
   }, [selId])
+
+  async function carregarPubs(id: number) {
+    const { data, error } = await supabase
+      .from('desempenho_publicacoes')
+      .select('id, pessoa_id, mensagem, liberado_em, revogado_em, primeira_abertura_em, aberturas, ciente_em, manifestacao, manifestacao_em')
+      .eq('relatorio_id', id)
+    if (error) {
+      setPubInstalado(false)
+      setPubs([])
+      return
+    }
+    setPubInstalado(true)
+    setPubs((data || []) as Publicacao[])
+  }
 
   async function carregarAcessos(id: number) {
     const { data } = await supabase
@@ -687,6 +885,7 @@ export default function RelatorioMensalPage() {
                           <th className="n">Concl.</th>
                           <th className="n">Prazo</th>
                           <th className="n">Forte / Atenção</th>
+                          {pubInstalado && <th>Devolutiva</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -700,6 +899,16 @@ export default function RelatorioMensalPage() {
                             <td className="n">
                               {p.achados.filter((x) => x.tipo === 'forte').length} / {p.achados.filter((x) => x.tipo === 'atencao').length}
                             </td>
+                            {pubInstalado && (
+                              <td>
+                                {(() => {
+                                  const x = pubs.find((y) => y.pessoa_id === p.id && !y.revogado_em)
+                                  if (!x) return <span className="rel-sub">não liberado</span>
+                                  if (x.ciente_em) return <span className="pill good">ciência {dataCurta(x.ciente_em)}</span>
+                                  return <span className="pill warn">aguardando ciência</span>
+                                })()}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -727,7 +936,16 @@ export default function RelatorioMensalPage() {
           )}
 
           {fichas.map((p) => (
-            <Ficha key={p.id} p={p} d={d} an={an} />
+            <Ficha
+              key={p.id}
+              p={p}
+              d={d}
+              an={an}
+              relatorioId={rel.id}
+              pub={pubs.find((x) => x.pessoa_id === p.id) || null}
+              pubInstalado={pubInstalado}
+              onPubMudou={() => carregarPubs(rel.id)}
+            />
           ))}
 
           <div className="panel rel-ficha-final">
