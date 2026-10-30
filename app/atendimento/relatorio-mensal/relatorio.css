@@ -51,3 +51,13 @@
   .rel-diag tr, .rel-dicionario tr { break-inside: avoid; }
   .rel-tab .rel-grupo td { background: none; border-bottom: 1px solid #999; }
 }
+
+/* Cópia liberada ao colaborador (Meu desempenho): campos de assinatura
+   só na cópia impressa. */
+.rel-assinaturas { display: none; }
+@media print {
+  .rel-assinaturas { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 24px; margin-top: 36px; font-size: 12px; }
+  .rel-linha-assinatura { height: 28px; border-bottom: 1px solid #000; margin-bottom: 4px; }
+  .rel-ficha-publicada { break-before: auto; }
+}
+.rel-devolutiva { border: 1px dashed var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-2, #f7f8f7); }
