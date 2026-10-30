@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { escreverAnalise, gerarRelatorio } from '@/lib/relatorioDesempenhoGerar'
 import { mesValido } from '@/lib/relatorioDesempenhoServidor'
+import { rotuloMes } from '@/lib/relatorioDesempenho'
+import { enderecoDoPortal, enviarEmail, montarEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -14,6 +16,9 @@ export const maxDuration = 300
  *
  * POST { acao: 'gerar', mes: 'AAAA-MM' }   -> nova versão do mês
  * POST { acao: 'analisar', id }            -> refaz só o texto da análise
+ * POST { acao: 'avisar_liberacao', id }     -> e-mail à pessoa: relatório
+ *                                              liberado para ciência
+ *                                              (supabase/desempenho-ciencia.sql)
  */
 async function quemPede(request: Request) {
   const auth = request.headers.get('authorization')
@@ -68,6 +73,40 @@ export async function POST(request: Request) {
       const r = await escreverAnalise(supabaseAdmin, id, undefined, request.headers.get('x-vercel-oidc-token'))
       await supabaseAdmin.from('relatorios_desempenho_acessos').insert({ relatorio_id: id, usuario_id: usuario, acao: 'reanalisou' })
       return NextResponse.json({ ok: true, origem: r.origem, aviso: r.erro })
+    }
+
+    if (body.acao === 'avisar_liberacao') {
+      const id = Number(body.id)
+      if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ erro: 'Liberação inválida.' }, { status: 400 })
+
+      const { data: pub } = await supabaseAdmin
+        .from('desempenho_publicacoes')
+        .select('id, pessoa_id, mes, revogado_em, ciente_em')
+        .eq('id', id)
+        .maybeSingle()
+      if (!pub || (pub as any).revogado_em) return NextResponse.json({ erro: 'Liberação não encontrada.' }, { status: 404 })
+
+      const { data: pessoa } = await supabaseAdmin.from('profiles').select('nome, email').eq('id', (pub as any).pessoa_id).maybeSingle()
+      const email = (pessoa as any)?.email
+      if (!email) return NextResponse.json({ ok: true, enviado: false })
+
+      const mes = rotuloMes(String((pub as any).mes).slice(0, 7))
+      const portal = enderecoDoPortal('reallife')
+      const r = await enviarEmail({
+        para: [email],
+        marca: 'reallife',
+        assunto: 'Seu relatório de desempenho de ' + mes + ' está disponível',
+        html: montarEmail(
+          'reallife',
+          'Relatório de desempenho de ' + mes,
+          [
+            'Olá, ' + String((pessoa as any)?.nome || '').split(' ')[0] + '. A direção liberou o seu relatório individual de desempenho de ' + mes + '.',
+            'Leia no portal e registre a ciência. Se quiser, escreva a sua manifestação: ciência não significa concordância.',
+          ],
+          { rotulo: 'Ler meu relatório', url: portal + '/meu-desempenho' }
+        ),
+      })
+      return NextResponse.json({ ok: true, enviado: (r as any)?.enviado !== false })
     }
 
     return NextResponse.json({ erro: 'Ação inválida.' }, { status: 400 })
