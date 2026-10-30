@@ -8,6 +8,7 @@ import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { useModulos, type Modulo } from '@/lib/modulos'
 import SeletorEmpresa from '@/components/SeletorEmpresa'
 import AvisoForaHorario from '@/components/AvisoForaHorario'
+import AvisoRelatorioDesempenho from '@/components/AvisoRelatorioDesempenho'
 import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
@@ -334,6 +335,7 @@ export default function PortalHeader() {
       </div>
 
       {interno && <AvisoForaHorario />}
+      {interno && <AvisoRelatorioDesempenho />}
       {interno && <CelebracaoEstrelas />}
     </header>
   )
