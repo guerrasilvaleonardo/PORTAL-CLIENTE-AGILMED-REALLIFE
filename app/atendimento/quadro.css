@@ -185,3 +185,45 @@
   margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--primary-strong, #0f4c51);
   background: var(--primary-tint, #e6f2f1); border-radius: 8px; padding: 3px 8px; display: inline-block;
 }
+
+/*
+ * Arquivamento e revisão dos suspensos
+ * (supabase/chamados-arquivo-e-revisao-suspensos.sql).
+ */
+.col-nota {
+  font-size: 11px; font-weight: 600; color: var(--ink-muted);
+  padding: 0 4px; margin-top: -4px;
+}
+
+.col-historico {
+  display: block; text-align: center; font-size: 12px; font-weight: 700;
+  padding: 8px; border-radius: var(--radius-m);
+  background: var(--surface); border: 1px dashed var(--border);
+  color: var(--primary-strong, #0f4c51);
+}
+.col-historico:hover { border-style: solid; }
+
+/* Próxima revisão do suspenso: data em destaque, cor pela situação. */
+.card-revisao {
+  font-family: 'IBM Plex Mono'; font-size: 11.5px; font-weight: 600;
+  color: var(--ink-muted); background: var(--surface-sunken);
+  border-radius: 8px; padding: 4px 8px;
+}
+.card-revisao.hoje { background: #FEF3C7; color: #5C4300; }
+.card-revisao.vencida { background: var(--danger-tint); color: var(--danger); }
+
+.qcard.revisao-hoje { background: #FFF7D6; animation: pulsa-card-alerta 1.6s ease-in-out infinite; }
+.qcard.revisao-vencida { background: var(--danger-tint); animation: pulsa-card-atraso 1.6s ease-in-out infinite; }
+
+.qcard-grupo { display: flex; flex-direction: column; gap: 6px; }
+.qcard-revisar { width: 100%; justify-content: center; font-weight: 700; min-height: 36px; }
+.qcard-revisar.hoje { background: #FACC15; border-color: #E0B000; color: #3D2E00; }
+.qcard-revisar.vencida { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+.stat-revisar { animation: pulsa-card-alerta 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .qcard.revisao-hoje,
+  .qcard.revisao-vencida,
+  .stat-revisar { animation: none; }
+}

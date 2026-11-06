@@ -20,6 +20,7 @@ import {
   type Indicadores,
 } from '@/lib/desempenho'
 import { situacaoSla } from '@/lib/prazo'
+import { hojeEmPortoVelho } from '@/lib/revisaoSuspensao'
 
 /*
  * Desempenho individual da equipe nos chamados.
@@ -120,6 +121,16 @@ export default function DesempenhoPage() {
   const [etapas, setEtapas] = useState<Record<string, number>>({})
   /* Cancelados no período, por motivo (fora do SLA e das estrelas). */
   const [cancelados, setCancelados] = useState<{ motivo: string; total: number }[]>([])
+  /*
+   * Revisão dos suspensos (supabase/chamados-arquivo-e-revisao-suspensos.sql):
+   * reprogramações no período e suspensos com revisão vencida agora, por
+   * pessoa. Só informativo: NÃO entra nas estrelas.
+   */
+  const [revisoes, setRevisoes] = useState<{
+    disponivel: boolean
+    porPessoa: Record<string, { reprogramacoes: number; reprogramadasVencidas: number; vencidosAgora: number }>
+  }>({ disponivel: false, porPessoa: {} })
+
   /* Relatório mensal de gestão: só quem tem a marcação no banco (supabase/relatorio-desempenho.sql). */
   const [verRelatorio, setVerRelatorio] = useState(false)
 
@@ -130,6 +141,49 @@ export default function DesempenhoPage() {
   }, [])
 
   const { ini, fim } = useMemo(() => limitesPeriodo(periodo), [periodo])
+
+  useEffect(() => {
+    let ativo = true
+
+    ;(async () => {
+      const [{ data: reprog, error: erroReprog }, { data: suspensos, error: erroSusp }] = await Promise.all([
+        supabase
+          .from('chamado_suspensao_reprogramacoes')
+          .select('reprogramado_por, revisao_vencida')
+          .gte('reprogramado_em', ini.toISOString())
+          .lt('reprogramado_em', fim.toISOString()),
+        supabase
+          .from('chamados')
+          .select('responsavel_id, suspensao_proxima')
+          .eq('status', 'suspenso')
+          .lt('suspensao_proxima', hojeEmPortoVelho()),
+      ])
+
+      if (!ativo) return
+
+      /* Sem o SQL novo: o quadro fica escondido. */
+      if (erroReprog || erroSusp) return setRevisoes({ disponivel: false, porPessoa: {} })
+
+      const conta: Record<string, { reprogramacoes: number; reprogramadasVencidas: number; vencidosAgora: number }> = {}
+      const de = (id: string) => (conta[id] ||= { reprogramacoes: 0, reprogramadasVencidas: 0, vencidosAgora: 0 })
+
+      for (const r of (reprog || []) as any[]) {
+        if (!r.reprogramado_por) continue
+        de(r.reprogramado_por).reprogramacoes += 1
+        if (r.revisao_vencida) de(r.reprogramado_por).reprogramadasVencidas += 1
+      }
+
+      for (const c of (suspensos || []) as any[]) {
+        de(c.responsavel_id || 'sem').vencidosAgora += 1
+      }
+
+      setRevisoes({ disponivel: true, porPessoa: conta })
+    })()
+
+    return () => {
+      ativo = false
+    }
+  }, [ini, fim])
 
   useEffect(() => {
     let ativo = true
@@ -827,6 +881,52 @@ export default function DesempenhoPage() {
               />
             </div>
           </div>
+
+          {revisoes.disponivel && (
+            <div className="panel">
+              <div className="panel-head">
+                <div className="section-title">Revisão de suspensos</div>
+                <span className="pill flat">não afeta as estrelas</span>
+              </div>
+              <div className="panel-body" style={{ overflowX: 'auto' }}>
+                {Object.keys(revisoes.porPessoa).length === 0 ? (
+                  <div className="empty-state">
+                    Nenhuma reprogramação no período e nenhum suspenso com revisão vencida.
+                  </div>
+                ) : (
+                  <table className="matriz">
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Atendente</th>
+                        <th title="Vezes que a pessoa trocou a data da próxima atualização no período">Reprogramações</th>
+                        <th title="Reprogramações feitas quando a data já tinha passado">Feitas com a revisão vencida</th>
+                        <th title="Suspensos sob responsabilidade da pessoa com a revisão vencida agora">Vencidos agora</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(revisoes.porPessoa)
+                        .map(([id, v]) => ({
+                          id,
+                          nome: id === 'sem' ? 'Sem responsável' : equipe.find((p) => p.id === id)?.nome || 'Outro',
+                          ...v,
+                        }))
+                        .sort((a, b) => b.vencidosAgora - a.vencidosAgora || b.reprogramacoes - a.reprogramacoes)
+                        .map((l) => (
+                          <tr key={l.id}>
+                            <td style={{ textAlign: 'left' }}>{l.nome}</td>
+                            <td>{l.reprogramacoes}</td>
+                            <td>{l.reprogramadasVencidas}</td>
+                            <td style={l.vencidosAgora ? { color: 'var(--danger)', fontWeight: 700 } : undefined}>
+                              {l.vencidosAgora}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

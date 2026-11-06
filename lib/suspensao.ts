@@ -66,6 +66,29 @@ export async function suspenderChamado(
 }
 
 /*
+ * Reprogramar a próxima atualização de um chamado suspenso
+ * (supabase/chamados-arquivo-e-revisao-suspensos.sql). O chamado continua
+ * suspenso; o cliente recebe a nova data; não mexe nas estrelas.
+ */
+export async function reprogramarSuspensao(chamadoId: string, proxima: string, motivo: string) {
+  const { error } = await supabase.rpc('reprogramar_suspensao', {
+    p_chamado: chamadoId,
+    p_proxima: proxima,
+    p_motivo: motivo,
+  })
+
+  if (error) {
+    const msg = error.message || ''
+
+    if (/reprogramar_suspensao|function .* does not exist|schema cache/i.test(msg)) {
+      throw new Error('A reprogramação ainda não foi ativada no banco (rodar o SQL chamados-arquivo-e-revisao-suspensos.sql).')
+    }
+
+    throw new Error(msg || 'Não foi possível reprogramar a suspensão.')
+  }
+}
+
+/*
  * Dados da suspensão em andamento (motivo e próxima atualização), lidos à
  * parte para a tela não quebrar se o SQL ainda não tiver rodado.
  */

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { marcarChamadoLido } from '@/lib/chamadosNaoLidos'
-import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
+import { carregarSuspensos, dataDoBanco, hojePortoVelho } from '@/lib/suspensao'
 import { motivoDoCancelamento } from '@/lib/cancelamento'
 import { trocarParaEmpresaDoChamado } from '@/lib/minhasEmpresas'
 import type { DadosSuspensao } from '@/lib/suspensao'
@@ -182,6 +182,55 @@ export default function DetalhesChamadoPage() {
       vivo = false
     }
   }, [chamado?.id, chamado?.status])
+
+  /*
+   * Ligação entre chamados (supabase/chamados-arquivo-e-revisao-suspensos.sql):
+   * de qual chamado este é continuação e quais continuam este. Consulta à
+   * parte e tolerante: sem o SQL, a tela segue sem o recurso.
+   */
+  const [vinculos, setVinculos] = useState<{
+    origem: { id: string; numero: number } | null
+    continuacoes: { id: string; numero: number }[]
+  }>({ origem: null, continuacoes: [] })
+
+  useEffect(() => {
+    if (!chamado?.id) return
+
+    let vivo = true
+
+    ;(async () => {
+      try {
+        const { data: eu, error } = await supabase
+          .from('chamados')
+          .select('chamado_origem_id')
+          .eq('id', chamado.id)
+          .maybeSingle()
+
+        if (error) return
+
+        const origemId = (eu as any)?.chamado_origem_id || null
+        const [{ data: origem }, { data: filhos }] = await Promise.all([
+          origemId
+            ? supabase.from('chamados').select('id, numero').eq('id', origemId).maybeSingle()
+            : Promise.resolve({ data: null }),
+          supabase.from('chamados').select('id, numero').eq('chamado_origem_id', chamado.id).order('numero'),
+        ])
+
+        if (vivo) {
+          setVinculos({
+            origem: (origem as any) || null,
+            continuacoes: ((filhos || []) as any[]).map((f) => ({ id: f.id, numero: f.numero })),
+          })
+        }
+      } catch {
+        /* Recurso opcional. */
+      }
+    })()
+
+    return () => {
+      vivo = false
+    }
+  }, [chamado?.id])
 
   /* Cancelado: o cliente vê o motivo (a observação interna fica com a equipe). */
   const [cancelamento, setCancelamento] = useState<{
@@ -1138,9 +1187,15 @@ export default function DetalhesChamadoPage() {
                 >
                   <strong style={{ color: '#b91c1c' }}>Atendimento suspenso</strong>
                   {suspensao?.suspensao_motivo && <div>Motivo: {suspensao.suspensao_motivo}</div>}
-                  {suspensao?.suspensao_proxima && (
-                    <div>Próxima atualização prevista: {dataDoBanco(suspensao.suspensao_proxima)}</div>
-                  )}
+                  {suspensao?.suspensao_proxima &&
+                    (suspensao.suspensao_proxima.slice(0, 10) < hojePortoVelho() ? (
+                      /* Data passou sem atualização: o alerta fica só com a equipe. */
+                      <div>Próxima atualização: em andamento pela equipe</div>
+                    ) : (
+                      <div>
+                        Próxima atualização prevista: <strong>{dataDoBanco(suspensao.suspensao_proxima)}</strong>
+                      </div>
+                    ))}
                   <div style={{ fontSize: 13 }}>
                     Enquanto a suspensão durar, o prazo de atendimento fica pausado.
                   </div>
@@ -1716,6 +1771,76 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
 
+              {(vinculos.origem || vinculos.continuacoes.length > 0) && (
+                <div style={{ fontSize: 13, color: '#475569', margin: '0 0 12px', lineHeight: 1.6 }}>
+                  {vinculos.origem && (
+                    <div>
+                      Continuação do chamado{' '}
+                      <Link href={'/chamados/' + vinculos.origem.id} style={{ color: tema.principal, fontWeight: 700 }}>
+                        #{vinculos.origem.numero}
+                      </Link>
+                    </div>
+                  )}
+                  {vinculos.continuacoes.length > 0 && (
+                    <div>
+                      Continua em:{' '}
+                      {vinculos.continuacoes.map((f, i) => (
+                        <span key={f.id}>
+                          {i > 0 && ', '}
+                          <Link href={'/chamados/' + f.id} style={{ color: tema.principal, fontWeight: 700 }}>
+                            #{f.numero}
+                          </Link>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {chamado.status === 'encerrado' ? (
+                /*
+                 * Encerrado não reabre: o cliente abre um chamado novo ligado a
+                 * este, para não distorcer o prazo e a avaliação do original.
+                 */
+                <div
+                  role="note"
+                  style={{
+                    border: '1px solid ' + tema.borda,
+                    background: tema.fundo,
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  <strong>Este chamado foi encerrado.</strong>
+                  <span>
+                    Precisa continuar este assunto? Abra um novo chamado ligado a este. Nossa equipe verá
+                    todo o histórico do chamado #{chamado.numero}.
+                  </span>
+                  <Link
+                    href={
+                      '/chamados/novo?origem=' +
+                      encodeURIComponent(String(chamado.id)) +
+                      '&categoria=' +
+                      encodeURIComponent(chamado.categoria || '') +
+                      '&assunto=' +
+                      encodeURIComponent(('Continuação do #' + chamado.numero + ' · ' + (chamado.assunto || '')).slice(0, 200))
+                    }
+                    style={{
+                      ...styles.primaryButton,
+                      background: tema.principal,
+                      alignSelf: 'flex-start',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Abrir novo chamado sobre este assunto
+                  </Link>
+                </div>
+              ) : (
               <form
                 onSubmit={enviarMensagem}
                 style={styles.messageForm}
@@ -1759,6 +1884,7 @@ export default function DetalhesChamadoPage() {
                   </button>
                 </div>
               </form>
+              )}
             </div>
           </div>
 

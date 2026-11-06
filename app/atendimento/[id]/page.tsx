@@ -16,6 +16,8 @@ import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import EstrelasDoChamado from '@/components/EstrelasDoChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
 import SuspenderChamado from '@/components/SuspenderChamado'
+import RevisarSuspensao from '@/components/RevisarSuspensao'
+import { situacaoRevisao, textoRevisao } from '@/lib/revisaoSuspensao'
 import CancelarChamado from '@/components/CancelarChamado'
 import { carregarCancelamentos, motivoExibido, type RegistroCancelamento } from '@/lib/cancelamento'
 import { carregarHistoricoSuspensoes, dataDoBanco } from '@/lib/suspensao'
@@ -1169,6 +1171,55 @@ export default function AtendimentoChamadoPage() {
 
   const suspensaoAtual =
     chamado?.status === 'suspenso' ? suspensoes.find((s) => !s.fim) || null : null
+
+  /* Chamado anterior (continuação) e continuações deste. Consulta tolerante. */
+  const [vinculos, setVinculos] = useState<{
+    origem: { id: string; numero: number } | null
+    continuacoes: { id: string; numero: number }[]
+  }>({ origem: null, continuacoes: [] })
+
+  useEffect(() => {
+    if (!chamado?.id) return
+
+    let vivo = true
+
+    ;(async () => {
+      try {
+        const { data: eu, error } = await supabase
+          .from('chamados')
+          .select('chamado_origem_id')
+          .eq('id', chamado.id)
+          .maybeSingle()
+
+        if (error) return
+
+        const origemId = (eu as any)?.chamado_origem_id || null
+        const [{ data: origem }, { data: filhos }] = await Promise.all([
+          origemId
+            ? supabase.from('chamados').select('id, numero').eq('id', origemId).maybeSingle()
+            : Promise.resolve({ data: null }),
+          supabase.from('chamados').select('id, numero').eq('chamado_origem_id', chamado.id).order('numero'),
+        ])
+
+        if (vivo) {
+          setVinculos({
+            origem: (origem as any) || null,
+            continuacoes: ((filhos || []) as any[]).map((f) => ({ id: f.id, numero: f.numero })),
+          })
+        }
+      } catch {
+        /* Recurso opcional. */
+      }
+    })()
+
+    return () => {
+      vivo = false
+    }
+  }, [chamado?.id])
+
+  /* Janela de revisão do suspenso: reativar ou reprogramar a próxima atualização. */
+  const [revisandoSuspensao, setRevisandoSuspensao] = useState(false)
+  const revisaoAtual = suspensaoAtual ? situacaoRevisao(suspensaoAtual.proxima_atualizacao) : null
 
   /* Cancelamento: janela (gestor/admin) e histórico. */
   const [cancelando, setCancelando] = useState(false)
@@ -3645,6 +3696,42 @@ export default function AtendimentoChamadoPage() {
                 </p>
               )}
 
+              {(vinculos.origem || vinculos.continuacoes.length > 0) && (
+                <div
+                  style={{
+                    border: '1px solid #e2e8f0',
+                    background: '#f8fafc',
+                    borderRadius: 12,
+                    padding: '10px 14px',
+                    marginBottom: 16,
+                    fontSize: 13.5,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {vinculos.origem && (
+                    <div>
+                      Continuação do chamado encerrado{' '}
+                      <Link href={'/atendimento/' + vinculos.origem.id} style={{ fontWeight: 700 }}>
+                        #{vinculos.origem.numero}
+                      </Link>
+                    </div>
+                  )}
+                  {vinculos.continuacoes.length > 0 && (
+                    <div>
+                      Continua em:{' '}
+                      {vinculos.continuacoes.map((f, i) => (
+                        <span key={f.id}>
+                          {i > 0 && ', '}
+                          <Link href={'/atendimento/' + f.id} style={{ fontWeight: 700 }}>
+                            #{f.numero}
+                          </Link>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {chamado.status === 'suspenso' && (
                 <div
                   style={{
@@ -3662,7 +3749,14 @@ export default function AtendimentoChamadoPage() {
                   {suspensaoAtual ? (
                     <>
                       <div>Motivo: {suspensaoAtual.motivo}</div>
-                      <div>Próxima atualização: {dataDoBanco(suspensaoAtual.proxima_atualizacao)}</div>
+                      <div>
+                        Próxima atualização: {dataDoBanco(suspensaoAtual.proxima_atualizacao)}
+                        {revisaoAtual && (
+                          <strong style={{ marginLeft: 6 }}>
+                            ({textoRevisao(suspensaoAtual.proxima_atualizacao)})
+                          </strong>
+                        )}
+                      </div>
                       <div>Desde: {formatarData(suspensaoAtual.inicio)}</div>
                       <div style={{ marginTop: 6 }}>
                         <em>Observação (só a equipe):</em> {suspensaoAtual.observacao}
@@ -3675,7 +3769,46 @@ export default function AtendimentoChamadoPage() {
                     Para retomar, mude o status (ex.: Em atendimento). O prazo é estendido pelas horas
                     úteis suspensas; nas estrelas, a extensão aguarda a decisão do gestor.
                   </div>
+                  {suspensaoAtual && (
+                    <button
+                      type="button"
+                      className={'btn btn-sm' + (revisaoAtual === 'futura' ? '' : ' btn-primary')}
+                      style={{ marginTop: 10 }}
+                      onClick={() => setRevisandoSuspensao(true)}
+                    >
+                      {revisaoAtual === 'futura' ? 'Reprogramar a revisão' : 'Revisar agora: reativar ou reprogramar'}
+                    </button>
+                  )}
                 </div>
+              )}
+
+              {revisandoSuspensao && chamado && suspensaoAtual && (
+                <RevisarSuspensao
+                  chamado={{
+                    id: chamado.id,
+                    numero: chamado.numero ?? 0,
+                    assunto: chamado.assunto,
+                    suspensao_motivo: suspensaoAtual.motivo,
+                    suspensao_proxima: suspensaoAtual.proxima_atualizacao,
+                  }}
+                  onFechar={() => setRevisandoSuspensao(false)}
+                  onReativar={async () => {
+                    const { error } = await supabase
+                      .from('chamados')
+                      .update({ status: 'em_atendimento' })
+                      .eq('id', chamado.id)
+
+                    if (error) throw new Error(error.message || 'Não foi possível reativar o chamado.')
+
+                    setRevisandoSuspensao(false)
+                    avisar('status_alterado', chamado.id)
+                    carregarChamado()
+                  }}
+                  onReprogramado={() => {
+                    setRevisandoSuspensao(false)
+                    carregarHistoricoSuspensoes(chamado.id).then(setSuspensoes)
+                  }}
+                />
               )}
 
               {suspensoes.filter((s) => s.fim).length > 0 && (
