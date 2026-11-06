@@ -11,6 +11,7 @@ import {
   textoRevisao,
 } from '@/lib/revisaoSuspensao'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
+import { NOTA_ORDEM, ordemDaColuna } from '@/lib/ordemQuadro'
 import { casaBusca, padraoSemAcento, palavrasDaBusca } from '@/lib/busca'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -74,14 +75,6 @@ function saidaDoQuadro(c: Chamado) {
   if (c.status === 'cancelado') return c.cancelado_em || null
 
   return null
-}
-
-/* Suspensos em ordem de revisão: vencida e hoje primeiro; sem data no fim. */
-function ordemRevisao(a: Chamado, b: Chamado) {
-  const da = a.suspensao_proxima || '9999-12-31'
-  const db = b.suspensao_proxima || '9999-12-31'
-
-  return da < db ? -1 : da > db ? 1 : 0
 }
 
 /*
@@ -720,7 +713,8 @@ export default function AtendimentoPage() {
         {COLUNAS.map((coluna) => {
           const daColuna = filtrados.filter((c) => c.status === coluna.id)
 
-          if (coluna.id === 'suspenso') daColuna.sort(ordemRevisao)
+          /* Cada coluna na sua ordem (lib/ordemQuadro.ts). */
+          daColuna.sort(ordemDaColuna(coluna.id))
 
           const foraDoQuadro = arquivados[coluna.id] || 0
           const arquivavel = coluna.id === 'encerrado' || coluna.id === 'cancelado'
@@ -748,8 +742,8 @@ export default function AtendimentoPage() {
                 <div className="col-nota">Últimas 72 horas</div>
               )}
 
-              {coluna.id === 'suspenso' && daColuna.length > 1 && (
-                <div className="col-nota">Ordenado pela próxima revisão</div>
+              {NOTA_ORDEM[coluna.id] && daColuna.length > 1 && (
+                <div className="col-nota">{NOTA_ORDEM[coluna.id]}</div>
               )}
 
               <div className="col-cards">
@@ -892,6 +886,8 @@ export default function AtendimentoPage() {
 
       <div className="footnote">
         Arraste o cartão entre as colunas para mudar o status. Clique para abrir o chamado.
+        Aberto e Em andamento seguem a mesma ordem da tela Prioridades (urgentes no topo, depois o
+        prazo mais próximo).
         Encerrados e cancelados saem do quadro 72 horas depois e ficam no Histórico (a busca
         continua encontrando todos).
       </div>
