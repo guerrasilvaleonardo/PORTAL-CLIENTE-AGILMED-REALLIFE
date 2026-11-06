@@ -18,6 +18,7 @@ import ParticipantesChamado from '@/components/ParticipantesChamado'
 import SuspenderChamado from '@/components/SuspenderChamado'
 import RevisarSuspensao from '@/components/RevisarSuspensao'
 import { situacaoRevisao, textoRevisao } from '@/lib/revisaoSuspensao'
+import { carregarLimiteEmAndamento, confirmarAcimaDoLimite, contarEmAndamento } from '@/lib/limiteAndamento'
 import CancelarChamado from '@/components/CancelarChamado'
 import { carregarCancelamentos, motivoExibido, type RegistroCancelamento } from '@/lib/cancelamento'
 import { carregarHistoricoSuspensoes, dataDoBanco } from '@/lib/suspensao'
@@ -470,6 +471,30 @@ export default function AtendimentoChamadoPage() {
   const [links, setLinks] = useState<ChamadoLink[]>([])
 
   const [meuId, setMeuId] = useState('')
+  /* Limite de chamados em andamento por pessoa (fase 1: só aviso). */
+  const [limiteEmAndamento, setLimiteEmAndamento] = useState<number | null>(null)
+
+  useEffect(() => {
+    carregarLimiteEmAndamento().then((c) => setLimiteEmAndamento(c.limite))
+  }, [])
+
+  /*
+   * Avisa antes de o chamado entrar na carteira "Em andamento" de alguém
+   * que já está no limite. Só aviso: quem decide é a pessoa.
+   */
+  async function seguirMesmoAcimaDoLimite(pessoaId: string | null, nomePessoa: string) {
+    if (!chamado || !pessoaId || !limiteEmAndamento || chamado.prioridade === 'urgente') return true
+
+    const atual = await contarEmAndamento(pessoaId, chamado.id)
+
+    return confirmarAcimaDoLimite({
+      limite: limiteEmAndamento,
+      atual,
+      prioridade: chamado.prioridade,
+      numero: chamado.numero ?? '',
+      quem: pessoaId === meuId ? 'Você' : nomePessoa,
+    })
+  }
   /* Reações com emoji (supabase/nomes-e-reacoes.sql). */
   const [reacoes, setReacoes] = useState<Reacao[]>([])
   const [nomesReacao, setNomesReacao] = useState<Record<string, string>>({})
@@ -1055,6 +1080,17 @@ export default function AtendimentoChamadoPage() {
       }
     }
 
+    if (
+      novoStatus === 'em_atendimento' &&
+      !(await seguirMesmoAcimaDoLimite(
+        chamado.responsavel_id,
+        agentes.find((a) => a.id === chamado.responsavel_id)?.nome || 'O responsável'
+      ))
+    ) {
+      setNovoStatus(chamado.status)
+      return
+    }
+
     try {
       setSalvandoStatus(true)
       setErro('')
@@ -1448,6 +1484,19 @@ export default function AtendimentoChamadoPage() {
       (destino || null) ===
       (chamado.responsavel_id || null)
     ) {
+      return
+    }
+
+    /* Já em andamento: o chamado entra na carteira de quem recebe. */
+    if (
+      chamado.status === 'em_atendimento' &&
+      destino &&
+      !(await seguirMesmoAcimaDoLimite(
+        destino,
+        agentes.find((a) => a.id === destino)?.nome || 'Essa pessoa'
+      ))
+    ) {
+      setNovoResponsavel(chamado.responsavel_id || '')
       return
     }
 

@@ -12,6 +12,7 @@ import {
 } from '@/lib/revisaoSuspensao'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
 import { NOTA_ORDEM, ordemDaColuna } from '@/lib/ordemQuadro'
+import { carregarLimiteEmAndamento, confirmarAcimaDoLimite, type ConfigLimite } from '@/lib/limiteAndamento'
 import { casaBusca, padraoSemAcento, palavrasDaBusca } from '@/lib/busca'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -94,9 +95,12 @@ export default function AtendimentoPage() {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [alertaHoras, setAlertaHoras] = useState(ALERTA_ATRASO_HORAS)
+  /* Limite de chamados em andamento por pessoa (fase 1: só aviso). */
+  const [limite, setLimite] = useState<ConfigLimite>({ disponivel: false, limite: null })
 
   useEffect(() => {
     carregarAlertaPrazoHoras().then(setAlertaHoras)
+    carregarLimiteEmAndamento().then(setLimite)
   }, [])
   const [tv, setTv] = useState(false)
   /* Chamado arrastado para "Atendimento suspenso", aguardando os dados. */
@@ -416,6 +420,10 @@ export default function AtendimentoPage() {
     }
   }, [chamados, hoje])
 
+  const meusEmAndamento = chamados.filter(
+    (c) => c.status === 'em_atendimento' && c.responsavel_id === meuId
+  ).length
+
   async function mover(id: string, novoStatus: string) {
     const atual = chamados.find((c) => c.id === id)
 
@@ -452,6 +460,30 @@ export default function AtendimentoPage() {
         return
       }
       if (!window.confirm('Desfazer o cancelamento do chamado #' + atual.numero + '? O cliente será avisado.')) {
+        return
+      }
+    }
+
+    /*
+     * Entrando em "Em andamento": avisa se o responsável passa do limite
+     * combinado (fase 1, só aviso; urgente nunca pergunta).
+     */
+    if (novoStatus === 'em_atendimento' && atual.responsavel_id) {
+      const atualDaPessoa = chamados.filter(
+        (c) => c.status === 'em_atendimento' && c.responsavel_id === atual.responsavel_id && c.id !== atual.id
+      ).length
+      const quem =
+        atual.responsavel_id === meuId ? 'Você' : atual.responsavel?.nome || 'O responsável'
+
+      if (
+        !confirmarAcimaDoLimite({
+          limite: limite.limite,
+          atual: atualDaPessoa,
+          prioridade: atual.prioridade,
+          numero: atual.numero,
+          quem,
+        })
+      ) {
         return
       }
     }
@@ -660,6 +692,23 @@ export default function AtendimentoPage() {
           <div className="num">{carregando ? '—' : indicadores.revisar}</div>
           <div className="lbl">Suspensos a revisar</div>
         </div>
+
+        {limite.disponivel && (
+          <div
+            className={'stat' + (limite.limite && meusEmAndamento > limite.limite ? ' bad' : limite.limite && meusEmAndamento === limite.limite ? ' warn' : '')}
+            title={
+              limite.limite
+                ? 'Seus chamados em Em andamento e o limite combinado para cada pessoa da equipe'
+                : 'Seus chamados em Em andamento (o gestor ainda não definiu o limite)'
+            }
+          >
+            <div className="num">
+              {carregando ? '—' : meusEmAndamento}
+              {limite.limite ? <span style={{ fontSize: '0.55em', opacity: 0.7 }}> de {limite.limite}</span> : null}
+            </div>
+            <div className="lbl">Meus em andamento</div>
+          </div>
+        )}
 
         <div className="stat" title="Inclui os encerrados e cancelados que já saíram do quadro">
           <div className="num">{carregando ? '—' : indicadores.total}</div>
