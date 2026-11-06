@@ -21,6 +21,7 @@ import {
 } from '@/lib/desempenho'
 import { situacaoSla } from '@/lib/prazo'
 import { hojeEmPortoVelho } from '@/lib/revisaoSuspensao'
+import { carregarLimiteEmAndamento, definirLimiteEmAndamento, type ConfigLimite } from '@/lib/limiteAndamento'
 
 /*
  * Desempenho individual da equipe nos chamados.
@@ -130,6 +131,40 @@ export default function DesempenhoPage() {
     disponivel: boolean
     porPessoa: Record<string, { reprogramacoes: number; reprogramadasVencidas: number; vencidosAgora: number }>
   }>({ disponivel: false, porPessoa: {} })
+
+  /* Limite de chamados em andamento por pessoa (fase 1: só aviso). */
+  const [limite, setLimite] = useState<ConfigLimite>({ disponivel: false, limite: null })
+  const [limiteTexto, setLimiteTexto] = useState('')
+  const [salvandoLimite, setSalvandoLimite] = useState(false)
+  const [avisoLimite, setAvisoLimite] = useState('')
+
+  useEffect(() => {
+    carregarLimiteEmAndamento().then((c) => {
+      setLimite(c)
+      setLimiteTexto(c.limite ? String(c.limite) : '')
+    })
+  }, [])
+
+  async function salvarLimite() {
+    const n = limiteTexto.trim() ? Number(limiteTexto) : null
+
+    if (n !== null && (!Number.isInteger(n) || n < 1 || n > 50)) {
+      setAvisoLimite('Use um número inteiro de 1 a 50, ou deixe vazio para desligar o aviso.')
+      return
+    }
+
+    try {
+      setSalvandoLimite(true)
+      setAvisoLimite('')
+      await definirLimiteEmAndamento(n)
+      setLimite({ disponivel: true, limite: n })
+      setAvisoLimite(n ? 'Limite salvo: ' + n + ' por pessoa.' : 'Aviso desligado.')
+    } catch (e: any) {
+      setAvisoLimite(e?.message || 'Não foi possível salvar o limite.')
+    } finally {
+      setSalvandoLimite(false)
+    }
+  }
 
   /* Relatório mensal de gestão: só quem tem a marcação no banco (supabase/relatorio-desempenho.sql). */
   const [verRelatorio, setVerRelatorio] = useState(false)
@@ -881,6 +916,67 @@ export default function DesempenhoPage() {
               />
             </div>
           </div>
+
+          {limite.disponivel && (
+            <div className="panel">
+              <div className="panel-head">
+                <div className="section-title">Chamados em andamento por pessoa</div>
+                <span className="pill flat">
+                  {limite.limite ? 'limite ' + limite.limite + ' · só aviso' : 'sem limite definido'}
+                </span>
+              </div>
+              <div className="panel-body">
+                <Barras
+                  vazio="Ninguém com chamado em Em andamento agora."
+                  barras={equipe
+                    .filter((p) => p.ativo)
+                    .map((p) => {
+                      const n = chamados.filter(
+                        (c) => c.status === 'em_atendimento' && c.responsavel_id === p.id
+                      ).length
+
+                      return {
+                        rotulo: p.nome,
+                        valor: n,
+                        detalhe: limite.limite ? n + ' de ' + limite.limite : String(n),
+                        cor: limite.limite && n > limite.limite ? 'var(--danger)' : undefined,
+                      }
+                    })
+                    .filter((b) => b.valor > 0)
+                    .sort((a, b) => b.valor - a.valor)}
+                />
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    salvarLimite()
+                  }}
+                  style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}
+                >
+                  <div className="field" style={{ maxWidth: 220 }}>
+                    <label htmlFor="limite-andamento">Limite por pessoa (vazio = desligado)</label>
+                    <input
+                      id="limite-andamento"
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={limiteTexto}
+                      onChange={(e) => setLimiteTexto(e.target.value)}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary" disabled={salvandoLimite}>
+                    {salvandoLimite ? 'Salvando…' : 'Salvar limite'}
+                  </button>
+                </form>
+
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-muted)' }}>
+                  Fase 1: o portal só avisa quem passa do limite ao colocar um chamado em andamento. Urgente
+                  nunca recebe o aviso. Aguardando cliente e Suspenso não contam. Não afeta prazo nem estrelas.
+                </p>
+                {avisoLimite && <div className="banner">{avisoLimite}</div>}
+              </div>
+            </div>
+          )}
 
           {revisoes.disponivel && (
             <div className="panel">

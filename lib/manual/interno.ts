@@ -116,6 +116,7 @@ const manualInterno: Manual = {
             'A busca procura no título, número, categoria, empresa, descrição e nas mensagens da conversa, sem diferenciar acentos, maiúsculas ou ordem das palavras ("antonio da conceicao lopes" acha "Lopes, Antônio Conceição"). Quando acha fora do título, o cartão mostra "Encontrado na descrição" ou "Encontrado na conversa".',
             'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO. O selo "nova" piscando indica mensagem não lida num chamado seu.',
             'Encerrado e Cancelado mostram só os chamados das últimas 72 horas (corridas). Os mais antigos saem do quadro e ficam no botão Histórico, com abas, filtros e busca; o link "Ver N no histórico" no pé da coluna leva direto. Nada é excluído: a busca do quadro continua achando todos e eles seguem nos indicadores, no dashboard e nas estrelas.',
+            'Limite de chamados em andamento (fase 1, só aviso): o topo do quadro mostra "Meus em andamento" (ex.: 4 de 5). Ao colocar em Em andamento um chamado de alguém que já está no limite, o portal pergunta se quer continuar; nada é bloqueado. Urgente nunca recebe o aviso. Aguardando cliente e Suspenso não contam. O mesmo aviso aparece na tela do chamado, ao mudar a situação para Em atendimento ou ao trocar o responsável de um chamado que já está em andamento.',
             'Ordem dos cartões em cada coluna (aparece escrita no topo): Aberto e Em andamento seguem a mesma regra da tela Prioridades, com urgentes no topo, depois o prazo mais próximo (atrasados primeiro, do maior atraso para o menor), depois prioridade e data de abertura. Aguardando cliente: quem espera há mais tempo primeiro. Resolvido: resolvido há mais tempo primeiro (próximos a encerrar sozinhos). Encerrado e Cancelado: mais recentes primeiro.',
             'Atendimento suspenso fica em ordem da próxima revisão. A data aparece no cartão: amarelo piscando com REVISAR HOJE no dia, vermelho piscando com REVISÃO VENCIDA depois. O indicador "Suspensos a revisar" no topo soma os dois casos.',
 
@@ -497,6 +498,26 @@ const manualInterno: Manual = {
           ],
           dica: 'O chamado conta para o responsável atual. Tempos em horas úteis e pela mediana; mensagens automáticas não contam como 1ª resposta; a resolução desconta a espera do cliente.',
           atencao: 'Gestor e admin veem todos e podem detalhar cada atendente. O atendente vê só o próprio resultado.',
+        },
+        {
+          titulo: 'Limite de chamados em andamento (gestor e admin)',
+          texto:
+            'Referência de carga igual para toda a equipe. Nesta primeira fase o portal só avisa; não impede ninguém de trabalhar.',
+          tela: {
+            url: '/atendimento/desempenho',
+            blocos: [
+              { t: 'tabela', n: 1, colunas: ['Atendente', 'Em andamento'], linhas: [['Ana', '6 de 5'], ['Carlos', '4 de 5']] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Limite por pessoa (vazio = desligado)', valor: '5' }] },
+            ],
+          },
+          passos: [
+            'No Desempenho, o quadro "Chamados em andamento por pessoa" mostra a carga atual de cada um. Quem passou do limite aparece em vermelho.',
+            'Defina o número em "Limite por pessoa" e clique em Salvar limite. Vazio desliga o aviso (o contador continua). Só gestor e admin alteram, na tela e no banco.',
+            'Conta só a situação Em atendimento com a pessoa como responsável. Aguardando cliente e Suspenso ficam fora porque já têm cobrança e revisão próprias.',
+            'Quem passa do limite recebe um aviso e decide se continua. Chamado urgente nunca recebe o aviso.',
+          ],
+          dica: 'Escolha o número olhando a carga real das últimas semanas neste quadro. Uma fase 2 com bloqueio (urgente liberado e gestor atribuindo acima do limite com motivo) só entra depois de 2 a 4 semanas de dados e nova decisão.',
+          atencao: 'O limite não muda prazo, SLA nem estrelas. Fique atento a chamados movidos para Aguardando cliente sem motivo real só para liberar vaga.',
         },
         {
           titulo: 'Relatório mensal de gestão (restrito à direção)',
