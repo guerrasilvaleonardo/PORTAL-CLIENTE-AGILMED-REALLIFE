@@ -3,6 +3,13 @@
 import { DragEvent, useEffect, useMemo, useState } from 'react'
 import SuspenderChamado from '@/components/SuspenderChamado'
 import CancelarChamado from '@/components/CancelarChamado'
+import RevisarSuspensao from '@/components/RevisarSuspensao'
+import {
+  arquivadoNoQuadro,
+  hojeEmPortoVelho,
+  situacaoRevisao,
+  textoRevisao,
+} from '@/lib/revisaoSuspensao'
 import { carregarSuspensos, dataDoBanco } from '@/lib/suspensao'
 import { casaBusca, padraoSemAcento, palavrasDaBusca } from '@/lib/busca'
 import Link from 'next/link'
@@ -47,6 +54,7 @@ type Chamado = {
   suspensao_proxima?: string | null
   resolvido_em: string | null
   encerrado_em: string | null
+  cancelado_em?: string | null
   responsavel_id: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string; marca: string | null } | null
   responsavel?: { nome: string | null } | null
@@ -58,6 +66,22 @@ function iniciais(nome?: string | null) {
   const p = nome.trim().split(/\s+/)
 
   return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase()
+}
+
+/* Quando o chamado saiu do fluxo (encerrado ou cancelado). */
+function saidaDoQuadro(c: Chamado) {
+  if (c.status === 'encerrado') return c.encerrado_em
+  if (c.status === 'cancelado') return c.cancelado_em || null
+
+  return null
+}
+
+/* Suspensos em ordem de revisão: vencida e hoje primeiro; sem data no fim. */
+function ordemRevisao(a: Chamado, b: Chamado) {
+  const da = a.suspensao_proxima || '9999-12-31'
+  const db = b.suspensao_proxima || '9999-12-31'
+
+  return da < db ? -1 : da > db ? 1 : 0
 }
 
 /*
@@ -86,6 +110,8 @@ export default function AtendimentoPage() {
   const [suspendendo, setSuspendendo] = useState<Chamado | null>(null)
   /* Chamado arrastado para "Cancelado" (só gestor/admin). */
   const [cancelando, setCancelando] = useState<Chamado | null>(null)
+  /* Suspenso aberto na janela de revisão (reativar ou reprogramar). */
+  const [revisando, setRevisando] = useState<Chamado | null>(null)
   const [ehGestor, setEhGestor] = useState(false)
 
   const [busca, setBusca] = useState('')
@@ -225,10 +251,25 @@ export default function AtendimentoPage() {
       /* Motivo e próxima atualização dos suspensos (consulta tolerante). */
       const suspensos = await carregarSuspensos()
 
+      /*
+       * Data do cancelamento, para tirar o cartão do quadro após 72 h.
+       * Consulta à parte: sem o SQL de cancelamento, segue sem ela.
+       */
+      const canceladoEm: Record<string, string | null> = {}
+      const { data: canc, error: erroCanc } = await supabase
+        .from('chamados')
+        .select('id, cancelado_em')
+        .eq('status', 'cancelado')
+
+      if (!erroCanc) {
+        for (const k of (canc || []) as any[]) canceladoEm[k.id] = k.cancelado_em
+      }
+
       setChamados(
         (data || []).map((item: any) => ({
           ...item,
           ...(suspensos[item.id] || {}),
+          cancelado_em: canceladoEm[item.id] ?? null,
           empresas: Array.isArray(item.empresas) ? item.empresas[0] : item.empresas,
           responsavel: Array.isArray(item.responsavel) ? item.responsavel[0] : item.responsavel,
         }))
@@ -298,6 +339,17 @@ export default function AtendimentoPage() {
     return mapa
   }, [chamados, palavras, achadosConversa])
 
+  /* Relógio da tela: muda a cada minuto (arquivamento e revisão de hoje). */
+  const [agora, setAgora] = useState(() => new Date())
+
+  useEffect(() => {
+    const id = window.setInterval(() => setAgora(new Date()), 60000)
+
+    return () => window.clearInterval(id)
+  }, [])
+
+  const hoje = hojeEmPortoVelho(agora)
+
   const filtrados = useMemo(() => {
 
     return chamados.filter((c) => {
@@ -315,7 +367,11 @@ export default function AtendimentoPage() {
       ) {
         return false
       }
-      if (!palavras.length) return true
+      /*
+       * Encerrado/Cancelado há mais de 72 h corridas sai do quadro e fica
+       * no Histórico. Com busca, aparece de novo (nada some de vez).
+       */
+      if (!palavras.length) return !arquivadoNoQuadro(c.status, saidaDoQuadro(c), agora)
 
       /* Título, número, categoria, empresa, descrição ou conversa. */
       return (
@@ -325,7 +381,32 @@ export default function AtendimentoPage() {
         ) || !!achadosConversa[c.id]
       )
     })
-  }, [chamados, palavras, achadosConversa, filtroEmpresa, filtroPrioridade, filtroResponsavel, meuId])
+  }, [chamados, palavras, achadosConversa, filtroEmpresa, filtroPrioridade, filtroResponsavel, meuId, agora])
+
+  /* Quantos ficaram fora do quadro por coluna (respeitando os filtros). */
+  const arquivados = useMemo(() => {
+    const conta: Record<string, number> = { encerrado: 0, cancelado: 0 }
+
+    if (palavras.length) return conta
+
+    for (const c of chamados) {
+      if (filtroEmpresa && c.empresa_id !== filtroEmpresa) continue
+      if (filtroPrioridade && c.prioridade !== filtroPrioridade) continue
+      if (filtroResponsavel === 'meus' && c.responsavel_id !== meuId) continue
+      if (filtroResponsavel === 'sem' && c.responsavel_id) continue
+      if (
+        filtroResponsavel &&
+        filtroResponsavel !== 'meus' &&
+        filtroResponsavel !== 'sem' &&
+        c.responsavel_id !== filtroResponsavel
+      ) {
+        continue
+      }
+      if (arquivadoNoQuadro(c.status, saidaDoQuadro(c), agora)) conta[c.status] += 1
+    }
+
+    return conta
+  }, [chamados, palavras, filtroEmpresa, filtroPrioridade, filtroResponsavel, meuId, agora])
 
   const indicadores = useMemo(() => {
     const abertos = chamados.filter((c) => EM_ABERTO.includes(c.status))
@@ -335,8 +416,12 @@ export default function AtendimentoPage() {
       abertos: abertos.length,
       atrasados: abertos.filter((c) => situacaoSla(c).atrasado).length,
       urgentes: abertos.filter((c) => c.prioridade === 'urgente').length,
+      /* Suspensos com revisão hoje ou já vencida. */
+      revisar: chamados.filter(
+        (c) => c.status === 'suspenso' && situacaoRevisao(c.suspensao_proxima, hoje) !== 'futura' && !!c.suspensao_proxima
+      ).length,
     }
-  }, [chamados])
+  }, [chamados, hoje])
 
   async function mover(id: string, novoStatus: string) {
     const atual = chamados.find((c) => c.id === id)
@@ -467,6 +552,28 @@ export default function AtendimentoPage() {
         />
       )}
 
+      {revisando && (
+        <RevisarSuspensao
+          chamado={revisando}
+          onFechar={() => setRevisando(null)}
+          onReativar={async () => {
+            const alvo = revisando
+            setRevisando(null)
+            await mover(alvo.id, 'em_atendimento')
+          }}
+          onReprogramado={(proxima) => {
+            const alvo = revisando
+            setRevisando(null)
+            setChamados((lista) =>
+              lista.map((c) => (c.id === alvo.id ? { ...c, suspensao_proxima: proxima } : c))
+            )
+            setAviso(
+              'Revisão do chamado #' + alvo.numero + ' reprogramada para ' + dataDoBanco(proxima) + '. O cliente vê a nova data no chamado.'
+            )
+          }}
+        />
+      )}
+
       {cancelando && (
         <CancelarChamado
           chamado={cancelando}
@@ -511,6 +618,16 @@ export default function AtendimentoPage() {
           </Link>
         )}
 
+        {!tv && (
+          <Link
+            href="/atendimento/historico"
+            className="btn btn-sm"
+            title="Encerrados e cancelados há mais de 72 horas"
+          >
+            Histórico
+          </Link>
+        )}
+
         <button
           type="button"
           className={'btn btn-sm' + (tv ? ' btn-primary' : '')}
@@ -527,7 +644,7 @@ export default function AtendimentoPage() {
       {erro && <div className="banner bad">{erro}</div>}
       {aviso && <div className="banner good">{aviso}</div>}
 
-      <div className="stats">
+      <div className="stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         <div className="stat">
           <div className="num">{carregando ? '—' : indicadores.abertos}</div>
           <div className="lbl">Em aberto</div>
@@ -543,7 +660,15 @@ export default function AtendimentoPage() {
           <div className="lbl">Urgentes</div>
         </div>
 
-        <div className="stat">
+        <div
+          className={'stat' + (indicadores.revisar > 0 ? ' warn stat-revisar' : '')}
+          title="Chamados suspensos com a próxima atualização marcada para hoje ou já vencida"
+        >
+          <div className="num">{carregando ? '—' : indicadores.revisar}</div>
+          <div className="lbl">Suspensos a revisar</div>
+        </div>
+
+        <div className="stat" title="Inclui os encerrados e cancelados que já saíram do quadro">
           <div className="num">{carregando ? '—' : indicadores.total}</div>
           <div className="lbl">Total no período</div>
         </div>
@@ -595,6 +720,11 @@ export default function AtendimentoPage() {
         {COLUNAS.map((coluna) => {
           const daColuna = filtrados.filter((c) => c.status === coluna.id)
 
+          if (coluna.id === 'suspenso') daColuna.sort(ordemRevisao)
+
+          const foraDoQuadro = arquivados[coluna.id] || 0
+          const arquivavel = coluna.id === 'encerrado' || coluna.id === 'cancelado'
+
           return (
             <div
               key={coluna.id}
@@ -614,6 +744,14 @@ export default function AtendimentoPage() {
                 <span className="col-count">{daColuna.length}</span>
               </div>
 
+              {arquivavel && !palavras.length && (
+                <div className="col-nota">Últimas 72 horas</div>
+              )}
+
+              {coluna.id === 'suspenso' && daColuna.length > 1 && (
+                <div className="col-nota">Ordenado pela próxima revisão</div>
+              )}
+
               <div className="col-cards">
                 {daColuna.length === 0 ? (
                   <div className="empty-col">vazio</div>
@@ -623,15 +761,25 @@ export default function AtendimentoPage() {
                     const prog = progresso.get(String(c.id))
                     const atrasado = prazo.atrasado
                     const alerta = !atrasado && prestesAAtrasar(prazo, alertaHoras)
+                    const revisao =
+                      c.status === 'suspenso' ? situacaoRevisao(c.suspensao_proxima, hoje) : null
 
-                    return (
+                    const cartao = (
                       <Link
                         key={c.id}
                         href={'/atendimento/' + c.id}
                         className={
                           'qcard pri-' +
                           c.prioridade +
-                          (atrasado ? ' atrasado' : alerta ? ' alerta' : '')
+                          (revisao === 'vencida'
+                            ? ' revisao-vencida'
+                            : revisao === 'hoje'
+                              ? ' revisao-hoje'
+                              : atrasado
+                                ? ' atrasado'
+                                : alerta
+                                  ? ' alerta'
+                                  : '')
                         }
                         draggable={!tv}
                         onDragStart={(e) => {
@@ -646,8 +794,10 @@ export default function AtendimentoPage() {
                       >
                         <div className="card-top">
                           <span className="card-code">#{c.numero}</span>
-                          {atrasado && <span className="badge-atraso">FORA DO PRAZO</span>}
-                          {alerta && <span className="badge-alerta">PRÓXIMO DO PRAZO</span>}
+                          {revisao === 'vencida' && <span className="badge-atraso">REVISÃO VENCIDA</span>}
+                          {revisao === 'hoje' && <span className="badge-alerta">REVISAR HOJE</span>}
+                          {!revisao && atrasado && <span className="badge-atraso">FORA DO PRAZO</span>}
+                          {!revisao && alerta && <span className="badge-alerta">PRÓXIMO DO PRAZO</span>}
                           <SeloMensagemNova quantidade={mensagensNovas[c.id]} />
                         </div>
 
@@ -664,10 +814,12 @@ export default function AtendimentoPage() {
                         )}
 
                         {c.status === 'suspenso' && c.suspensao_motivo && (
-                          <div className="card-suspensao">
-                            {c.suspensao_motivo}
-                            {c.suspensao_proxima &&
-                              ' · próx. atualização ' + dataDoBanco(c.suspensao_proxima)}
+                          <div className="card-suspensao">Motivo: {c.suspensao_motivo}</div>
+                        )}
+
+                        {c.status === 'suspenso' && c.suspensao_proxima && (
+                          <div className={'card-revisao' + (revisao ? ' ' + revisao : '')}>
+                            {textoRevisao(c.suspensao_proxima, hoje)}
                           </div>
                         )}
 
@@ -705,7 +857,32 @@ export default function AtendimentoPage() {
                         </div>
                       </Link>
                     )
+
+                    /* Suspenso com revisão hoje ou vencida: botão de revisão fora do link. */
+                    if (!revisao || revisao === 'futura' || tv) return cartao
+
+                    return (
+                      <div key={c.id} className="qcard-grupo">
+                        {cartao}
+                        <button
+                          type="button"
+                          className={'btn btn-sm qcard-revisar ' + revisao}
+                          onClick={() => setRevisando(c)}
+                        >
+                          {revisao === 'vencida' ? 'Reativar ou reprogramar' : 'Revisar agora'}
+                        </button>
+                      </div>
+                    )
                   })
+                )}
+
+                {arquivavel && foraDoQuadro > 0 && (
+                  <Link
+                    href={'/atendimento/historico?situacao=' + coluna.id}
+                    className="col-historico"
+                  >
+                    Ver {foraDoQuadro} no histórico
+                  </Link>
                 )}
               </div>
             </div>
@@ -715,6 +892,8 @@ export default function AtendimentoPage() {
 
       <div className="footnote">
         Arraste o cartão entre as colunas para mudar o status. Clique para abrir o chamado.
+        Encerrados e cancelados saem do quadro 72 horas depois e ficam no Histórico (a busca
+        continua encontrando todos).
       </div>
     </div>
   )

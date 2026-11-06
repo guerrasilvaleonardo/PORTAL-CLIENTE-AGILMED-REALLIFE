@@ -107,6 +107,8 @@ export default function NovoChamadoPage() {
   const [linkUrl, setLinkUrl] = useState('');
   /* Documento SST de origem (botão "Solicitar renovação"). */
   const [documentoSstId, setDocumentoSstId] = useState('');
+  /* Continuação de um chamado encerrado (?origem=<id>). */
+  const [origem, setOrigem] = useState<{ id: string; numero: number } | null>(null);
   const [interno, setInterno] = useState(false);
   /* Cliente que atende várias empresas escolhe para qual é o chamado. */
   const minhasEmpresas = useMinhasEmpresas(true);
@@ -143,6 +145,17 @@ export default function NovoChamadoPage() {
     if (q.get('descricao')) setDescricao((q.get('descricao') || '').slice(0, 4000));
     const doc = q.get('documento') || '';
     if (/^[0-9a-f-]{36}$/i.test(doc)) setDocumentoSstId(doc);
+    const idOrigem = q.get('origem') || '';
+    if (/^[0-9a-f-]{36}$/i.test(idOrigem)) {
+      supabase
+        .from('chamados')
+        .select('id, numero')
+        .eq('id', idOrigem)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setOrigem({ id: String(data.id), numero: Number(data.numero) });
+        });
+    }
   }, []);
 
   useEffect(() => {
@@ -348,6 +361,8 @@ export default function NovoChamadoPage() {
             : {}),
       };
 
+      if (origem) dadosChamado.chamado_origem_id = origem.id;
+
       let { data, error } = await supabase
         .from('chamados')
         .insert(
@@ -357,6 +372,25 @@ export default function NovoChamadoPage() {
         )
         .select('id, numero, prazo_sla')
         .single();
+
+      /*
+       * Sem o SQL do vínculo (coluna chamado_origem_id), abre o chamado sem
+       * a ligação; o assunto já cita o número do chamado anterior.
+       */
+      if (error && origem && /chamado_origem_id|PGRST204|42703/.test((error.code || '') + ' ' + (error.message || ''))) {
+        delete dadosChamado.chamado_origem_id;
+        const semOrigem = await supabase
+          .from('chamados')
+          .insert(
+            documentoSstId
+              ? { ...dadosChamado, documento_sst_id: documentoSstId }
+              : dadosChamado
+          )
+          .select('id, numero, prazo_sla')
+          .single();
+        data = semOrigem.data;
+        error = semOrigem.error;
+      }
 
       /*
        * Se a coluna documento_sst_id ainda não existir (SQL de
@@ -614,6 +648,24 @@ export default function NovoChamadoPage() {
 
               <p style={styles.errorText}>{erro}</p>
             </div>
+          </div>
+        )}
+
+        {origem && (
+          <div
+            role="note"
+            style={{
+              border: '1px solid #cbd5e1',
+              background: '#f8fafc',
+              borderRadius: 14,
+              padding: '12px 16px',
+              marginBottom: 16,
+              fontSize: 14,
+              color: '#334155',
+            }}
+          >
+            Este chamado será ligado ao chamado encerrado <strong>#{origem.numero}</strong>. A equipe verá o
+            histórico do anterior.
           </div>
         )}
 

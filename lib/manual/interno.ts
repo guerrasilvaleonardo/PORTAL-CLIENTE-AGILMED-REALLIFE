@@ -94,7 +94,7 @@ const manualInterno: Manual = {
             url: '/atendimento',
             blocos: [
               menu('Atendimento'),
-              { t: 'topo', sobre: 'Atendimento', titulo: 'Quadro de chamados', botoes: ['Prioridades', 'Agenda', '★ Estrelas', 'Modo TV', 'Atualizar'] },
+              { t: 'topo', sobre: 'Atendimento', titulo: 'Quadro de chamados', botoes: ['Prioridades', 'Agenda', '★ Estrelas', 'Histórico', 'Modo TV', 'Atualizar'] },
               { t: 'campos', n: 1, itens: [{ rotulo: 'Buscar', valor: 'assunto, nº ou empresa' }, { rotulo: 'Empresa', valor: 'Todas' }, { rotulo: 'Prioridade', valor: 'Todas' }, { rotulo: 'Responsável', valor: 'Meus atendimentos' }] },
               {
                 t: 'kanban',
@@ -103,7 +103,7 @@ const manualInterno: Manual = {
                   { titulo: 'Aberto', cartoes: [{ texto: '#121 FORA DO PRAZO', tom: 'ruim' }, { texto: '#125 Exames' }] },
                   { titulo: 'Em andamento', cartoes: [{ texto: '#120 PRÓXIMO DO PRAZO', tom: 'alerta' }] },
                   { titulo: 'Aguardando cliente', cartoes: [{ texto: '#112 PCMSO' }] },
-                  { titulo: 'Atendimento suspenso', cartoes: [{ texto: '#115 eSocial fora do ar', tom: 'ruim' }] },
+                  { titulo: 'Atendimento suspenso', cartoes: [{ texto: '#115 REVISÃO VENCIDA', tom: 'ruim' }, { texto: '#118 REVISAR HOJE', tom: 'alerta' }] },
                   { titulo: 'Resolvido', cartoes: [{ texto: '#110 Laudo', tom: 'bom' }] },
                   { titulo: 'Encerrado', cartoes: [{ texto: '#101 NR-35' }] },
                   { titulo: 'Cancelado', cartoes: [{ texto: '#109 Duplicado' }] },
@@ -115,6 +115,8 @@ const manualInterno: Manual = {
             'Filtros: busca, empresa, prioridade e responsável ("Meus atendimentos", "Sem responsável" ou uma pessoa).',
             'A busca procura no título, número, categoria, empresa, descrição e nas mensagens da conversa, sem diferenciar acentos, maiúsculas ou ordem das palavras ("antonio da conceicao lopes" acha "Lopes, Antônio Conceição"). Quando acha fora do título, o cartão mostra "Encontrado na descrição" ou "Encontrado na conversa".',
             'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO. O selo "nova" piscando indica mensagem não lida num chamado seu.',
+            'Encerrado e Cancelado mostram só os chamados das últimas 72 horas (corridas). Os mais antigos saem do quadro e ficam no botão Histórico, com abas, filtros e busca; o link "Ver N no histórico" no pé da coluna leva direto. Nada é excluído: a busca do quadro continua achando todos e eles seguem nos indicadores, no dashboard e nas estrelas.',
+            'Atendimento suspenso fica em ordem da próxima revisão. A data aparece no cartão: amarelo piscando com REVISAR HOJE no dia, vermelho piscando com REVISÃO VENCIDA depois. O indicador "Suspensos a revisar" no topo soma os dois casos.',
 
             'Chamados pelo site: o botão de WhatsApp do site da Real Life abre um formulário que cria o chamado aqui, com assunto "Site: ..." e prazo Normal. Se o e-mail é de um usuário cliente, o chamado entra na empresa dele; se não, na empresa "Contatos do site" (pedido novo/lead). Nome, empresa, e-mail e telefone estão na descrição; a pessoa recebe o protocolo por e-mail e pode seguir no WhatsApp citando o número. Quando o contato virar cliente, cadastre a empresa e o usuário dele: os próximos pedidos com esse e-mail entram direto na empresa.',
           ],
@@ -230,6 +232,29 @@ const manualInterno: Manual = {
           ],
           atencao:
             'Nas estrelas, a extensão por suspensão fica "Aguardando gestor": só vale se o gestor autorizar, e nunca se o prazo já estava vencido quando a suspensão começou. Não use para esperar o cliente: para isso existe Aguardando cliente.',
+        },
+        {
+          titulo: 'Revisar um chamado suspenso',
+          texto:
+            'Todo suspenso tem data de próxima atualização. Nessa data o atendente precisa agir: reativar o atendimento ou reprogramar a revisão. Assim o suspenso não fica parado sem ninguém olhar.',
+          tela: {
+            url: '/atendimento',
+            blocos: [
+              { t: 'topo', sobre: 'Revisar hoje', titulo: '#311 · Treinamento da NR 05 — CIPA' },
+              { t: 'opcoes', n: 1, itens: [{ rotulo: 'Reativar o atendimento' }, { rotulo: 'Reprogramar a revisão', ativo: true }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Nova data de revisão', valor: '13/11/2026', obrigatorio: true }, { rotulo: 'Motivo da reprogramação (só a equipe vê)', valor: 'Cliente confirmou a prática para a próxima semana', largo: true, obrigatorio: true }] },
+              { t: 'botoes', n: 3, itens: [{ rotulo: 'Cancelar' }, { rotulo: 'Confirmar reprogramação', primario: true }] },
+            ],
+          },
+          passos: [
+            'No dia da revisão, o cartão pisca em amarelo (REVISAR HOJE) e ganha o botão "Revisar agora". Passou do dia sem ação: pisca em vermelho (REVISÃO VENCIDA) com o botão "Reativar ou reprogramar". Na tela do chamado, o mesmo botão fica no quadro vermelho de suspensão (e lá dá para reprogramar antes da data).',
+            'Reativar: o chamado volta para Em andamento, o prazo é estendido pelas horas úteis suspensas e o cliente é avisado da retomada.',
+            'Reprogramar: informe a nova data (hoje ou depois) e o motivo. O chamado continua suspenso e o prazo segue pausado. O cliente vê a nova data e recebe mensagem automática; o motivo fica só com a equipe.',
+            'Às 6h de cada dia útil, o responsável recebe e-mail com os seus suspensos de hoje e vencidos. Vencido há 1 dia útil ou mais (ou sem responsável), o gestor também recebe.',
+            'Para o cliente, revisão vencida não aparece como "vencida": no portal dele fica "Próxima atualização: em andamento pela equipe".',
+          ],
+          atencao:
+            'Revisão vencida e reprogramações NÃO tiram estrelas. Elas aparecem no Desempenho da equipe, no quadro "Revisão de suspensos".',
         },
         {
           titulo: 'Cancelar um chamado (gestor e admin)',
@@ -363,6 +388,7 @@ const manualInterno: Manual = {
             'Aguardando cliente: o prazo pausa. Ao sair, ele é estendido pelas horas úteis da espera. Chamado pausado nunca conta como atrasado.',
             'Se o cliente responder num chamado Aguardando cliente, o chamado volta sozinho para Em atendimento e o relógio volta a contar. Em Resolvido, a mensagem do cliente (um "obrigado", por exemplo) NÃO reabre nem suspende as estrelas: o cliente tem os botões "Sim, pode encerrar" (vai para Encerrado) e "Não, reabrir" (precisa dizer o que falta; volta para Em atendimento). Leia a conversa: se o cliente relatar problema sem clicar em reabrir, reabra você.',
             'Resolvido sem manifestação do cliente por 24 horas úteis vira Encerrado automaticamente (verificação de hora em hora).',
+            'Encerrado não reabre: o cliente não consegue mais escrever nele e vê o botão "Abrir novo chamado sobre este assunto". O novo chamado nasce ligado ao anterior ("Continuação do chamado #N" na tela de atendimento), com prazo e avaliação próprios, sem mexer no SLA nem nas estrelas do original.',
             'Alerta amarelo "Próximo do prazo": aparece quando faltam poucas horas úteis (o gestor define quantas em Estrelas › Gestão).',
           ],
           atencao: 'Ao pausar, a mensagem automática ao cliente sai primeiro e a pausa vem em seguida: confira na linha do tempo se o pedido ao cliente ficou claro.',
