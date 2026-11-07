@@ -770,7 +770,7 @@ const manualInterno: Manual = {
             'Abaixo de cada mensagem privada que você enviou: ✓ cinza = entregue; ✓✓ verde = a pessoa abriu a conversa e leu (passe o mouse para ver quando).',
             'O campo de escrever cresce com o texto. Enter envia; Shift+Enter quebra a linha.',
             'Reações: ☺+ abaixo da mensagem (👍 ❤️ 😂 😮 🙏 ✅), uma por pessoa; clicar de novo retira. Passe o mouse para ver quem reagiu.',
-            '🎤 grava áudio de até 2 minutos (o navegador pede permissão do microfone na primeira vez): "Enviar áudio" manda, "Descartar" apaga. 📷 envia imagem (JPG, PNG ou WEBP até 10 MB); também dá para colar um print com Ctrl+V. O texto escrito no campo vai junto como legenda da imagem. Só quem está na conversa abre os arquivos.',
+            '🎤 grava áudio de até 2 minutos (o navegador pede permissão do microfone na primeira vez): "Enviar áudio" manda, "Descartar" apaga. 📷 envia imagem (JPG, PNG ou WEBP até 10 MB); também dá para colar um print com Ctrl+V. O texto escrito no campo vai junto como legenda da imagem. 📎 envia arquivo: PDF, Word, Excel, PowerPoint, CSV ou TXT, até 10 MB (executáveis e compactados não são aceitos); o texto do campo vai junto como legenda. Na conversa, o arquivo aparece com nome e tamanho e os botões Abrir e Baixar; a imagem também tem Baixar (salva com o nome original). Só quem está na conversa abre e baixa os arquivos (na sala "Equipe toda", toda a equipe).',
             'As mensagens se atualizam sozinhas a cada poucos segundos e não geram e-mail.',
           ],
           atencao: 'Se o cliente pedir um serviço pelo chat, abra um chamado para ele. Conversa não tem prazo, não entra no histórico do chamado nem nos indicadores.',

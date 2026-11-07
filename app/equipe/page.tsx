@@ -8,12 +8,14 @@ import AnexoChat from '@/components/AnexoChat'
 import Reacoes from '@/components/Reacoes'
 import { aplicarReacao, carregarReacoes, reagir, type Reacao } from '@/lib/reacoes'
 import {
+  ACEITA_ARQUIVO,
   AUDIO_MAX_SEGUNDOS,
   IMAGEM_MAX_BYTES,
   TIPOS_IMAGEM,
   duracaoTexto,
   enviarAnexoChat,
   formatoAudio,
+  problemaDoArquivo,
 } from '@/lib/chatAnexos'
 
 /*
@@ -43,11 +45,15 @@ type Mensagem = {
   anexo_path?: string | null
   anexo_tipo?: string | null
   anexo_duracao?: number | null
+  /* Arquivo (supabase/conversas-arquivos.sql): nome original e tamanho. */
+  anexo_nome?: string | null
+  anexo_tamanho?: number | null
 }
 
 /* Texto guardado junto do anexo (aparece na prévia da lista). */
 const TEXTO_AUDIO = '🎤 Áudio'
 const TEXTO_IMAGEM = '📷 Imagem'
+const textoArquivo = (nome: string | null | undefined) => '📎 ' + (nome || 'Arquivo')
 
 type Contato = {
   id: string
@@ -129,9 +135,18 @@ export default function ChatEquipePage() {
       'id, autor_id, destinatario_id, texto, created_at, lido_em, profiles!chat_equipe_autor_id_fkey(nome, email)'
     let { data, error }: { data: any[] | null; error: any } = await supabase
       .from('chat_equipe')
-      .select(campos + ', anexo_path, anexo_tipo, anexo_duracao')
+      .select(campos + ', anexo_path, anexo_tipo, anexo_duracao, anexo_nome, anexo_tamanho')
       .order('created_at', { ascending: false })
       .limit(600)
+
+    /* Sem o SQL de arquivos ainda: carrega áudio e imagem. */
+    if (error && /anexo_(nome|tamanho)/i.test(error.message || '')) {
+      ;({ data, error } = await supabase
+        .from('chat_equipe')
+        .select(campos + ', anexo_path, anexo_tipo, anexo_duracao')
+        .order('created_at', { ascending: false })
+        .limit(600))
+    }
 
     /* Sem o SQL de anexos ainda: carrega só o texto. */
     if (error && /anexo_/i.test(error.message || '')) {
@@ -165,6 +180,8 @@ export default function ChatEquipePage() {
         anexo_path: m.anexo_path ?? null,
         anexo_tipo: m.anexo_tipo ?? null,
         anexo_duracao: m.anexo_duracao ?? null,
+        anexo_nome: m.anexo_nome ?? null,
+        anexo_tamanho: m.anexo_tamanho ?? null,
       })) as Mensagem[]
     )
   }
@@ -434,24 +451,49 @@ export default function ChatEquipePage() {
   const descartar = useRef(false)
   const relogioGravacao = useRef<ReturnType<typeof setInterval> | null>(null)
   const seletorImagem = useRef<HTMLInputElement | null>(null)
+  const seletorArquivo = useRef<HTMLInputElement | null>(null)
 
-  async function enviarComAnexo(arquivo: Blob, tipo: 'audio' | 'imagem', duracao?: number) {
+  async function enviarComAnexo(arquivo: Blob, tipo: 'audio' | 'imagem' | 'arquivo', duracao?: number) {
     if (!conversa || !meuId) return
     try {
       setEnviando(true)
       setErro('')
       const caminho = await enviarAnexoChat(meuId, arquivo)
       const legenda = texto.trim()
-      const { error } = await supabase.from('chat_equipe').insert({
+      const nome = arquivo instanceof File ? arquivo.name.slice(0, 200) : null
+      const registro: Record<string, any> = {
         autor_id: meuId,
         destinatario_id: conversa === GERAL ? null : conversa,
-        texto: tipo === 'imagem' && legenda ? legenda : tipo === 'audio' ? TEXTO_AUDIO : TEXTO_IMAGEM,
+        texto:
+          tipo !== 'audio' && legenda
+            ? legenda
+            : tipo === 'audio'
+              ? TEXTO_AUDIO
+              : tipo === 'imagem'
+                ? TEXTO_IMAGEM
+                : textoArquivo(nome),
         anexo_path: caminho,
         anexo_tipo: tipo,
         anexo_duracao: tipo === 'audio' ? Math.round(duracao || 0) : null,
-      })
-      if (error) throw error
-      if (tipo === 'imagem') setTexto('')
+      }
+      /* Nome e tamanho: só com o SQL de arquivos (imagem também guarda, para baixar com o nome). */
+      if (tipo !== 'audio') {
+        registro.anexo_nome = nome
+        registro.anexo_tamanho = arquivo.size
+      }
+      let { error } = await supabase.from('chat_equipe').insert(registro)
+      if (error && tipo === 'imagem' && /anexo_(nome|tamanho)/i.test(error.message || '')) {
+        delete registro.anexo_nome
+        delete registro.anexo_tamanho
+        ;({ error } = await supabase.from('chat_equipe').insert(registro))
+      }
+      if (error) {
+        if (/anexo_tipo_check|anexo_(nome|tamanho)/i.test(error.message || '')) {
+          throw new Error('Envio de arquivos ainda não ativado (rodar supabase/conversas-arquivos.sql).')
+        }
+        throw error
+      }
+      if (tipo !== 'audio') setTexto('')
       await carregar()
     } catch (e: any) {
       console.error(e)
@@ -472,6 +514,21 @@ export default function ChatEquipePage() {
       return
     }
     enviarComAnexo(arquivo, 'imagem')
+  }
+
+  function escolherArquivo(arquivo: File | null | undefined) {
+    if (!arquivo) return
+    /* Imagem escolhida pelo clipe: segue como imagem (miniatura na conversa). */
+    if (TIPOS_IMAGEM.includes(arquivo.type)) {
+      escolherImagem(arquivo)
+      return
+    }
+    const problema = problemaDoArquivo(arquivo)
+    if (problema) {
+      setErro(problema)
+      return
+    }
+    enviarComAnexo(arquivo, 'arquivo')
   }
 
   function pararRelogio() {
@@ -984,8 +1041,14 @@ export default function ChatEquipePage() {
                             >
                               {m.anexo_path ? (
                                 <>
-                                  <AnexoChat caminho={m.anexo_path} tipo={m.anexo_tipo || null} duracao={m.anexo_duracao ?? null} />
-                                  {m.texto && m.texto !== TEXTO_AUDIO && m.texto !== TEXTO_IMAGEM && (
+                                  <AnexoChat
+                                    caminho={m.anexo_path}
+                                    tipo={m.anexo_tipo || null}
+                                    duracao={m.anexo_duracao ?? null}
+                                    nome={m.anexo_nome ?? null}
+                                    tamanho={m.anexo_tamanho ?? null}
+                                  />
+                                  {m.texto && m.texto !== TEXTO_AUDIO && m.texto !== TEXTO_IMAGEM && m.texto !== textoArquivo(m.anexo_nome) && (
                                     <div style={{ marginTop: 6 }}>{m.texto}</div>
                                   )}
                                 </>
@@ -1081,10 +1144,14 @@ export default function ChatEquipePage() {
                 <textarea
                   ref={campoTexto}
                   onPaste={(e) => {
-                    const img = Array.from(e.clipboardData?.files || []).find((f) => f.type.startsWith('image/'))
+                    const arquivos = Array.from(e.clipboardData?.files || [])
+                    const img = arquivos.find((f) => f.type.startsWith('image/'))
                     if (img) {
                       e.preventDefault()
                       escolherImagem(img)
+                    } else if (arquivos[0]) {
+                      e.preventDefault()
+                      escolherArquivo(arquivos[0])
                     }
                   }}
                   rows={1}
@@ -1144,6 +1211,30 @@ export default function ChatEquipePage() {
                     onClick={() => seletorImagem.current?.click()}
                   >
                     📷
+                  </button>
+                )}
+
+                <input
+                  ref={seletorArquivo}
+                  type="file"
+                  accept={ACEITA_ARQUIVO + ',image/jpeg,image/png,image/webp'}
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    escolherArquivo(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+
+                {!gravando && (
+                  <button
+                    type="button"
+                    className="btn"
+                    title="Enviar arquivo: PDF, Word, Excel, PowerPoint, CSV ou TXT, até 10 MB"
+                    aria-label="Enviar arquivo"
+                    disabled={enviando || !conversa}
+                    onClick={() => seletorArquivo.current?.click()}
+                  >
+                    📎
                   </button>
                 )}
 
