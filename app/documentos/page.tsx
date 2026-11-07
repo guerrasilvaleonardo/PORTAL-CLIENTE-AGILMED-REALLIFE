@@ -129,6 +129,11 @@ function DocumentosSstPageConteudo() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null)
   const [confirmarRemocao, setConfirmarRemocao] = useState<string | null>(null)
   const [historicoDe, setHistoricoDe] = useState<Documento | null>(null)
+  /* Desativar documento que a empresa não vai renovar. */
+  const [desativando, setDesativando] = useState<Documento | null>(null)
+  const [motivoDesativacao, setMotivoDesativacao] = useState('')
+  const [salvandoDesativacao, setSalvandoDesativacao] = useState(false)
+  const [mostrarDesativados, setMostrarDesativados] = useState(false)
   /* Chamados de renovação ligados a cada documento (chamados.documento_sst_id). */
   const [chamadosDoc, setChamadosDoc] = useState<Map<string, { id: string; numero: number; status: string }>>(new Map())
   const [tiposAberto, setTiposAberto] = useState(false)
@@ -219,6 +224,7 @@ function DocumentosSstPageConteudo() {
       if (e.key !== 'Escape') return
       if (painelAberto) fecharPainel()
       else if (historicoDe) setHistoricoDe(null)
+      else if (desativando && !salvandoDesativacao) setDesativando(null)
       else if (tiposAberto) setTiposAberto(false)
       setMenuAberto(null)
     }
@@ -227,6 +233,16 @@ function DocumentosSstPageConteudo() {
   })
 
   const vigentes = useMemo(() => documentos.filter((d) => d.situacao === 'vigente'), [documentos])
+
+  /* Desativados (a empresa não vai renovar): seção à parte, respeita o filtro de empresa. */
+  const desativados = useMemo(
+    () =>
+      documentos
+        .filter((d) => d.situacao === 'desativado')
+        .filter((d) => !filtroEmpresa || d.empresa_id === filtroEmpresa)
+        .sort((a, b) => (b.desativado_em || '').localeCompare(a.desativado_em || '')),
+    [documentos, filtroEmpresa]
+  )
 
   /* Unidades já usadas (para sugerir no cadastro e filtrar). */
   function unidadesDe(empresaId: string) {
@@ -442,6 +458,59 @@ function DocumentosSstPageConteudo() {
       return
     }
     setMensagem('Documento removido.')
+    carregar()
+  }
+
+  /* ---------- Desativar / reativar ---------- */
+
+  function abrirDesativar(d: Documento) {
+    setMenuAberto(null)
+    setConfirmarRemocao(null)
+    setMotivoDesativacao('')
+    setDesativando(d)
+  }
+
+  async function desativar(e: FormEvent) {
+    e.preventDefault()
+    if (!desativando) return
+    if (motivoDesativacao.trim().length < 5) {
+      setErro('Informe o motivo da desativação (mínimo de 5 caracteres).')
+      return
+    }
+
+    setSalvandoDesativacao(true)
+    setErro('')
+    const { error } = await supabase.rpc('desativar_documento_sst', {
+      p_id: desativando.id,
+      p_motivo: motivoDesativacao.trim(),
+    })
+    setSalvandoDesativacao(false)
+
+    if (error) {
+      setErro(
+        /desativar_documento_sst|function .* does not exist|schema cache/i.test(error.message || '')
+          ? 'A desativação ainda não foi ativada no banco (rodar o SQL documentos-sst-desativar.sql).'
+          : 'Não foi possível desativar: ' + error.message
+      )
+      return
+    }
+
+    const t = tipoPorId.get(desativando.tipo_id)
+    setMensagem(nomeDoTipo(t) + ' desativado: sai da lista, para de gerar alertas e não abre chamado de renovação.')
+    setDesativando(null)
+    carregar()
+  }
+
+  async function reativar(d: Documento) {
+    setErro('')
+    const { error } = await supabase.rpc('reativar_documento_sst', { p_id: d.id })
+
+    if (error) {
+      setErro('Não foi possível reativar: ' + error.message)
+      return
+    }
+
+    setMensagem(nomeDoTipo(tipoPorId.get(d.tipo_id)) + ' reativado: voltou para a lista e os alertas voltam a valer.')
     carregar()
   }
 
@@ -678,6 +747,9 @@ function DocumentosSstPageConteudo() {
                   </button>
                   <button type="button" role="menuitem" onClick={() => renovar(d)}>
                     Renovar / Nova revisão
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => abrirDesativar(d)}>
+                    Desativar (não será renovado)
                   </button>
                 </>
               ) : null}
@@ -920,6 +992,75 @@ function DocumentosSstPageConteudo() {
         )}
       </div>
 
+      {!carregando && desativados.length > 0 && (
+        <div className="table-wrap" style={{ marginTop: 16 }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            aria-expanded={mostrarDesativados}
+            onClick={() => setMostrarDesativados((v) => !v)}
+            style={{ width: '100%', justifyContent: 'space-between' }}
+          >
+            <span>
+              Desativados · não serão renovados ({desativados.length})
+            </span>
+            <span aria-hidden="true">{mostrarDesativados ? '▲' : '▼'}</span>
+          </button>
+
+          {mostrarDesativados &&
+            desativados.map((d) => {
+              const t = tipoPorId.get(d.tipo_id)
+
+              return (
+                <div key={d.id} className="cert-linha doc-linha" style={{ opacity: 0.85 }}>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="cert-nome">{nomeEmpresa(d.empresas) || '—'}</span>
+                    <span className="cert-sub">{d.unidade || 'Unidade não informada'}</span>
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="cert-curso" title={t?.nome}>
+                      {nomeDoTipo(t)}
+                      {d.versao ? ' · ' + d.versao : ''}
+                    </span>
+                    <span className="cert-sub">{d.titulo || t?.nome}</span>
+                  </span>
+                  <span>
+                    <span className="cert-data">
+                      {d.desativado_em
+                        ? new Date(d.desativado_em).toLocaleDateString('pt-BR', { timeZone: 'America/Porto_Velho' })
+                        : '—'}
+                    </span>
+                    <span className="cert-sub">Desativado</span>
+                  </span>
+                  <span className="cert-validade">
+                    <span className="pill flat cert-pill">Não será renovado</span>
+                    {d.motivo_desativacao && <span className="cert-sub">{d.motivo_desativacao}</span>}
+                  </span>
+                  <span>
+                    {d.link_assinado ? (
+                      <a className="btn btn-sm cert-ver" href={d.link_assinado} target="_blank" rel="noreferrer">
+                        Abrir assinado
+                      </a>
+                    ) : (
+                      <span className="cert-sub">Sem versão assinada</span>
+                    )}
+                  </span>
+                  <span className="cert-acoes" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-sm" onClick={() => setHistoricoDe(d)}>
+                      Histórico
+                    </button>
+                    {interno && (
+                      <button type="button" className="btn btn-sm" onClick={() => reativar(d)}>
+                        Reativar
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )
+            })}
+        </div>
+      )}
+
       <p className="footnote">
         Prazo e assinatura são controles separados: um documento pode estar no prazo e ainda sem a versão assinada. A data
         cadastrada não garante que o conteúdo continua atualizado — mudanças de processo, função, ambiente ou número de
@@ -1106,6 +1247,78 @@ function DocumentosSstPageConteudo() {
         </div>
       )}
 
+      {/* Desativar documento */}
+      {interno && desativando && (
+        <div
+          className="cert-fundo"
+          onMouseDown={(e) => e.target === e.currentTarget && !salvandoDesativacao && setDesativando(null)}
+        >
+          <aside className="cert-lateral" role="dialog" aria-modal="true" aria-labelledby="doc-desativar-titulo">
+            <div className="cert-lateral-topo">
+              <div>
+                <div className="section-title">
+                  {nomeEmpresa(desativando.empresas)}
+                  {desativando.unidade ? ' · ' + desativando.unidade : ''}
+                </div>
+                <h2 id="doc-desativar-titulo">Desativar {nomeDoTipo(tipoPorId.get(desativando.tipo_id))}</h2>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setDesativando(null)}
+                disabled={salvandoDesativacao}
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form className="cert-form" onSubmit={desativar}>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
+                Use quando a empresa <strong>não vai renovar</strong> este documento. Ele:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.6 }}>
+                <li>sai da lista e dos indicadores;</li>
+                <li>para de gerar e-mails de alerta de vencimento e revisão;</li>
+                <li>não abre chamado automático de renovação;</li>
+                <li>
+                  fica guardado em &quot;Desativados&quot;, com o motivo, e pode ser reativado. Nada é apagado.
+                </li>
+              </ul>
+
+              {chamadosDoc.get(desativando.id) &&
+                !['encerrado', 'cancelado'].includes(chamadosDoc.get(desativando.id)!.status) && (
+                  <div className="banner" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                    O chamado de renovação #{chamadosDoc.get(desativando.id)!.numero} continua aberto. Se não for mais
+                    necessário, cancele-o (com o motivo) pelo atendimento.
+                  </div>
+                )}
+
+              <div className="field">
+                <label htmlFor="doc-motivo-desativacao">Motivo (o cliente também vê) *</label>
+                <textarea
+                  id="doc-motivo-desativacao"
+                  rows={3}
+                  maxLength={500}
+                  value={motivoDesativacao}
+                  onChange={(e) => setMotivoDesativacao(e.target.value)}
+                  placeholder="Ex.: empresa informou que não vai renovar o contrato desta unidade"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" onClick={() => setDesativando(null)} disabled={salvandoDesativacao}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={salvandoDesativacao}>
+                  {salvandoDesativacao ? 'Desativando...' : 'Desativar documento'}
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
+
       {/* Histórico */}
       {historicoDe && (
         <div className="cert-fundo" onMouseDown={(e) => e.target === e.currentTarget && setHistoricoDe(null)}>
@@ -1127,7 +1340,9 @@ function DocumentosSstPageConteudo() {
                 <div key={d.id} className="doc-hist">
                   <div className="doc-hist-cab">
                     <strong>{d.versao || 'Sem versão informada'}</strong>
-                    <span className={'pill ' + (i === 0 ? 'good' : 'flat')}>{i === 0 ? 'Vigente' : 'Substituído'}</span>
+                    <span className={'pill ' + (d.situacao === 'vigente' ? 'good' : 'flat')}>
+                      {d.situacao === 'vigente' ? 'Vigente' : d.situacao === 'desativado' ? 'Desativado' : 'Substituído'}
+                    </span>
                   </div>
                   <span className="cert-sub">
                     Emissão: {dataBr(d.emissao) || '—'} · Vencimento: {d.sem_vencimento ? 'sem vencimento fixo' : dataBr(d.vencimento) || '—'}
@@ -1144,7 +1359,7 @@ function DocumentosSstPageConteudo() {
                   )}
                 </div>
               ))}
-              {!interno && !chamadosDoc.get(historicoDe.id) && (
+              {!interno && historicoDe.situacao === 'vigente' && !chamadosDoc.get(historicoDe.id) && (
                 <button type="button" className="btn btn-primary" onClick={() => solicitarRenovacao(historicoDe)}>
                   Solicitar renovação
                 </button>
