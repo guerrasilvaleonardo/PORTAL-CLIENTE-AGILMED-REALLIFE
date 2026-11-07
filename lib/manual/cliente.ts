@@ -506,6 +506,7 @@ const manualCliente: Manual = {
             'Os cartões mostram quantos documentos estão vencidos ou vencem em até 30, 60 e 90 dias, quantos ainda não têm a versão assinada no portal e quantos têm revisão pendente. Clique num cartão para filtrar.',
             'Na lista, "Próximo prazo" é o vencimento ou a revisão programada, o que vier antes. "Abrir assinado" abre o documento.',
             'No menu ⋯: "Solicitar renovação" abre um chamado já preenchido para a nossa equipe, e "Histórico de revisões" mostra as versões anteriores com os links.',
+            'Documento que a sua empresa decidiu não renovar é desativado pela nossa equipe: ele sai da lista, para de gerar avisos e fica na seção "Desativados · não serão renovados", no fim da tela, com a data e o motivo. Mudou de ideia? Fale com a nossa equipe para reativar.',
           ],
           atencao: 'Mudou processo, função, ambiente ou número de trabalhadores? Peça a revisão mesmo antes do prazo: a data no portal não garante que o conteúdo continua atualizado.',
           dica: 'Você recebe e-mail quando um documento se aproxima do vencimento ou da revisão programada. Se faltarem 60 dias ou menos e ninguém tiver pedido a renovação, abrimos o chamado automaticamente e ele aparece no documento como "Chamado #N".',

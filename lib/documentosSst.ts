@@ -23,7 +23,11 @@ export type DocumentoSst = {
   versao: string | null
   observacoes: string | null
   alertas: number[] | null
-  situacao: 'vigente' | 'substituido'
+  situacao: 'vigente' | 'substituido' | 'desativado'
+  /* Desativado: a empresa não vai renovar (supabase/documentos-sst-desativar.sql). */
+  desativado_em?: string | null
+  desativado_por?: string | null
+  motivo_desativacao?: string | null
   /* false = não abre chamado automático de renovação (o e-mail continua). */
   chamado_automatico?: boolean
   substitui_id: string | null

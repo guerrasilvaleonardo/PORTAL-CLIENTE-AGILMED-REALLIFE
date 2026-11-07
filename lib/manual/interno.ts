@@ -716,7 +716,7 @@ const manualInterno: Manual = {
             'Assinatura e revisão: "Sem link assinado" e "Revisões pendentes" (marcadas à mão ou com a data de revisão vencida). É outro controle: um documento pode estar no prazo e sem a versão assinada.',
             'Filtros por empresa, unidade, tipo, responsável e situação. A lista vem ordenada pelo próximo prazo (vencimento ou revisão, o que vier antes).',
             '"Abrir assinado" abre o arquivo; sem link, "+ Inserir link" abre o cadastro.',
-            'Menu ⋯: Editar, Renovar / Nova revisão, Histórico de revisões e Remover (pede confirmação; não apaga o arquivo no SharePoint/Drive).',
+            'Menu ⋯: Editar, Renovar / Nova revisão, Desativar (não será renovado), Histórico de revisões e Remover (pede confirmação; não apaga o arquivo no SharePoint/Drive).',
           ],
         },
         {
@@ -729,6 +729,8 @@ const manualInterno: Manual = {
             'O cliente vê os documentos da empresa dele, abre o assinado e pode clicar em "Solicitar renovação", que abre um chamado em Documentos já preenchido e ligado ao documento.',
             'Chamado automático: faltando 60 dias ou menos para o próximo prazo (vencimento ou revisão) e sem chamado ligado ao documento, o portal abre sozinho um chamado de renovação para a empresa, em Documentos, prioridade Normal, já com o responsável pelo acompanhamento. Ele aparece na coluna Situação como "Chamado #N".',
             'Para um documento que a empresa trata por conta própria, desmarque "Abrir chamado de renovação automaticamente" no cadastro (o e-mail de alerta continua). A equipe também pode abrir o chamado antes pelo menu ⋯ "Abrir chamado de renovação".',
+            'A empresa não vai renovar: use o menu ⋯ "Desativar (não será renovado)" e informe o motivo (obrigatório; o cliente também vê). O documento sai da lista e dos indicadores, para de gerar e-mails de alerta e não abre chamado automático. Ele fica na seção "Desativados · não serão renovados", no fim da tela, com data e motivo, e a equipe pode clicar em Reativar (volta a valer tudo). A desativação e a reativação ficam anotadas em Observações.',
+            'Se já existir chamado de renovação aberto, a janela de desativação avisa: cancele o chamado pelo atendimento, se não for mais necessário. Prefira Desativar a Remover: Remover apaga o registro do portal.',
           ],
           dica: 'Marco que cair em fim de semana ou feriado sai no próximo dia útil.',
           link: { href: '/documentos', rotulo: 'Abrir Documentos SST' },
