@@ -1,5 +1,6 @@
 'use client'
 
+import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { FormEvent, Fragment, useEffect, useMemo, useState } from 'react'
 import { casaBusca, normalizar, palavrasDaBusca } from '@/lib/busca'
 import './certificados.css'
@@ -1974,14 +1975,11 @@ function CertificadosPageConteudo() {
             />
 
             {interno && (
-              <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
-                <option value="">Todas as empresas</option>
-                {empresas.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nome_fantasia || e.razao_social}
-                  </option>
-                ))}
-              </select>
+              <FiltroEmpresa
+                valor={filtroEmpresa}
+                aoMudar={setFiltroEmpresa}
+                opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
+              />
             )}
 
             <select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value)}>
@@ -2191,14 +2189,11 @@ function CertificadosPageConteudo() {
 
             <div className="filters">
               {interno && (
-                <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
-                  <option value="">Todas as empresas</option>
-                  {empresas.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nome_fantasia || e.razao_social}
-                    </option>
-                  ))}
-                </select>
+                <FiltroEmpresa
+                  valor={filtroEmpresa}
+                  aoMudar={setFiltroEmpresa}
+                  opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
+                />
               )}
               <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
                 <option value="6">Últimos 6 meses</option>
