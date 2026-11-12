@@ -371,7 +371,13 @@ function CertificadosPageConteudo() {
   const [desligados, setDesligados] = useState<MapaDesligados>(new Map())
   const [suportaDesligados, setSuportaDesligados] = useState(false)
   const [mostrarDesligados, setMostrarDesligados] = useState(false)
-  const [desligar, setDesligar] = useState<{ empresa_id: string; nome: string; empresa: string } | null>(null)
+  /* `editando` preenchido = editar um desligamento existente (data e motivo). */
+  const [desligar, setDesligar] = useState<{
+    empresa_id: string
+    nome: string
+    empresa: string
+    editando?: ColaboradorDesligado
+  } | null>(null)
   const [formDesligar, setFormDesligar] = useState({ data: '', motivo: '' })
   const [salvandoDesligar, setSalvandoDesligar] = useState(false)
   /* Reativação em dois cliques: guarda o id do desligamento a confirmar. */
@@ -650,6 +656,15 @@ function CertificadosPageConteudo() {
     setDesligar({ empresa_id, nome, empresa })
   }
 
+  function abrirEditarDesligamento(d: ColaboradorDesligado, empresa: string) {
+    setErro('')
+    setMensagem('')
+    setMenuAberto(null)
+    setConfirmarReativar(null)
+    setFormDesligar({ data: (d.desligado_em || '').slice(0, 10), motivo: d.motivo || '' })
+    setDesligar({ empresa_id: d.empresa_id, nome: d.nome, empresa, editando: d })
+  }
+
   function fecharDesligar() {
     if (salvandoDesligar) return
     setDesligar(null)
@@ -662,6 +677,33 @@ function CertificadosPageConteudo() {
 
     if (!formDesligar.data) {
       setErro('Informe a data do desligamento.')
+      return
+    }
+
+    /* Editar: só data e motivo; empresa e pessoa ficam (o banco também protege). */
+    if (desligar.editando) {
+      try {
+        setSalvandoDesligar(true)
+        setErro('')
+
+        const { data, error } = await supabase
+          .from('colaboradores_desligados')
+          .update({ desligado_em: formDesligar.data, motivo: formDesligar.motivo.trim() || null })
+          .eq('id', desligar.editando.id)
+          .select('id')
+
+        if (error) throw error
+        if (!data?.length) throw new Error('Sem permissão para editar este desligamento.')
+
+        setMensagem('Desligamento de ' + desligar.nome + ' atualizado para ' + formatarData(formDesligar.data) + '.')
+        setDesligar(null)
+        await recarregarDesligados()
+      } catch (e: any) {
+        console.error(e)
+        setErro(e?.message || 'Não foi possível editar o desligamento.')
+      } finally {
+        setSalvandoDesligar(false)
+      }
       return
     }
 
@@ -716,7 +758,10 @@ function CertificadosPageConteudo() {
       return
     }
 
-    setMensagem(d.nome + ' reativado. Os certificados dessa pessoa voltam a contar normalmente.')
+    setMensagem(
+      d.nome +
+        ' reativado. Os certificados dessa pessoa voltam a contar normalmente (os vencidos aparecem como vencidos). O desligamento anterior fica no histórico.'
+    )
     await recarregarDesligados()
   }
 
@@ -1516,7 +1561,9 @@ function CertificadosPageConteudo() {
     if (confirmarReativar === d.id) {
       return (
         <>
-          <span className={emMenu ? 'cert-menu-aviso' : 'cert-sub'}>Reativar {d.nome}? Os certificados voltam a contar.</span>
+          <span className={emMenu ? 'cert-menu-aviso' : 'cert-sub'}>
+            Reativar {d.nome} (ex.: recontratado)? Os certificados voltam a contar.
+          </span>
           <button type="button" role={papel} className={classe} onClick={() => reativar(d)}>
             Confirmar reativação
           </button>
@@ -1528,9 +1575,20 @@ function CertificadosPageConteudo() {
     }
 
     return (
-      <button type="button" role={papel} className={classe} onClick={() => setConfirmarReativar(d.id)}>
-        Reativar
-      </button>
+      <>
+        <button type="button" role={papel} className={classe} onClick={() => abrirEditarDesligamento(d, empresa)}>
+          Editar desligamento
+        </button>
+        <button
+          type="button"
+          role={papel}
+          className={classe}
+          title="Use quando a pessoa foi recontratada ou o desligamento foi marcado por engano"
+          onClick={() => setConfirmarReativar(d.id)}
+        >
+          Reativar (recontratado)
+        </button>
+      </>
     )
   }
 
@@ -2056,7 +2114,16 @@ function CertificadosPageConteudo() {
                 linhasPagina.map((c) => linhaCertificado(c, true))
               ) : (
                 gruposPagina.map((g) => {
-                  const dg = desligamentoDe(desligados, { empresa_id: g.empresa_id, colaborador: g.nome })
+                  /*
+                   * Mesmo critério das linhas: vale o desligamento marcado em
+                   * qualquer grafia do nome da pessoa (mesmo CPF). Antes o
+                   * cabeçalho só olhava o nome exato e mostrava "Marcar como
+                   * desligado" para quem já estava desligado.
+                   */
+                  const dg =
+                    desligamentoDe(desligados, { empresa_id: g.empresa_id, colaborador: g.nome }) ||
+                    g.itens.map((c) => desligamentoDo(c)).find((x): x is ColaboradorDesligado => !!x) ||
+                    null
 
                   return (
                   <div key={g.chave} className={'cert-grupo' + (dg ? ' desligado' : '')}>
@@ -2261,7 +2328,7 @@ function CertificadosPageConteudo() {
             <div className="cert-lateral-topo">
               <div>
                 <div className="section-title">Certificados</div>
-                <h2 id="cert-desligar-titulo">Marcar como desligado</h2>
+                <h2 id="cert-desligar-titulo">{desligar.editando ? 'Editar desligamento' : 'Marcar como desligado'}</h2>
               </div>
               <button type="button" className="btn btn-ghost" onClick={fecharDesligar} aria-label="Fechar">
                 ✕
@@ -2277,9 +2344,9 @@ function CertificadosPageConteudo() {
               </p>
 
               <p className="cert-sub" style={{ margin: 0, whiteSpace: 'normal' }}>
-                Os certificados desta pessoa saem da lista, dos cartões, do painel, do Boletim de Antecedência e
-                dos avisos de treinamento. Nada é apagado: dá para ver com &quot;Mostrar desligados&quot; e
-                reativar quando quiser.
+                {desligar.editando
+                  ? 'Corrija a data ou o motivo. Se a pessoa foi recontratada, feche esta janela e use "Reativar (recontratado)": o desligamento anterior fica no histórico.'
+                  : 'Os certificados desta pessoa saem da lista, dos cartões, do painel, do Boletim de Antecedência e dos avisos de treinamento. Nada é apagado: dá para ver com "Mostrar desligados" e reativar quando quiser.'}
               </p>
 
               <div className="field">
@@ -2307,7 +2374,7 @@ function CertificadosPageConteudo() {
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={salvandoDesligar}>
-                  {salvandoDesligar ? 'Salvando...' : 'Confirmar desligamento'}
+                  {salvandoDesligar ? 'Salvando...' : desligar.editando ? 'Salvar alterações' : 'Confirmar desligamento'}
                 </button>
               </div>
             </form>
