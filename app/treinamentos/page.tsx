@@ -1,5 +1,6 @@
 'use client'
 
+import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Barras, Progresso as BarraProgresso, Rosca } from '@/lib/graficos'
@@ -613,18 +614,11 @@ function TreinamentosPageConteudo() {
             />
 
             {interno && (
-              <select
-                value={filtroEmpresa}
-                onChange={(e) => setFiltroEmpresa(e.target.value)}
-              >
-                <option value="">Todas as empresas</option>
-
-                {empresas.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {nomeEmpresa(e)}
-                  </option>
-                ))}
-              </select>
+              <FiltroEmpresa
+                valor={filtroEmpresa}
+                aoMudar={setFiltroEmpresa}
+                opcoes={empresas.map((e) => ({ id: e.id, nome: nomeEmpresa(e) }))}
+              />
             )}
 
             <select

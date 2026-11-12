@@ -113,6 +113,7 @@ const manualInterno: Manual = {
           },
           passos: [
             'Filtros: busca, empresa, prioridade e responsável ("Meus atendimentos", "Sem responsável" ou uma pessoa).',
+            'Campo Empresa (aqui e em Histórico, Certificados, Análise mensal, Documentos SST e Treinamentos): em vez de rolar a lista, digite parte do nome ou do código (acentos, maiúsculas e ordem das palavras não importam). Setas escolhem, Enter confirma, Esc fecha; o ✕ volta para "Todas as empresas".',
             'A busca procura no título, número, categoria, empresa, descrição e nas mensagens da conversa, sem diferenciar acentos, maiúsculas ou ordem das palavras ("antonio da conceicao lopes" acha "Lopes, Antônio Conceição"). Quando acha fora do título, o cartão mostra "Encontrado na descrição" ou "Encontrado na conversa".',
             'Cada coluna é uma situação. O cartão mostra número, assunto, empresa, % das etapas, prazo e as iniciais do responsável. Selo vermelho FORA DO PRAZO e amarelo PRÓXIMO DO PRAZO. O selo "nova" piscando indica mensagem não lida num chamado seu.',
             'Encerrado e Cancelado mostram só os chamados das últimas 72 horas (corridas). Os mais antigos saem do quadro e ficam no botão Histórico, com abas, filtros e busca; o link "Ver N no histórico" no pé da coluna leva direto. Nada é excluído: a busca do quadro continua achando todos e eles seguem nos indicadores, no dashboard e nas estrelas.',

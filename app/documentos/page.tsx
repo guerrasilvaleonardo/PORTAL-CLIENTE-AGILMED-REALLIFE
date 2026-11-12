@@ -1,5 +1,6 @@
 'use client'
 
+import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
@@ -874,20 +875,14 @@ function DocumentosSstPageConteudo() {
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar empresa, unidade, documento, versão ou responsável..." />
 
         {interno && (
-          <select
-            value={filtroEmpresa}
-            onChange={(e) => {
-              setFiltroEmpresa(e.target.value)
+          <FiltroEmpresa
+            valor={filtroEmpresa}
+            aoMudar={(id) => {
+              setFiltroEmpresa(id)
               setFiltroUnidade('')
             }}
-          >
-            <option value="">Todas as empresas</option>
-            {empresas.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nome_fantasia || e.razao_social}
-              </option>
-            ))}
-          </select>
+            opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
+          />
         )}
 
         <select value={filtroUnidade} onChange={(e) => setFiltroUnidade(e.target.value)}>

@@ -1,5 +1,6 @@
 'use client'
 
+import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { DragEvent, useEffect, useMemo, useState } from 'react'
 import SuspenderChamado from '@/components/SuspenderChamado'
 import CancelarChamado from '@/components/CancelarChamado'
@@ -725,14 +726,11 @@ export default function AtendimentoPage() {
           title="Procura no título, número, empresa, descrição e mensagens do chamado. Acentos e ordem das palavras não importam."
         />
 
-        <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}>
-          <option value="">Todas as empresas</option>
-          {empresas.map(([id, nome]) => (
-            <option key={id} value={id}>
-              {nome}
-            </option>
-          ))}
-        </select>
+        <FiltroEmpresa
+          valor={filtroEmpresa}
+          aoMudar={setFiltroEmpresa}
+          opcoes={empresas.map(([id, nome]) => ({ id, nome }))}
+        />
 
         <select value={filtroPrioridade} onChange={(e) => setFiltroPrioridade(e.target.value)}>
           <option value="">Todas as prioridades</option>

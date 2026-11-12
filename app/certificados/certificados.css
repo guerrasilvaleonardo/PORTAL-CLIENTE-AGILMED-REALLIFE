@@ -103,7 +103,7 @@
 
 /* Filtros */
 .cert-filtros { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
-.cert-filtros select, .cert-filtros input[type='search'] {
+.cert-filtros select, .cert-filtros input[type='search'], .cert-filtros input[type='text'] {
   border: 1px solid var(--border); background: var(--surface); color: var(--ink);
   padding: 9px 11px; border-radius: 9px; font-size: 13px; font-family: inherit;
 }

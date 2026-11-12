@@ -1,5 +1,6 @@
 'use client'
 
+import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -266,14 +267,7 @@ export default function HistoricoPage() {
           placeholder="Buscar nº, assunto, empresa ou responsável"
         />
 
-        <select aria-label="Empresa" value={empresa} onChange={(e) => setEmpresa(e.target.value)}>
-          <option value="">Todas as empresas</option>
-          {empresas.map(([id, nome]) => (
-            <option key={id} value={id}>
-              {nome}
-            </option>
-          ))}
-        </select>
+        <FiltroEmpresa valor={empresa} aoMudar={setEmpresa} opcoes={empresas.map(([id, nome]) => ({ id, nome }))} />
 
         <select aria-label="Período" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
           {PERIODOS.map((p) => (
