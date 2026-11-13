@@ -13,11 +13,18 @@ export const maxDuration = 300
  * de ensino, procura cada colaborador pelo e-mail registrado em
  * Certificados e guarda o curso e o percentual de andamento.
  *
+ * Desde novembro de 2026 a Real Life tem a plataforma EAD propria
+ * (www.reallifessma.com.br). Quem estuda la nao aparece no Maestrus,
+ * entao a rotina le as duas e junta: Maestrus pelo raspao das telas,
+ * plataforma por uma rota de integracao que devolve o mesmo formato.
+ *
  * Variaveis necessarias na Vercel:
  *   MAESTRUS_URL    (ex.: https://reallifessma.maestrus.com)
  *   MAESTRUS_EMAIL  (usuario administrador do EAD)
  *   MAESTRUS_SENHA  (senha desse usuario)
  *   CRON_SECRET     (protege a rota)
+ *   PLATAFORMA_URL   (ex.: https://www.reallifessma.com.br)
+ *   PLATAFORMA_TOKEN (mesmo valor de INTEGRACAO_TOKEN la)
  */
 
 const PADRAO_URL = 'https://reallifessma.maestrus.com'
@@ -158,6 +165,62 @@ type Linha = {
   inicio: string | null
   /* Numero da matricula no Maestrus (link do relatorio de desempenho). */
   matricula: number | null
+  /* De qual EAD veio: 'maestrus' (padrao) ou 'plataforma'. */
+  origem?: string
+  /* Tempo de estudo, quando o EAD de origem ja informa. */
+  tempo_total_seg?: number | null
+}
+
+/*
+ * Progresso de quem estuda na plataforma propria da Real Life.
+ *
+ * A rota de la ja devolve no formato daqui; so os nomes de dois campos
+ * mudam. Se nao estiver configurada, ou se der erro, devolve lista vazia:
+ * a leitura do Maestrus continua valendo e ninguem fica sem relatorio.
+ */
+async function lerPlataforma(emails: string[]): Promise<Linha[]> {
+  const base = (process.env.PLATAFORMA_URL || '').replace(/\/+$/, '')
+  const token = process.env.PLATAFORMA_TOKEN || ''
+
+  if (!base || !token || emails.length === 0) return []
+
+  try {
+    const url =
+      base + '/api/integracao/progresso?emails=' + encodeURIComponent(emails.join(','))
+
+    const resposta = await fetch(url, {
+      headers: { Authorization: 'Bearer ' + token },
+      cache: 'no-store',
+    })
+
+    if (!resposta.ok) return []
+
+    const dados = (await resposta.json()) as {
+      linhas?: Array<{
+        email: string
+        aluno: string | null
+        curso: string
+        progresso: number
+        situacao: string | null
+        inicio: string | null
+        tempo_total_seg?: number | null
+      }>
+    }
+
+    return (dados.linhas || []).map((l) => ({
+      email: (l.email || '').toLowerCase(),
+      aluno: l.aluno,
+      curso: l.curso,
+      progresso: Math.max(0, Math.min(100, Math.round(Number(l.progresso) || 0))),
+      situacao: l.situacao,
+      inicio: l.inicio,
+      matricula: null,
+      origem: 'plataforma',
+      tempo_total_seg: l.tempo_total_seg ?? null,
+    }))
+  } catch {
+    return []
+  }
 }
 
 const SITUACOES = ['ativo', 'inativo', 'expirado', 'cancelado', 'trancado']
@@ -766,6 +829,10 @@ export async function GET(request: Request) {
       }
     }
 
+    /* 4b. A plataforma propria da Real Life ------------------------ */
+
+    encontrados.push(...(await lerPlataforma(emails)))
+
     /* 5. Gravar ---------------------------------------------------- */
 
     const agora = new Date().toISOString()
@@ -804,9 +871,10 @@ export async function GET(request: Request) {
       progresso: l.progresso,
       situacao: l.situacao,
       inicio: l.inicio,
-      origem: 'maestrus',
+      origem: l.origem || 'maestrus',
       atualizado_em: agora,
       ...(suportaTempo ? { matricula_ead: l.matricula } : {}),
+      ...(l.tempo_total_seg != null ? { tempo_total_seg: l.tempo_total_seg } : {}),
     })
 
     let registros = [...porMatricula.values()].map(paraRegistro)
