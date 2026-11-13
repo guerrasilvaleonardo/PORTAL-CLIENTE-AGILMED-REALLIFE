@@ -169,6 +169,8 @@ type Linha = {
   origem?: string
   /* Tempo de estudo, quando o EAD de origem ja informa. */
   tempo_total_seg?: number | null
+  /* Tempo por dia, em segundos: { 'AAAA-MM-DD': segundos }. */
+  tempo_por_dia?: Record<string, number> | null
 }
 
 /*
@@ -204,6 +206,7 @@ async function lerPlataforma(emails: string[]): Promise<Linha[]> {
         situacao: string | null
         inicio: string | null
         tempo_total_seg?: number | null
+        tempo_por_dia?: Record<string, number> | null
       }>
     }
 
@@ -217,6 +220,7 @@ async function lerPlataforma(emails: string[]): Promise<Linha[]> {
       matricula: null,
       origem: 'plataforma',
       tempo_total_seg: l.tempo_total_seg ?? null,
+      tempo_por_dia: l.tempo_por_dia ?? null,
     }))
   } catch {
     return []
@@ -875,6 +879,7 @@ export async function GET(request: Request) {
       atualizado_em: agora,
       ...(suportaTempo ? { matricula_ead: l.matricula } : {}),
       ...(l.tempo_total_seg != null ? { tempo_total_seg: l.tempo_total_seg } : {}),
+      ...(l.tempo_por_dia != null ? { tempo_por_dia: l.tempo_por_dia } : {}),
     })
 
     let registros = [...porMatricula.values()].map(paraRegistro)

@@ -74,10 +74,13 @@ export function textoTempoPorDia(p: Progresso | null | undefined) {
 
 /*
  * De onde vem o progresso do certificado:
- *   'ead'    -> Maestrus; a leitura das 06h atualiza sozinha
- *   'manual' -> treinamento presencial; a equipe informa a etapa
+ *   'ead'        -> rotulo usado no certificado: veio de algum EAD
+ *   'manual'     -> treinamento presencial; a equipe informa a etapa
+ * Em treinamentos_progresso a coluna guarda qual EAD:
+ *   'maestrus'   -> raspagem do Maestrus, na leitura das 06h
+ *   'plataforma' -> rota de integracao da plataforma propria da Real Life
  */
-export type OrigemProgresso = 'ead' | 'manual'
+export type OrigemProgresso = 'ead' | 'manual' | 'maestrus' | 'plataforma'
 
 export type EtapaManual = 'agendado' | 'em_andamento' | 'concluido'
 

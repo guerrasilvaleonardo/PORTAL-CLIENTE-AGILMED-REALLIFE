@@ -54,7 +54,9 @@ export default function TempoEad({ progresso }: { progresso: Progresso | null })
       )}
 
       <div style={{ marginTop: 4 }}>
-        Cada aula conta no dia em que foi finalizada.
+        {progresso.origem === 'plataforma'
+          ? 'Tempo com a aula aberta, contado no dia do estudo.'
+          : 'Cada aula conta no dia em que foi finalizada.'}
       </div>
     </details>
   )
