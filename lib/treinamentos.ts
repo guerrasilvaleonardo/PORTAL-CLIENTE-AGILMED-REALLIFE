@@ -82,6 +82,15 @@ export function textoTempoPorDia(p: Progresso | null | undefined) {
  */
 export type OrigemProgresso = 'ead' | 'manual' | 'maestrus' | 'plataforma'
 
+/*
+ * Qual EAD trouxe o progresso. Guardamos 'plataforma' para a plataforma
+ * propria da Real Life, porque o tempo de la e medido de outro jeito (tempo
+ * com a aula aberta, no dia do estudo) e a tela explica isso ao usuario.
+ * Todo o resto do portal so pergunta se e 'manual' ou nao.
+ */
+export const doEadOuPlataforma = (p: { origem?: string | null }): OrigemProgresso =>
+  p.origem === 'plataforma' ? 'plataforma' : 'ead'
+
 export type EtapaManual = 'agendado' | 'em_andamento' | 'concluido'
 
 export const ETAPAS_MANUAIS: EtapaManual[] = [
@@ -148,7 +157,7 @@ export function progressoDoCertificado(
 
   const doEad = acharProgresso(c.email_colaborador, c.curso, progressos)
 
-  return doEad ? { ...doEad, origem: 'ead' } : null
+  return doEad ? { ...doEad, origem: doEadOuPlataforma(doEad) } : null
 }
 
 /* Sugestoes do campo de curso. O campo aceita qualquer texto. */
@@ -411,7 +420,7 @@ export function progressosDosCertificados<T extends CertificadoComProgresso>(
 
     if (escolhida) usadas.add(chaveDaMatricula(escolhida))
 
-    resultado.set(c, escolhida ? { ...escolhida, origem: 'ead' } : null)
+    resultado.set(c, escolhida ? { ...escolhida, origem: doEadOuPlataforma(escolhida) } : null)
   }
 
   for (const c of novos) {
@@ -427,7 +436,7 @@ export function progressosDosCertificados<T extends CertificadoComProgresso>(
 
     if (escolhida) usadas.add(chaveDaMatricula(escolhida))
 
-    resultado.set(c, escolhida ? { ...escolhida, origem: 'ead' } : null)
+    resultado.set(c, escolhida ? { ...escolhida, origem: doEadOuPlataforma(escolhida) } : null)
   }
 
   return resultado
@@ -518,7 +527,7 @@ export async function lerProgressos(db: SupabaseClient): Promise<{ data: Progres
   const comTempo = await lerTudo<Progresso>(() =>
     db
       .from('treinamentos_progresso')
-      .select('email, curso, progresso, situacao, atualizado_em, inicio, tempo_total_seg, tempo_por_dia')
+      .select('email, curso, progresso, situacao, atualizado_em, inicio, tempo_total_seg, tempo_por_dia, origem')
       .order('email')
       .order('curso')
       .order('inicio', { nullsFirst: true })
