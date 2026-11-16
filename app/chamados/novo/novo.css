@@ -1,0 +1,11 @@
+/*
+ * Abrir chamado: no celular e no tablet, uma coluna só (o quadro
+ * "Como funciona?" desce para depois do formulário).
+ */
+@media (max-width: 900px) {
+  .novo-layout { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 560px) {
+  .novo-prioridades,
+  .novo-links { grid-template-columns: minmax(0, 1fr) !important; }
+}

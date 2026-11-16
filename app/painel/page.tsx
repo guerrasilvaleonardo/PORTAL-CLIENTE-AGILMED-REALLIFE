@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Icone, { type NomeIcone } from '@/components/Icone'
 import { supabase } from '@/lib/supabase'
 import { carregarFeriados } from '@/lib/feriados'
 import { situacaoSla } from '@/lib/prazo'
@@ -127,6 +128,18 @@ function emDias(dias: number) {
   d.setDate(d.getDate() + dias)
 
   return d.toISOString().slice(0, 10)
+}
+
+/* Ícone de cada cartão do painel (components/Icone.tsx). */
+const ICONE_DO_MODULO: Record<string, NomeIcone> = {
+  '/atendimento': 'atendimento',
+  '/atendimento/desempenho': 'grafico',
+  '/certificados': 'certificados',
+  '/treinamentos': 'treinamentos',
+  '/administracao/empresas': 'predio',
+  '/administracao/usuarios': 'equipe',
+  '/chamados': 'conversas',
+  '/perfil': 'perfil',
 }
 
 export default function PainelPage() {
@@ -668,9 +681,14 @@ export default function PainelPage() {
             .filter((m) => !m.admin || ehAdmin)
             .map((m) => (
               <Link key={m.href} href={m.href} className="mod-card">
+                <span className="mod-icone">
+                  <Icone nome={ICONE_DO_MODULO[m.href] || 'seta'} tamanho={24} />
+                </span>
                 <h3>{m.titulo}</h3>
                 <p>{m.texto}</p>
-                <span className="mod-go">{m.acao} →</span>
+                <span className="mod-go" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {m.acao} <Icone nome="seta" tamanho={14} />
+                </span>
               </Link>
             ))}
         </div>

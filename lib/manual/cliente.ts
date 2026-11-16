@@ -161,6 +161,7 @@ const manualCliente: Manual = {
             'Um assunto por chamado: fica mais fácil de acompanhar e de cumprir o prazo.',
             'Para uma conversa rápida, sem necessidade de registro, use Conversas.',
             'Você chega à tela de abertura pelo botão "Novo chamado" (no Início, na lista de Chamados ou dentro de um chamado).',
+            'Dúvida rápida, que não precisa de registro? O quadro ao lado do formulário leva direto a Conversas.',
             'Se você atende mais de uma empresa, escolha primeiro "Empresa do chamado": a tela recarrega com os dados dela e o chamado fica registrado nessa empresa.',
           ],
           link: { href: '/chamados/novo', rotulo: 'Abrir um chamado agora' },

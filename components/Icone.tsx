@@ -118,6 +118,32 @@ const DESENHOS = {
       <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z" />
     </>
   ),
+  grafico: (
+    <>
+      <path d="M4 20V4" />
+      <path d="M4 20h16" />
+      <path d="M8 16v-4M12 16V8M16 16v-6" />
+    </>
+  ),
+  predio: (
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="1.5" />
+      <path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M11 21v-3h2v3" />
+    </>
+  ),
+  equipe: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20a6 6 0 0 1 12 0" />
+      <path d="M16 5a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6" />
+    </>
+  ),
+  perfil: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </>
+  ),
   cadeado: (
     <>
       <rect x="5" y="11" width="14" height="10" rx="2" />

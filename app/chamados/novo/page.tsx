@@ -11,6 +11,9 @@ import { normalizarUrl } from '@/lib/links';
 import { HORAS_SLA, prazoEmHorasUteis, rotuloPrazo } from '@/lib/prazo';
 import type { Marca } from '@/lib/marca';
 import { SeletorParticipantes } from '@/components/ParticipantesChamado';
+import Link from 'next/link';
+import Icone from '@/components/Icone';
+import './novo.css';
 
 const categorias = [
   'Saúde Ocupacional',
@@ -81,11 +84,12 @@ const identidade = {
     nome: 'Real Life SSMA',
     curto: 'Real Life',
     inicial: 'R',
-    principal: '#0f766e',
-    principalEscura: '#115e59',
-    fundo: '#f0fdfa',
-    fundoForte: '#ccfbf1',
-    borda: '#ccfbf1',
+    /* Azul e verde da Real Life (os mesmos do EAD); verde só como tinta de fundo. */
+    principal: '#1D255D',
+    principalEscura: '#141A45',
+    fundo: '#F5F9E8',
+    fundoForte: '#EEF6D6',
+    borda: '#DCE9B0',
   },
 } as const;
 
@@ -486,31 +490,6 @@ export default function NovoChamadoPage() {
           }}
         />
 
-        <header style={styles.header}>
-          <div style={styles.headerInner}>
-            <div style={styles.brandArea}>
-              <div
-                style={{
-                  ...styles.logo,
-                  background: `linear-gradient(135deg, ${tema.principal} 0%, ${tema.principalEscura} 100%)`,
-                  boxShadow: `0 8px 20px ${tema.principal}35`,
-                }}
-              >
-                {tema.inicial}
-              </div>
-
-              <div>
-                <div style={styles.brandName}>
-                  Portal do Cliente
-                </div>
-
-                <div style={styles.brandSubtitle}>
-                  {tema.nome}
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
 
         <section style={styles.loadingContainer}>
           <div
@@ -538,39 +517,6 @@ export default function NovoChamadoPage() {
         }}
       />
 
-      <header style={styles.header}>
-        <div style={styles.headerInner}>
-          <div style={styles.brandArea}>
-            <div
-              style={{
-                ...styles.logo,
-                background: `linear-gradient(135deg, ${tema.principal} 0%, ${tema.principalEscura} 100%)`,
-                boxShadow: `0 8px 20px ${tema.principal}35`,
-              }}
-            >
-              {tema.inicial}
-            </div>
-
-            <div>
-              <div style={styles.brandName}>
-                Portal do Cliente
-              </div>
-
-              <div style={styles.brandSubtitle}>
-                {tema.nome}
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => router.push('/')}
-            style={styles.headerButton}
-          >
-            ← Voltar ao início
-          </button>
-        </div>
-      </header>
 
       <div style={styles.content}>
         <div style={styles.breadcrumb}>
@@ -670,7 +616,7 @@ export default function NovoChamadoPage() {
         )}
 
         <form onSubmit={criarChamado}>
-          <div style={styles.layout}>
+          <div style={styles.layout} className="novo-layout">
             <section style={styles.mainCard}>
               <div style={styles.cardHeader}>
                 <div>
@@ -879,7 +825,7 @@ export default function NovoChamadoPage() {
                     <span style={styles.required}>*</span>
                   </label>
 
-                  <div style={styles.priorityGrid}>
+                  <div style={styles.priorityGrid} className="novo-prioridades">
                     {/*
                      * Urgente é definida pela gestão (gestor/admin):
                      * o cliente escolhe até Alta. A equipe interna
@@ -990,7 +936,7 @@ export default function NovoChamadoPage() {
                     </span>
                   </label>
 
-                  <div style={styles.linkRow}>
+                  <div style={styles.linkRow} className="novo-links">
                     <input
                       type="text"
                       value={linkTitulo}
@@ -1223,10 +1169,12 @@ export default function NovoChamadoPage() {
               <div
                 style={{
                   ...styles.helpCard,
-                  background: `linear-gradient(135deg, ${tema.principalEscura} 0%, #0f172a 100%)`,
+                  background: tema.principalEscura,
                 }}
               >
-                <div style={styles.helpIcon}>?</div>
+                <div style={styles.helpIcon}>
+                  <Icone nome="conversas" tamanho={20} />
+                </div>
 
                 <div>
                   <strong style={styles.helpTitle}>
@@ -1234,9 +1182,13 @@ export default function NovoChamadoPage() {
                   </strong>
 
                   <p style={styles.helpText}>
-                    Nossa equipe está pronta para atender sua
-                    solicitação.
+                    Dúvida rápida, que não precisa de registro? Fale com a
+                    nossa equipe em Conversas.
                   </p>
+
+                  <Link href="/equipe" style={{ color: '#fff', fontWeight: 700, fontSize: 13, textDecoration: 'underline' }}>
+                    Abrir Conversas
+                  </Link>
                 </div>
               </div>
             </aside>
@@ -1244,13 +1196,6 @@ export default function NovoChamadoPage() {
         </form>
       </div>
 
-      <footer style={styles.footer}>
-        <span>Portal do Cliente</span>
-
-        <span style={styles.footerDot}>•</span>
-
-        <span>{tema.nome}</span>
-      </footer>
     </main>
   );
 }
@@ -1258,8 +1203,7 @@ export default function NovoChamadoPage() {
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: '100vh',
-    background:
-      'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+    background: 'var(--bg)',
     color: '#0f172a',
     position: 'relative',
     overflow: 'hidden',
