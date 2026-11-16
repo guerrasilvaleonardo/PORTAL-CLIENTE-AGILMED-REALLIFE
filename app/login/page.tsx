@@ -1,9 +1,16 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { marcaDoDominio, marcas, type Marca } from '@/lib/marca'
 
+/*
+ * Tela de entrada. A marca vem do endereço (portal.reallifessma.com.br ou
+ * portal.agilmedocupacional.com.br): cada cliente vê só a marca que o
+ * atende. Visual igual ao do EAD: faixa da cor da marca, botão em pílula.
+ */
 export default function LoginPage() {
   const router = useRouter()
 
@@ -11,12 +18,16 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+  /* Real Life até ler o endereço (evita trocar de marca depois de pintar). */
+  const [marca, setMarca] = useState<Marca>('reallife')
 
   /*
    * Aviso quando a pessoa chega aqui porque o login salvo expirou
    * (ver lib/sessao.ts).
    */
   useEffect(() => {
+    setMarca(marcaDoDominio())
+
     const params = new URLSearchParams(window.location.search)
 
     if (params.get('sessao') === 'expirada') {
@@ -44,33 +55,34 @@ export default function LoginPage() {
     router.push('/')
   }
 
+  const tema = marcas[marca]
+  const cores = {
+    '--marca': tema.principal,
+    '--marca-forte': tema.dark,
+    '--acento': tema.acento,
+    '--acento-hover': tema.acentoHover,
+    '--no-acento': tema.noAcento,
+  } as CSSProperties
+
   return (
-    <main className="login-page">
-      <div className="login-background">
-        <div className="login-card">
+    <main className="login-page" style={cores}>
+      <div className="login-card">
+        <div className="login-faixa">
+          <div className="login-marca">{marca === 'agilmed' ? 'AM' : 'RL'}</div>
 
-          <div className="login-brand">
-            <div className="brand-mark">A</div>
-
-            <div>
-              <strong>ÁgilMed</strong>
-              <span>& Real Life</span>
-            </div>
+          <div>
+            <strong>{tema.nome}</strong>
+            <span>Portal do Cliente</span>
           </div>
+        </div>
 
-          <div className="login-header">
-            <h1>Acesso ao Portal</h1>
+        <div className="login-corpo">
+          <h1>Entrar no portal</h1>
 
-            <p>
-              Entre com seus dados para acessar os serviços da sua empresa.
-            </p>
-          </div>
+          <p>Chamados, treinamentos, certificados e documentos da sua empresa em um só lugar.</p>
 
           <form onSubmit={entrar} className="login-form">
-
-            <label htmlFor="email">
-              E-mail
-            </label>
+            <label htmlFor="email">E-mail</label>
 
             <input
               id="email"
@@ -82,9 +94,7 @@ export default function LoginPage() {
               autoComplete="email"
             />
 
-            <label htmlFor="senha">
-              Senha
-            </label>
+            <label htmlFor="senha">Senha</label>
 
             <input
               id="senha"
@@ -97,140 +107,94 @@ export default function LoginPage() {
             />
 
             {erro && (
-              <div className="login-error">
+              <div className="login-error" role="alert">
                 {erro}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={carregando}
-            >
-              {carregando
-                ? 'Entrando...'
-                : 'Entrar no Portal'}
+            <button type="submit" disabled={carregando}>
+              {carregando ? 'Entrando...' : 'Entrar no portal'}
             </button>
-
           </form>
 
-          <div className="login-footer">
-            <span>Portal do Cliente</span>
-            <span>ÁgilMed & Real Life</span>
-          </div>
-
+          <p className="login-ajuda">
+            Não tem acesso ou esqueceu a senha? Fale com a nossa equipe pelo mesmo contato de sempre.
+          </p>
         </div>
       </div>
 
       <style jsx>{`
-
         .login-page {
-          min-height: 100vh;
-          background: #f4f7fb;
-        }
-
-        .login-background {
           min-height: 100vh;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 32px 20px;
-
-          background:
-            radial-gradient(
-              circle at top left,
-              rgba(14, 165, 233, 0.12),
-              transparent 35%
-            ),
-            radial-gradient(
-              circle at bottom right,
-              rgba(16, 185, 129, 0.10),
-              transparent 35%
-            ),
-            #f4f7fb;
+          padding: 32px 16px;
+          background: var(--bg);
         }
 
         .login-card {
           width: 100%;
-          max-width: 460px;
-
+          max-width: 440px;
           background: #ffffff;
-
-          border: 1px solid #e5e7eb;
-          border-radius: 24px;
-
-          padding: 40px;
-
-          box-shadow:
-            0 24px 70px rgba(15, 23, 42, 0.12);
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          overflow: hidden;
+          box-shadow: var(--shadow);
         }
 
-        .login-brand {
+        .login-faixa {
           display: flex;
           align-items: center;
           gap: 12px;
-
-          margin-bottom: 36px;
+          padding: 22px 28px;
+          background: var(--marca);
         }
 
-        .brand-mark {
+        .login-marca {
           width: 46px;
           height: 46px;
-
-          border-radius: 14px;
-
+          flex: none;
+          border-radius: 999px;
           display: flex;
           align-items: center;
           justify-content: center;
-
-          background:
-            linear-gradient(
-              135deg,
-              #0f766e,
-              #0ea5e9
-            );
-
-          color: #ffffff;
-
-          font-size: 22px;
+          background: var(--acento);
+          color: var(--no-acento);
+          font-size: 16px;
           font-weight: 800;
         }
 
-        .login-brand strong {
+        .login-faixa strong {
           display: block;
-
-          color: #172033;
-
-          font-size: 18px;
+          color: #ffffff;
+          font-size: 17px;
+          font-weight: 800;
         }
 
-        .login-brand span {
+        .login-faixa span {
           display: block;
-
-          color: #64748b;
-
+          color: rgba(255, 255, 255, 0.78);
           font-size: 13px;
-
           margin-top: 2px;
         }
 
-        .login-header h1 {
-          margin: 0;
-
-          color: #172033;
-
-          font-size: 30px;
-          line-height: 1.15;
-
-          letter-spacing: -0.7px;
+        .login-corpo {
+          padding: 28px;
         }
 
-        .login-header p {
-          margin: 10px 0 28px;
+        .login-corpo h1 {
+          margin: 0;
+          color: var(--marca);
+          font-size: 26px;
+          line-height: 1.2;
+        }
 
-          color: #64748b;
-
-          font-size: 15px;
-          line-height: 1.6;
+        .login-corpo > p {
+          margin: 8px 0 24px;
+          color: var(--ink-muted);
+          font-size: 14.5px;
+          line-height: 1.55;
         }
 
         .login-form {
@@ -239,134 +203,88 @@ export default function LoginPage() {
         }
 
         .login-form label {
-          margin-bottom: 8px;
-
-          color: #334155;
-
-          font-size: 14px;
+          margin-bottom: 6px;
+          color: var(--marca);
+          font-size: 12px;
           font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
 
         .login-form input {
           width: 100%;
-          height: 52px;
-
-          margin-bottom: 18px;
-
-          padding: 0 15px;
-
-          border: 1px solid #d7dee8;
+          height: 50px;
+          margin-bottom: 16px;
+          padding: 0 16px;
+          border: 1px solid var(--border);
           border-radius: 12px;
-
           outline: none;
-
-          background: #ffffff;
-
-          color: #172033;
-
+          background: var(--surface-sunken);
+          color: var(--ink);
           font-size: 15px;
-
-          transition: 0.2s ease;
+          transition: border-color 0.15s ease;
         }
 
         .login-form input:focus {
-          border-color: #0ea5e9;
-
-          box-shadow:
-            0 0 0 4px rgba(14, 165, 233, 0.10);
+          border-color: var(--marca);
+          background: #ffffff;
         }
 
         .login-form button {
           width: 100%;
-          height: 52px;
-
+          min-height: 50px;
           margin-top: 6px;
-
           border: 0;
-          border-radius: 12px;
-
-          background:
-            linear-gradient(
-              135deg,
-              #0f766e,
-              #0ea5e9
-            );
-
-          color: #ffffff;
-
+          border-radius: 999px;
+          background: var(--acento);
+          color: var(--no-acento);
           font-size: 15px;
           font-weight: 800;
-
           cursor: pointer;
-
-          transition: 0.2s ease;
+          transition: background-color 0.15s ease;
         }
 
         .login-form button:hover {
-          transform: translateY(-1px);
-
-          box-shadow:
-            0 10px 24px rgba(14, 165, 233, 0.22);
+          background: var(--acento-hover);
         }
 
         .login-form button:disabled {
           opacity: 0.7;
-
           cursor: wait;
-
-          transform: none;
         }
 
         .login-error {
           margin: 0 0 14px;
-
           padding: 12px 14px;
-
-          border-radius: 10px;
-
-          background: #fef2f2;
-
-          border: 1px solid #fecaca;
-
-          color: #b91c1c;
-
+          border-radius: 12px;
+          background: var(--danger-tint);
+          color: var(--danger);
           font-size: 14px;
+          font-weight: 600;
         }
 
-        .login-footer {
-          display: flex;
-          justify-content: space-between;
-
-          gap: 16px;
-
-          margin-top: 28px;
-          padding-top: 20px;
-
-          border-top: 1px solid #eef2f7;
-
-          color: #94a3b8;
-
-          font-size: 12px;
+        .login-ajuda {
+          margin: 22px 0 0;
+          padding-top: 18px;
+          border-top: 1px solid var(--border);
+          color: var(--ink-faint);
+          font-size: 12.5px;
+          line-height: 1.5;
         }
 
         @media (max-width: 520px) {
-
-          .login-card {
-            padding: 28px 22px;
-            border-radius: 20px;
+          .login-faixa {
+            padding: 18px 20px;
           }
 
-          .login-header h1 {
-            font-size: 26px;
+          .login-corpo {
+            padding: 22px 20px;
           }
 
-          .login-footer {
-            flex-direction: column;
-            gap: 6px;
+          .login-corpo h1 {
+            font-size: 23px;
           }
-
         }
-
       `}</style>
     </main>
   )
