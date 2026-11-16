@@ -208,6 +208,16 @@ const formVazio = {
  * O link chega de varias formas. Guardamos sempre com http(s) na
  * frente para o navegador abrir em vez de tratar como caminho interno.
  */
+/*
+ * Link do certificado só vale se for um endereço da internet (https://
+ * algo.dominio/...). Antes, qualquer texto virava link: "Mais relatório
+ * fotográfico" era gravado como "https://Mais relatório fotográfico" e o
+ * botão abria um endereço quebrado.
+ */
+function linkValido(texto: string | null | undefined) {
+  return /^https?:\/\/[^\s/]+\.[^\s/]+(\/\S*)?$/i.test((texto || '').trim())
+}
+
 function normalizarLink(texto: string) {
   const limpo = (texto || '').trim()
 
@@ -1033,6 +1043,11 @@ function CertificadosPageConteudo() {
       return
     }
 
+    if (form.link_certificado.trim() && !linkValido(normalizarLink(form.link_certificado))) {
+      setErro('O link do certificado precisa ser um endereço da internet (ex.: https://...). Anotações como "mais relatório fotográfico" vão em Observações.')
+      return
+    }
+
     try {
       setSalvando(true)
 
@@ -1836,10 +1851,14 @@ function CertificadosPageConteudo() {
         </span>
 
         <span className="cert-acoes-cliente">
-          {c.link_certificado ? (
-            <a className="btn btn-sm cert-ver" href={c.link_certificado} target="_blank" rel="noreferrer">
+          {linkValido(c.link_certificado) ? (
+            <a className="btn btn-sm cert-ver" href={c.link_certificado!} target="_blank" rel="noreferrer">
               Ver certificado
             </a>
+          ) : interno && c.link_certificado ? (
+            <span className="cert-sub" style={{ color: 'var(--danger)' }} title={'Gravado: ' + c.link_certificado}>
+              Link inválido: corrija
+            </span>
           ) : (
             <span className="cert-sub">Sem arquivo</span>
           )}
@@ -1885,8 +1904,8 @@ function CertificadosPageConteudo() {
               {!substitutos.has(h.id) && <span className="pill good cert-pill">Atual</span>}
             </span>
             <span className="cert-hist-acoes">
-              {h.link_certificado ? (
-                <a className="btn btn-sm" href={h.link_certificado} target="_blank" rel="noreferrer">
+              {linkValido(h.link_certificado) ? (
+                <a className="btn btn-sm" href={h.link_certificado!} target="_blank" rel="noreferrer">
                   Ver certificado
                 </a>
               ) : (
