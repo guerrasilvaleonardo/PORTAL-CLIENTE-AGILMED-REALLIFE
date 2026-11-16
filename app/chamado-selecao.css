@@ -28,3 +28,49 @@
   background: #fde047;
   color: #1f2937;
 }
+
+/* ------------------------------------------------------------------
+ * Tela do chamado do cliente (app/chamados/[id]).
+ * ------------------------------------------------------------------ */
+
+/* Barra de etapas: Aberto → Em atendimento → Resolvido → Encerrado. */
+.chamado-progresso {
+  list-style: none; margin: 14px 0 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
+}
+.chamado-progresso li { display: flex; flex-direction: column; gap: 6px; }
+.chamado-progresso .barra { height: 6px; border-radius: 999px; background: var(--border); }
+.chamado-progresso li.feita .barra { background: var(--accent); }
+.chamado-progresso .nome { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); }
+.chamado-progresso li.feita .nome { color: var(--ink-muted); }
+.chamado-progresso li[aria-current='step'] .nome { color: var(--primary); font-weight: 800; }
+
+/* Prazo de resposta e atendente, sempre à vista. */
+.chamado-fichas { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 16px; }
+.chamado-ficha {
+  font-size: 12.5px; color: var(--ink-muted); background: var(--surface-sunken);
+  border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px;
+}
+.chamado-ficha strong { color: var(--primary); }
+
+/* Detalhes do chamado: fechado por padrão, abre com um clique. */
+.chamado-detalhes > summary {
+  list-style: none; cursor: pointer;
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px;
+}
+.chamado-detalhes > summary::-webkit-details-marker { display: none; }
+.chamado-detalhes > summary::after {
+  content: 'Abrir ▾'; font-size: 12.5px; font-weight: 700; color: var(--primary);
+}
+.chamado-detalhes[open] > summary::after { content: 'Fechar ▴'; }
+.chamado-detalhes[open] > summary { margin-bottom: 18px; }
+.chamado-detalhes-dica { font-size: 12.5px; color: var(--ink-faint); flex: 1 1 200px; }
+
+/* Celular e tablet: uma coluna, sem rolar para o lado. */
+@media (max-width: 900px) {
+  .chamado-grade { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 640px) {
+  .chamado-info { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; }
+  .chamado-progresso .nome { font-size: 10.5px; }
+}

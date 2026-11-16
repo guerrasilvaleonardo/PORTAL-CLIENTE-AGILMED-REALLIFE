@@ -288,7 +288,7 @@ const manualCliente: Manual = {
               {
                 t: 'duas',
                 esquerda: [
-                  { t: 'campos', n: 1, itens: [{ rotulo: 'Situação', valor: 'Em atendimento' }, { rotulo: 'Atendente responsável', valor: 'Priscila' }, { rotulo: 'Prazo SLA', valor: '21/10 15:00' }, { rotulo: 'Posição na fila', valor: '2º de 5' }] },
+                  { t: 'campos', n: 1, itens: [{ rotulo: 'Situação', valor: 'Em atendimento' }, { rotulo: 'Prazo de atendimento', valor: '21/10 15:00' }, { rotulo: 'Atendente', valor: 'Priscila' }] },
                   { t: 'chat', n: 2, msgs: [{ autor: 'Assistente virtual', etiqueta: 'Mensagem automática', texto: 'Seu chamado está em atendimento.' }, { autor: 'Priscila', etiqueta: 'Equipe', texto: 'Pode enviar a lista de funções atualizada?' }] },
                 ],
                 direita: [
@@ -299,15 +299,15 @@ const manualCliente: Manual = {
             ],
           },
           passos: [
-            'Detalhes: situação, quem está cuidando, prioridade, prazo de atendimento e posição na fila da área.',
-            'Conversas: troque mensagens com a equipe sobre este chamado.',
+            'No alto: a situação do chamado, a barra de etapas (Aberto, Em atendimento, Resolvido, Encerrado), o prazo de atendimento e quem está cuidando.',
+            'Logo abaixo, a conversa com a equipe e a caixa para responder.',
             'Etapas do atendimento: o que já foi feito e o que falta, com percentual.',
-            'Anexos e links: envie e consulte arquivos e endereços ligados ao chamado.',
+            'Anexos e links: envie e consulte arquivos e endereços ligados ao chamado. Categoria, quem abriu, datas, posição entre os chamados da área e a descrição ficam em "Detalhes do chamado": clique para abrir.',
           ],
         },
         {
           titulo: 'As situações do chamado',
-          texto: 'Todo chamado passa por estas situações. A explicação da situação atual aparece no cartão Detalhes do chamado.',
+          texto: 'Todo chamado passa por estas situações. A explicação da situação atual aparece no alto do chamado, em Situação do chamado.',
           tela: {
             url: '/chamados/…',
             blocos: [
@@ -341,8 +341,8 @@ const manualCliente: Manual = {
           tela: {
             url: '/chamados/…',
             blocos: [
-              { t: 'campos', n: 1, itens: [{ rotulo: 'Prioridade', valor: 'Normal' }, { rotulo: 'Prazo SLA', valor: '21/10/2026 15:00' }] },
-              { t: 'campos', n: 2, itens: [{ rotulo: 'Prazo SLA', valor: 'Pausado — o prazo volta a contar quando você responder' }] },
+              { t: 'campos', n: 1, itens: [{ rotulo: 'Prioridade', valor: 'Normal' }, { rotulo: 'Prazo de atendimento', valor: '21/10/2026 15:00' }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Prazo de atendimento', valor: 'pausado até você responder' }] },
             ],
           },
           passos: [
@@ -435,7 +435,7 @@ const manualCliente: Manual = {
           passos: [
             'No Início e na lista de Chamados, um quadro amarelo piscando lista os chamados à espera da sua avaliação, com o selo "Avaliar" na linha do chamado.',
             'Você também recebe um e-mail "Como foi seu atendimento no chamado #N?" com o botão Avaliar o atendimento.',
-            'O cartão de avaliação fica dentro do chamado, logo abaixo de Detalhes do chamado.',
+            'O cartão de avaliação fica dentro do chamado, logo abaixo da conversa com a equipe.',
           ],
           dica: 'Quem avalia: quem abriu o chamado ou, quando a nossa equipe abriu o chamado por você, o solicitante indicado por ela. Se a equipe abriu sem indicar ninguém, qualquer usuário da empresa que veja o chamado pode avaliar. Vale a primeira avaliação.',
         },
