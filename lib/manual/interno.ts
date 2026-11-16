@@ -298,7 +298,7 @@ const manualInterno: Manual = {
             'Empresa: move o chamado para outra empresa. Muda quem enxerga o chamado e a marca dos e-mails; o portal pede confirmação.',
           ],
           atencao:
-            'O atendente vê só o texto "Somente gestor ou administrador altera a prioridade". Cliente abre no máximo como Alta: Urgente é decisão da gestão, depois da análise.',
+            'O atendente vê só o texto "Somente gestor ou administrador altera a prioridade". Cliente abre como Baixa ou Normal: Alta e Urgente são decisão da equipe, depois da análise (se o cliente tentar outra coisa, o banco grava Normal, com 24 h úteis).',
         },
         {
           titulo: 'Conversas com o cliente',
