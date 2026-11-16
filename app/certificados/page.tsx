@@ -509,8 +509,13 @@ function CertificadosPageConteudo() {
     setForm((atual) => {
       const novo = { ...atual, [campo]: tratado }
 
-      if (campo === 'curso' && !atual.tipo) {
-        novo.tipo = tipoPeloCurso(tratado)
+      /*
+       * O curso decide o tipo enquanto ninguém escolheu outro: o da lista,
+       * se houver; senão "pelo curso" (gravado como "Outro", mostrado com o
+       * nome do curso). Uma escolha feita à mão não é trocada.
+       */
+      if (campo === 'curso' && (!atual.tipo || atual.tipo === 'Outro')) {
+        novo.tipo = tipoPeloCurso(tratado) || (tratado.trim() ? 'Outro' : '')
       }
 
       return novo
@@ -1001,8 +1006,8 @@ function CertificadosPageConteudo() {
       return
     }
 
-    if (!form.tipo) {
-      setErro('Selecione o tipo de certificado.')
+    if (!form.tipo && !form.curso.trim()) {
+      setErro('Informe o curso ou selecione o tipo de certificado.')
       return
     }
 
@@ -1037,7 +1042,7 @@ function CertificadosPageConteudo() {
         email_colaborador: form.email_colaborador.trim().toLowerCase() || null,
         curso: form.curso.trim().toUpperCase() || null,
         funcao: form.funcao.trim() || null,
-        tipo: form.tipo,
+        tipo: form.tipo || 'Outro',
         emissao: form.emissao || null,
         validade: form.validade || null,
         ...(suportaSemVencimento ? { sem_vencimento: !form.validade && form.sem_vencimento } : {}),
@@ -1112,7 +1117,7 @@ function CertificadosPageConteudo() {
       email_colaborador: c.email_colaborador || '',
       curso: c.curso || '',
       funcao: c.funcao || '',
-      tipo: c.tipo,
+      tipo: c.tipo === 'Outro' ? tipoPeloCurso(c.curso || '') || 'Outro' : c.tipo,
       emissao: c.emissao || '',
       validade: c.validade || '',
       observacoes: c.observacoes || '',
@@ -2092,7 +2097,7 @@ function CertificadosPageConteudo() {
                   <option value="">Todos os tipos</option>
                   {TIPOS.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {t === 'Outro' ? 'Outros cursos (fora da lista)' : t}
                     </option>
                   ))}
                 </select>
@@ -2614,30 +2619,18 @@ function CertificadosPageConteudo() {
               )}
 
               <div className="field">
-                <label>Tipo *</label>
+                <label>Tipo</label>
                 <select value={form.tipo} onChange={(e) => alterar('tipo', e.target.value)}>
-                  <option value="">Selecione</option>
+                  <option value="">{form.curso.trim() ? 'Pelo curso: ' + form.curso.trim() : 'Selecione'}</option>
                   {TIPOS.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {t === 'Outro' ? 'Pelo curso: ' + (form.curso.trim() || 'preencha o Curso no EAD') : t}
                     </option>
                   ))}
                 </select>
-                {form.tipo === 'Outro' && tipoPeloCurso(form.curso || '') && (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    style={{ alignSelf: 'flex-start' }}
-                    onClick={() => alterar('tipo', tipoPeloCurso(form.curso || ''))}
-                  >
-                    Usar "{tipoPeloCurso(form.curso || '')}"
-                  </button>
-                )}
-                {form.tipo === 'Outro' && (
-                  <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
-                    Em "Outro", a lista, a planilha e os e-mails mostram o nome do curso{form.curso ? ': ' + form.curso : ' (preencha o Curso no EAD)'}.
-                  </span>
-                )}
+                <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
+                  Vem sozinho pelo Curso no EAD. Mude só se o curso não disser o tipo certo.
+                </span>
               </div>
 
               <div className="field-row">
