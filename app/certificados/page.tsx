@@ -26,6 +26,7 @@ import {
   type Progresso,
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import Icone, { type NomeIcone } from '@/components/Icone'
 import TempoEad from '@/components/TempoEad'
 import { lerTudo } from '@/lib/lerTudo'
 import { chaveCertificado, chavePessoa, formatarCpf, pessoasPorCpf, soDigitosCpf, substitutosHistorico } from '@/lib/historicoCertificados'
@@ -234,6 +235,26 @@ function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }
   if (d <= 90) return 'ate90'
 
   return 'emdia'
+}
+
+/*
+ * Chamado de reciclagem já preenchido, para o cliente pedir a renovação
+ * de um treinamento vencido ou perto de vencer sem digitar nada.
+ */
+function linkReciclagem(c: { tipo: string; colaborador: string; validade: string | null }) {
+  const q = new URLSearchParams({
+    categoria: 'Treinamentos',
+    assunto: ('Reciclagem: ' + c.tipo + ' · ' + c.colaborador).slice(0, 200),
+    descricao:
+      'Gostaríamos de agendar a reciclagem do treinamento ' +
+      c.tipo +
+      ' de ' +
+      c.colaborador +
+      (c.validade ? ' (validade ' + formatarData(c.validade) + ')' : '') +
+      '.\n\nOutros colaboradores para a mesma turma: \nMelhor período: ',
+  })
+
+  return '/chamados/novo?' + q.toString()
 }
 
 function situacao(c: { validade: string | null; sem_vencimento?: boolean | null }) {
@@ -1484,7 +1505,7 @@ function CertificadosPageConteudo() {
     numero: number,
     rotulo: string,
     tom: 'neutro' | 'ruim' | 'alerta' | 'bom' | 'cinza',
-    icone: string,
+    icone: NomeIcone,
     detalhe?: string
   ) {
     const ativo = filtroSituacao === chave
@@ -1500,7 +1521,7 @@ function CertificadosPageConteudo() {
           setAba('lista')
         }}
       >
-        <span className="cert-ind-icone" aria-hidden="true">{icone}</span>
+        <span className="cert-ind-icone" aria-hidden="true"><Icone nome={icone} tamanho={20} /></span>
         <span>
           <span className="cert-ind-num">{carregando ? '—' : numero}</span>
           <span className="cert-ind-lbl">{rotulo}</span>
@@ -1525,12 +1546,16 @@ function CertificadosPageConteudo() {
             className="cert-prog aguardando"
             title="Concluiu 100% no EAD. Emita o certificado e atualize emissão, validade e arquivo; o alerta some sozinho."
           >
-            ✓ Concluído · atualizar certificado
+            <Icone nome="check" tamanho={13} /> Concluído · atualizar certificado
           </span>
         )
       }
 
-      return <span className="cert-prog ok">✓ Concluído</span>
+      return (
+        <span className="cert-prog ok">
+          <Icone nome="check" tamanho={13} /> Concluído
+        </span>
+      )
     }
 
     return (
@@ -1766,7 +1791,7 @@ function CertificadosPageConteudo() {
                 setHistoricoAberto(abertoHist ? null : c.id)
               }}
             >
-              ↺ {anteriores.length} {anteriores.length === 1 ? 'anterior' : 'anteriores'} {abertoHist ? '▴' : '▾'}
+              <Icone nome="repetir" tamanho={13} /> {anteriores.length} {anteriores.length === 1 ? 'anterior' : 'anteriores'} {abertoHist ? '▴' : '▾'}
             </button>
           )}
         </span>
@@ -1781,17 +1806,27 @@ function CertificadosPageConteudo() {
         <span className="cert-validade">
           <span className="cert-data">{c.validade ? formatarData(c.validade) : ''}</span>
           <span className={s.pill + ' cert-pill'} title={dica}>
-            <span aria-hidden="true">{s.icone}</span> {s.texto}
+            {s.texto}
           </span>
         </span>
 
-        <span>
+        <span className="cert-acoes-cliente">
           {c.link_certificado ? (
             <a className="btn btn-sm cert-ver" href={c.link_certificado} target="_blank" rel="noreferrer">
               Ver certificado
             </a>
           ) : (
             <span className="cert-sub">Sem arquivo</span>
+          )}
+          {!interno && !deslig && !historico && (faixaDe(c) === 'vencido' || faixaDe(c) === 'ate90') && (
+            <Link
+              className="btn btn-sm btn-primary"
+              href={linkReciclagem(c)}
+              onClick={(e) => e.stopPropagation()}
+              title="Abre um chamado já preenchido pedindo a reciclagem deste treinamento"
+            >
+              Pedir reciclagem
+            </Link>
           )}
         </span>
 
@@ -1862,7 +1897,7 @@ function CertificadosPageConteudo() {
             {atualizandoEad ? 'Atualizando...' : 'Atualizar progresso do EAD'}
           </button>
           <button type="button" className="btn" onClick={exportar} disabled={carregando || filtrados.length === 0}>
-            ⤓ Exportar
+            <Icone nome="baixar" tamanho={16} /> Exportar planilha
           </button>
           {interno && (
             <button type="button" className="btn btn-primary" onClick={novoCertificado}>
@@ -1886,26 +1921,27 @@ function CertificadosPageConteudo() {
           </span>
         </div>
         <div className="cert-inds">
-          {cartaoIndicador('vencido', indicadores.faixa.vencido, 'Vencidos', 'ruim', '⏱')}
+          {cartaoIndicador('vencido', indicadores.faixa.vencido, 'Vencidos', 'ruim', 'alerta')}
           {cartaoIndicador(
             'ate90',
             indicadores.faixa.ate90,
             'Vencem em até 90 dias',
             'alerta',
-            '⚠',
+            'relogio',
             indicadores.em30 ? indicadores.em30 + ' em até 30 dias' : undefined
           )}
-          {cartaoIndicador('emdia', indicadores.faixa.emdia, 'Em dia (mais de 90 dias)', 'bom', '✓')}
+          {cartaoIndicador('emdia', indicadores.faixa.emdia, 'Em dia (mais de 90 dias)', 'bom', 'check')}
           {suportaSemVencimento &&
-            cartaoIndicador('sem_vencimento', indicadores.faixa.sem_vencimento, 'Sem vencimento', 'neutro', '∞')}
-          {cartaoIndicador('sem_validade', indicadores.faixa.sem_validade, 'Validade não informada', 'cinza', '?')}
+            cartaoIndicador('sem_vencimento', indicadores.faixa.sem_vencimento, 'Sem vencimento', 'neutro', 'infinito')}
+          {(indicadores.faixa.sem_validade > 0 || filtroSituacao === 'sem_validade') &&
+            cartaoIndicador('sem_validade', indicadores.faixa.sem_validade, 'Validade não informada', 'cinza', 'duvida')}
           {(indicadores.faixa.historico > 0 || filtroSituacao === 'historico') &&
             cartaoIndicador(
               'historico',
               indicadores.faixa.historico,
               'Histórico (substituído)',
               'cinza',
-              '↺',
+              'repetir',
               'já renovados; não contam como vencidos'
             )}
           {mostrarDesligados &&
@@ -1915,12 +1951,13 @@ function CertificadosPageConteudo() {
               indicadores.faixa.desligado,
               'De desligados',
               'cinza',
-              '⊘',
+              'bloqueio',
               'não contam como vencidos nem entram nos avisos'
             )}
         </div>
       </div>
 
+      {interno && (
       <div className="cert-trein">
         <span className="cert-ind-titulo" style={{ margin: 0 }}>Treinamento</span>
         {(
@@ -1952,6 +1989,7 @@ function CertificadosPageConteudo() {
           Modalidade: {indicadores.ead} EAD · {indicadores.presenciais} presenciais
         </span>
       </div>
+      )}
 
       {/* 3. Abas */}
       <div className="cert-abas" role="tablist">
@@ -2152,7 +2190,7 @@ function CertificadosPageConteudo() {
                         </span>
                         {dg && (
                           <span className="pill flat desligado cert-pill" title={dg.motivo ? 'Motivo: ' + dg.motivo : undefined} style={{ marginTop: 4 }}>
-                            <span aria-hidden="true">⊘</span> Desligado em {formatarData(dg.desligado_em)}
+                            Desligado em {formatarData(dg.desligado_em)}
                           </span>
                         )}
                       </span>

@@ -449,12 +449,22 @@ function TreinamentosPageConteudo() {
     URL.revokeObjectURL(url)
   }
 
+  /*
+   * Coluna e gráfico "por empresa" só quando há mais de uma empresa na
+   * lista (equipe, ou cliente com várias empresas). Para o cliente de uma
+   * empresa só, repetiam o próprio nome em toda linha.
+   */
+  const mostrarEmpresa = interno || new Set(linhas.map((l) => l.empresaId)).size > 1
+  const colunas = mostrarEmpresa
+    ? '1.6fr 1.1fr 1.4fr 150px 120px 110px'
+    : '1.6fr 1.8fr 150px 120px 110px'
+
   return (
     <div className="app">
       <div>
         <div className="section-title">Relatório</div>
 
-        <h1 style={{ fontSize: 30, marginTop: 6 }}>Treinamentos</h1>
+        <h1 style={{ fontSize: 30, marginTop: 6 }}>{interno ? 'Treinamentos' : 'Treinamentos da sua equipe'}</h1>
 
         <p
           style={{
@@ -463,8 +473,10 @@ function TreinamentosPageConteudo() {
             fontSize: 14,
           }}
         >
-          O andamento de cada colaborador no EAD, por empresa e por curso.
-          O progresso vem do Maestrus e é atualizado todo dia de manhã.
+          {mostrarEmpresa
+            ? 'O andamento de cada colaborador nos cursos a distância (EAD), por empresa e por curso.'
+            : 'O andamento de cada colaborador nos cursos a distância (EAD), por curso.'}{' '}
+          Atualizado todo dia de manhã.
           {qtdDesligados > 0 &&
             ' ' + qtdDesligados + ' treinamento(s) de colaboradores desligados não aparecem aqui (veja em Certificados, com "Mostrar desligados").'}
         </p>
@@ -541,19 +553,21 @@ function TreinamentosPageConteudo() {
           </div>
         </div>
 
-        <div className="panel">
-          <div className="panel-head">
-            <div className="section-title">Progresso médio por empresa</div>
-          </div>
+        {mostrarEmpresa && (
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Progresso médio por empresa</div>
+            </div>
 
-          <div className="panel-body">
-            <Barras
-              barras={porEmpresa}
-              sufixo="%"
-              vazio="Nenhum colaborador com matrícula no EAD."
-            />
+            <div className="panel-body">
+              <Barras
+                barras={porEmpresa}
+                sufixo="%"
+                vazio="Nenhum colaborador com matrícula no EAD."
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="panel">
           <div className="panel-head">
@@ -599,7 +613,7 @@ function TreinamentosPageConteudo() {
               onClick={baixarCsv}
               disabled={filtradas.length === 0}
             >
-              Baixar CSV
+              Baixar planilha
             </button>
           </div>
         </div>
@@ -649,14 +663,11 @@ function TreinamentosPageConteudo() {
           <div className="table-wrap">
             <div className="table-scroll">
               <div
-                className="trow thead"
-                style={{
-                  gridTemplateColumns:
-                    '1.6fr 1.1fr 1.4fr 150px 120px 110px',
-                }}
+                className="trow thead treino-cab"
+                style={{ gridTemplateColumns: colunas }}
               >
                 <span>Colaborador</span>
-                <span>Empresa</span>
+                {mostrarEmpresa && <span>Empresa</span>}
                 <span>Curso</span>
                 <span>Progresso</span>
                 <span>Situação</span>
@@ -668,18 +679,15 @@ function TreinamentosPageConteudo() {
               ) : filtradas.length === 0 ? (
                 <div className="empty-state">
                   {linhas.length === 0
-                    ? 'Nenhum certificado cadastrado ainda.'
+                    ? 'Nenhum treinamento cadastrado ainda.'
                     : 'Nenhum treinamento com esses filtros.'}
                 </div>
               ) : (
                 filtradas.map((l) => (
                   <div
                     key={l.id}
-                    className="trow"
-                    style={{
-                      gridTemplateColumns:
-                        '1.6fr 1.1fr 1.4fr 150px 120px 110px',
-                    }}
+                    className="trow treino-linha"
+                    style={{ gridTemplateColumns: colunas }}
                   >
                     <span style={{ minWidth: 0 }}>
                       <span className="tname">{l.colaborador}</span>
@@ -699,7 +707,7 @@ function TreinamentosPageConteudo() {
                       )}
                     </span>
 
-                    <span className="tmuted">{l.empresa}</span>
+                    {mostrarEmpresa && <span className="tmuted">{l.empresa}</span>}
 
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'block' }}>{l.curso}</span>
@@ -751,7 +759,7 @@ function TreinamentosPageConteudo() {
                     </span>
 
                     <span
-                      className="tmuted"
+                      className="tmuted treino-atualizado"
                       style={{ fontSize: 11.5 }}
                     >
                       {formatarDataHora(l.atualizado)}
