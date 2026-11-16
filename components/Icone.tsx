@@ -56,6 +56,55 @@ const DESENHOS = {
       <path d="M5 12h14M13 6l6 6-6 6" />
     </>
   ),
+  relogio: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  alerta: (
+    <>
+      <path d="M10.3 4.3L2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </>
+  ),
+  check: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.7 2.7L16 10" />
+    </>
+  ),
+  infinito: (
+    <>
+      <path d="M7 15a3 3 0 1 1 0-6c3 0 7 6 10 6a3 3 0 1 0 0-6c-3 0-7 6-10 6z" />
+    </>
+  ),
+  duvida: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />
+    </>
+  ),
+  repetir: (
+    <>
+      <path d="M4 12a8 8 0 0 1 14-5.3L20 9" />
+      <path d="M20 4v5h-5" />
+      <path d="M20 12a8 8 0 0 1-14 5.3L4 15" />
+      <path d="M4 20v-5h5" />
+    </>
+  ),
+  bloqueio: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M6 6l12 12" />
+    </>
+  ),
+  baixar: (
+    <>
+      <path d="M12 4v11M7 10l5 5 5-5" />
+      <path d="M5 20h14" />
+    </>
+  ),
 } as const
 
 export type NomeIcone = keyof typeof DESENHOS

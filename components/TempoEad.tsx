@@ -6,6 +6,7 @@ import {
   formatarDuracao,
   type Progresso,
 } from '@/lib/treinamentos'
+import Icone from '@/components/Icone'
 
 /*
  * Tempo de estudo do colaborador no EAD (Maestrus): total e por dia.
@@ -35,7 +36,8 @@ export default function TempoEad({ progresso }: { progresso: Progresso | null })
         style={{ cursor: 'pointer', listStylePosition: 'inside', whiteSpace: 'nowrap' }}
         title="Tempo nas aulas online do EAD. Clique para ver por dia."
       >
-        ⏱ {formatarDuracao(total)} no EAD
+        <span style={{ verticalAlign: '-2px', marginRight: 4 }}><Icone nome="relogio" tamanho={13} /></span>
+        {formatarDuracao(total)} no EAD
         {ultimo ? ' · ' + formatarDia(ultimo.dia).slice(0, 5) + ': ' + formatarDuracao(ultimo.segundos) : ''}
       </summary>
 
