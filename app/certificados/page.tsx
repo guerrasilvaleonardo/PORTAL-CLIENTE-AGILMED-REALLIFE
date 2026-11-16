@@ -80,14 +80,28 @@ const COLUNAS_PROGRESSO_MANUAL =
 /* Coluna criada por certificados-sem-vencimento.sql. */
 const COLUNA_SEM_VENCIMENTO = ', sem_vencimento'
 
+/*
+ * Tipos de certificado, em ordem de NR. Curso fora da lista entra como
+ * "Outro" e aparece com o nome do curso (lib/nomeCertificado.ts).
+ * Os textos já gravados não mudam: renomear um item deixaria os
+ * certificados antigos sem tipo no formulário.
+ */
 const TIPOS = [
-  'NR-35 — Trabalho em Altura',
-  'NR-33 — Espaços Confinados',
-  'NR-10 — Segurança em Instalações Elétricas',
-  'NR-12 — Segurança em Máquinas e Equipamentos',
-  'NR-20 — Inflamáveis e Combustíveis',
-  'NR-18 — Construção Civil',
+  'NR-01 — Disposições Gerais e GRO',
   'NR-06 — Uso de EPI',
+  'NR-10 — Segurança em Instalações Elétricas',
+  'NR-11 — Transporte e Movimentação de Materiais',
+  'NR-12 — Segurança em Máquinas e Equipamentos',
+  'NR-13 — Caldeiras e Vasos de Pressão',
+  'NR-17 — Ergonomia',
+  'NR-18 — Construção Civil',
+  'NR-20 — Inflamáveis e Combustíveis',
+  'NR-26 — Sinalização de Segurança',
+  'NR-31 — Trabalho Rural',
+  'NR-32 — Serviços de Saúde',
+  'NR-33 — Espaços Confinados',
+  'NR-34 — Indústria Naval e Trabalho a Quente',
+  'NR-35 — Trabalho em Altura',
   'Brigada de Incêndio',
   'CIPA — Capacitação',
   'Primeiros Socorros',
@@ -106,7 +120,11 @@ function tipoPeloCurso(curso: string) {
   if (nr) {
     const prefixo = 'NR-' + nr.padStart(2, '0') + ' '
 
-    return TIPOS.find((t) => t.startsWith(prefixo)) || ''
+    const achado = TIPOS.find((t) => t.startsWith(prefixo))
+
+    if (achado) return achado
+    /* NR-05 é a CIPA; NR-23 (incêndio) cai em Brigada pelo texto abaixo. */
+    if (nr === '5') return 'CIPA — Capacitação'
   }
 
   const texto = curso.toUpperCase()
@@ -2605,6 +2623,16 @@ function CertificadosPageConteudo() {
                     </option>
                   ))}
                 </select>
+                {form.tipo === 'Outro' && tipoPeloCurso(form.curso || '') && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ alignSelf: 'flex-start' }}
+                    onClick={() => alterar('tipo', tipoPeloCurso(form.curso || ''))}
+                  >
+                    Usar "{tipoPeloCurso(form.curso || '')}"
+                  </button>
+                )}
                 {form.tipo === 'Outro' && (
                   <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
                     Em "Outro", a lista, a planilha e os e-mails mostram o nome do curso{form.curso ? ': ' + form.curso : ' (preencha o Curso no EAD)'}.
