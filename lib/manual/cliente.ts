@@ -195,15 +195,14 @@ const manualCliente: Manual = {
                 itens: [
                   { rotulo: 'Baixa', desc: '48 horas úteis (6 dias úteis)' },
                   { rotulo: 'Normal', desc: '24 horas úteis (3 dias úteis)', ativo: true },
-                  { rotulo: 'Alta', desc: '8 horas úteis (1 dia útil)' },
                 ],
               },
-              { t: 'texto', n: 2, texto: 'A prioridade Urgente é definida pela nossa equipe após a análise do chamado.' },
+              { t: 'texto', n: 2, texto: 'As prioridades Alta e Urgente são definidas pela nossa equipe após a análise do chamado.' },
             ],
           },
           passos: [
-            'Escolha Baixa, Normal ou Alta. Já vem marcada Normal.',
-            'Urgente (4 horas úteis) é definida só pela nossa equipe, depois de analisar o caso. Se for crítico, explique o impacto na descrição: a equipe avalia e pode subir a prioridade.',
+            'Escolha Baixa ou Normal. Já vem marcada Normal.',
+            'Alta (8 horas úteis) e Urgente (4 horas úteis) são definidas só pela nossa equipe, depois de analisar o caso. Se for crítico, explique o impacto na descrição: a equipe avalia e pode subir a prioridade.',
           ],
           dica: 'Horas úteis são de segunda a sexta, das 8h às 12h e das 13h às 17h (horário de Porto Velho). Fim de semana e feriado não contam.',
         },
