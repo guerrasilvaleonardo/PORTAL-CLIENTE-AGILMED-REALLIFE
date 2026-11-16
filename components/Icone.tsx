@@ -6,6 +6,84 @@
  */
 
 const DESENHOS = {
+  aviso: (
+    <>
+      <path d="M10.3 4.3L2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </>
+  ),
+  prazo: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  revisao: (
+    <>
+      <path d="M4 12a8 8 0 0 1 14-5.3L20 9" />
+      <path d="M20 4v5h-5" />
+      <path d="M20 12a8 8 0 0 1-14 5.3L4 15" />
+      <path d="M4 20v-5h5" />
+    </>
+  ),
+  exportar: (
+    <>
+      <path d="M12 4v11M7 10l5 5 5-5" />
+      <path d="M5 20h14" />
+    </>
+  ),
+  assinatura: (
+    <>
+      <path d="M4 20h16" />
+      <path d="M14.5 4.5l3 3L9 16H6v-3z" />
+    </>
+  ),
+  reticencias: (
+    <>
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </>
+  ),
+  feito: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.7 2.7L16 10" />
+    </>
+  ),
+  loja: (
+    <>
+      <path d="M6 7h12l1 13H5z" />
+      <path d="M9 7V6a3 3 0 0 1 6 0v1" />
+    </>
+  ),
+  usuarios: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20a6 6 0 0 1 12 0" />
+      <path d="M16 5a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6" />
+    </>
+  ),
+  prancheta: (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4h6v3H9z" />
+      <path d="M9 13l2 2 4-4" />
+    </>
+  ),
+  estetoscopio: (
+    <>
+      <path d="M6 3v5a5 5 0 0 0 10 0V3" />
+      <path d="M11 13v2a5 5 0 0 0 10 0v-1" />
+      <circle cx="21" cy="12" r="1.5" />
+    </>
+  ),
+  computador: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </>
+  ),
   atendimento: (
     <>
       <path d="M4 14v-2a8 8 0 0 1 16 0v2" />

@@ -7,7 +7,7 @@ import type { Bloco, Manual } from './tipos'
  * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
-const MENU = ['Início', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
+const MENU = ['Início', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualCliente: Manual = {
@@ -55,8 +55,9 @@ const manualCliente: Manual = {
             blocos: [menu('Início', 1), { t: 'topo', titulo: 'Olá, Maria!', sub: 'Bem-vindo ao Portal do Cliente.' }],
           },
           passos: [
-            'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Documentos SST, Treinamentos ou Conversas. A área aberta fica destacada.',
-            'Áreas com 🔒 são ferramentas contratadas à parte (Certificados, Treinamentos, Documentos SST). Ao clicar, você vê o que a ferramenta oferece e o botão "Solicitar contratação", que abre um chamado para a nossa equipe enviar a proposta.',
+            'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Documentos SST, Treinamentos, Conversas ou Contratar. A área aberta fica destacada.',
+            'Áreas com cadeado são ferramentas contratadas à parte (Certificados, Treinamentos, Documentos SST). Ao clicar, você vê o que a ferramenta resolve, o que ela entrega e como contratar. O botão "Quero uma proposta" abre um chamado já preenchido para a nossa equipe enviar a proposta.',
+            'Contratar reúne tudo o que dá para contratar: as ferramentas do portal (com cadeado quando a sua empresa ainda não tem), serviços e cursos, cada um com o botão "Pedir orçamento". Em "Seus pedidos" você acompanha cada orçamento pedido e a situação dele.',
             'O botão "?" abre este manual já no assunto da tela em que você está.',
             'Atende mais de uma empresa (vários CNPJs)? No topo aparece "Empresa ▾": escolha a empresa e o portal mostra os chamados, certificados e documentos dela. Ao abrir um link de chamado recebido por e-mail, o portal troca sozinho para a empresa certa.',
             'Meu perfil (no topo, ao lado do "?") abre seus dados e a troca de senha. O botão Sair encerra o seu acesso: use sempre que estiver em um computador compartilhado.',
@@ -497,15 +498,15 @@ const manualCliente: Manual = {
             url: '/documentos',
             blocos: [
               menu('Documentos SST'),
-              { t: 'topo', sobre: 'Sua empresa', titulo: 'Documentos SST', botoes: ['Exportar'] },
+              { t: 'topo', sobre: 'Sua empresa', titulo: 'Documentos SST', botoes: ['Exportar planilha'] },
               { t: 'stats', n: 1, itens: [{ rotulo: 'Cadastrados', valor: '6' }, { rotulo: 'Vencidos', valor: '0', tom: 'ruim' }, { rotulo: 'A vencer em até 30 dias', valor: '1', tom: 'ruim' }, { rotulo: 'Sem link assinado', valor: '1' }] },
-              { t: 'tabela', n: 2, colunas: ['Unidade', 'Documento', 'Próximo prazo', 'Situação', 'Arquivo'], linhas: [['Matriz', 'PGR · Rev. 02', '20/11/2026', 'Vence em 31 dias', 'Abrir assinado'], ['Obra', 'PCMSO · Rev. 01', '15/10/2027', 'No prazo', 'Abrir assinado']], pilulas: 3 },
+              { t: 'tabela', n: 2, colunas: ['Unidade', 'Documento', 'Próximo prazo', 'Situação', 'Arquivo'], linhas: [['Matriz', 'PGR · Rev. 02', '20/11/2026', 'Vence em 31 dias', 'Pedir renovação'], ['Obra', 'PCMSO · Rev. 01', '15/10/2027', 'No prazo', 'Abrir assinado']], pilulas: 3 },
             ],
           },
           passos: [
             'Os cartões mostram quantos documentos estão vencidos ou vencem em até 30, 60 e 90 dias, quantos ainda não têm a versão assinada no portal e quantos têm revisão pendente. Clique num cartão para filtrar.',
             'Na lista, "Próximo prazo" é o vencimento ou a revisão programada, o que vier antes. "Abrir assinado" abre o documento.',
-            'No menu ⋯: "Solicitar renovação" abre um chamado já preenchido para a nossa equipe, e "Histórico de revisões" mostra as versões anteriores com os links.',
+            '"Pedir renovação", ao lado do arquivo, abre um chamado já preenchido para a nossa equipe. Depois de pedido, o documento mostra "Chamado #N". No menu de três pontos, "Histórico de revisões" mostra as versões anteriores com os links.',
             'Documento que a sua empresa decidiu não renovar é desativado pela nossa equipe: ele sai da lista, para de gerar avisos e fica na seção "Desativados · não serão renovados", no fim da tela, com a data e o motivo. Mudou de ideia? Fale com a nossa equipe para reativar.',
           ],
           atencao: 'Mudou processo, função, ambiente ou número de trabalhadores? Peça a revisão mesmo antes do prazo: a data no portal não garante que o conteúdo continua atualizado.',
