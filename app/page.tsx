@@ -12,6 +12,8 @@ import CobrancasPendentes, { SeloCobranca } from '@/components/CobrancasPendente
 import { useCobrancasPendentes } from '@/lib/cobrancasPendentes'
 import SeloMensagemNova from '@/components/SeloMensagemNova'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
+import { useModulos, type Modulo } from '@/lib/modulos'
+import Icone, { type NomeIcone } from '@/components/Icone'
 import {
   comLimiteDeTempo,
   irParaLoginSessaoExpirada,
@@ -52,198 +54,28 @@ const prioridadeLabels: Record<string, string> = {
   urgente: 'Urgente',
 }
 
+/* Cor da pílula de cada situação (classes .pill do globals.css). */
+const CLASSE_SITUACAO: Record<string, string> = {
+  aberto: 'info',
+  em_atendimento: 'warn',
+  aguardando_cliente: 'warn',
+  suspenso: 'bad',
+  resolvido: 'good',
+  encerrado: 'good',
+  cancelado: 'flat',
+}
+
 const styles = {
-  page: {
-    minHeight: '100vh',
-    background: '#f5f7fa',
-  },
-
-  container: {
-    width: '100%',
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '32px 24px 60px',
-  },
-
-  welcome: {
-    marginBottom: '28px',
-  },
-
-  welcomeTitle: {
-    margin: 0,
-    fontSize: '32px',
-    lineHeight: 1.2,
-    fontWeight: 700,
-    color: '#172033',
-  },
-
-  welcomeText: {
-    margin: '8px 0 0',
-    fontSize: '16px',
-    color: '#64748b',
-  },
-
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-    gap: '18px',
-    marginBottom: '28px',
-  },
-
-  card: {
-    background: '#ffffff',
-    border: '1px solid #e5e7eb',
-    borderRadius: '18px',
-    padding: '22px',
-    boxShadow: '0 5px 15px rgba(15, 23, 42, 0.05)',
-  },
-
-  cardLabel: {
-    margin: 0,
-    fontSize: '14px',
-    color: '#64748b',
-  },
-
-  cardValue: {
-    margin: '8px 0 0',
-    fontSize: '30px',
-    fontWeight: 700,
-    color: '#172033',
-  },
-
-  actionsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '18px',
-    marginBottom: '28px',
-  },
-
-  actionCard: {
-    borderRadius: '18px',
-    padding: '24px',
-    color: '#ffffff',
-    textDecoration: 'none',
-    minHeight: '150px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    justifyContent: 'space-between',
-  },
-
-  actionTitle: {
-    margin: 0,
-    fontSize: '21px',
-    fontWeight: 700,
-  },
-
-  actionText: {
-    margin: '8px 0 0',
-    fontSize: '14px',
-    lineHeight: 1.5,
-    opacity: 0.92,
-  },
-
-  section: {
-    background: '#ffffff',
-    border: '1px solid #e5e7eb',
-    borderRadius: '18px',
-    overflow: 'hidden',
-    boxShadow: '0 5px 15px rgba(15, 23, 42, 0.05)',
-  },
-
-  sectionHeader: {
-    padding: '22px 24px',
-    borderBottom: '1px solid #e5e7eb',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '16px',
-  },
-
-  sectionTitle: {
-    margin: 0,
-    fontSize: '20px',
-    fontWeight: 700,
-    color: '#172033',
-  },
-
-  sectionLink: {
-    fontSize: '14px',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
-
-  ticketRow: {
-    display: 'grid',
-    gridTemplateColumns: '110px 1fr 150px 120px',
-    gap: '18px',
-    alignItems: 'center',
-    padding: '18px 24px',
-    borderBottom: '1px solid #eef0f3',
-    textDecoration: 'none',
-  },
-
-  lastRow: {
-    borderBottom: 'none',
-  },
-
-  ticketNumber: {
-    fontSize: '14px',
-    fontWeight: 700,
-  },
-
-  ticketSubject: {
-    margin: 0,
-    fontSize: '15px',
-    fontWeight: 600,
-    color: '#172033',
-  },
-
-  ticketCategory: {
-    margin: '4px 0 0',
-    fontSize: '13px',
-    color: '#64748b',
-  },
-
-  badge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 700,
-    whiteSpace: 'nowrap' as const,
-  },
-
-  priority: {
-    fontSize: '13px',
-    fontWeight: 600,
-    textAlign: 'right' as const,
-  },
-
-  empty: {
-    padding: '40px 24px',
-    textAlign: 'center' as const,
-    color: '#64748b',
-  },
-
   loading: {
     minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: '#f5f7fa',
-    color: '#64748b',
+    background: 'var(--bg)',
+    color: 'var(--ink-muted)',
     fontSize: '16px',
-  },
-
-  error: {
-    padding: '20px',
-    borderRadius: '12px',
-    background: '#fef2f2',
-    border: '1px solid #fecaca',
-    color: '#991b1b',
-    marginBottom: '20px',
+    padding: '24px',
+    textAlign: 'center' as const,
   },
 }
 
@@ -253,7 +85,9 @@ export default function HomePage() {
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [chamados, setChamados] = useState<Chamado[]>([])
   /* Números da empresa inteira (não só dos 5 chamados recentes). */
-  const [contagem, setContagem] = useState({ total: 0, andamento: 0, resolvidos: 0, urgentes: 0 })
+  const [contagem, setContagem] = useState({ total: 0, andamento: 0, resolvidos: 0, urgentes: 0, aguardando: 0 })
+  /* Ferramentas contratadas: decide o cadeado dos cartões. */
+  const modulos = useModulos()
   const [error, setError] = useState<string | null>(null)
   const [redirecionando, setRedirecionando] = useState(false)
 
@@ -379,14 +213,15 @@ export default function HomePage() {
               .eq('empresa_id', perfilData.empresa_id)
           ).then((r: any) => r.count || 0)
 
-        const [total, andamento, resolvidos, urgentes] = await Promise.all([
+        const [total, andamento, resolvidos, urgentes, aguardando] = await Promise.all([
           contar((q) => q),
           contar((q) => q.in('status', EM_ANDAMENTO)),
           contar((q) => q.in('status', ['resolvido', 'encerrado'])),
           contar((q) => q.in('status', EM_ANDAMENTO).eq('prioridade', 'urgente')),
+          contar((q) => q.eq('status', 'aguardando_cliente')),
         ])
 
-        if (ativo) setContagem({ total, andamento, resolvidos, urgentes })
+        if (ativo) setContagem({ total, andamento, resolvidos, urgentes, aguardando })
       } catch (err) {
         console.error(
           'Erro ao carregar portal:',
@@ -433,324 +268,115 @@ export default function HomePage() {
 
   const tema = marcas[marca]
 
-  const totalChamados = contagem.total
-  const abertos = contagem.andamento
-  const resolvidos = contagem.resolvidos
-  const urgentes = contagem.urgentes
+  /*
+   * Módulos da tela inicial. Atendimento todo cliente tem; os outros
+   * três são cobrados à parte: sem contratação, o cartão aparece com
+   * cadeado e leva à apresentação da ferramenta (ModuloBloqueado), onde
+   * o cliente pede a contratação por chamado.
+   */
+  const seloAtendimento =
+    contagem.aguardando > 0
+      ? { texto: contagem.aguardando === 1 ? '1 aguarda você' : contagem.aguardando + ' aguardam você', cor: 'warn' }
+      : contagem.andamento > 0
+        ? { texto: contagem.andamento === 1 ? '1 em andamento' : contagem.andamento + ' em andamento', cor: '' }
+        : { texto: 'Nenhum em aberto', cor: '' }
+
+  const cartoes: { href: string; icone: NomeIcone; titulo: string; texto: string; modulo?: Modulo; selo?: { texto: string; cor: string } }[] = [
+    { href: '/chamados', icone: 'atendimento', titulo: 'Atendimento', texto: 'Abrir e acompanhar chamados com a nossa equipe.', selo: seloAtendimento },
+    { href: '/treinamentos', icone: 'treinamentos', titulo: 'Treinamentos EAD', texto: 'Andamento de cada colaborador nos cursos a distância.', modulo: 'treinamentos' },
+    { href: '/certificados', icone: 'certificados', titulo: 'Certificados', texto: 'Validade dos certificados, com aviso antes de vencer.', modulo: 'certificados' },
+    { href: '/documentos', icone: 'documentos', titulo: 'Documentos SST', texto: 'PGR, PCMSO e laudos com prazos e versões assinadas.', modulo: 'documentos' },
+  ]
 
   return (
-    <main style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.welcome}>
-          <h1 style={styles.welcomeTitle}>
-            Olá, {perfil?.nome || 'Cliente'}!
-          </h1>
-
-          <p style={styles.welcomeText}>
-            Bem-vindo ao Portal do Cliente{' '}
-            {tema.nome}.
-          </p>
+    <main className="app">
+      <div className="inicio" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <div className="inicio-ola">
+          <span className="section-title">{tema.nome}</span>
+          <h1>Olá, {perfil?.nome?.split(' ')[0] || 'cliente'}! O que você precisa hoje?</h1>
         </div>
 
-        {error && (
-          <div style={styles.error}>
-            {error}
-          </div>
-        )}
+        {error && <div className="banner bad">{error}</div>}
 
         <CobrancasPendentes cobrancas={cobrancas} />
 
         <PendenciasAvaliacao pendentes={pendentes} />
 
-        <div
-          style={{
-            ...styles.grid,
-            gridTemplateColumns:
-              'repeat(4, minmax(0, 1fr))',
-          }}
-        >
-          <div style={styles.card}>
-            <p style={styles.cardLabel}>
-              Chamados
-            </p>
+        <nav className="inicio-grade" aria-label="Módulos do portal">
+          {cartoes.map((c) => {
+            const bloqueado = !!c.modulo && !modulos.carregando && !modulos.liberado(c.modulo)
 
-            <p style={styles.cardValue}>
-              {totalChamados}
-            </p>
-          </div>
+            return (
+              <Link key={c.href} href={c.href} className={'mod-card' + (bloqueado ? ' bloqueado' : '')}>
+                <div className="mod-topo">
+                  <span className="mod-icone">
+                    <Icone nome={c.icone} tamanho={24} />
+                  </span>
+                  {bloqueado && (
+                    <span className="mod-cadeado">
+                      <Icone nome="cadeado" tamanho={18} rotulo="Ferramenta não contratada" />
+                    </span>
+                  )}
+                </div>
+                <h3>{c.titulo}</h3>
+                <p>{c.texto}</p>
+                {bloqueado ? (
+                  <span className="mod-selo acento">Conhecer e contratar</span>
+                ) : c.selo ? (
+                  <span className={'mod-selo ' + c.selo.cor}>{c.selo.texto}</span>
+                ) : (
+                  <span className="mod-go">
+                    Abrir <Icone nome="seta" tamanho={14} />
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </nav>
 
-          <div style={styles.card}>
-            <p style={styles.cardLabel}>
-              Em andamento
-            </p>
-
-            <p style={styles.cardValue}>
-              {abertos}
-            </p>
-          </div>
-
-          <div style={styles.card}>
-            <p style={styles.cardLabel}>
-              Resolvidos
-            </p>
-
-            <p style={styles.cardValue}>
-              {resolvidos}
-            </p>
-          </div>
-
-          <div style={styles.card}>
-            <p style={styles.cardLabel}>
-              Urgentes em aberto
-            </p>
-
-            <p style={styles.cardValue}>
-              {urgentes}
-            </p>
-          </div>
-        </div>
-
-        <div style={styles.actionsGrid}>
-          <Link
-            href="/chamados/novo"
-            style={{
-              ...styles.actionCard,
-              background: tema.principal,
-            }}
-          >
-            <div>
-              <h2 style={styles.actionTitle}>
-                Novo chamado
-              </h2>
-
-              <p style={styles.actionText}>
-                Solicite atendimento à nossa equipe.
-              </p>
-            </div>
-
-            <strong>
-              + Abrir chamado
-            </strong>
+        <div className="inicio-acoes">
+          <Link href="/chamados/novo" className="btn btn-primary">
+            <Icone nome="mais" tamanho={16} /> Abrir chamado
           </Link>
-
-          <Link
-            href="/chamados"
-            style={{
-              ...styles.actionCard,
-              background: tema.dark,
-            }}
-          >
-            <div>
-              <h2 style={styles.actionTitle}>
-                Meus chamados
-              </h2>
-
-              <p style={styles.actionText}>
-                Consulte seus chamados, mensagens e
-                andamento.
-              </p>
-            </div>
-
-            <strong>
-              Ver chamados →
-            </strong>
+          <Link href="/chamados" className="btn">
+            Ver todos os chamados
           </Link>
         </div>
 
-        {perfil?.perfil === 'gestor' ||
-        perfil?.perfil === 'atendimento' ||
-        perfil?.perfil === 'admin' ? (
-          <div style={{ marginBottom: '28px' }}>
-            <Link
-              href="/atendimento"
-              style={{
-                display: 'block',
-                padding: '22px 24px',
-                borderRadius: '18px',
-                background: tema.fundo,
-                border: `1px solid ${tema.borda}`,
-                color: tema.dark,
-                textDecoration: 'none',
-              }}
-            >
-              <strong
-                style={{
-                  display: 'block',
-                  fontSize: '18px',
-                  marginBottom: '6px',
-                }}
-              >
-                Atendimento interno
-              </strong>
-
-              <span
-                style={{
-                  fontSize: '14px',
-                  color: '#64748b',
-                }}
-              >
-                Acesse a área de gestão e atendimento
-                dos chamados.
-              </span>
-            </Link>
-          </div>
-        ) : null}
-
-        <section style={styles.section}>
-          <div style={styles.sectionHeader}>
-            <h2 style={styles.sectionTitle}>
-              Chamados recentes
-            </h2>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                flexWrap: 'wrap',
-              }}
-            >
+        <section className="panel">
+          <div className="panel-head">
+            <h2 style={{ fontSize: 18 }}>Chamados recentes</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <AjudaSituacoes />
-
-              <Link
-                href="/chamados"
-                style={{
-                  ...styles.sectionLink,
-                  color: tema.principal,
-                }}
-              >
+              <Link href="/chamados" className="btn btn-ghost btn-sm">
                 Ver todos
               </Link>
             </div>
           </div>
 
           {chamados.length === 0 ? (
-            <div style={styles.empty}>
-              <p style={{ margin: 0 }}>
-                Você ainda não possui chamados.
-              </p>
-
-              <p
-                style={{
-                  margin: '8px 0 0',
-                  fontSize: '14px',
-                }}
-              >
-                Clique em “Novo chamado” para
-                solicitar atendimento.
-              </p>
+            <div className="empty-state">
+              <p style={{ margin: 0 }}>Você ainda não abriu nenhum chamado.</p>
+              <p style={{ margin: '8px 0 0' }}>Use “Abrir chamado” para falar com a nossa equipe.</p>
             </div>
           ) : (
             <div>
-              {chamados.map(
-                (chamado, index) => (
-                  <Link
-                    key={chamado.id}
-                    href={
-                      '/chamados/' +
-                      chamado.id
-                    }
-                    style={{
-                      ...styles.ticketRow,
-                      ...(index ===
-                      chamados.length - 1
-                        ? styles.lastRow
-                        : {}),
-                    }}
-                  >
-                    <div
-                      style={{
-                        ...styles.ticketNumber,
-                        color: tema.principal,
-                      }}
-                    >
-                      #{chamado.numero}
-                    </div>
-
-                    <div>
-                      <p
-                        style={
-                          styles.ticketSubject
-                        }
-                      >
-                        {chamado.assunto}
-                        {idsParaAvaliar.has(chamado.id) && <SeloAvaliar />}
-                        {diasCobranca.has(chamado.id) && (
-                          <SeloCobranca dias={diasCobranca.get(chamado.id) || 0} />
-                        )}
-                        <SeloMensagemNova quantidade={mensagensNovas[chamado.id]} />
-                      </p>
-
-                      <p
-                        style={
-                          styles.ticketCategory
-                        }
-                      >
-                        {chamado.categoria}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span
-                        title={
-                          EXPLICACAO_CLIENTE[chamado.status] || ''
-                        }
-                        style={{
-                          ...styles.badge,
-                          background:
-                            chamado.status ===
-                            'aberto'
-                              ? '#eff6ff'
-                              : chamado.status ===
-                                  'em_atendimento'
-                                ? '#fff7ed'
-                                : chamado.status ===
-                                    'aguardando_cliente'
-                                  ? '#fefce8'
-                                  : chamado.status === 'suspenso'
-                                    ? '#fef2f2'
-                                    : '#f0fdf4',
-                          color:
-                            chamado.status ===
-                            'aberto'
-                              ? '#1d4ed8'
-                              : chamado.status ===
-                                  'em_atendimento'
-                                ? '#c2410c'
-                                : chamado.status ===
-                                    'aguardando_cliente'
-                                  ? '#a16207'
-                                  : chamado.status === 'suspenso'
-                                    ? '#b91c1c'
-                                    : '#15803d',
-                        }}
-                      >
-                        {statusLabels[
-                          chamado.status
-                        ] || chamado.status}
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        ...styles.priority,
-                        color:
-                          chamado.prioridade ===
-                          'urgente'
-                            ? '#dc2626'
-                            : chamado.prioridade ===
-                                'alta'
-                              ? '#ea580c'
-                              : '#64748b',
-                      }}
-                    >
-                      {prioridadeLabels[
-                        chamado.prioridade
-                      ] || chamado.prioridade}
-                    </div>
-                  </Link>
-                )
-              )}
+              {chamados.map((chamado) => (
+                <Link key={chamado.id} href={'/chamados/' + chamado.id} className="chamado-linha">
+                  <span className="num">#{chamado.numero}</span>
+                  <span className="assunto">
+                    <strong>{chamado.assunto}</strong>
+                    {idsParaAvaliar.has(chamado.id) && <SeloAvaliar />}
+                    {diasCobranca.has(chamado.id) && <SeloCobranca dias={diasCobranca.get(chamado.id) || 0} />}
+                    <SeloMensagemNova quantidade={mensagensNovas[chamado.id]} />
+                    <span>{chamado.categoria}</span>
+                  </span>
+                  <span className={'pill ' + (CLASSE_SITUACAO[chamado.status] || 'flat')} title={EXPLICACAO_CLIENTE[chamado.status] || ''}>
+                    {statusLabels[chamado.status] || chamado.status}
+                  </span>
+                  <span className={'prio ' + chamado.prioridade}>{prioridadeLabels[chamado.prioridade] || chamado.prioridade}</span>
+                </Link>
+              ))}
             </div>
           )}
         </section>

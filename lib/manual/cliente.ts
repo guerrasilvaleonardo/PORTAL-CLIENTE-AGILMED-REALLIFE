@@ -91,20 +91,20 @@ const manualCliente: Manual = {
       slides: [
         {
           titulo: 'O que a tela Início mostra',
-          texto: 'É a primeira tela depois de entrar. Ela resume os chamados mais recentes da sua empresa e dá atalhos para o que você mais usa.',
+          texto: 'É a primeira tela depois de entrar. Ela mostra as áreas do portal em ícones e os chamados mais recentes da sua empresa.',
           tela: {
             url: '/',
             blocos: [
               menu('Início'),
-              { t: 'topo', titulo: 'Olá, Maria!', sub: 'Bem-vindo ao Portal do Cliente.' },
-              { t: 'stats', n: 1, itens: [{ rotulo: 'Chamados recentes', valor: '5' }, { rotulo: 'Em andamento', valor: '2' }, { rotulo: 'Resolvidos', valor: '3' }, { rotulo: 'Urgentes', valor: '0' }] },
-              { t: 'cartoes', n: 2, itens: [{ titulo: 'Novo chamado', texto: '+ Abrir chamado' }, { titulo: 'Meus chamados', texto: 'Ver chamados →' }] },
+              { t: 'topo', titulo: 'Olá, Maria! O que você precisa hoje?', sub: 'Real Life SSMA' },
+              { t: 'cartoes', n: 1, itens: [{ titulo: 'Atendimento', texto: '1 aguarda você' }, { titulo: 'Treinamentos EAD', texto: 'Abrir →' }, { titulo: 'Certificados', texto: 'Abrir →' }, { titulo: 'Documentos SST', texto: 'Conhecer e contratar' }] },
+              { t: 'cartoes', n: 2, itens: [{ titulo: 'Abrir chamado', texto: '+ Abrir chamado' }, { titulo: 'Ver todos os chamados', texto: 'Lista completa' }] },
               { t: 'tabela', n: 3, colunas: ['Nº', 'Assunto', 'Situação', 'Prioridade'], linhas: [['#120', 'Atualizar PGR', 'Em atendimento', 'Normal'], ['#118', 'Agendar exames', 'Resolvido', 'Alta']], pilulas: 2 },
             ],
           },
           passos: [
-            'Os números contam todos os chamados da empresa que você pode ver: total, em andamento, resolvidos e urgentes ainda em aberto.',
-            'Atalhos: "Novo chamado" abre um pedido e "Meus chamados" mostra a lista completa.',
+            'Clique em um ícone para entrar na área. Em Atendimento, o selo avisa quantos chamados esperam a sua resposta. Área com cadeado é uma ferramenta que a sua empresa ainda não contratou: clique para conhecer e pedir a contratação.',
+            'Atalhos: "Abrir chamado" abre um pedido e "Ver todos os chamados" mostra a lista completa.',
             'Chamados recentes: clique em uma linha para abrir o chamado. O botão "O que significa cada situação?" explica cada etapa.',
           ],
         },
