@@ -27,6 +27,7 @@ import {
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import Icone, { type NomeIcone } from '@/components/Icone'
+import { nomeDoTipo } from '@/lib/nomeCertificado'
 import TempoEad from '@/components/TempoEad'
 import { lerTudo } from '@/lib/lerTudo'
 import { chaveCertificado, chavePessoa, formatarCpf, pessoasPorCpf, soDigitosCpf, substitutosHistorico } from '@/lib/historicoCertificados'
@@ -79,14 +80,28 @@ const COLUNAS_PROGRESSO_MANUAL =
 /* Coluna criada por certificados-sem-vencimento.sql. */
 const COLUNA_SEM_VENCIMENTO = ', sem_vencimento'
 
+/*
+ * Tipos de certificado, em ordem de NR. Curso fora da lista entra como
+ * "Outro" e aparece com o nome do curso (lib/nomeCertificado.ts).
+ * Os textos já gravados não mudam: renomear um item deixaria os
+ * certificados antigos sem tipo no formulário.
+ */
 const TIPOS = [
-  'NR-35 — Trabalho em Altura',
-  'NR-33 — Espaços Confinados',
-  'NR-10 — Segurança em Instalações Elétricas',
-  'NR-12 — Segurança em Máquinas e Equipamentos',
-  'NR-20 — Inflamáveis e Combustíveis',
-  'NR-18 — Construção Civil',
+  'NR-01 — Disposições Gerais e GRO',
   'NR-06 — Uso de EPI',
+  'NR-10 — Segurança em Instalações Elétricas',
+  'NR-11 — Transporte e Movimentação de Materiais',
+  'NR-12 — Segurança em Máquinas e Equipamentos',
+  'NR-13 — Caldeiras e Vasos de Pressão',
+  'NR-17 — Ergonomia',
+  'NR-18 — Construção Civil',
+  'NR-20 — Inflamáveis e Combustíveis',
+  'NR-26 — Sinalização de Segurança',
+  'NR-31 — Trabalho Rural',
+  'NR-32 — Serviços de Saúde',
+  'NR-33 — Espaços Confinados',
+  'NR-34 — Indústria Naval e Trabalho a Quente',
+  'NR-35 — Trabalho em Altura',
   'Brigada de Incêndio',
   'CIPA — Capacitação',
   'Primeiros Socorros',
@@ -105,7 +120,11 @@ function tipoPeloCurso(curso: string) {
   if (nr) {
     const prefixo = 'NR-' + nr.padStart(2, '0') + ' '
 
-    return TIPOS.find((t) => t.startsWith(prefixo)) || ''
+    const achado = TIPOS.find((t) => t.startsWith(prefixo))
+
+    if (achado) return achado
+    /* NR-05 é a CIPA; NR-23 (incêndio) cai em Brigada pelo texto abaixo. */
+    if (nr === '5') return 'CIPA — Capacitação'
   }
 
   const texto = curso.toUpperCase()
@@ -241,13 +260,13 @@ function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }
  * Chamado de reciclagem já preenchido, para o cliente pedir a renovação
  * de um treinamento vencido ou perto de vencer sem digitar nada.
  */
-function linkReciclagem(c: { tipo: string; colaborador: string; validade: string | null }) {
+function linkReciclagem(c: { tipo: string; curso?: string | null; colaborador: string; validade: string | null }) {
   const q = new URLSearchParams({
     categoria: 'Treinamentos',
-    assunto: ('Reciclagem: ' + c.tipo + ' · ' + c.colaborador).slice(0, 200),
+    assunto: ('Reciclagem: ' + nomeDoTipo(c) + ' · ' + c.colaborador).slice(0, 200),
     descricao:
       'Gostaríamos de agendar a reciclagem do treinamento ' +
-      c.tipo +
+      nomeDoTipo(c) +
       ' de ' +
       c.colaborador +
       (c.validade ? ' (validade ' + formatarData(c.validade) + ')' : '') +
@@ -490,8 +509,13 @@ function CertificadosPageConteudo() {
     setForm((atual) => {
       const novo = { ...atual, [campo]: tratado }
 
-      if (campo === 'curso' && !atual.tipo) {
-        novo.tipo = tipoPeloCurso(tratado)
+      /*
+       * O curso decide o tipo enquanto ninguém escolheu outro: o da lista,
+       * se houver; senão "pelo curso" (gravado como "Outro", mostrado com o
+       * nome do curso). Uma escolha feita à mão não é trocada.
+       */
+      if (campo === 'curso' && (!atual.tipo || atual.tipo === 'Outro')) {
+        novo.tipo = tipoPeloCurso(tratado) || (tratado.trim() ? 'Outro' : '')
       }
 
       return novo
@@ -982,8 +1006,8 @@ function CertificadosPageConteudo() {
       return
     }
 
-    if (!form.tipo) {
-      setErro('Selecione o tipo de certificado.')
+    if (!form.tipo && !form.curso.trim()) {
+      setErro('Informe o curso ou selecione o tipo de certificado.')
       return
     }
 
@@ -1018,7 +1042,7 @@ function CertificadosPageConteudo() {
         email_colaborador: form.email_colaborador.trim().toLowerCase() || null,
         curso: form.curso.trim().toUpperCase() || null,
         funcao: form.funcao.trim() || null,
-        tipo: form.tipo,
+        tipo: form.tipo || 'Outro',
         emissao: form.emissao || null,
         validade: form.validade || null,
         ...(suportaSemVencimento ? { sem_vencimento: !form.validade && form.sem_vencimento } : {}),
@@ -1093,7 +1117,7 @@ function CertificadosPageConteudo() {
       email_colaborador: c.email_colaborador || '',
       curso: c.curso || '',
       funcao: c.funcao || '',
-      tipo: c.tipo,
+      tipo: c.tipo === 'Outro' ? tipoPeloCurso(c.curso || '') || 'Outro' : c.tipo,
       emissao: c.emissao || '',
       validade: c.validade || '',
       observacoes: c.observacoes || '',
@@ -1185,7 +1209,7 @@ function CertificadosPageConteudo() {
       /* Histórico fica dentro do cadastro do atual; só aparece na lista com o filtro "Histórico". */
       if (ehHistorico(c) && filtroSituacao !== 'historico') return false
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
-      if (filtroTipo && c.tipo !== filtroTipo) return false
+      if (filtroTipo && c.tipo !== filtroTipo && nomeDoTipo(c) !== filtroTipo) return false
       if (filtroMes && mesDoCertificado(c) !== filtroMes) return false
 
       if (filtroOrigem) {
@@ -1297,8 +1321,9 @@ function CertificadosPageConteudo() {
 
     const noPeriodo = base.filter((c) => meses.includes(mesDoCertificado(c)))
 
-    const tipos = [...new Set(noPeriodo.map((c) => c.tipo))].sort(
-      (a, b) => TIPOS.indexOf(a) - TIPOS.indexOf(b) || a.localeCompare(b)
+    const ordem = (t: string) => (TIPOS.includes(t) ? TIPOS.indexOf(t) : TIPOS.length)
+    const tipos = [...new Set(noPeriodo.map((c) => nomeDoTipo(c)))].sort(
+      (a, b) => ordem(a) - ordem(b) || a.localeCompare(b)
     )
 
     const celula: Record<string, number> = {}
@@ -1311,10 +1336,10 @@ function CertificadosPageConteudo() {
 
     for (const c of noPeriodo) {
       const m = mesDoCertificado(c)
-      const chave = c.tipo + '|' + m
+      const chave = nomeDoTipo(c) + '|' + m
 
       celula[chave] = (celula[chave] || 0) + 1
-      porTipo[c.tipo] = (porTipo[c.tipo] || 0) + 1
+      porTipo[nomeDoTipo(c)] = (porTipo[nomeDoTipo(c)] || 0) + 1
       porMes[m] = (porMes[m] || 0) + 1
 
       if ((progressoDe(c)?.progresso ?? 0) >= 100) {
@@ -1466,7 +1491,7 @@ function CertificadosPageConteudo() {
         c.funcao,
         c.email_colaborador,
         c.empresas?.nome_fantasia || c.empresas?.razao_social,
-        c.tipo,
+        nomeDoTipo(c),
         c.curso,
         c.progresso_origem === 'manual' ? 'Presencial' : 'EAD',
         p ? Math.round(p.progresso) : '',
@@ -1776,7 +1801,7 @@ function CertificadosPageConteudo() {
         )}
 
         <span style={{ minWidth: 0 }}>
-          <span className="cert-curso">{c.tipo}</span>
+          <span className="cert-curso">{nomeDoTipo(c)}</span>
           <span className="cert-sub" title={c.curso || undefined}>
             {c.progresso_origem === 'manual' ? 'Presencial' : 'EAD'}
             {c.curso ? ' · ' + c.curso : ''}
@@ -1853,7 +1878,7 @@ function CertificadosPageConteudo() {
                 {h.validade ? formatarData(h.validade) : h.sem_vencimento ? 'sem vencimento' : '—'}
               </span>
               <span className="cert-sub">
-                {h.tipo}
+                {nomeDoTipo(h)}
                 {h.curso ? ' · ' + h.curso : ''}
                 {substitutos.get(h.id)?.emissao ? ' · substituído em ' + formatarData(substitutos.get(h.id)!.emissao) : ''}
               </span>
@@ -2072,7 +2097,7 @@ function CertificadosPageConteudo() {
                   <option value="">Todos os tipos</option>
                   {TIPOS.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {t === 'Outro' ? 'Outros cursos (fora da lista)' : t}
                     </option>
                   ))}
                 </select>
@@ -2594,15 +2619,18 @@ function CertificadosPageConteudo() {
               )}
 
               <div className="field">
-                <label>Tipo *</label>
+                <label>Tipo</label>
                 <select value={form.tipo} onChange={(e) => alterar('tipo', e.target.value)}>
-                  <option value="">Selecione</option>
+                  <option value="">{form.curso.trim() ? 'Pelo curso: ' + form.curso.trim() : 'Selecione'}</option>
                   {TIPOS.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {t === 'Outro' ? 'Pelo curso: ' + (form.curso.trim() || 'preencha o Curso no EAD') : t}
                     </option>
                   ))}
                 </select>
+                <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
+                  Vem sozinho pelo Curso no EAD. Mude só se o curso não disser o tipo certo.
+                </span>
               </div>
 
               <div className="field-row">
