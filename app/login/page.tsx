@@ -74,12 +74,28 @@ export default function LoginPage() {
     <main className="login-page" style={cores}>
       <div className="login-card">
         <div className="login-faixa">
-          <div className="login-marca">{marca === 'agilmed' ? 'AM' : 'RL'}</div>
+          {marca === 'reallife' ? (
+            <>
+              {/* Logo oficial em versão para fundo escuro (letras brancas, "a" verde). */}
+              <img
+                src="/marca/real-life-logo-horizontal-negativo.svg"
+                alt="Real Life Engenharia de SSMA"
+                className="login-logo"
+                width={140}
+                height={69}
+              />
+              <span className="login-portal">Portal do Cliente</span>
+            </>
+          ) : (
+            <>
+              <div className="login-marca">AM</div>
 
-          <div>
-            <strong>{tema.nome}</strong>
-            <span>Portal do Cliente</span>
-          </div>
+              <div>
+                <strong>{tema.nome}</strong>
+                <span>Portal do Cliente</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="login-corpo">
@@ -183,6 +199,19 @@ export default function LoginPage() {
           color: rgba(255, 255, 255, 0.78);
           font-size: 13px;
           margin-top: 2px;
+        }
+
+        .login-logo {
+          display: block;
+          width: 140px;
+          height: auto;
+        }
+
+        .login-portal {
+          margin-left: auto;
+          color: rgba(255, 255, 255, 0.78);
+          font-size: 13px;
+          font-weight: 600;
         }
 
         .login-corpo {

@@ -261,12 +261,30 @@ export default function PortalHeader() {
         }}
       >
         <Link href={interno ? '/painel' : '/'} className="brand">
-          <div className="brand-mark">{marca === 'agilmed' ? 'AM' : 'RL'}</div>
+          {marca === 'reallife' ? (
+            <>
+              {/* Logo oficial colorido (fundo claro). */}
+              <img
+                src="/marca/real-life-logo-horizontal-cor.svg"
+                alt="Real Life Engenharia de SSMA"
+                width={92}
+                height={45}
+                style={{ display: 'block', width: 92, height: 'auto' }}
+              />
+              <div className="brand-text">
+                <span>Portal do Cliente</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="brand-mark">AM</div>
 
-          <div className="brand-text">
-            <h1>{tema.nome}</h1>
-            <span>Portal do Cliente</span>
-          </div>
+              <div className="brand-text">
+                <h1>{tema.nome}</h1>
+                <span>Portal do Cliente</span>
+              </div>
+            </>
+          )}
         </Link>
 
         {!carregando && !interno && <SeletorEmpresa />}
