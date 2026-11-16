@@ -21,6 +21,7 @@ import EtapasChamado from '@/components/EtapasChamado'
 import ParticipantesChamado from '@/components/ParticipantesChamado'
 import AvaliacaoChamado from '@/components/AvaliacaoChamado'
 import '../../chamado-selecao.css'
+import Icone from '@/components/Icone'
 
 type Chamado = {
   id: string
@@ -87,11 +88,12 @@ const identidade = {
     borda: '#bfdbfe',
   },
 
+  /* Azul e verde da Real Life (os mesmos do EAD); verde só como tinta de fundo. */
   reallife: {
-    principal: '#0f766e',
-    fundo: '#f0fdfa',
-    fundoForte: '#ccfbf1',
-    borda: '#99f6e4',
+    principal: '#1D255D',
+    fundo: '#F5F9E8',
+    fundoForte: '#EEF6D6',
+    borda: '#DCE9B0',
   },
 } as const
 
@@ -1013,12 +1015,12 @@ export default function DetalhesChamadoPage() {
           </div>
         )}
 
-        <section style={styles.grid}>
+        <section style={styles.grid} className="chamado-grade">
           <div style={styles.mainColumn}>
             <div style={styles.card}>
               <div style={styles.cardHeader}>
                 <h2 style={styles.cardTitle}>
-                  Detalhes do chamado
+                  Situação do chamado
                 </h2>
 
                 <div
@@ -1073,6 +1075,26 @@ export default function DetalhesChamadoPage() {
                   </div>
                 </div>
               )}
+
+              <ProgressoChamado status={chamado.status} />
+
+              <div className="chamado-fichas">
+                <span className="chamado-ficha">
+                  <strong>Prazo de atendimento:</strong>{' '}
+                  {chamado.status === 'cancelado'
+                    ? 'fora do prazo (cancelado)'
+                    : chamado.status === 'aguardando_cliente'
+                      ? 'pausado até você responder'
+                      : chamado.status === 'suspenso'
+                        ? 'pausado durante a suspensão'
+                        : chamado.status === 'resolvido' || chamado.status === 'encerrado'
+                          ? 'concluído'
+                          : formatarData(chamado.prazo_sla)}
+                </span>
+                <span className="chamado-ficha">
+                  <strong>Atendente:</strong> {atendente || 'a definir'}
+                </span>
+              </div>
 
               {chamado.status === 'resolvido' && perfilAtual === 'cliente' && (
                 <div
@@ -1202,484 +1224,12 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
 
-              <div style={styles.infoGrid}>
-                <Info
-                  label="Categoria"
-                  value={chamado.categoria}
-                />
-
-                <Info
-                  label="Aberto por"
-                  value={
-                    solicitante?.nome ||
-                    solicitante?.email ||
-                    '—'
-                  }
-                  detalhe={
-                    solicitante?.nome
-                      ? solicitante?.email || undefined
-                      : undefined
-                  }
-                />
-
-                <Info
-                  label="Atendente responsável"
-                  value={atendente || 'Aguardando atribuição'}
-                  detalhe={
-                    atendente
-                      ? 'É quem está cuidando do seu chamado.'
-                      : chamado.status === 'resolvido' ||
-                          chamado.status === 'encerrado' ||
-                          chamado.status === 'cancelado'
-                        ? undefined
-                        : 'Um atendente da nossa equipe vai assumir em breve.'
-                  }
-                />
-
-                <Info
-                  label="Prioridade"
-                  value={
-                    prioridadeLabels[
-                      chamado.prioridade
-                    ] || chamado.prioridade
-                  }
-                />
-
-                <Info
-                  label="Abertura"
-                  value={formatarData(
-                    chamado.created_at
-                  )}
-                />
-
-                <Info
-                  label="Atualização"
-                  value={formatarData(
-                    chamado.updated_at
-                  )}
-                />
-
-                <Info
-                  label="Prazo SLA"
-                  value={
-                    chamado.status === 'cancelado'
-                      ? 'Fora do prazo (cancelado)'
-                      : chamado.status === 'aguardando_cliente' || chamado.status === 'suspenso'
-                      ? 'Pausado'
-                      : formatarData(chamado.prazo_sla)
-                  }
-                  detalhe={
-                    chamado.status === 'aguardando_cliente'
-                      ? 'O prazo volta a contar quando você responder'
-                      : chamado.status === 'suspenso'
-                        ? 'O prazo volta a contar quando o atendimento for retomado'
-                        : undefined
-                  }
-                />
-
-                {posicao && (
-                  <Info
-                    label="Posição na fila"
-                    value={
-                      posicao.posicao_area +
-                      'º de ' +
-                      posicao.total_area
-                    }
-                    detalhe={
-                      'Fila de ' +
-                      posicao.area +
-                      '. Pode mudar se entrar uma demanda urgente.'
-                    }
-                  />
-                )}
-
-                <Info
-                  label="Encerramento"
-                  value={formatarData(
-                    chamado.encerrado_em
-                  )}
-                />
-              </div>
-
-              <div style={styles.descriptionBox}>
-                <div style={styles.label}>
-                  Descrição
-                </div>
-
-                <p style={styles.description}>
-                  {chamado.descricao}
-                </p>
-              </div>
-            </div>
-
-            <AvaliacaoChamado
-              chamadoId={String(chamado.id)}
-              status={chamado.status}
-              cor={tema.principal}
-              cardStyle={styles.card}
-              titleStyle={styles.cardTitle}
-            />
-
-            <EtapasChamado
-              chamadoId={String(chamado.id)}
-              editavel={false}
-              cor={tema.principal}
-              cardStyle={styles.card}
-              titleStyle={styles.cardTitle}
-            />
-
-            {chamado.empresa_id && (
-              <ParticipantesChamado
-                chamadoId={String(chamado.id)}
-                empresaId={String(chamado.empresa_id)}
-                criadoPor={chamado.criado_por}
-                podeGerenciar={
-                  !!usuarioId &&
-                  chamado.criado_por === usuarioId &&
-                  chamado.status !== 'encerrado' &&
-                  chamado.status !== 'cancelado'
-                }
-                cor={tema.principal}
-                cardStyle={styles.card}
-                titleStyle={styles.cardTitle}
-              />
-            )}
-
-            <div style={styles.card}>
-              <div style={styles.cardHeader}>
-                <h2 style={styles.cardTitle}>
-                  Anexos
-                </h2>
-
-                <span style={styles.messageCount}>
-                  {anexos.length}{' '}
-                  {anexos.length === 1
-                    ? 'arquivo'
-                    : 'arquivos'}
-                </span>
-              </div>
-
-              <div
-                style={{
-                  ...styles.uploadArea,
-                  borderColor: tema.borda,
-                  background: tema.fundo,
-                }}
-              >
-                <div
-                  style={{
-                    ...styles.uploadIcon,
-                    background: tema.fundoForte,
-                    color: tema.principal,
-                  }}
-                >
-                  ↑
-                </div>
-
-                <div style={styles.uploadContent}>
-                  <strong style={styles.uploadTitle}>
-                    Enviar arquivo
-                  </strong>
-
-                  <p style={styles.uploadText}>
-                    Anexe documentos, imagens ou outros
-                    arquivos relacionados ao chamado.
-                  </p>
-
-                  <p style={styles.uploadLimit}>
-                    Tamanho máximo: 10 MB por arquivo.
-                  </p>
-
-                  <label
-                    htmlFor="arquivo-chamado"
-                    style={{
-                      ...styles.uploadButton,
-                      background: tema.principal,
-                      ...(enviandoAnexo
-                        ? styles.disabledButton
-                        : {}),
-                    }}
-                  >
-                    {enviandoAnexo
-                      ? 'Enviando arquivo...'
-                      : 'Selecionar arquivo'}
-                  </label>
-
-                  <input
-                    id="arquivo-chamado"
-                    type="file"
-                    onChange={enviarAnexo}
-                    disabled={enviandoAnexo}
-                    style={styles.hiddenInput}
-                  />
-                </div>
-              </div>
-
-              {erroAnexo && (
-                <div style={styles.attachmentError}>
-                  {erroAnexo}
-                </div>
-              )}
-
-              {anexos.length > 0 && (
-                <div
-                  style={{
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    color: '#1e3a8a',
-                    borderRadius: '10px',
-                    padding: '10px 12px',
-                    marginBottom: '12px',
-                    fontSize: '14px',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <strong>Novo:</strong> clique em <strong>Baixar</strong>{' '}
-                  para salvar o arquivo no seu computador. O botão{' '}
-                  <strong>Abrir</strong> mostra o arquivo em uma nova aba.
-                </div>
-              )}
-
-              {anexos.length === 0 ? (
-                <div style={styles.emptyAttachments}>
-                  Ainda não existem arquivos anexados a este
-                  chamado.
-                </div>
-              ) : (
-                <div style={styles.attachmentList}>
-                  {anexos.map((anexo) => (
-                    <div
-                      key={anexo.id}
-                      style={styles.attachmentItem}
-                    >
-                      <div style={styles.fileIcon}>
-                        {iconeArquivo(
-                          anexo.tipo_arquivo,
-                          anexo.nome_arquivo
-                        )}
-                      </div>
-
-                      <div style={styles.fileInfo}>
-                        <strong style={styles.fileName}>
-                          {anexo.nome_arquivo}
-                        </strong>
-
-                        <span style={styles.fileMeta}>
-                          {formatarTamanho(
-                            anexo.tamanho_bytes
-                          )}{' '}
-                          •{' '}
-                          {formatarData(
-                            anexo.created_at
-                          )}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          abrirAnexo(anexo)
-                        }
-                        disabled={
-                          abrindoAnexo === anexo.id
-                        }
-                        style={{
-                          ...styles.openFileButton,
-                          borderColor: tema.borda,
-                          color: tema.principal,
-                          ...(abrindoAnexo ===
-                          anexo.id
-                            ? styles.disabledButton
-                            : {}),
-                        }}
-                      >
-                        {abrindoAnexo === anexo.id
-                          ? 'Abrindo...'
-                          : 'Abrir'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => baixarAnexo(anexo)}
-                        disabled={baixandoAnexo === anexo.id}
-                        style={{
-                          ...styles.openFileButton,
-                          borderColor: tema.borda,
-                          color: tema.principal,
-                          ...(baixandoAnexo === anexo.id
-                            ? styles.disabledButton
-                            : {}),
-                        }}
-                      >
-                        {baixandoAnexo === anexo.id
-                          ? 'Baixando...'
-                          : 'Baixar'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div style={styles.card}>
               <div style={styles.cardHeader}>
                 <h2 style={styles.cardTitle}>
-                  Links de acesso
-                </h2>
-
-                <span style={styles.messageCount}>
-                  {links.length}{' '}
-                  {links.length === 1 ? 'link' : 'links'}
-                </span>
-              </div>
-
-              <p style={styles.uploadText}>
-                Endereços de pastas compartilhadas, sistemas ou
-                sites relacionados ao chamado. Campo opcional.
-              </p>
-
-              <form
-                onSubmit={adicionarLink}
-                style={styles.linkForm}
-              >
-                <input
-                  type="text"
-                  value={novoLinkTitulo}
-                  onChange={(event) =>
-                    setNovoLinkTitulo(event.target.value)
-                  }
-                  placeholder="Nome do link (opcional)"
-                  maxLength={120}
-                  style={styles.linkInput}
-                />
-
-                <input
-                  type="text"
-                  value={novoLinkUrl}
-                  onChange={(event) =>
-                    setNovoLinkUrl(event.target.value)
-                  }
-                  placeholder="https://..."
-                  maxLength={500}
-                  inputMode="url"
-                  style={styles.linkInput}
-                />
-
-                <button
-                  type="submit"
-                  disabled={salvandoLink || !novoLinkUrl.trim()}
-                  style={{
-                    ...styles.linkButton,
-                    background: tema.principal,
-                    ...(salvandoLink || !novoLinkUrl.trim()
-                      ? styles.disabledButton
-                      : {}),
-                  }}
-                >
-                  {salvandoLink
-                    ? 'Salvando...'
-                    : editandoLink
-                      ? 'Salvar'
-                      : 'Adicionar'}
-                </button>
-              </form>
-
-              {editandoLink && (
-                <button
-                  type="button"
-                  onClick={cancelarEdicaoLink}
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: '#64748b',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    padding: 0,
-                    marginBottom: 12,
-                  }}
-                >
-                  Cancelar edição
-                </button>
-              )}
-
-              {erroLink && (
-                <div style={styles.attachmentError}>
-                  {erroLink}
-                </div>
-              )}
-
-              {links.length === 0 ? (
-                <div style={styles.emptyAttachments}>
-                  Nenhum link cadastrado neste chamado.
-                </div>
-              ) : (
-                <div style={styles.attachmentList}>
-                  {links.map((link) => (
-                    <div
-                      key={link.id}
-                      style={styles.attachmentItem}
-                    >
-                      <div style={styles.fileIcon}>⛓</div>
-
-                      <div style={styles.fileInfo}>
-                        <strong style={styles.fileName}>
-                          {rotuloDoLink(link)}
-                        </strong>
-
-                        <span style={styles.fileMeta}>
-                          {formatarData(link.created_at)}
-                        </span>
-                      </div>
-
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        style={{
-                          ...styles.openFileButton,
-                          borderColor: tema.borda,
-                          color: tema.principal,
-                          textDecoration: 'none',
-                        }}
-                      >
-                        Abrir
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={() => editarLink(link)}
-                        style={{
-                          ...styles.openFileButton,
-                          borderColor: '#e2e8f0',
-                          color: '#0f172a',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => removerLink(link)}
-                        style={{
-                          ...styles.openFileButton,
-                          borderColor: '#fecaca',
-                          color: '#b91c1c',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={styles.card}>
-              <div style={styles.cardHeader}>
-                <h2 style={styles.cardTitle}>
-                  Conversas
+                  Conversa com a equipe
                 </h2>
 
                 <span style={styles.messageCount}>
@@ -1852,7 +1402,7 @@ export default function DetalhesChamadoPage() {
                       event.target.value
                     )
                   }
-                  placeholder="Digite sua mensagem..."
+                  placeholder="Escreva sua resposta para a equipe..."
                   rows={4}
                   style={styles.textarea}
                 />
@@ -1884,6 +1434,468 @@ export default function DetalhesChamadoPage() {
                   </button>
                 </div>
               </form>
+              )}
+            </div>
+
+            <AvaliacaoChamado
+              chamadoId={String(chamado.id)}
+              status={chamado.status}
+              cor={tema.principal}
+              cardStyle={styles.card}
+              titleStyle={styles.cardTitle}
+            />
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h2 style={styles.cardTitle}>
+                  Anexos
+                </h2>
+
+                <span style={styles.messageCount}>
+                  {anexos.length}{' '}
+                  {anexos.length === 1
+                    ? 'arquivo'
+                    : 'arquivos'}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  ...styles.uploadArea,
+                  borderColor: tema.borda,
+                  background: tema.fundo,
+                }}
+              >
+                <div
+                  style={{
+                    ...styles.uploadIcon,
+                    background: tema.fundoForte,
+                    color: tema.principal,
+                  }}
+                >
+                  ↑
+                </div>
+
+                <div style={styles.uploadContent}>
+                  <strong style={styles.uploadTitle}>
+                    Enviar arquivo
+                  </strong>
+
+                  <p style={styles.uploadText}>
+                    Anexe documentos, imagens ou outros
+                    arquivos relacionados ao chamado.
+                  </p>
+
+                  <p style={styles.uploadLimit}>
+                    Tamanho máximo: 10 MB por arquivo.
+                  </p>
+
+                  <label
+                    htmlFor="arquivo-chamado"
+                    style={{
+                      ...styles.uploadButton,
+                      background: tema.principal,
+                      ...(enviandoAnexo
+                        ? styles.disabledButton
+                        : {}),
+                    }}
+                  >
+                    {enviandoAnexo
+                      ? 'Enviando arquivo...'
+                      : 'Selecionar arquivo'}
+                  </label>
+
+                  <input
+                    id="arquivo-chamado"
+                    type="file"
+                    onChange={enviarAnexo}
+                    disabled={enviandoAnexo}
+                    style={styles.hiddenInput}
+                  />
+                </div>
+              </div>
+
+              {erroAnexo && (
+                <div style={styles.attachmentError}>
+                  {erroAnexo}
+                </div>
+              )}
+
+
+              {anexos.length === 0 ? (
+                <div style={styles.emptyAttachments}>
+                  Ainda não existem arquivos anexados a este
+                  chamado.
+                </div>
+              ) : (
+                <div style={styles.attachmentList}>
+                  {anexos.map((anexo) => (
+                    <div
+                      key={anexo.id}
+                      style={styles.attachmentItem}
+                    >
+                      <div style={styles.fileIcon}>
+                        {iconeArquivo(
+                          anexo.tipo_arquivo,
+                          anexo.nome_arquivo
+                        )}
+                      </div>
+
+                      <div style={styles.fileInfo}>
+                        <strong style={styles.fileName}>
+                          {anexo.nome_arquivo}
+                        </strong>
+
+                        <span style={styles.fileMeta}>
+                          {formatarTamanho(
+                            anexo.tamanho_bytes
+                          )}{' '}
+                          •{' '}
+                          {formatarData(
+                            anexo.created_at
+                          )}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          abrirAnexo(anexo)
+                        }
+                        disabled={
+                          abrindoAnexo === anexo.id
+                        }
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: tema.borda,
+                          color: tema.principal,
+                          ...(abrindoAnexo ===
+                          anexo.id
+                            ? styles.disabledButton
+                            : {}),
+                        }}
+                      >
+                        {abrindoAnexo === anexo.id
+                          ? 'Abrindo...'
+                          : 'Abrir'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => baixarAnexo(anexo)}
+                        disabled={baixandoAnexo === anexo.id}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: tema.borda,
+                          color: tema.principal,
+                          ...(baixandoAnexo === anexo.id
+                            ? styles.disabledButton
+                            : {}),
+                        }}
+                      >
+                        {baixandoAnexo === anexo.id
+                          ? 'Baixando...'
+                          : 'Baixar'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <details className="chamado-detalhes" style={styles.card}>
+              <summary className="chamado-detalhes-titulo">
+                <span style={styles.cardTitle}>Detalhes do chamado</span>
+                <span className="chamado-detalhes-dica">Categoria, quem abriu, datas e a descrição</span>
+              </summary>
+
+              <div style={styles.infoGrid} className="chamado-info">
+                <Info
+                  label="Categoria"
+                  value={chamado.categoria}
+                />
+
+                <Info
+                  label="Aberto por"
+                  value={
+                    solicitante?.nome ||
+                    solicitante?.email ||
+                    '—'
+                  }
+                  detalhe={
+                    solicitante?.nome
+                      ? solicitante?.email || undefined
+                      : undefined
+                  }
+                />
+
+                <Info
+                  label="Atendente responsável"
+                  value={atendente || 'Aguardando atribuição'}
+                  detalhe={
+                    atendente
+                      ? 'É quem está cuidando do seu chamado.'
+                      : chamado.status === 'resolvido' ||
+                          chamado.status === 'encerrado' ||
+                          chamado.status === 'cancelado'
+                        ? undefined
+                        : 'Um atendente da nossa equipe vai assumir em breve.'
+                  }
+                />
+
+                <Info
+                  label="Prioridade"
+                  value={
+                    prioridadeLabels[
+                      chamado.prioridade
+                    ] || chamado.prioridade
+                  }
+                />
+
+                <Info
+                  label="Abertura"
+                  value={formatarData(
+                    chamado.created_at
+                  )}
+                />
+
+                <Info
+                  label="Atualização"
+                  value={formatarData(
+                    chamado.updated_at
+                  )}
+                />
+
+                <Info
+                  label="Prazo de atendimento"
+                  value={
+                    chamado.status === 'cancelado'
+                      ? 'Fora do prazo (cancelado)'
+                      : chamado.status === 'aguardando_cliente' || chamado.status === 'suspenso'
+                      ? 'Pausado'
+                      : formatarData(chamado.prazo_sla)
+                  }
+                  detalhe={
+                    chamado.status === 'aguardando_cliente'
+                      ? 'O prazo volta a contar quando você responder'
+                      : chamado.status === 'suspenso'
+                        ? 'O prazo volta a contar quando o atendimento for retomado'
+                        : undefined
+                  }
+                />
+
+                {posicao && (
+                  <Info
+                    label="Posição na fila"
+                    value={
+                      posicao.posicao_area +
+                      'º de ' +
+                      posicao.total_area
+                    }
+                    detalhe={
+                      'Entre os chamados de ' +
+                      posicao.area +
+                      '. Pode mudar se entrar uma demanda urgente.'
+                    }
+                  />
+                )}
+
+                <Info
+                  label="Encerramento"
+                  value={formatarData(
+                    chamado.encerrado_em
+                  )}
+                />
+              </div>
+
+              <div style={styles.descriptionBox}>
+                <div style={styles.label}>
+                  Descrição
+                </div>
+
+                <p style={styles.description}>
+                  {chamado.descricao}
+                </p>
+              </div>
+            </details>
+
+            <EtapasChamado
+              chamadoId={String(chamado.id)}
+              editavel={false}
+              cor={tema.principal}
+              cardStyle={styles.card}
+              titleStyle={styles.cardTitle}
+            />
+
+            {chamado.empresa_id && (
+              <ParticipantesChamado
+                chamadoId={String(chamado.id)}
+                empresaId={String(chamado.empresa_id)}
+                criadoPor={chamado.criado_por}
+                podeGerenciar={
+                  !!usuarioId &&
+                  chamado.criado_por === usuarioId &&
+                  chamado.status !== 'encerrado' &&
+                  chamado.status !== 'cancelado'
+                }
+                cor={tema.principal}
+                cardStyle={styles.card}
+                titleStyle={styles.cardTitle}
+              />
+            )}
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h2 style={styles.cardTitle}>
+                  Links de acesso
+                </h2>
+
+                <span style={styles.messageCount}>
+                  {links.length}{' '}
+                  {links.length === 1 ? 'link' : 'links'}
+                </span>
+              </div>
+
+              <p style={styles.uploadText}>
+                Endereços de pastas compartilhadas, sistemas ou
+                sites relacionados ao chamado. Campo opcional.
+              </p>
+
+              <form
+                onSubmit={adicionarLink}
+                style={styles.linkForm}
+              >
+                <input
+                  type="text"
+                  value={novoLinkTitulo}
+                  onChange={(event) =>
+                    setNovoLinkTitulo(event.target.value)
+                  }
+                  placeholder="Nome do link (opcional)"
+                  maxLength={120}
+                  style={styles.linkInput}
+                />
+
+                <input
+                  type="text"
+                  value={novoLinkUrl}
+                  onChange={(event) =>
+                    setNovoLinkUrl(event.target.value)
+                  }
+                  placeholder="https://..."
+                  maxLength={500}
+                  inputMode="url"
+                  style={styles.linkInput}
+                />
+
+                <button
+                  type="submit"
+                  disabled={salvandoLink || !novoLinkUrl.trim()}
+                  style={{
+                    ...styles.linkButton,
+                    background: tema.principal,
+                    ...(salvandoLink || !novoLinkUrl.trim()
+                      ? styles.disabledButton
+                      : {}),
+                  }}
+                >
+                  {salvandoLink
+                    ? 'Salvando...'
+                    : editandoLink
+                      ? 'Salvar'
+                      : 'Adicionar'}
+                </button>
+              </form>
+
+              {editandoLink && (
+                <button
+                  type="button"
+                  onClick={cancelarEdicaoLink}
+                  style={{
+                    border: 'none',
+                    background: 'none',
+                    color: '#64748b',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    padding: 0,
+                    marginBottom: 12,
+                  }}
+                >
+                  Cancelar edição
+                </button>
+              )}
+
+              {erroLink && (
+                <div style={styles.attachmentError}>
+                  {erroLink}
+                </div>
+              )}
+
+              {links.length === 0 ? (
+                <div style={styles.emptyAttachments}>
+                  Nenhum link cadastrado neste chamado.
+                </div>
+              ) : (
+                <div style={styles.attachmentList}>
+                  {links.map((link) => (
+                    <div
+                      key={link.id}
+                      style={styles.attachmentItem}
+                    >
+                      <div style={styles.fileIcon}><Icone nome="link" tamanho={18} /></div>
+
+                      <div style={styles.fileInfo}>
+                        <strong style={styles.fileName}>
+                          {rotuloDoLink(link)}
+                        </strong>
+
+                        <span style={styles.fileMeta}>
+                          {formatarData(link.created_at)}
+                        </span>
+                      </div>
+
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: tema.borda,
+                          color: tema.principal,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Abrir
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => editarLink(link)}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: '#e2e8f0',
+                          color: '#0f172a',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => removerLink(link)}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: '#fecaca',
+                          color: '#b91c1c',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -1981,6 +1993,37 @@ export default function DetalhesChamadoPage() {
         </section>
       </div>
     </main>
+  )
+}
+
+/*
+ * Barra de etapas no alto do chamado: mostra de relance em que ponto o
+ * chamado está. "Aguardando cliente" e "suspenso" contam como em
+ * atendimento (o chamado continua com a equipe, só o prazo pausa).
+ */
+const ETAPAS = ['Aberto', 'Em atendimento', 'Resolvido', 'Encerrado']
+
+function ProgressoChamado({ status }: { status: string }) {
+  if (status === 'cancelado') return null
+
+  const atual =
+    status === 'encerrado'
+      ? 3
+      : status === 'resolvido'
+        ? 2
+        : status === 'aberto'
+          ? 0
+          : 1
+
+  return (
+    <ol className="chamado-progresso" aria-label={'Etapa atual: ' + ETAPAS[atual]}>
+      {ETAPAS.map((etapa, i) => (
+        <li key={etapa} className={i <= atual ? 'feita' : ''} aria-current={i === atual ? 'step' : undefined}>
+          <span className="barra" />
+          <span className="nome">{etapa}</span>
+        </li>
+      ))}
+    </ol>
   )
 }
 
@@ -2131,9 +2174,10 @@ const styles: Record<
 
   topBar: {
     display: 'flex',
+    flexWrap: 'wrap' as const,
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    gap: '24px',
+    gap: '16px 24px',
     marginBottom: '28px',
   },
 
@@ -2185,12 +2229,10 @@ const styles: Record<
   },
 
   card: {
-    background: '#ffffff',
-    border: '1px solid #e5e7eb',
-    borderRadius: '18px',
-    padding: '24px',
-    boxShadow:
-      '0 5px 15px rgba(15, 23, 42, 0.05)',
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: '20px',
+    padding: 'clamp(16px, 3vw, 24px)',
   },
 
   cardHeader: {
@@ -2405,6 +2447,7 @@ const styles: Record<
 
   attachmentItem: {
     display: 'flex',
+    flexWrap: 'wrap' as const,
     alignItems: 'center',
     gap: '12px',
     padding: '12px',
