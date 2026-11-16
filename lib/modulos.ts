@@ -14,10 +14,12 @@ export type Modulo = 'certificados' | 'treinamentos' | 'documentos'
 
 export const MODULOS: Record<
   Modulo,
-  { rotulo: string; href: string; coluna: string; resumo: string; beneficios: string[] }
+  { rotulo: string; href: string; coluna: string; resumo: string; beneficios: string[]; chamada: string }
 > = {
   certificados: {
     rotulo: 'Certificados',
+    /* Título da vitrine: a dor do cliente, não o nome da ferramenta. */
+    chamada: 'Nenhum certificado vence sem você saber',
     href: '/certificados',
     coluna: 'modulo_certificados',
     resumo: 'Validade dos treinamentos e certificados de cada colaborador, com avisos antes de vencer.',
@@ -29,6 +31,7 @@ export const MODULOS: Record<
   },
   treinamentos: {
     rotulo: 'Treinamentos',
+    chamada: 'Saiba quem da sua equipe já está treinado, sem pedir planilha',
     href: '/treinamentos',
     coluna: 'modulo_treinamentos',
     resumo: 'Andamento dos cursos a distância (EAD) de cada colaborador, atualizado todo dia.',
@@ -40,6 +43,7 @@ export const MODULOS: Record<
   },
   documentos: {
     rotulo: 'Documentos SST',
+    chamada: 'PGR, PCMSO e laudos sempre em dia e à mão',
     href: '/documentos',
     coluna: 'modulo_documentos',
     resumo: 'PGR, PCMSO, laudos e programas da sua empresa: prazos, revisões e versões assinadas.',

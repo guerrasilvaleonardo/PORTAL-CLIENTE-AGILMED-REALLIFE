@@ -1,5 +1,6 @@
 'use client'
 
+import Icone, { type NomeIcone } from '@/components/Icone'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -604,7 +605,7 @@ function DocumentosSstPageConteudo() {
 
   /* ---------- Render ---------- */
 
-  function cartao(chave: string, numero: number, rotulo: string, tom: string, icone: string) {
+  function cartao(chave: string, numero: number, rotulo: string, tom: string, icone: NomeIcone) {
     const ativo = chave !== '' && filtroSituacao === chave
     return (
       <button
@@ -614,7 +615,7 @@ function DocumentosSstPageConteudo() {
         onClick={() => setFiltroSituacao(ativo ? '' : chave)}
         title={ativo ? 'Clique para tirar este filtro' : 'Clique para ver só estes documentos'}
       >
-        <span className="cert-ind-icone" aria-hidden="true">{icone}</span>
+        <span className="cert-ind-icone" aria-hidden="true"><Icone nome={icone} tamanho={20} /></span>
         <span>
           <span className="cert-ind-num">{carregando ? '—' : numero}</span>
           <span className="cert-ind-lbl">{rotulo}</span>
@@ -657,12 +658,19 @@ function DocumentosSstPageConteudo() {
     const f = faixaVencimento(d)
     const rev = textoRevisao(d)
     const resp = pessoaPorId.get(d.responsavel_id || '')
+    const pedido = chamadosDoc.get(d.id)
 
     return (
       <div key={d.id} className="cert-linha doc-linha">
         <span style={{ minWidth: 0 }}>
-          <span className="cert-nome">{nomeEmpresa(d.empresas) || '—'}</span>
-          <span className="cert-sub">{d.unidade || 'Unidade não informada'}</span>
+          {variasEmpresas ? (
+            <>
+              <span className="cert-nome">{nomeEmpresa(d.empresas) || '—'}</span>
+              <span className="cert-sub">{d.unidade || 'Unidade não informada'}</span>
+            </>
+          ) : (
+            <span className="cert-nome">{d.unidade || 'Unidade não informada'}</span>
+          )}
         </span>
 
         <span style={{ minWidth: 0 }}>
@@ -710,7 +718,7 @@ function DocumentosSstPageConteudo() {
           )}
         </span>
 
-        <span>
+        <span className="doc-arquivo">
           {d.link_assinado ? (
             <a className="btn btn-sm cert-ver" href={d.link_assinado} target="_blank" rel="noreferrer">
               Abrir assinado
@@ -721,6 +729,11 @@ function DocumentosSstPageConteudo() {
             </button>
           ) : (
             <span className="cert-sub">Sem versão assinada</span>
+          )}
+          {!interno && !pedido && (
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => solicitarRenovacao(d)}>
+              Pedir renovação
+            </button>
           )}
         </span>
 
@@ -736,7 +749,7 @@ function DocumentosSstPageConteudo() {
               setMenuAberto(menuAberto === d.id ? null : d.id)
             }}
           >
-            ⋯
+            <Icone nome="reticencias" tamanho={18} />
           </button>
 
           {menuAberto === d.id && (
@@ -805,12 +818,16 @@ function DocumentosSstPageConteudo() {
       <div className="app">
         <h1 style={{ fontSize: 30 }}>Documentos SST</h1>
         <div className="banner bad" style={{ marginTop: 16 }}>
-          Esta área ainda não está ativa: falta rodar o script supabase/documentos-sst.sql no Supabase.
+          {interno
+            ? 'Esta área ainda não está ativa: falta rodar o script supabase/documentos-sst.sql no Supabase.'
+            : 'Esta área ainda não está disponível. Fale com a nossa equipe por chamado.'}
         </div>
       </div>
     )
   }
 
+  /* Cliente de uma empresa só não precisa ver o nome dela em cada linha. */
+  const variasEmpresas = interno || new Set(documentos.map((d) => d.empresa_id)).size > 1
   const unidadesFiltro = unidadesDe(filtroEmpresa)
   const tiposAtivos = tipos.filter((t) => t.ativo || t.id === form.tipo_id)
 
@@ -825,7 +842,7 @@ function DocumentosSstPageConteudo() {
 
         <div className="cert-topo-acoes">
           <button type="button" className="btn" onClick={exportar} disabled={carregando || filtrados.length === 0}>
-            ⤓ Exportar
+            <Icone nome="exportar" tamanho={16} /> Exportar planilha
           </button>
           {interno && (
             <>
@@ -852,11 +869,11 @@ function DocumentosSstPageConteudo() {
           </span>
         </div>
         <div className="cert-inds">
-          {cartao('', indicadores.total, 'Cadastrados', 'neutro', '▤')}
-          {cartao('vencido', indicadores.vencido, 'Vencidos', 'ruim', '⏱')}
-          {cartao('ate30', indicadores.ate30, 'A vencer em até 30 dias', 'ruim', '!')}
-          {cartao('ate60', indicadores.ate60, 'A vencer em 31 a 60 dias', 'alerta', '⚠')}
-          {cartao('ate90', indicadores.ate90, 'A vencer em 61 a 90 dias', 'alerta', '◷')}
+          {cartao('', indicadores.total, 'Cadastrados', 'neutro', 'documentos')}
+          {cartao('vencido', indicadores.vencido, 'Vencidos', 'ruim', 'aviso')}
+          {cartao('ate30', indicadores.ate30, 'A vencer em até 30 dias', 'ruim', 'prazo')}
+          {cartao('ate60', indicadores.ate60, 'A vencer em 31 a 60 dias', 'alerta', 'prazo')}
+          {cartao('ate90', indicadores.ate90, 'A vencer em 61 a 90 dias', 'alerta', 'prazo')}
         </div>
       </div>
 
@@ -866,13 +883,13 @@ function DocumentosSstPageConteudo() {
           <span>controle separado do prazo</span>
         </div>
         <div className="cert-inds">
-          {cartao('sem_link', indicadores.semLink, 'Sem link assinado', 'cinza', '✎')}
-          {cartao('revisao', indicadores.revisao, 'Revisões pendentes', 'alerta', '↻')}
+          {cartao('sem_link', indicadores.semLink, 'Sem link assinado', 'cinza', 'assinatura')}
+          {cartao('revisao', indicadores.revisao, 'Revisões pendentes', 'alerta', 'revisao')}
         </div>
       </div>
 
       <div className="cert-filtros">
-        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar empresa, unidade, documento, versão ou responsável..." />
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={interno ? 'Buscar empresa, unidade, documento, versão ou responsável...' : 'Buscar unidade, documento ou versão...'} />
 
         {interno && (
           <FiltroEmpresa
@@ -954,7 +971,7 @@ function DocumentosSstPageConteudo() {
 
         <div className="cert-tabela">
           <div className="cert-linha cert-cab doc-linha">
-            <span>Empresa / Unidade</span>
+            <span>{variasEmpresas ? 'Empresa / Unidade' : 'Unidade'}</span>
             <span>Documento</span>
             <span>Próximo prazo</span>
             <span>Situação</span>
@@ -1057,9 +1074,7 @@ function DocumentosSstPageConteudo() {
       )}
 
       <p className="footnote">
-        Prazo e assinatura são controles separados: um documento pode estar no prazo e ainda sem a versão assinada. A data
-        cadastrada não garante que o conteúdo continua atualizado — mudanças de processo, função, ambiente ou número de
-        trabalhadores podem exigir revisão antes do prazo.
+        Mudou processo, função, ambiente ou número de trabalhadores? Peça a revisão mesmo antes do prazo.
       </p>
 
       {/* Formulário lateral */}

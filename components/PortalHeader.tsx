@@ -234,6 +234,8 @@ export default function PortalHeader() {
         { href: '/documentos', rotulo: 'Documentos SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
         { href: '/equipe', rotulo: 'Conversas' },
+        /* Vitrine: ferramentas, serviços e pedidos de orçamento (só cliente). */
+        { href: '/contratar', rotulo: 'Contratar' },
       ]
 
   const ativo = (href: string) =>

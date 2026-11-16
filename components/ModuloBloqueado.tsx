@@ -1,13 +1,15 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { MODULOS, linkContratacao, useModulos, type Modulo } from '@/lib/modulos'
 import Icone from '@/components/Icone'
+import '@/app/vitrine.css'
 
 /*
  * Envolve a página de uma ferramenta cobrada à parte. Cliente sem a
- * ferramenta contratada vê a apresentação dela e o botão para pedir a
- * contratação por chamado; quem tem acesso (ou a equipe) vê a página.
+ * ferramenta contratada vê a vitrine dela e o botão para pedir a
+ * proposta por chamado; quem tem acesso (ou a equipe) vê a página.
  */
 export function ComModulo({ modulo, children }: { modulo: Modulo; children: ReactNode }) {
   const acesso = useModulos()
@@ -25,36 +27,70 @@ export function ComModulo({ modulo, children }: { modulo: Modulo; children: Reac
   return <>{children}</>
 }
 
+const PASSOS = ['Peça a proposta', 'Receba o valor pelo chamado', 'Aprovou, liberamos para todos da empresa']
+
+/*
+ * Vitrine da ferramenta não contratada: o que ela resolve, o que entrega
+ * e como contratar. O botão abre um chamado já preenchido (linkContratacao).
+ */
 export function ModuloBloqueado({ modulo }: { modulo: Modulo }) {
   const info = MODULOS[modulo]
 
   return (
     <div className="app">
-      <div className="panel" style={{ maxWidth: 720, margin: '24px auto' }}>
-        <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 28 }}>
-          <div className="section-title">Ferramenta não contratada</div>
-          <h1 style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Icone nome="cadeado" tamanho={26} />
-            {info.rotulo}
-          </h1>
+      <div className="panel vitrine" style={{ maxWidth: 820, width: '100%', margin: '12px auto' }}>
+        <div className="panel-body" style={{ gap: 20, padding: 'clamp(18px, 4vw, 32px)' }}>
+          <span className="mod-selo">
+            <Icone nome="cadeado" tamanho={13} /> Disponível para contratar
+          </span>
+
+          <div className="vitrine-topo">
+            <span className="mod-icone" style={{ width: 56, height: 56 }}>
+              <Icone nome={modulo} tamanho={28} />
+            </span>
+            <div>
+              <div className="section-title">{info.rotulo}</div>
+              <h1 style={{ fontSize: 'clamp(22px, 3vw, 28px)', lineHeight: 1.25, marginTop: 4 }}>{info.chamada}</h1>
+            </div>
+          </div>
+
           <p style={{ margin: 0, color: 'var(--ink-muted)', fontSize: 15 }}>{info.resumo}</p>
 
-          <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--ink)', fontSize: 14, lineHeight: 1.7 }}>
+          <div className="vitrine-beneficios">
             {info.beneficios.map((b) => (
-              <li key={b}>{b}</li>
+              <div key={b} className="vitrine-beneficio">
+                <span className="vitrine-marca" aria-hidden="true">
+                  <Icone nome="feito" tamanho={20} />
+                </span>
+                <span>{b}</span>
+              </div>
             ))}
-          </ul>
-
-          <p style={{ margin: 0, color: 'var(--ink-muted)', fontSize: 13.5 }}>
-            Esta ferramenta é contratada à parte. Peça a contratação por chamado: nossa equipe envia a proposta e, aprovada,
-            libera o acesso para todos os usuários da sua empresa.
-          </p>
+          </div>
 
           <div>
-            <a className="btn btn-primary" href={linkContratacao(modulo)}>
-              Solicitar contratação
-            </a>
+            <div className="section-title" style={{ marginBottom: 10 }}>Como contratar</div>
+            <ol className="vitrine-passos">
+              {PASSOS.map((p, i) => (
+                <li key={p}>
+                  <span className="vitrine-num">{i + 1}</span>
+                  {p}
+                </li>
+              ))}
+            </ol>
           </div>
+
+          <div className="vitrine-acao">
+            <a className="btn btn-primary" href={linkContratacao(modulo)}>
+              Quero uma proposta
+            </a>
+            <span style={{ fontSize: 13, color: 'var(--ink-muted)' }}>
+              Sem compromisso. Já incluso em alguns contratos: pergunte.
+            </span>
+          </div>
+
+          <Link href="/contratar" className="mod-go" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Ver tudo o que dá para contratar <Icone nome="seta" tamanho={14} />
+          </Link>
         </div>
       </div>
     </div>

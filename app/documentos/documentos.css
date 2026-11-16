@@ -1,7 +1,7 @@
 /* Documentos SST: complementa app/certificados/certificados.css */
 
 .cert-linha.doc-linha {
-  grid-template-columns: minmax(170px, 1.2fr) minmax(190px, 1.5fr) 120px minmax(170px, 1.1fr) 140px 48px;
+  grid-template-columns: minmax(170px, 1.2fr) minmax(190px, 1.5fr) 120px minmax(170px, 1.1fr) 160px 48px;
 }
 .doc-linha .cert-validade { gap: 4px; }
 .doc-sem-link { border-style: dashed; color: var(--ink-muted); white-space: nowrap; }
@@ -39,3 +39,7 @@
   .doc-linha .cert-acoes { grid-column: 2; grid-row: 1; }
 }
 .doc-chamado { text-decoration: none; }
+
+/* Arquivo assinado e, para o cliente, o pedido de renovação à vista. */
+.doc-arquivo { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.cert-mais svg { display: block; }

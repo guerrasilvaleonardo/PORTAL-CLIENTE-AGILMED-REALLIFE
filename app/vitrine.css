@@ -1,0 +1,42 @@
+/*
+ * Vitrine de venda: tela da ferramenta não contratada (ModuloBloqueado)
+ * e a tela Contratar e pedir orçamento (/contratar).
+ */
+
+.vitrine-topo { display: flex; align-items: center; gap: 16px; }
+
+.vitrine-beneficios { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.vitrine-beneficio {
+  display: flex; align-items: flex-start; gap: 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-l); padding: 14px;
+  font-size: 13.5px; font-weight: 600; color: var(--primary); line-height: 1.45;
+}
+.vitrine-marca { color: var(--success); flex: none; }
+
+.vitrine-passos { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 14px; }
+.vitrine-passos li { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.vitrine-num {
+  width: 24px; height: 24px; border-radius: 999px; flex: none;
+  background: var(--primary-tint); color: var(--primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+}
+
+.vitrine-acao {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  border-top: 1px solid var(--border); padding-top: 18px;
+}
+
+/* Tela Contratar */
+.contratar { width: 100%; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+.contratar-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.contratar-lista { display: flex; flex-direction: column; }
+.contratar-item {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.contratar-item:last-child { border-bottom: none; }
+.contratar-item .icone-servico { color: var(--primary); flex: none; }
+.contratar-item .texto { flex: 1 1 220px; min-width: 0; }
+.contratar-item .texto strong { display: block; color: var(--primary); font-size: 14.5px; }
+.contratar-item .texto span { display: block; font-size: 12.5px; color: var(--ink-muted); margin-top: 2px; }
