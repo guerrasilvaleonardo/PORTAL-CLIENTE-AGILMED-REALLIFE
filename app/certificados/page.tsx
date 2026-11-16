@@ -27,6 +27,7 @@ import {
 } from '@/lib/treinamentos'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import Icone, { type NomeIcone } from '@/components/Icone'
+import { nomeDoTipo } from '@/lib/nomeCertificado'
 import TempoEad from '@/components/TempoEad'
 import { lerTudo } from '@/lib/lerTudo'
 import { chaveCertificado, chavePessoa, formatarCpf, pessoasPorCpf, soDigitosCpf, substitutosHistorico } from '@/lib/historicoCertificados'
@@ -241,13 +242,13 @@ function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }
  * Chamado de reciclagem já preenchido, para o cliente pedir a renovação
  * de um treinamento vencido ou perto de vencer sem digitar nada.
  */
-function linkReciclagem(c: { tipo: string; colaborador: string; validade: string | null }) {
+function linkReciclagem(c: { tipo: string; curso?: string | null; colaborador: string; validade: string | null }) {
   const q = new URLSearchParams({
     categoria: 'Treinamentos',
-    assunto: ('Reciclagem: ' + c.tipo + ' · ' + c.colaborador).slice(0, 200),
+    assunto: ('Reciclagem: ' + nomeDoTipo(c) + ' · ' + c.colaborador).slice(0, 200),
     descricao:
       'Gostaríamos de agendar a reciclagem do treinamento ' +
-      c.tipo +
+      nomeDoTipo(c) +
       ' de ' +
       c.colaborador +
       (c.validade ? ' (validade ' + formatarData(c.validade) + ')' : '') +
@@ -1185,7 +1186,7 @@ function CertificadosPageConteudo() {
       /* Histórico fica dentro do cadastro do atual; só aparece na lista com o filtro "Histórico". */
       if (ehHistorico(c) && filtroSituacao !== 'historico') return false
       if (filtroEmpresa && c.empresa_id !== filtroEmpresa) return false
-      if (filtroTipo && c.tipo !== filtroTipo) return false
+      if (filtroTipo && c.tipo !== filtroTipo && nomeDoTipo(c) !== filtroTipo) return false
       if (filtroMes && mesDoCertificado(c) !== filtroMes) return false
 
       if (filtroOrigem) {
@@ -1297,8 +1298,9 @@ function CertificadosPageConteudo() {
 
     const noPeriodo = base.filter((c) => meses.includes(mesDoCertificado(c)))
 
-    const tipos = [...new Set(noPeriodo.map((c) => c.tipo))].sort(
-      (a, b) => TIPOS.indexOf(a) - TIPOS.indexOf(b) || a.localeCompare(b)
+    const ordem = (t: string) => (TIPOS.includes(t) ? TIPOS.indexOf(t) : TIPOS.length)
+    const tipos = [...new Set(noPeriodo.map((c) => nomeDoTipo(c)))].sort(
+      (a, b) => ordem(a) - ordem(b) || a.localeCompare(b)
     )
 
     const celula: Record<string, number> = {}
@@ -1311,10 +1313,10 @@ function CertificadosPageConteudo() {
 
     for (const c of noPeriodo) {
       const m = mesDoCertificado(c)
-      const chave = c.tipo + '|' + m
+      const chave = nomeDoTipo(c) + '|' + m
 
       celula[chave] = (celula[chave] || 0) + 1
-      porTipo[c.tipo] = (porTipo[c.tipo] || 0) + 1
+      porTipo[nomeDoTipo(c)] = (porTipo[nomeDoTipo(c)] || 0) + 1
       porMes[m] = (porMes[m] || 0) + 1
 
       if ((progressoDe(c)?.progresso ?? 0) >= 100) {
@@ -1466,7 +1468,7 @@ function CertificadosPageConteudo() {
         c.funcao,
         c.email_colaborador,
         c.empresas?.nome_fantasia || c.empresas?.razao_social,
-        c.tipo,
+        nomeDoTipo(c),
         c.curso,
         c.progresso_origem === 'manual' ? 'Presencial' : 'EAD',
         p ? Math.round(p.progresso) : '',
@@ -1776,7 +1778,7 @@ function CertificadosPageConteudo() {
         )}
 
         <span style={{ minWidth: 0 }}>
-          <span className="cert-curso">{c.tipo}</span>
+          <span className="cert-curso">{nomeDoTipo(c)}</span>
           <span className="cert-sub" title={c.curso || undefined}>
             {c.progresso_origem === 'manual' ? 'Presencial' : 'EAD'}
             {c.curso ? ' · ' + c.curso : ''}
@@ -1853,7 +1855,7 @@ function CertificadosPageConteudo() {
                 {h.validade ? formatarData(h.validade) : h.sem_vencimento ? 'sem vencimento' : '—'}
               </span>
               <span className="cert-sub">
-                {h.tipo}
+                {nomeDoTipo(h)}
                 {h.curso ? ' · ' + h.curso : ''}
                 {substitutos.get(h.id)?.emissao ? ' · substituído em ' + formatarData(substitutos.get(h.id)!.emissao) : ''}
               </span>
@@ -2603,6 +2605,11 @@ function CertificadosPageConteudo() {
                     </option>
                   ))}
                 </select>
+                {form.tipo === 'Outro' && (
+                  <span style={{ fontSize: 11.5, color: 'var(--ink-muted)' }}>
+                    Em "Outro", a lista, a planilha e os e-mails mostram o nome do curso{form.curso ? ': ' + form.curso : ' (preencha o Curso no EAD)'}.
+                  </span>
+                )}
               </div>
 
               <div className="field-row">

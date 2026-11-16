@@ -12,6 +12,7 @@ import {
 } from '@/lib/email'
 import { lerTudo } from '@/lib/lerTudo'
 import { idsHistorico } from '@/lib/historicoCertificados'
+import { nomeDoTipo } from '@/lib/nomeCertificado'
 import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
 
 export const dynamic = 'force-dynamic'
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
             '<strong>' +
             escapar(c.colaborador) +
             '</strong> — ' +
-            escapar(c.tipo) +
+            escapar(nomeDoTipo(c)) +
             '<br><span style="color:' +
             cor +
             ';font-size:13px;">' +

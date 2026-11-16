@@ -655,7 +655,7 @@ const manualInterno: Manual = {
             'Clique em "+ Novo certificado" no topo da página: o formulário abre na lateral, sem tirar a lista da tela. Esc ou Cancelar fecham sem salvar.',
             'Empresa, colaborador, função, e-mail e curso no EAD. Escolha a empresa primeiro: ao digitar o nome, aparecem os colaboradores dela que já têm certificado; clique no nome para preencher função e e-mail do cadastro. O e-mail é a chave para buscar o progresso na plataforma.',
             'Origem do progresso: Plataforma (EAD) atualiza sozinha toda manhã; Presencial (manual) pede etapa (Agendado, Em andamento, Concluído) e %.',
-            'Tipo, emissão, validade, observações e link do certificado. Se o certificado não tem prazo, marque "Este certificado não vence": ele vai para Sem vencimento, e não para Validade não informada. Clique em Registrar certificado.',
+            'Tipo, emissão, validade, observações e link do certificado. Se o certificado não tem prazo, marque "Este certificado não vence": ele vai para Sem vencimento, e não para Validade não informada. Curso fora da lista (ex.: NR-26)? Escolha o tipo "Outro": a lista, a planilha, a Análise mensal e os e-mails mostram o nome do Curso no EAD no lugar de "Outro". Clique em Registrar certificado.',
           ],
           atencao: 'Sem a data de validade, o certificado não entra nos alertas de vencimento nem no Boletim de Antecedência. Deixe a validade em branco sem marcar "não vence" só quando a data realmente não for conhecida: ele aparece como Validade não informada, uma pendência a corrigir.',
         },
