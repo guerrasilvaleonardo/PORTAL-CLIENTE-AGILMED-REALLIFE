@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { MODULOS, linkContratacao, useModulos, type Modulo } from '@/lib/modulos'
+import Icone from '@/components/Icone'
 
 /*
  * Envolve a página de uma ferramenta cobrada à parte. Cliente sem a
@@ -32,8 +33,8 @@ export function ModuloBloqueado({ modulo }: { modulo: Modulo }) {
       <div className="panel" style={{ maxWidth: 720, margin: '24px auto' }}>
         <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 28 }}>
           <div className="section-title">Ferramenta não contratada</div>
-          <h1 style={{ fontSize: 28 }}>
-            <span aria-hidden="true">🔒 </span>
+          <h1 style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Icone nome="cadeado" tamanho={26} />
             {info.rotulo}
           </h1>
           <p style={{ margin: 0, color: 'var(--ink-muted)', fontSize: 15 }}>{info.resumo}</p>

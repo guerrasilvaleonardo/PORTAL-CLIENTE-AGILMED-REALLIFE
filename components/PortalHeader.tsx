@@ -15,6 +15,7 @@ import ManualAjuda from '@/components/manual/ManualAjuda'
 import { comLimiteDeTempo, irParaLoginSessaoExpirada, TempoEsgotadoError } from '@/lib/sessao'
 import { marcaDoDominio } from '@/lib/marca'
 import './portal-header.css'
+import Icone from '@/components/Icone'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 
 /*
@@ -164,6 +165,9 @@ export default function PortalHeader() {
           raiz.setProperty('--primary', tema.principal)
           raiz.setProperty('--primary-strong', tema.dark)
           raiz.setProperty('--primary-tint', tema.fundo)
+          raiz.setProperty('--accent', tema.acento)
+          raiz.setProperty('--accent-hover', tema.acentoHover)
+          raiz.setProperty('--on-accent', tema.noAcento)
         }
       } catch (erro) {
         console.error('Erro ao carregar o cabeçalho:', erro)
@@ -268,20 +272,18 @@ export default function PortalHeader() {
         <div className="topbar-spacer" />
 
         <nav className="modtabs">
-          {itens.map((item) => (
+          {itens.map((item) => {
+            const bloqueado =
+              !interno && !!MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
+
+            return (
             <Link
               key={item.href}
               href={item.href}
-              className={ativo(item.href) ? 'active' : ''}
-              title={
-                !interno && MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
-                  ? 'Ferramenta não contratada: clique para conhecer e solicitar'
-                  : undefined
-              }
+              className={(ativo(item.href) ? 'active' : '') + (bloqueado ? ' bloqueado' : '')}
+              title={bloqueado ? 'Ferramenta não contratada: clique para conhecer e solicitar' : undefined}
             >
-              {!interno && MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href]) && (
-                <span aria-label="não contratada">🔒</span>
-              )}
+              {bloqueado && <Icone nome="cadeado" tamanho={14} rotulo="não contratada" />}
               {item.rotulo}
               {item.href === (interno ? '/atendimento' : '/chamados') &&
                 chamadosNovos > 0 && (
@@ -311,7 +313,8 @@ export default function PortalHeader() {
                 </span>
               )}
             </Link>
-          ))}
+            )
+          })}
         </nav>
 
         <ManualAjuda interno={interno} />
