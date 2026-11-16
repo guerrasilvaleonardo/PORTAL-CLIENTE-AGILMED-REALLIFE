@@ -62,6 +62,12 @@ export default function LoginPage() {
     '--acento': tema.acento,
     '--acento-hover': tema.acentoHover,
     '--no-acento': tema.noAcento,
+    /*
+     * Selo da faixa: na ÁgilMed o acento é o mesmo azul da faixa e o
+     * círculo sumia; ali o selo fica branco com a sigla em azul.
+     */
+    '--selo': tema.acento === tema.principal ? '#ffffff' : tema.acento,
+    '--no-selo': tema.acento === tema.principal ? tema.principal : tema.noAcento,
   } as CSSProperties
 
   return (
@@ -159,8 +165,8 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: var(--acento);
-          color: var(--no-acento);
+          background: var(--selo);
+          color: var(--no-selo);
           font-size: 16px;
           font-weight: 800;
         }
