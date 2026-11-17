@@ -200,3 +200,47 @@
     transition: none !important;
   }
 }
+
+/* ---------- quadro da assinatura ----------
+   O traço desenhado aqui é o que vai para a ficha. O quadro é alto
+   porque assinar com o dedo numa faixa estreita sai um rabisco, e tem
+   touch-action: none para o celular não rolar a página enquanto a
+   pessoa escreve. */
+.assinar-quadro {
+  position: relative;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  height: 160px;
+  margin-bottom: 8px;
+}
+.assinar-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+.assinar-marca-dagua {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9aa3b2;
+  font-size: 14px;
+  pointer-events: none;
+}
+.assinar-limpar {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  color: #4b5563;
+  font-family: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 4px;
+}

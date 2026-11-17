@@ -63,7 +63,18 @@ type Colaborador = {
   local_trabalho: string | null
   entrega_epi: boolean
 }
-type Epi = { id: string; empresa_id: string; nome: string; ca: string | null; complemento: string | null; vida_util_dias: number; tipo: string; ativo: boolean; validade_ca: string | null }
+type Epi = {
+  id: string
+  empresa_id: string
+  nome: string
+  ca: string | null
+  complemento: string | null
+  vida_util_dias: number
+  tipo: string
+  ativo: boolean
+  validade_ca: string | null
+  observacoes: string | null
+}
 
 type ItemEntrega = {
   id: string
@@ -229,7 +240,10 @@ export default function EntregasEpi() {
           .from('colaboradores')
           .select('id, empresa_id, nome, cpf, funcao, matricula, local_id, local_trabalho, entrega_epi')
           .order('nome'),
-        supabase.from('epis').select('id, empresa_id, nome, ca, complemento, vida_util_dias, tipo, ativo, validade_ca').order('nome'),
+        supabase
+          .from('epis')
+          .select('id, empresa_id, nome, ca, complemento, vida_util_dias, tipo, ativo, validade_ca, observacoes')
+          .order('nome'),
         supabase
           .from('epi_entregas')
           .select(
@@ -440,6 +454,9 @@ export default function EntregasEpi() {
           ca: epi.ca,
           complemento: epi.complemento,
           vida_util_dias: epi.vida_util_dias,
+          /* Congelados como o CA: a ficha diz o que valia no dia. */
+          validade_ca: epi.validade_ca,
+          descricao: epi.observacoes,
           quantidade: info.qtd,
           motivo: info.motivo,
           troca_em: emDias(epi.vida_util_dias),

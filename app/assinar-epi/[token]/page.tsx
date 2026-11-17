@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, use, useEffect, useState } from 'react'
+import { FormEvent, use, useEffect, useRef, useState } from 'react'
 import './assinar.css'
 
 /*
@@ -58,6 +58,11 @@ export default function AssinarEpi({ params }: { params: Promise<{ token: string
   const [assinando, setAssinando] = useState(false)
   const [pronto, setPronto] = useState(false)
 
+  /* O quadro onde a pessoa assina com o dedo. */
+  const quadro = useRef<HTMLCanvasElement | null>(null)
+  const desenhando = useRef(false)
+  const [vazio, setVazio] = useState(true)
+
   useEffect(() => {
     let vivo = true
 
@@ -85,6 +90,71 @@ export default function AssinarEpi({ params }: { params: Promise<{ token: string
     }
   }, [token])
 
+  /* O canvas precisa de tamanho em pixels de verdade, senão o traço
+   * sai borrado e deslocado no celular. Acerta quando a tela aparece e
+   * a cada giro do aparelho. */
+  useEffect(() => {
+    const tela = quadro.current
+    if (!tela || pronto || !dados) return
+
+    function ajustar() {
+      const tela = quadro.current
+      if (!tela) return
+      const caixa = tela.getBoundingClientRect()
+      const escala = window.devicePixelRatio || 1
+      tela.width = Math.round(caixa.width * escala)
+      tela.height = Math.round(caixa.height * escala)
+      const ctx = tela.getContext('2d')
+      if (!ctx) return
+      ctx.scale(escala, escala)
+      ctx.lineWidth = 2.2
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = '#111827'
+    }
+
+    ajustar()
+    window.addEventListener('resize', ajustar)
+    return () => window.removeEventListener('resize', ajustar)
+  }, [pronto, dados])
+
+  function ponto(e: React.PointerEvent<HTMLCanvasElement>) {
+    const caixa = e.currentTarget.getBoundingClientRect()
+    return { x: e.clientX - caixa.left, y: e.clientY - caixa.top }
+  }
+
+  function comecarTraco(e: React.PointerEvent<HTMLCanvasElement>) {
+    const ctx = quadro.current?.getContext('2d')
+    if (!ctx) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    desenhando.current = true
+    const { x, y } = ponto(e)
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    setVazio(false)
+  }
+
+  function seguirTraco(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!desenhando.current) return
+    const ctx = quadro.current?.getContext('2d')
+    if (!ctx) return
+    const { x, y } = ponto(e)
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+
+  function terminarTraco() {
+    desenhando.current = false
+  }
+
+  function limparTraco() {
+    const tela = quadro.current
+    const ctx = tela?.getContext('2d')
+    if (!tela || !ctx) return
+    ctx.clearRect(0, 0, tela.width, tela.height)
+    setVazio(true)
+  }
+
   async function assinar(e: FormEvent) {
     e.preventDefault()
     setAviso('')
@@ -93,13 +163,21 @@ export default function AssinarEpi({ params }: { params: Promise<{ token: string
       setAviso('Digite os 11 números do seu CPF.')
       return
     }
+    if (vazio) {
+      setAviso('Assine no quadro antes de confirmar.')
+      return
+    }
 
     try {
       setAssinando(true)
       const r = await fetch('/api/publico/assinatura-epi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, cpf }),
+        body: JSON.stringify({
+          token,
+          cpf,
+          assinatura: quadro.current?.toDataURL('image/png'),
+        }),
       })
       const j = await r.json()
       if (!r.ok) {
@@ -223,13 +301,35 @@ export default function AssinarEpi({ params }: { params: Promise<{ token: string
           onChange={(e) => setCpf(mascaraCpf(e.target.value))}
         />
 
+        {/* O traço da pessoa é o que vai para a ficha. Por isso o quadro
+            fica alto o bastante para assinar com o dedo, e não some da
+            tela depois do campo do CPF. */}
+        <label className="assinar-campo" htmlFor="assinatura">
+          Assine aqui com o dedo
+        </label>
+        <div className="assinar-quadro">
+          <canvas
+            id="assinatura"
+            ref={quadro}
+            className="assinar-canvas"
+            onPointerDown={comecarTraco}
+            onPointerMove={seguirTraco}
+            onPointerUp={terminarTraco}
+            onPointerLeave={terminarTraco}
+          />
+          {vazio && <span className="assinar-marca-dagua">assine neste espaço</span>}
+        </div>
+        <button type="button" className="assinar-limpar" onClick={limparTraco}>
+          Limpar e assinar de novo
+        </button>
+
         {aviso && <p className="assinar-erro">{aviso}</p>}
 
         <button type="submit" className="assinar-botao" disabled={assinando}>
           {assinando ? 'Assinando…' : 'Assinar o recebimento'}
         </button>
         <p className="assinar-rodape">
-          Ficam registrados a data, a hora e o aparelho de onde você assinou.
+          Ficam registrados o seu traço, a data, a hora e o aparelho de onde você assinou.
         </p>
       </form>
     </main>

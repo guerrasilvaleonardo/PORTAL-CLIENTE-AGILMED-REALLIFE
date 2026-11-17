@@ -51,6 +51,8 @@ type Item = {
   troca_em: string
   devolvido_em: string | null
   devolucao_motivo: string | null
+  validade_ca: string | null
+  descricao: string | null
 }
 
 /* Por que o equipamento voltou — a coluna Devolução da ficha. Sem ela a
@@ -69,6 +71,8 @@ type Entrega = {
   empresa_id: string
   entregue_em: string
   assinado_em: string | null
+  assinatura_imagem: string | null
+  assinatura_hash: string | null
   cancelada_em: string | null
   entregue_por_nome: string | null
   foto_path: string
@@ -86,6 +90,12 @@ function nomeDoLocal(p: Colaborador): string {
 }
 const dataHoraBr = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+/* Datas curtas, como na ficha impressa: 17/02/26 e 17/02/26 12:41:55. */
+const dataCurta = (iso: string) =>
+  new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+const dataHoraCurta = (iso: string) =>
+  `${dataCurta(iso)} ${new Date(iso).toLocaleTimeString('pt-BR', { hour12: false })}`
+
 const hoje = () => new Date().toLocaleDateString('pt-BR')
 
 export default function FichaEpi() {
@@ -99,10 +109,12 @@ export default function FichaEpi() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [entregas, setEntregas] = useState<Entrega[]>([])
   const [fotos, setFotos] = useState<Record<string, string>>({})
+  /* Links assinados do traço de cada assinatura, como os das fotos. */
+  const [assinaturas, setAssinaturas] = useState<Record<string, string>>({})
 
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [quem, setQuem] = useState('')
-  const [comFoto, setComFoto] = useState(true)
+  const [comFoto, setComFoto] = useState(false)
 
   async function carregar() {
     try {
@@ -143,8 +155,9 @@ export default function FichaEpi() {
           .from('epi_entregas')
           .select(
             'id, colaborador_id, empresa_id, entregue_em, assinado_em, cancelada_em, ' +
-              'entregue_por_nome, foto_path, ' +
-              'epi_entregas_itens(nome, ca, complemento, quantidade, motivo, troca_em, devolvido_em, devolucao_motivo)'
+              'entregue_por_nome, foto_path, assinatura_imagem, assinatura_hash, ' +
+              'epi_entregas_itens(nome, ca, complemento, quantidade, motivo, troca_em, ' +
+              'devolvido_em, devolucao_motivo, validade_ca, descricao)'
           )
           .is('cancelada_em', null)
           .order('entregue_em'),
@@ -208,6 +221,24 @@ export default function FichaEpi() {
       setFotos((atual) => ({ ...atual, ...novas }))
     }
 
+    /* O traço da assinatura sempre entra: ele é parte do documento,
+       não um extra como a foto. */
+    async function tracos() {
+      const caminhos = fichas
+        .flatMap((f) => f.linhas.map((l) => l.assinatura_imagem))
+        .filter((c): c is string => Boolean(c))
+      const faltando = [...new Set(caminhos)].filter((c) => !assinaturas[c])
+      if (!faltando.length) return
+
+      const { data } = await supabase.storage.from('epi-fotos').createSignedUrls(faltando, 3600)
+      if (!vivo || !data) return
+      const novas: Record<string, string> = {}
+      for (const d of data) if (d.path && d.signedUrl) novas[d.path] = d.signedUrl
+      setAssinaturas((atual) => ({ ...atual, ...novas }))
+    }
+
+    tracos()
+
     assinar()
     return () => {
       vivo = false
@@ -215,6 +246,10 @@ export default function FichaEpi() {
   }, [fichas, comFoto, fotos])
 
   const empresa = empresas.find((e) => e.id === empresaAtual)
+
+  /* No cabeçalho vai a razão social, não o nome de fantasia: a ficha é
+     documento, e é a razão social que casa com o CNPJ ao lado. */
+  const nomeEmpregador = () => empresa?.razao_social || empresa?.nome_fantasia || ''
 
   if (semTabela) {
     return (
@@ -288,116 +323,132 @@ export default function FichaEpi() {
         </p>
       )}
 
-      {fichas.map(({ pessoa, linhas }) => {
-        /* A coluna Devolucao so entra quando ha algo devolvido nesta
-           ficha: em A4 cada coluna a mais espreme as outras, e a ficha
-           de quem nunca devolveu nada nao ganha nada com ela. */
-        const temDevolucao = linhas.some((e) =>
-          e.epi_entregas_itens.some((i) => i.devolvido_em)
-        )
+      {fichas.map(({ pessoa, linhas }, n) => {
         return (
         <article key={pessoa.id} className="ficha">
+          {/* Cabeçalho no formato da ficha que a empresa já conhece:
+              a data de emissão e a página de um lado, a identificação do
+              empregador no meio. */}
           <header className="ficha-topo">
-            <div>
-              <h2>Ficha de controle de entrega de EPI</h2>
-              <p className="ficha-base">NR-06, item 6.6.1</p>
+            <div className="ficha-linha-topo">
+              <span>Documento gerado em: {hoje()}</span>
+              <span>Ficha {n + 1} de {fichas.length}</span>
             </div>
-            <div className="ficha-empresa">
-              <strong>{empresa ? empresa.nome_fantasia || empresa.razao_social : ''}</strong>
-              {empresa?.cnpj && <span>CNPJ {empresa.cnpj}</span>}
+            <div className="ficha-marca">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icone-reallife.svg" alt="" className="ficha-logo" />
+              <div className="ficha-identificacao">
+                <strong>{nomeEmpregador()}</strong>
+                <span>Ficha de EPI - Trabalhadores</span>
+                <strong>
+                  {nomeEmpregador()}
+                  {empresa?.cnpj ? ` (${empresa.cnpj})` : ''}
+                </strong>
+              </div>
             </div>
           </header>
 
-          <dl className="ficha-pessoa">
+          <div className="ficha-dados">
             <div>
-              <dt>Trabalhador</dt>
-              <dd>{pessoa.nome}</dd>
+              <span>Nome do Trabalhador</span>
+              <strong>{pessoa.nome}</strong>
             </div>
             <div>
-              <dt>CPF</dt>
-              <dd>{formatarCpf(pessoa.cpf) || '—'}</dd>
+              <span>Função</span>
+              <strong>{pessoa.funcao || ''}</strong>
             </div>
             <div>
-              <dt>Matrícula</dt>
-              <dd>{pessoa.matricula || '—'}</dd>
+              <span>Matrícula</span>
+              <strong>{pessoa.matricula || ''}</strong>
             </div>
             <div>
-              <dt>Função</dt>
-              <dd>{pessoa.funcao || '—'}</dd>
+              <span>Data de admissão</span>
+              <strong>{pessoa.admissao ? dataBr(pessoa.admissao) : ''}</strong>
             </div>
-            <div>
-              <dt>Local</dt>
-              <dd>{nomeDoLocal(pessoa)}</dd>
-            </div>
-            <div>
-              <dt>Admissão</dt>
-              <dd>{dataBr(pessoa.admissao)}</dd>
-            </div>
-          </dl>
+          </div>
+
+          <div className="ficha-termo">
+            <p>{TERMO_ENTREGA_EPI.join(' ')}</p>
+          </div>
 
           <table className="ficha-tabela">
             <thead>
               <tr>
                 <th>Entrega</th>
+                <th>Devolução</th>
+                <th>CA nº</th>
+                <th>Qtde.</th>
                 <th>Equipamento</th>
-                <th>CA</th>
-                <th>Qtd</th>
                 <th>Motivo</th>
-                <th>Trocar até</th>
-                {temDevolucao && <th>Devolução</th>}
                 {comFoto && <th>Foto</th>}
                 <th>Assinatura</th>
               </tr>
             </thead>
             <tbody>
               {linhas.flatMap((e) =>
-                e.epi_entregas_itens.map((i, n) => (
-                  <tr key={`${e.id}-${n}`}>
+                e.epi_entregas_itens.map((i, k) => (
+                  <tr key={`${e.id}-${k}`}>
                     <td className="mono" data-rotulo="Entrega">
-                      {n === 0 ? dataHoraBr(e.entregue_em) : ''}
+                      {dataCurta(e.entregue_em)}
                     </td>
-                    <td data-rotulo="Equipamento" className="ficha-equip">
-                      {i.nome}
-                      {i.complemento ? ` · ${i.complemento}` : ''}
-                    </td>
-                    <td className="mono" data-rotulo="CA">
-                      {i.ca || '—'}
-                    </td>
-                    <td className="mono" data-rotulo="Qtd">
-                      {i.quantidade}
-                    </td>
-                    <td data-rotulo="Motivo">{MOTIVOS[i.motivo] || i.motivo}</td>
-                    <td className="mono" data-rotulo="Trocar até">
-                      {dataBr(i.troca_em)}
-                    </td>
-                    {temDevolucao && (
                     <td className="mono" data-rotulo="Devolução">
                       {i.devolvido_em ? (
                         <>
                           {dataBr(i.devolvido_em.slice(0, 10))}
                           <br />
-                          {MOTIVOS_DEVOLUCAO[i.devolucao_motivo || ''] || i.devolucao_motivo}
+                          <span className="ficha-mini">
+                            {MOTIVOS_DEVOLUCAO[i.devolucao_motivo || ''] || i.devolucao_motivo}
+                          </span>
                         </>
                       ) : (
-                        'em uso'
+                        ''
                       )}
                     </td>
-                    )}
+                    <td className="mono" data-rotulo="CA nº">
+                      {i.ca || ''}
+                    </td>
+                    <td className="mono" data-rotulo="Qtde.">
+                      {i.quantidade}
+                    </td>
+                    <td data-rotulo="Equipamento" className="ficha-equip">
+                      <strong>
+                        {i.nome.toUpperCase()}
+                        {i.complemento ? ` (${i.complemento})` : ''}
+                      </strong>
+                      {i.validade_ca && (
+                        <span className="ficha-mini">
+                          Validade do C.A.: {dataBr(i.validade_ca)}
+                        </span>
+                      )}
+                      {i.descricao && <span className="ficha-mini">{i.descricao}</span>}
+                    </td>
+                    <td data-rotulo="Motivo">{MOTIVOS[i.motivo] || i.motivo}</td>
                     {comFoto && (
                       <td className="ficha-foto" data-rotulo="Foto">
-                        {n === 0 && fotos[e.foto_path] ? (
+                        {k === 0 && fotos[e.foto_path] ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img src={fotos[e.foto_path]} alt="" />
                         ) : null}
                       </td>
                     )}
-                    <td className="mono ficha-ass" data-rotulo="Assinatura">
-                      {n === 0 ? (
+                    <td className="ficha-ass" data-rotulo="Assinatura">
+                      {k === 0 ? (
                         e.assinado_em ? (
                           <>
-                            <strong>Assinado</strong>
-                            <br />
-                            {dataHoraBr(e.assinado_em)}
+                            {e.assinatura_imagem && assinaturas[e.assinatura_imagem] ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                className="ficha-traco"
+                                src={assinaturas[e.assinatura_imagem]}
+                                alt="Assinatura do trabalhador"
+                              />
+                            ) : (
+                              <span className="ficha-sem-traco">assinado no portal</span>
+                            )}
+                            {e.assinatura_hash && (
+                              <span className="ficha-hash">{e.assinatura_hash.slice(0, 40)}</span>
+                            )}
+                            <span className="ficha-quando">{dataHoraCurta(e.assinado_em)}</span>
                           </>
                         ) : (
                           <span className="ficha-pendente">sem assinatura</span>
@@ -412,32 +463,7 @@ export default function FichaEpi() {
             </tbody>
           </table>
 
-          <section className="ficha-termo">
-            <h3>Declaração do trabalhador</h3>
-            {TERMO_ENTREGA_EPI.map((p, n) => (
-              <p key={n}>{p}</p>
-            ))}
-          </section>
 
-          <footer className="ficha-assinaturas">
-            <div>
-              <span>{pessoa.nome}</span>
-              trabalhador
-            </div>
-            <div>
-              <span>{linhas[linhas.length - 1]?.entregue_por_nome || ''}</span>
-              responsável pela entrega
-            </div>
-            <div>
-              <span>{empresa ? empresa.nome_fantasia || empresa.razao_social : ''}</span>
-              empregador
-            </div>
-          </footer>
-
-          <p className="ficha-rodape">
-            Emitida em {hoje()} pelo Portal do Cliente · as assinaturas registradas no portal
-            constam na coluna “Assinatura”, com data e hora.
-          </p>
         </article>
         )
       })}
