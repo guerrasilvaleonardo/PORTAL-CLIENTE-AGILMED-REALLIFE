@@ -14,6 +14,7 @@ import { lerTudo } from '@/lib/lerTudo'
 import { idsHistorico } from '@/lib/historicoCertificados'
 import { nomeDoTipo } from '@/lib/nomeCertificado'
 import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
+import { idsNaoRenovar } from '@/lib/naoRenovar'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -97,8 +98,11 @@ export async function GET(request: Request) {
    */
   const { mapa: desligados } = await carregarDesligados(supabaseAdmin)
 
+  /* Treinamento que não será realizado novamente também não entra (lib/naoRenovar.ts). */
+  const naoRenovar = await idsNaoRenovar(supabaseAdmin)
+
   const relevantes = (certificados || [])
-    .filter((c: any) => !historico.has(c.id) && !estaDesligado(desligados, c))
+    .filter((c: any) => !historico.has(c.id) && !estaDesligado(desligados, c) && !naoRenovar.has(c.id))
     .map((c: any) => ({
       ...c,
       empresas: Array.isArray(c.empresas) ? c.empresas[0] : c.empresas,

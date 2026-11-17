@@ -13,6 +13,7 @@ import PendenciasAvaliacao from '@/components/PendenciasAvaliacao'
 import { lerTudo } from '@/lib/lerTudo'
 import { idsHistorico } from '@/lib/historicoCertificados'
 import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
+import { idsNaoRenovar } from '@/lib/naoRenovar'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
@@ -223,7 +224,7 @@ export default function PainelPage() {
          * (lib/colaboradoresDesligados.ts; sem a tabela, ninguém sai).
          */
         const contarCertificados = async () => {
-          const [{ data, error }, { mapa: desligados }] = await Promise.all([
+          const [{ data, error }, { mapa: desligados }, naoRenovar] = await Promise.all([
             lerTudo<any>(() =>
               supabase
                 .from('certificados')
@@ -231,6 +232,7 @@ export default function PainelPage() {
                 .order('id')
             ),
             carregarDesligados(supabase),
+            idsNaoRenovar(supabase),
           ])
 
           if (error || !data) return { vencidos: 0, vencendo: 0 }
@@ -240,7 +242,7 @@ export default function PainelPage() {
           let vencendo = 0
 
           for (const c of data) {
-            if (!c.validade || historico.has(c.id) || estaDesligado(desligados, c)) continue
+            if (!c.validade || historico.has(c.id) || estaDesligado(desligados, c) || naoRenovar.has(c.id)) continue
             if (c.validade < hoje) vencidos += 1
             else if (c.validade <= daqui30) vencendo += 1
           }
