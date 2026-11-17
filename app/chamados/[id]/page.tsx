@@ -339,6 +339,14 @@ export default function DetalhesChamadoPage() {
   const [erro, setErro] = useState('')
   const [erroAnexo, setErroAnexo] = useState('')
 
+  /* Anexos: o arquivo escolhido espera confirmação; renomear e excluir
+   * acontecem depois, na lista. */
+  const [arquivoEscolhido, setArquivoEscolhido] = useState<File | null>(null)
+  const [renomeando, setRenomeando] = useState('')
+  const [nomeNovo, setNomeNovo] = useState('')
+  const [salvandoNome, setSalvandoNome] = useState(false)
+  const [excluindoAnexo, setExcluindoAnexo] = useState('')
+
   const [marca, setMarca] = useState<Marca | null>(null)
 
   /* Posição atual na fila da área (só enquanto o chamado está na fila). */
@@ -645,25 +653,117 @@ export default function DetalhesChamadoPage() {
     setEnviando(false)
   }
 
-  async function enviarAnexo(
+  /* Escolher não é anexar. O arquivo fica em espera, com nome e tamanho
+   * à vista, até alguém confirmar — é a última chance de perceber que o
+   * documento é o errado antes de a equipe passar a vê-lo. */
+  function escolherArquivo(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
     const arquivo = event.target.files?.[0]
-
     event.target.value = ''
 
     if (!arquivo) return
 
-    setErroAnexo('')
-
-    const limite = 10 * 1024 * 1024
-
-    if (arquivo.size > limite) {
+    if (arquivo.size > 10 * 1024 * 1024) {
       setErroAnexo(
         'O arquivo é muito grande. O tamanho máximo permitido é 10 MB.'
       )
+      setArquivoEscolhido(null)
       return
     }
+
+    setErroAnexo('')
+    setArquivoEscolhido(arquivo)
+  }
+
+  /* Renomear mexe só no nome que aparece na lista. O arquivo no balde
+   * continua o mesmo: trocar o conteúdo por baixo apagaria o que a
+   * equipe já viu, sem deixar rastro. Arquivo errado se exclui e se
+   * envia de novo, e aí a data nova aparece. */
+  function abrirRenomear(anexo: Anexo) {
+    setErroAnexo('')
+    setRenomeando(anexo.id)
+    setNomeNovo(anexo.nome_arquivo)
+  }
+
+  async function salvarNome(anexo: Anexo) {
+    const nome = nomeNovo.trim()
+
+    if (!nome) {
+      setErroAnexo('O anexo precisa de um nome.')
+      return
+    }
+    if (nome === anexo.nome_arquivo) {
+      setRenomeando('')
+      return
+    }
+
+    setSalvandoNome(true)
+    setErroAnexo('')
+
+    try {
+      const { error } = await supabase
+        .from('chamado_anexos')
+        .update({ nome_arquivo: nome })
+        .eq('id', anexo.id)
+
+      if (error) {
+        console.error(error)
+        setErroAnexo('Não foi possível renomear o arquivo.')
+        return
+      }
+
+      setAnexos((atual) =>
+        atual.map((a) =>
+          a.id === anexo.id ? { ...a, nome_arquivo: nome } : a
+        )
+      )
+      setRenomeando('')
+    } finally {
+      setSalvandoNome(false)
+    }
+  }
+
+  async function excluirAnexo(anexo: Anexo) {
+    const certeza = window.confirm(
+      `Excluir "${anexo.nome_arquivo}"?\n\nO arquivo sai do chamado e não volta.`
+    )
+    if (!certeza) return
+
+    setExcluindoAnexo(anexo.id)
+    setErroAnexo('')
+
+    try {
+      const { error } = await supabase
+        .from('chamado_anexos')
+        .delete()
+        .eq('id', anexo.id)
+
+      if (error) {
+        console.error(error)
+        setErroAnexo('Não foi possível excluir o arquivo.')
+        return
+      }
+
+      /* A linha sai primeiro e o arquivo do balde depois: arquivo órfão
+       * ninguém vê, mas linha apontando para arquivo que não existe
+       * mais quebraria a lista do chamado. */
+      await supabase.storage
+        .from('chamados-anexos')
+        .remove([anexo.caminho_arquivo])
+
+      setAnexos((atual) => atual.filter((a) => a.id !== anexo.id))
+    } finally {
+      setExcluindoAnexo('')
+    }
+  }
+
+  async function enviarAnexo() {
+    const arquivo = arquivoEscolhido
+
+    if (!arquivo) return
+
+    setErroAnexo('')
 
     const {
       data: { user },
@@ -728,6 +828,7 @@ export default function DetalhesChamadoPage() {
       }
 
       setAnexos((atual) => [...atual, anexoData as Anexo])
+      setArquivoEscolhido(null)
     } catch (error) {
       console.error(error)
       setErroAnexo(
@@ -1508,7 +1609,7 @@ export default function DetalhesChamadoPage() {
                   <input
                     id="arquivo-chamado"
                     type="file"
-                    onChange={enviarAnexo}
+                    onChange={escolherArquivo}
                     disabled={enviandoAnexo}
                     style={styles.hiddenInput}
                   />
@@ -1521,6 +1622,49 @@ export default function DetalhesChamadoPage() {
                 </div>
               )}
 
+              {/* O arquivo escolhido fica aqui, em espera. Confirmar é um
+                  segundo clique; desistir não deixa rastro nenhum. */}
+              {arquivoEscolhido && (
+                <div style={styles.confirmAttachment}>
+                  <div style={{ marginBottom: '4px' }}>
+                    Anexar este arquivo ao chamado?
+                  </div>
+                  <div style={styles.confirmFileName}>
+                    {arquivoEscolhido.name}
+                  </div>
+                  <div style={styles.confirmFileMeta}>
+                    {formatarTamanho(arquivoEscolhido.size)} · depois de
+                    anexado, a equipe passa a ver este arquivo.
+                  </div>
+                  <div style={styles.confirmActions}>
+                    <button
+                      type="button"
+                      onClick={enviarAnexo}
+                      disabled={enviandoAnexo}
+                      style={{
+                        ...styles.confirmButton,
+                        background: tema.principal,
+                        ...(enviandoAnexo ? styles.disabledButton : {}),
+                      }}
+                    >
+                      {enviandoAnexo ? 'Anexando...' : 'Anexar arquivo'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setArquivoEscolhido(null)}
+                      disabled={enviandoAnexo}
+                      style={{
+                        ...styles.openFileButton,
+                        borderColor: tema.borda,
+                        color: tema.principal,
+                        ...(enviandoAnexo ? styles.disabledButton : {}),
+                      }}
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {anexos.length === 0 ? (
                 <div style={styles.emptyAttachments}>
@@ -1542,9 +1686,48 @@ export default function DetalhesChamadoPage() {
                       </div>
 
                       <div style={styles.fileInfo}>
-                        <strong style={styles.fileName}>
-                          {anexo.nome_arquivo}
-                        </strong>
+                        {renomeando === anexo.id ? (
+                          <div style={styles.renameRow}>
+                            <input
+                              value={nomeNovo}
+                              onChange={(e) => setNomeNovo(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') salvarNome(anexo)
+                                if (e.key === 'Escape') setRenomeando('')
+                              }}
+                              autoFocus
+                              style={styles.renameInput}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => salvarNome(anexo)}
+                              disabled={salvandoNome}
+                              style={{
+                                ...styles.confirmButton,
+                                background: tema.principal,
+                                ...(salvandoNome ? styles.disabledButton : {}),
+                              }}
+                            >
+                              {salvandoNome ? 'Salvando...' : 'Salvar'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRenomeando('')}
+                              disabled={salvandoNome}
+                              style={{
+                                ...styles.openFileButton,
+                                borderColor: tema.borda,
+                                color: tema.principal,
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <strong style={styles.fileName}>
+                            {anexo.nome_arquivo}
+                          </strong>
+                        )}
 
                         <span style={styles.fileMeta}>
                           {formatarTamanho(
@@ -1597,6 +1780,38 @@ export default function DetalhesChamadoPage() {
                           ? 'Baixando...'
                           : 'Baixar'}
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => abrirRenomear(anexo)}
+                        style={{
+                          ...styles.openFileButton,
+                          borderColor: tema.borda,
+                          color: tema.principal,
+                        }}
+                      >
+                        Renomear
+                      </button>
+
+                      {anexo.enviado_por === usuarioId && (
+                        <button
+                          type="button"
+                          onClick={() => excluirAnexo(anexo)}
+                          disabled={excluindoAnexo === anexo.id}
+                          style={{
+                            ...styles.openFileButton,
+                            borderColor: '#fecaca',
+                            color: '#b91c1c',
+                            ...(excluindoAnexo === anexo.id
+                              ? styles.disabledButton
+                              : {}),
+                          }}
+                        >
+                          {excluindoAnexo === anexo.id
+                            ? 'Excluindo...'
+                            : 'Excluir'}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2455,6 +2670,62 @@ const styles: Record<
       '1px solid #e5e7eb',
     borderRadius: '12px',
     background: '#ffffff',
+  },
+
+  /* O arquivo em espera, antes de ser anexado de verdade. Amarelo
+     porque é um passo pendente, não um erro nem algo concluído. */
+  confirmAttachment: {
+    background: '#fffbeb',
+    border: '1px solid #fde68a',
+    borderRadius: '12px',
+    padding: '14px 16px',
+    marginBottom: '16px',
+    color: '#172033',
+    fontSize: '14px',
+  },
+
+  confirmFileName: {
+    fontWeight: 700,
+    color: '#172033',
+    wordBreak: 'break-word' as const,
+  },
+
+  confirmFileMeta: {
+    color: '#64748b',
+    fontSize: '13px',
+    marginBottom: '12px',
+  },
+
+  confirmActions: {
+    display: 'flex',
+    gap: '9px',
+    flexWrap: 'wrap' as const,
+  },
+
+  confirmButton: {
+    border: 'none',
+    color: '#ffffff',
+    borderRadius: '9px',
+    padding: '9px 14px',
+    fontWeight: 700,
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
+
+  renameRow: {
+    display: 'flex',
+    gap: '7px',
+    flexWrap: 'wrap' as const,
+    marginBottom: '4px',
+  },
+
+  renameInput: {
+    flex: '1 1 160px',
+    minWidth: 0,
+    border: '1px solid #cbd5e1',
+    borderRadius: '9px',
+    padding: '7px 9px',
+    font: 'inherit',
   },
 
   fileIcon: {
