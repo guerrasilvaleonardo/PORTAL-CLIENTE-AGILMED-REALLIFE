@@ -38,6 +38,8 @@ type Colaborador = {
   matricula: string | null
   funcao: string | null
   local_trabalho: string | null
+  local_id: string | null
+  locais_trabalho?: { nome: string } | { nome: string }[] | null
   admissao: string | null
 }
 type Item = {
@@ -74,6 +76,14 @@ type Entrega = {
 }
 
 const dataBr = (iso: string | null) => (iso ? iso.split('-').reverse().join('/') : '—')
+
+/* O local vem do cadastro novo quando existe, e cai para o texto antigo
+ * de quem ainda não foi ligado a um local. O PostgREST devolve a relação
+ * ora como objeto, ora como lista de um — por isso os dois caminhos. */
+function nomeDoLocal(p: Colaborador): string {
+  const rel = Array.isArray(p.locais_trabalho) ? p.locais_trabalho[0] : p.locais_trabalho
+  return rel?.nome || p.local_trabalho || '—'
+}
 const dataHoraBr = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 const hoje = () => new Date().toLocaleDateString('pt-BR')
@@ -127,7 +137,7 @@ export default function FichaEpi() {
       const [{ data: cols }, { data: ents, error: erroEnt }] = await Promise.all([
         supabase
           .from('colaboradores')
-          .select('id, empresa_id, nome, cpf, matricula, funcao, local_trabalho, admissao')
+          .select('id, empresa_id, nome, cpf, matricula, funcao, local_trabalho, local_id, admissao, locais_trabalho(nome)')
           .order('nome'),
         supabase
           .from('epi_entregas')
@@ -317,7 +327,7 @@ export default function FichaEpi() {
             </div>
             <div>
               <dt>Local</dt>
-              <dd>{pessoa.local_trabalho || '—'}</dd>
+              <dd>{nomeDoLocal(pessoa)}</dd>
             </div>
             <div>
               <dt>Admissão</dt>

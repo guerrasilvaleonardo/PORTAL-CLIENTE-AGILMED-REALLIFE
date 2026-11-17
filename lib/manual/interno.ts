@@ -661,6 +661,26 @@ const manualInterno: Manual = {
           dica: 'O CPF passa pelo dígito verificador antes de salvar. CPF errado junta ou separa a pessoa errada nos certificados, então vale barrar na entrada.',
           link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
         },
+        {
+          titulo: 'Locais de trabalho e o encarregado',
+          texto:
+            'locais_trabalho é o segundo nível dentro do CNPJ (supabase/locais-trabalho.sql). colaboradores.local_id aponta para ela; epi_entregas.local_nome congela o nome na hora da entrega. colaboradores.entrega_epi marca quem pode aparecer como responsável.',
+          tela: {
+            url: '/colaboradores/locais',
+            blocos: [
+              menu('Colaboradores'),
+              { t: 'topo', sobre: 'Cadastros', titulo: 'Locais de trabalho', botoes: ['Novo local'] },
+              { t: 'tabela', n: 1, colunas: ['Local', 'Tipo', 'CNO', 'Pessoas'], linhas: [['Obra Jardins', 'obra', '123456789012', '14']] },
+            ],
+          },
+          passos: [
+            'O campo "Local de trabalho" do colaborador vira select quando há locais cadastrados; sem nenhum, continua texto livre em local_trabalho. Os dois convivem, e a ficha prefere o do cadastro.',
+            'Na entrega, entregue_por_colaborador_id guarda o encarregado e entregue_por_nome congela o nome dele. entregue_por continua sendo quem digitou.',
+            'O índice único é (empresa_id, lower(nome)): tentar repetir o mesmo local devolve 23505, e a tela traduz isso em texto.',
+          ],
+          atencao: 'Local não tem DELETE: a política é só select/insert/update. Lugar encerrado vira ativo = false, porque ele faz parte de fichas já assinadas.',
+          link: { href: '/colaboradores/locais', rotulo: 'Abrir os Locais' },
+        },
       ],
     },
 

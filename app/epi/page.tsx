@@ -52,7 +52,17 @@ const rotuloDevolucao = (v: string | null) =>
   MOTIVOS_DEVOLUCAO.find((m) => m.valor === v)?.rotulo || v || ''
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
-type Colaborador = { id: string; empresa_id: string; nome: string; cpf: string | null; funcao: string | null; matricula: string | null }
+type Colaborador = {
+  id: string
+  empresa_id: string
+  nome: string
+  cpf: string | null
+  funcao: string | null
+  matricula: string | null
+  local_id: string | null
+  local_trabalho: string | null
+  entrega_epi: boolean
+}
 type Epi = { id: string; empresa_id: string; nome: string; ca: string | null; complemento: string | null; vida_util_dias: number; tipo: string; ativo: boolean; validade_ca: string | null }
 
 type ItemEntrega = {
@@ -156,6 +166,7 @@ export default function EntregasEpi() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [epis, setEpis] = useState<Epi[]>([])
   const [entregas, setEntregas] = useState<Entrega[]>([])
+  const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
 
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [busca, setBusca] = useState('')
@@ -166,6 +177,7 @@ export default function EntregasEpi() {
   const [aviso, setAviso] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [quem, setQuem] = useState('')
+  const [entregador, setEntregador] = useState('')
   const [escolhidos, setEscolhidos] = useState<Record<string, { qtd: number; motivo: string }>>({})
   const [foto, setFoto] = useState<{ blob: Blob; url: string } | null>(null)
   const [preparandoFoto, setPreparandoFoto] = useState(false)
@@ -213,7 +225,10 @@ export default function EntregasEpi() {
       }
 
       const [{ data: cols }, { data: eqs }, { data: ents, error: erroEnt }] = await Promise.all([
-        supabase.from('colaboradores').select('id, empresa_id, nome, cpf, funcao, matricula').order('nome'),
+        supabase
+          .from('colaboradores')
+          .select('id, empresa_id, nome, cpf, funcao, matricula, local_id, local_trabalho, entrega_epi')
+          .order('nome'),
         supabase.from('epis').select('id, empresa_id, nome, ca, complemento, vida_util_dias, tipo, ativo, validade_ca').order('nome'),
         supabase
           .from('epi_entregas')
@@ -237,6 +252,13 @@ export default function EntregasEpi() {
 
       setColaboradores((cols || []) as Colaborador[])
       setEpis((eqs || []) as Epi[])
+
+      /* Só para traduzir local_id em nome na hora de gravar a entrega. */
+      const { data: locs } = await supabase
+        .from('locais_trabalho')
+        .select('id, nome')
+        .eq('ativo', true)
+      setLocais((locs || []) as { id: string; nome: string }[])
       setEntregas(
         ((ents || []) as any[]).map((e) => ({
           ...e,
@@ -264,6 +286,10 @@ export default function EntregasEpi() {
   const pessoasDaEmpresa = useMemo(
     () => colaboradores.filter((c) => !empresaAtual || c.empresa_id === empresaAtual),
     [colaboradores, empresaAtual]
+  )
+  const encarregados = useMemo(
+    () => pessoasDaEmpresa.filter((c) => c.entrega_epi),
+    [pessoasDaEmpresa]
   )
   const episDaEmpresa = useMemo(
     () => epis.filter((e) => e.ativo && (!empresaAtual || e.empresa_id === empresaAtual)),
@@ -293,8 +319,27 @@ export default function EntregasEpi() {
     }
   }, [entregas, empresaFiltro])
 
+  /* Quem entregou de fato: o encarregado escolhido, ou quem está logado
+   * quando ninguém foi escolhido. O nome vai congelado para a ficha —
+   * a pessoa pode sair da empresa e a ficha continua dizendo quem foi. */
+  function nomeDeQuemEntregou(): string | null {
+    if (entregador) {
+      return colaboradores.find((c) => c.id === entregador)?.nome || meuNome || null
+    }
+    return meuNome || null
+  }
+
+  /* O local vai congelado na entrega, como o CA e o prazo: a pessoa muda
+   * de obra, e a ficha precisa dizer onde ela estava naquele dia. */
+  function localDoTrabalhador(id: string): string | null {
+    const c = colaboradores.find((x) => x.id === id)
+    if (!c) return null
+    return locais.find((l) => l.id === c.local_id)?.nome || c.local_trabalho || null
+  }
+
   function abrirNova() {
     setQuem('')
+    setEntregador('')
     setEscolhidos({})
     if (foto) URL.revokeObjectURL(foto.url)
     setFoto(null)
@@ -377,7 +422,9 @@ export default function EntregasEpi() {
           empresa_id: empresaId,
           colaborador_id: quem,
           foto_path: caminho,
-          entregue_por_nome: meuNome || null,
+          entregue_por_nome: nomeDeQuemEntregou(),
+          entregue_por_colaborador_id: entregador || null,
+          local_nome: localDoTrabalhador(quem),
         })
         .select('id, token')
         .single()
@@ -724,7 +771,32 @@ export default function EntregasEpi() {
                     em Colaboradores antes de entregar.
                   </p>
                 )}
+                {quem && localDoTrabalhador(quem) && (
+                  <p className="dica">Local: {localDoTrabalhador(quem)}</p>
+                )}
               </div>
+
+              {/* Quem entrega quase nunca é quem está logado. A lista só
+                  aparece quando a empresa marcou alguém como encarregado
+                  em Colaboradores — até lá, fica o nome de quem registrou. */}
+              {encarregados.length > 0 && (
+                <div className="field">
+                  <label htmlFor="entrega-entregador">Quem está entregando</label>
+                  <select
+                    id="entrega-entregador"
+                    value={entregador}
+                    onChange={(e) => setEntregador(e.target.value)}
+                  >
+                    <option value="">{meuNome ? `${meuNome} (você)` : 'Você'}</option>
+                    {encarregados.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome}
+                        {c.funcao ? ` · ${c.funcao}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="field">
                 <label>Equipamentos</label>
