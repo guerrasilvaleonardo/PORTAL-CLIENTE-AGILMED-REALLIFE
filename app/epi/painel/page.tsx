@@ -144,7 +144,7 @@ export default function PainelEpi() {
         .from('epi_entregas')
         .select(
           'id, empresa_id, entregue_em, assinado_em, cancelada_em, entregue_por_nome, ' +
-            'local_nome, colaborador_id, colaboradores(nome), ' +
+            'local_nome, colaborador_id, colaboradores!colaborador_id(nome), ' +
             'epi_entregas_itens(nome, complemento, ca, quantidade, troca_em, devolvido_em, devolucao_motivo)'
         )
         .order('entregue_em', { ascending: false })

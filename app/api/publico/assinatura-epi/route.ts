@@ -55,7 +55,7 @@ async function buscar(token: string) {
     .from('epi_entregas')
     .select(
       'id, token, entregue_em, assinado_em, cancelada_em, entregue_por_nome, ' +
-        'colaboradores(nome, cpf, funcao, empresa_id), ' +
+        'colaboradores!colaborador_id(nome, cpf, funcao, empresa_id), ' +
         'empresas(razao_social, nome_fantasia), ' +
         'epi_entregas_itens(nome, ca, complemento, quantidade, troca_em, motivo)'
     )

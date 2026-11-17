@@ -234,7 +234,7 @@ export default function EntregasEpi() {
           .from('epi_entregas')
           .select(
             'id, empresa_id, entregue_em, assinado_em, cancelada_em, token, entregue_por_nome, observacoes, ' +
-              'colaboradores(nome, funcao), ' +
+              'colaboradores!colaborador_id(nome, funcao), ' +
               'epi_entregas_itens(id, nome, ca, complemento, quantidade, troca_em, motivo, ' +
               'previsao_devolucao, devolvido_em, devolucao_motivo, devolucao_obs, devolvido_por_nome, observacao)'
           )
