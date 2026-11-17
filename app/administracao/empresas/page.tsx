@@ -21,6 +21,7 @@ type Empresa = {
   modulo_certificados?: boolean | null
   modulo_treinamentos?: boolean | null
   modulo_documentos?: boolean | null
+  modulo_epi?: boolean | null
   total_usuarios: number
   total_chamados: number
 }
@@ -53,6 +54,7 @@ const formVazio = {
   modulo_certificados: false,
   modulo_treinamentos: false,
   modulo_documentos: false,
+  modulo_epi: false,
 }
 
 function formatarCnpj(valor: string | null) {
@@ -75,7 +77,7 @@ export default function EmpresasPage() {
 
   const editando = form.id !== ''
 
-  function alterar(campo: Exclude<keyof typeof formVazio, 'modulo_certificados' | 'modulo_treinamentos' | 'modulo_documentos'>, valor: string) {
+  function alterar(campo: Exclude<keyof typeof formVazio, 'modulo_certificados' | 'modulo_treinamentos' | 'modulo_documentos' | 'modulo_epi'>, valor: string) {
     setForm((atual) => ({ ...atual, [campo]: valor }))
   }
 
@@ -195,6 +197,7 @@ export default function EmpresasPage() {
       modulo_certificados: empresa.modulo_certificados !== false,
       modulo_treinamentos: empresa.modulo_treinamentos !== false,
       modulo_documentos: empresa.modulo_documentos !== false,
+      modulo_epi: empresa.modulo_epi !== false,
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -415,6 +418,7 @@ export default function EmpresasPage() {
                   ['modulo_certificados', 'Certificados'],
                   ['modulo_treinamentos', 'Treinamentos'],
                   ['modulo_documentos', 'Documentos SST'],
+                  ['modulo_epi', 'EPI'],
                 ] as const
               ).map(([campo, rotulo]) => (
                 <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontWeight: 500, color: 'var(--ink)', fontSize: 13.5 }}>
@@ -523,6 +527,7 @@ export default function EmpresasPage() {
                             empresa.modulo_certificados !== false && 'Certificados',
                             empresa.modulo_treinamentos !== false && 'Treinamentos',
                             empresa.modulo_documentos !== false && 'Documentos SST',
+                            empresa.modulo_epi !== false && 'EPI',
                           ]
                             .filter(Boolean)
                             .join(' · ') || 'Só chamados'}

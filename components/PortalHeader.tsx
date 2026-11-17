@@ -87,7 +87,7 @@ export default function PortalHeader() {
   const chamadosNovos = Object.keys(useChamadosNaoLidos(!carregando && !!marca)).length
   /* Ferramentas cobradas à parte: cadeado no menu do cliente sem contratação. */
   const modulos = useModulos()
-  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos' }
+  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi' }
 
   useEffect(() => {
     let ativo = true

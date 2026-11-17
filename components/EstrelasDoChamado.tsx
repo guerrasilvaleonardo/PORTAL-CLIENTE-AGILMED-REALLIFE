@@ -60,6 +60,12 @@ export default function EstrelasDoChamado({
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+  /* A autorizacao que o banco recusou por ser retroativa, esperando
+     o gestor decidir se passa por cima. */
+  const [retroativa, setRetroativa] = useState<{
+    rpc: string
+    args: Record<string, unknown>
+  } | null>(null)
 
   const carregar = useCallback(async () => {
     const { data, error } = await supabase
@@ -100,12 +106,28 @@ export default function EstrelasDoChamado({
     const { error } = await supabase.rpc(rpc, args)
     setSalvando(false)
     if (error) {
+      /* O banco recusa autorizar extensão de prazo já vencido. É a
+       * resposta certa quase sempre, então ela continua sendo a
+       * primeira — mas o gestor pode passar por cima num segundo
+       * clique, e aí a decisão fica gravada como forçada. */
+      if (/alteração retroativa/i.test(error.message || '')) {
+        setRetroativa({ rpc, args })
+        return
+      }
       setErro(error.message)
       return
     }
     setMotivo('')
+    setRetroativa(null)
     await carregar()
     avisarAtualizacao()
+  }
+
+  async function forcarRetroativa() {
+    if (!retroativa) return
+    const alvo = retroativa
+    setRetroativa(null)
+    await acao(alvo.rpc, { ...alvo.args, p_forcar: true })
   }
 
   if (!instalado) return null
@@ -231,6 +253,38 @@ export default function EstrelasDoChamado({
             </div>
           )}
           {erro && <div className="banner bad" role="alert">{erro}</div>}
+
+          {/* O segundo passo. Não é um aviso que se fecha sem querer:
+              a saída é dizer sim ou não ao que o banco recusou. */}
+          {retroativa && (
+            <div className="banner warn" role="alert">
+              <p style={{ margin: '0 0 4px' }}>
+                <strong>Este prazo já estava vencido quando foi alterado.</strong>
+              </p>
+              <p style={{ margin: '0 0 10px', fontSize: 13 }}>
+                Autorizar assim mesmo registra a sua decisão como forçada, com a sua
+                justificativa e o seu nome, no histórico da estrela.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  disabled={salvando}
+                  onClick={forcarRetroativa}
+                >
+                  Autorizar assim mesmo
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={salvando}
+                  onClick={() => setRetroativa(null)}
+                >
+                  Deixar como está
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -155,7 +155,7 @@ function validarCampos(body: any, exigirRazaoSocial: boolean) {
   }
 }
 
-const MODULOS_EMPRESA = ['modulo_certificados', 'modulo_treinamentos', 'modulo_documentos']
+const MODULOS_EMPRESA = ['modulo_certificados', 'modulo_treinamentos', 'modulo_documentos', 'modulo_epi']
 
 /* Colunas das ferramentas ainda não criadas (modulos-cliente.sql não rodou). */
 function semColunaModulos(error: { code?: string; message?: string } | null) {
