@@ -751,6 +751,26 @@ const manualInterno: Manual = {
           atencao: 'Editar entrega assinada é permitido de propósito, mas nunca em silêncio: apos_assinatura fica verdadeiro no histórico e o painel avisa antes.',
           link: { href: '/epi', rotulo: 'Abrir as Entregas' },
         },
+        {
+          titulo: 'Painel de EPI',
+          texto:
+            'A tela /epi/painel soma no navegador as entregas que ela já carrega — nenhuma agregação nova no banco. Com centenas de entregas por empresa isso responde mais rápido que ir e voltar ao servidor, e o filtro de período muda na hora.',
+          tela: {
+            url: '/epi/painel',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Painel' },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Entregas no período', valor: '34' }, { rotulo: 'Com troca vencida', valor: '5' }] },
+            ],
+          },
+          passos: [
+            'Gráficos em lib/graficos.tsx (Rosca e Barras), SVG puro nos tokens do sistema visual — sem biblioteca de gráfico.',
+            '"Em uso" ignora o filtro de período de propósito: o prazo de troca vale para tudo que está com as pessoas hoje.',
+            'Entrega cancelada não entra em conta nenhuma, porque ela não aconteceu.',
+          ],
+          atencao: 'O limite da consulta é 2000 entregas. Quando alguma empresa passar disso, os números começam a mentir pelo corte e será hora de agregar no banco.',
+          link: { href: '/epi/painel', rotulo: 'Abrir o Painel' },
+        },
       ],
     },
 
