@@ -475,15 +475,47 @@ const manualCliente: Manual = {
 
     {
       id: 'epi',
-      titulo: 'EPI',
+      titulo: 'EPI · Entregas',
       rotas: ['/epi'],
+      slides: [
+        {
+          titulo: 'Entregar EPI e colher a assinatura',
+          texto:
+            'A entrega é feita no celular, com o trabalhador na frente: você escolhe a pessoa, marca os equipamentos, tira a foto e salva. Na tela seguinte aparece um QR; ele aponta a câmera, confere o CPF e assina ali mesmo.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Entregas', botoes: ['Nova entrega'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Nos últimos 30 dias', valor: '38' }, { rotulo: 'Aguardando assinatura', valor: '6', tom: 'alerta' }, { rotulo: 'Com troca vencida', valor: '4', tom: 'ruim' }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Quem está recebendo', valor: 'Marcos Pereira da Luz · 1042 · Pedreiro' }, { rotulo: 'Equipamentos', valor: 'Luva de vaqueta · G · CA 41385' }, { rotulo: 'Foto da entrega', valor: 'obrigatória', obrigatorio: true }] },
+              { t: 'aviso', n: 3, texto: 'Entrega registrada. Peça para ele apontar a câmera e assinar agora.', tom: 'bom' },
+            ],
+          },
+          passos: [
+            'Os cartões mostram o movimento dos últimos 30 dias, quantas entregas ainda não foram assinadas e quantas já passaram do prazo de troca.',
+            'Em "Nova entrega", a pessoa vem do cadastro de Colaboradores e os equipamentos do cadastro de EPI — o CA e o prazo de troca entram sozinhos.',
+            'A foto é obrigatória: o botão de registrar só funciona depois dela. Ela é reduzida no próprio aparelho antes de subir.',
+            'Salvou, aparece o QR. Se o trabalhador não puder assinar na hora, a entrega fica como "Aguardando assinatura" e o link continua valendo.',
+          ],
+          atencao: 'Equipamento com CA vencido não pode ser marcado na entrega, e quem está sem CPF no cadastro não consegue assinar. Os dois casos aparecem avisados na própria tela.',
+          dica: 'A entrega não é editada nem apagada depois de salva: ela registra um ato que aconteceu. Se algo saiu errado, cancele — o cancelamento fica registrado com o motivo.',
+          link: { href: '/epi', rotulo: 'Abrir Entregas' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi-equipamentos',
+      titulo: 'EPI · Equipamentos',
+      rotas: ['/epi/equipamentos'],
       slides: [
         {
           titulo: 'Os equipamentos que você entrega',
           texto:
             'Cadastre aqui cada EPI com o número do CA, a validade do CA e de quantos em quantos dias ele é trocado. Na hora da entrega, escolher o equipamento já traz o CA e calcula a data da próxima troca.',
           tela: {
-            url: '/epi',
+            url: '/epi/equipamentos',
             blocos: [
               menu('EPI'),
               { t: 'topo', sobre: 'EPI', titulo: 'Equipamentos', botoes: ['Novo equipamento'] },
@@ -499,7 +531,7 @@ const manualCliente: Manual = {
           ],
           atencao: 'EPI com CA vencido não pode ser entregue. É um dos primeiros itens que a fiscalização confere.',
           dica: 'Tamanho e cor entram no campo "Tamanho ou cor": luva P e luva G ficam como dois cadastros, porque na prática são dois itens diferentes no almoxarifado.',
-          link: { href: '/epi', rotulo: 'Abrir EPI' },
+          link: { href: '/epi/equipamentos', rotulo: 'Abrir Equipamentos' },
         },
       ],
     },

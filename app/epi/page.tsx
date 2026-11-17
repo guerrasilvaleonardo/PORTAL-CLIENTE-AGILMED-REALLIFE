@@ -1,106 +1,127 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import QRCode from 'qrcode'
 import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
+import { formatarCpf } from '@/lib/historicoCertificados'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import EpiAbas from '@/components/EpiAbas'
 import Icone from '@/components/Icone'
 import '../colaboradores/colaboradores.css'
-import './epi.css'
+import './entregas.css'
 
 /*
- * EPI — cadastro dos equipamentos (supabase/epis.sql).
+ * Entrega de EPI (supabase/epi-entregas.sql).
  *
- * Primeira tela do módulo. Aqui ficam os equipamentos com CA, validade
- * do CA e vida útil; na entrega, escolher o equipamento já traz o CA e
- * calcula a data da próxima troca, em vez de alguém digitar o número na
- * pressa do almoxarifado.
+ * A tela que o almoxarife usa de pé, com o trabalhador na frente: escolhe
+ * a pessoa, marca os equipamentos, tira a foto e salva. A foto é
+ * obrigatória — sem ela o botão não acende.
  *
- * Controle de estoque e kit por função ficam para depois, de propósito.
+ * Salvou, aparece o QR: o trabalhador aponta o celular dele, confere o
+ * CPF e assina em /assinar-epi/<token>. Quem não assina na hora fica na
+ * lista de pendentes e pode receber o mesmo link por e-mail.
  */
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
-/* O MTE dá prazo de validade ao CA; 60 dias é tempo de providenciar a troca. */
-const DIAS_AVISO_CA = 60
+/* Foto de celular tem 3 a 5 MB; 900 px de lado já identifica pessoa e
+ * equipamento e cai para uns 100 KB. Sem isso, o volume anual de fotos
+ * fica quarenta vezes maior do que precisa. */
+const FOTO_LADO = 900
+const FOTO_QUALIDADE = 0.7
+
+const MOTIVOS = [
+  { valor: 'entrega', rotulo: 'Primeira entrega' },
+  { valor: 'substituicao', rotulo: 'Substituição' },
+  { valor: 'desgaste', rotulo: 'Desgaste' },
+  { valor: 'dano', rotulo: 'Dano' },
+  { valor: 'perda', rotulo: 'Perda' },
+]
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
+type Colaborador = { id: string; empresa_id: string; nome: string; cpf: string | null; funcao: string | null; matricula: string | null }
+type Epi = { id: string; empresa_id: string; nome: string; ca: string | null; complemento: string | null; vida_util_dias: number; tipo: string; ativo: boolean; validade_ca: string | null }
 
-type Epi = {
+type ItemEntrega = { nome: string; ca: string | null; complemento: string | null; quantidade: number; troca_em: string; motivo: string }
+type Entrega = {
   id: string
   empresa_id: string
-  nome: string
-  tipo: 'epi' | 'outros'
-  ca: string | null
-  validade_ca: string | null
-  vida_util_dias: number
-  complemento: string | null
-  fabricante: string | null
-  codigo_externo: string | null
-  observacoes: string | null
-  ativo: boolean
-  empresas?: { nome_fantasia: string | null; razao_social: string } | null
+  entregue_em: string
+  assinado_em: string | null
+  cancelada_em: string | null
+  token: string
+  entregue_por_nome: string | null
+  colaboradores: { nome: string; funcao: string | null } | null
+  epi_entregas_itens: ItemEntrega[]
 }
 
-const formVazio = {
-  id: '',
-  empresa_id: '',
-  nome: '',
-  tipo: 'epi' as 'epi' | 'outros',
-  ca: '',
-  validade_ca: '',
-  vida_util_dias: '90',
-  complemento: '',
-  fabricante: '',
-  codigo_externo: '',
-  observacoes: '',
-  ativo: true,
+const nomeEmpresa = (e: Empresa) => e.nome_fantasia || e.razao_social
+const dataHoraBr = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+const dataBr = (iso: string | null) => (iso ? iso.split('-').reverse().join('/') : '')
+
+const hojeBrasilia = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+
+function emDias(dias: number): string {
+  const d = new Date(hojeBrasilia() + 'T12:00:00')
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
 }
 
-const nomeEmpresa = (e: { nome_fantasia: string | null; razao_social: string } | null | undefined) =>
-  e ? e.nome_fantasia || e.razao_social : ''
+const venceu = (iso: string) => iso < hojeBrasilia()
 
-const dataBr = (iso: string | null) =>
-  iso ? iso.split('-').reverse().join('/') : ''
+/* Reduz a foto no próprio aparelho antes de subir. */
+async function comprimirFoto(arquivo: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(arquivo)
+  const escala = Math.min(1, FOTO_LADO / Math.max(bitmap.width, bitmap.height))
+  const largura = Math.round(bitmap.width * escala)
+  const altura = Math.round(bitmap.height * escala)
 
-/* Dias entre hoje e a data, pelo horário de Brasília. */
-function diasAte(iso: string | null): number | null {
-  if (!iso) return null
-  const hoje = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) + 'T12:00:00')
-  const alvo = new Date(iso + 'T12:00:00')
-  return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
+  const tela = document.createElement('canvas')
+  tela.width = largura
+  tela.height = altura
+  tela.getContext('2d')!.drawImage(bitmap, 0, 0, largura, altura)
+  bitmap.close()
+
+  return new Promise((resolve, reject) => {
+    tela.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Não foi possível preparar a foto.'))),
+      'image/jpeg',
+      FOTO_QUALIDADE
+    )
+  })
 }
 
-/* Vida útil em dias, escrita como as pessoas falam. */
-function prazoTexto(dias: number): string {
-  if (dias % 365 === 0 && dias >= 365) {
-    const anos = dias / 365
-    return `${anos} ano${anos > 1 ? 's' : ''}`
-  }
-  if (dias % 30 === 0 && dias >= 30) {
-    const meses = dias / 30
-    return `${meses} ${meses > 1 ? 'meses' : 'mês'}`
-  }
-  return `${dias} dias`
-}
-
-export default function PainelEpi() {
+export default function EntregasEpi() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
-  const [aviso, setAviso] = useState('')
   const [semTabela, setSemTabela] = useState(false)
   const [interno, setInterno] = useState(false)
   const [minhaEmpresa, setMinhaEmpresa] = useState('')
+  const [meuNome, setMeuNome] = useState('')
 
   const [empresas, setEmpresas] = useState<Empresa[]>([])
-  const [lista, setLista] = useState<Epi[]>([])
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
+  const [epis, setEpis] = useState<Epi[]>([])
+  const [entregas, setEntregas] = useState<Entrega[]>([])
 
-  const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
-  const [mostrarInativos, setMostrarInativos] = useState(false)
+  const [busca, setBusca] = useState('')
+  const [soPendentes, setSoPendentes] = useState(false)
 
-  const [painelAberto, setPainelAberto] = useState(false)
-  const [form, setForm] = useState(formVazio)
+  /* Nova entrega */
+  const [aberta, setAberta] = useState(false)
+  const [aviso, setAviso] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [quem, setQuem] = useState('')
+  const [escolhidos, setEscolhidos] = useState<Record<string, { qtd: number; motivo: string }>>({})
+  const [foto, setFoto] = useState<{ blob: Blob; url: string } | null>(null)
+  const [preparandoFoto, setPreparandoFoto] = useState(false)
+  const campoFoto = useRef<HTMLInputElement | null>(null)
+
+  /* QR da entrega recém-salva */
+  const [qr, setQr] = useState<{ url: string; imagem: string; nome: string } | null>(null)
+
+  const empresaAtual = interno ? empresaFiltro : minhaEmpresa
 
   async function carregar() {
     try {
@@ -110,7 +131,6 @@ export default function PainelEpi() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-
       if (!user) {
         window.location.href = '/login'
         return
@@ -118,15 +138,15 @@ export default function PainelEpi() {
 
       const { data: perfil, error: perfilError } = await supabase
         .from('profiles')
-        .select('perfil, empresa_id')
+        .select('perfil, empresa_id, nome')
         .eq('id', user.id)
         .single()
-
       if (perfilError) throw perfilError
 
       const ehInterno = PERFIS_INTERNOS.includes(perfil?.perfil || '')
       setInterno(ehInterno)
       setMinhaEmpresa(perfil?.empresa_id || '')
+      setMeuNome(perfil?.nome || '')
 
       if (ehInterno) {
         const { data: emps } = await supabase
@@ -136,29 +156,39 @@ export default function PainelEpi() {
         setEmpresas((emps || []) as Empresa[])
       }
 
-      const { data, error } = await supabase
-        .from('epis')
-        .select('*, empresas(nome_fantasia, razao_social)')
-        .order('nome')
+      const [{ data: cols }, { data: eqs }, { data: ents, error: erroEnt }] = await Promise.all([
+        supabase.from('colaboradores').select('id, empresa_id, nome, cpf, funcao, matricula').order('nome'),
+        supabase.from('epis').select('id, empresa_id, nome, ca, complemento, vida_util_dias, tipo, ativo, validade_ca').order('nome'),
+        supabase
+          .from('epi_entregas')
+          .select(
+            'id, empresa_id, entregue_em, assinado_em, cancelada_em, token, entregue_por_nome, ' +
+              'colaboradores(nome, funcao), ' +
+              'epi_entregas_itens(nome, ca, complemento, quantidade, troca_em, motivo)'
+          )
+          .order('entregue_em', { ascending: false })
+          .limit(300),
+      ])
 
-      if (error) {
-        /* Enquanto o SQL não rodou, a tela avisa em vez de quebrar. */
-        if (error.code === '42P01' || /does not exist|schema cache/i.test(error.message || '')) {
+      if (erroEnt) {
+        if (erroEnt.code === '42P01' || /does not exist|schema cache/i.test(erroEnt.message || '')) {
           setSemTabela(true)
           return
         }
-        throw error
+        throw erroEnt
       }
 
-      setLista(
-        ((data || []) as any[]).map((e) => ({
+      setColaboradores((cols || []) as Colaborador[])
+      setEpis((eqs || []) as Epi[])
+      setEntregas(
+        ((ents || []) as any[]).map((e) => ({
           ...e,
-          empresas: Array.isArray(e.empresas) ? e.empresas[0] : e.empresas,
-        })) as Epi[]
+          colaboradores: Array.isArray(e.colaboradores) ? e.colaboradores[0] : e.colaboradores,
+        })) as Entrega[]
       )
     } catch (e: any) {
       console.error(e)
-      setErro(e?.message || 'Não foi possível carregar os equipamentos.')
+      setErro(e?.message || 'Não foi possível carregar as entregas.')
     } finally {
       setCarregando(false)
     }
@@ -169,139 +199,184 @@ export default function PainelEpi() {
   }, [])
 
   useEffect(() => {
-    function aoTeclar(e: KeyboardEvent) {
-      if (e.key === 'Escape' && painelAberto && !salvando) setPainelAberto(false)
+    return () => {
+      if (foto) URL.revokeObjectURL(foto.url)
     }
-    window.addEventListener('keydown', aoTeclar)
-    return () => window.removeEventListener('keydown', aoTeclar)
-  }, [painelAberto, salvando])
+  }, [foto])
 
-  const filtrados = useMemo(() => {
+  const pessoasDaEmpresa = useMemo(
+    () => colaboradores.filter((c) => !empresaAtual || c.empresa_id === empresaAtual),
+    [colaboradores, empresaAtual]
+  )
+  const episDaEmpresa = useMemo(
+    () => epis.filter((e) => e.ativo && (!empresaAtual || e.empresa_id === empresaAtual)),
+    [epis, empresaAtual]
+  )
+
+  const listadas = useMemo(() => {
     const palavras = palavrasDaBusca(busca)
-    return lista.filter((e) => {
+    return entregas.filter((e) => {
       if (empresaFiltro && e.empresa_id !== empresaFiltro) return false
-      if (!mostrarInativos && !e.ativo) return false
+      if (soPendentes && (e.assinado_em || e.cancelada_em)) return false
       if (!palavras.length) return true
-      const alvo = [e.nome, e.complemento, e.ca, e.fabricante, e.codigo_externo].filter(Boolean).join(' ')
+      const alvo = [e.colaboradores?.nome, ...e.epi_entregas_itens.map((i) => `${i.nome} ${i.ca || ''}`)].join(' ')
       return casaBusca(alvo, palavras)
     })
-  }, [lista, busca, empresaFiltro, mostrarInativos])
+  }, [entregas, empresaFiltro, soPendentes, busca])
 
   const numeros = useMemo(() => {
-    const base = (empresaFiltro ? lista.filter((e) => e.empresa_id === empresaFiltro) : lista).filter((e) => e.ativo)
-    const dias = base.map((e) => ({ e, d: diasAte(e.validade_ca) }))
+    const base = empresaFiltro ? entregas.filter((e) => e.empresa_id === empresaFiltro) : entregas
+    const vivas = base.filter((e) => !e.cancelada_em)
+    const mes = new Date()
+    mes.setDate(mes.getDate() - 30)
     return {
-      total: base.length,
-      vencido: dias.filter((x) => x.d !== null && x.d < 0).length,
-      aVencer: dias.filter((x) => x.d !== null && x.d >= 0 && x.d <= DIAS_AVISO_CA).length,
-      semCa: base.filter((e) => e.tipo === 'epi' && !e.ca).length,
+      mes: vivas.filter((e) => new Date(e.entregue_em) >= mes).length,
+      pendentes: vivas.filter((e) => !e.assinado_em).length,
+      trocaVencida: vivas.filter((e) => e.epi_entregas_itens.some((i) => venceu(i.troca_em))).length,
     }
-  }, [lista, empresaFiltro])
+  }, [entregas, empresaFiltro])
 
-  function abrirNovo() {
-    setForm({ ...formVazio, empresa_id: interno ? empresaFiltro : minhaEmpresa })
+  function abrirNova() {
+    setQuem('')
+    setEscolhidos({})
+    if (foto) URL.revokeObjectURL(foto.url)
+    setFoto(null)
     setAviso('')
-    setPainelAberto(true)
+    setAberta(true)
   }
 
-  function abrirEdicao(e: Epi) {
-    setForm({
-      id: e.id,
-      empresa_id: e.empresa_id,
-      nome: e.nome,
-      tipo: e.tipo,
-      ca: e.ca || '',
-      validade_ca: e.validade_ca || '',
-      vida_util_dias: String(e.vida_util_dias),
-      complemento: e.complemento || '',
-      fabricante: e.fabricante || '',
-      codigo_externo: e.codigo_externo || '',
-      observacoes: e.observacoes || '',
-      ativo: e.ativo,
+  function alternarEpi(id: string) {
+    setEscolhidos((atual) => {
+      const copia = { ...atual }
+      if (copia[id]) delete copia[id]
+      else copia[id] = { qtd: 1, motivo: 'entrega' }
+      return copia
     })
-    setAviso('')
-    setPainelAberto(true)
+  }
+
+  async function aoEscolherFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0]
+    if (!arquivo) return
+    try {
+      setPreparandoFoto(true)
+      setAviso('')
+      const blob = await comprimirFoto(arquivo)
+      if (foto) URL.revokeObjectURL(foto.url)
+      setFoto({ blob, url: URL.createObjectURL(blob) })
+    } catch (err: any) {
+      console.error(err)
+      setAviso('Não foi possível usar essa foto. Tente tirar de novo.')
+    } finally {
+      setPreparandoFoto(false)
+      if (campoFoto.current) campoFoto.current.value = ''
+    }
   }
 
   async function salvar(ev: FormEvent) {
     ev.preventDefault()
     setAviso('')
 
-    const nome = form.nome.trim()
-    if (!nome) {
-      setAviso('Informe o nome do equipamento.')
-      return
-    }
-    const empresaId = interno ? form.empresa_id : minhaEmpresa
+    const empresaId = empresaAtual
     if (!empresaId) {
       setAviso('Escolha a empresa.')
       return
     }
-    const vida = Number(form.vida_util_dias)
-    if (!Number.isFinite(vida) || vida < 1 || vida > 3650) {
-      setAviso('A vida útil deve ficar entre 1 dia e 10 anos.')
+    if (!quem) {
+      setAviso('Escolha quem está recebendo.')
       return
     }
-    const ca = form.ca.replace(/\D/g, '')
-    if (form.tipo === 'epi' && !ca) {
-      setAviso('EPI sem CA não pode ser entregue. Informe o número do CA ou mude o tipo para "Outros".')
+    const itens = Object.entries(escolhidos)
+    if (!itens.length) {
+      setAviso('Marque pelo menos um equipamento.')
+      return
+    }
+    if (!foto) {
+      setAviso('A foto da entrega é obrigatória.')
+      return
+    }
+
+    const comCaVencido = itens
+      .map(([id]) => epis.find((e) => e.id === id))
+      .filter((e) => e && e.validade_ca && venceu(e.validade_ca))
+    if (comCaVencido.length) {
+      setAviso(`${comCaVencido[0]!.nome} está com o CA vencido e não pode ser entregue.`)
       return
     }
 
     try {
       setSalvando(true)
-      const dados = {
-        empresa_id: empresaId,
-        nome,
-        tipo: form.tipo,
-        ca: ca || null,
-        validade_ca: form.validade_ca || null,
-        vida_util_dias: vida,
-        complemento: form.complemento.trim() || null,
-        fabricante: form.fabricante.trim() || null,
-        codigo_externo: form.codigo_externo.trim() || null,
-        observacoes: form.observacoes.trim() || null,
-        ativo: form.ativo,
-      }
 
-      const { error } = form.id
-        ? await supabase.from('epis').update(dados).eq('id', form.id)
-        : await supabase.from('epis').insert(dados)
+      /* 1. Foto para o balde privado, sempre sob a pasta da empresa. */
+      const caminho = `${empresaId}/${crypto.randomUUID()}.jpg`
+      const { error: erroFoto } = await supabase.storage
+        .from('epi-fotos')
+        .upload(caminho, foto.blob, { contentType: 'image/jpeg', upsert: false })
+      if (erroFoto) throw erroFoto
 
-      if (error) {
-        if (error.code === '23505') {
-          setAviso('Este equipamento já está cadastrado nesta empresa, com o mesmo complemento e CA.')
-          return
+      /* 2. A entrega. */
+      const { data: entrega, error: erroEntrega } = await supabase
+        .from('epi_entregas')
+        .insert({
+          empresa_id: empresaId,
+          colaborador_id: quem,
+          foto_path: caminho,
+          entregue_por_nome: meuNome || null,
+        })
+        .select('id, token')
+        .single()
+      if (erroEntrega) throw erroEntrega
+
+      /* 3. Os itens, com CA e prazo congelados. */
+      const linhas = itens.map(([id, info]) => {
+        const epi = epis.find((e) => e.id === id)!
+        return {
+          entrega_id: entrega.id,
+          epi_id: epi.id,
+          nome: epi.nome,
+          ca: epi.ca,
+          complemento: epi.complemento,
+          vida_util_dias: epi.vida_util_dias,
+          quantidade: info.qtd,
+          motivo: info.motivo,
+          troca_em: emDias(epi.vida_util_dias),
         }
-        throw error
-      }
+      })
+      const { error: erroItens } = await supabase.from('epi_entregas_itens').insert(linhas)
+      if (erroItens) throw erroItens
 
-      setPainelAberto(false)
+      /* 4. O QR para o trabalhador assinar na hora. */
+      const url = `${window.location.origin}/assinar-epi/${entrega.token}`
+      const imagem = await QRCode.toDataURL(url, { width: 480, margin: 1, errorCorrectionLevel: 'M' })
+      const pessoa = colaboradores.find((c) => c.id === quem)
+      setQr({ url, imagem, nome: pessoa?.nome || '' })
+
+      setAberta(false)
       await carregar()
     } catch (e: any) {
       console.error(e)
-      setAviso(e?.message || 'Não foi possível salvar.')
+      setAviso(e?.message || 'Não foi possível registrar a entrega.')
     } finally {
       setSalvando(false)
     }
   }
 
-  function seloCa(e: Epi) {
-    if (e.tipo === 'outros') return <span className="pill flat">Sem CA</span>
-    if (!e.ca) return <span className="pill bad">Falta o CA</span>
-    const d = diasAte(e.validade_ca)
-    if (d === null) return <span className="pill flat">Sem validade</span>
-    if (d < 0) return <span className="pill bad">CA vencido</span>
-    if (d <= DIAS_AVISO_CA) return <span className="pill warn">Vence em {d} d</span>
-    return <span className="pill good">No prazo</span>
+  async function copiarLink() {
+    if (!qr) return
+    try {
+      await navigator.clipboard.writeText(qr.url)
+      setAviso('')
+    } catch {
+      /* Sem permissão de área de transferência: o link fica visível para copiar à mão. */
+    }
   }
 
   if (semTabela) {
     return (
       <div className="app">
+        <EpiAbas />
         <div className="banner bad">
-          O cadastro de EPIs ainda não foi criado no banco. Rode <code>supabase/epis.sql</code> no
-          SQL Editor do Supabase.
+          As entregas ainda não foram criadas no banco. Rode <code>supabase/epi-entregas.sql</code>{' '}
+          no SQL Editor do Supabase.
         </div>
       </div>
     )
@@ -309,40 +384,31 @@ export default function PainelEpi() {
 
   return (
     <div className="app">
+      <EpiAbas />
+
       <div>
         <p className="eyebrow">EPI</p>
-        <h1 className="titulo-tela">Equipamentos</h1>
+        <h1 className="titulo-tela">Entregas</h1>
         <p className="subtitulo-tela">
-          Os equipamentos que a sua empresa entrega, com CA, validade e prazo de troca. Na entrega,
-          escolher o equipamento já traz o CA e calcula a próxima troca.
+          Cada entrega sai com foto e com a assinatura do trabalhador, feita no celular dele. É o que
+          monta a ficha da NR-06.
         </p>
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
 
-      {numeros.vencido > 0 && (
-        <div className="banner bad">
-          {numeros.vencido} equipamento{numeros.vencido > 1 ? 's' : ''} com CA vencido. EPI com CA
-          vencido não pode ser entregue.
-        </div>
-      )}
-
       <div className="stats">
         <div className="stat">
-          <div className="num">{numeros.total}</div>
-          <div className="lbl">Cadastrados</div>
-        </div>
-        <div className="stat bad">
-          <div className="num">{numeros.vencido}</div>
-          <div className="lbl">CA vencido</div>
+          <div className="num">{numeros.mes}</div>
+          <div className="lbl">Nos últimos 30 dias</div>
         </div>
         <div className="stat warn">
-          <div className="num">{numeros.aVencer}</div>
-          <div className="lbl">CA vence em {DIAS_AVISO_CA} dias</div>
+          <div className="num">{numeros.pendentes}</div>
+          <div className="lbl">Aguardando assinatura</div>
         </div>
-        <div className="stat">
-          <div className="num">{numeros.semCa}</div>
-          <div className="lbl">Sem CA</div>
+        <div className="stat bad">
+          <div className="num">{numeros.trocaVencida}</div>
+          <div className="lbl">Com troca vencida</div>
         </div>
       </div>
 
@@ -351,95 +417,85 @@ export default function PainelEpi() {
           <FiltroEmpresa
             valor={empresaFiltro}
             aoMudar={setEmpresaFiltro}
-            opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
+            opcoes={empresas.map((e) => ({ id: e.id, nome: nomeEmpresa(e) }))}
           />
         )}
         <input
           type="search"
-          id="busca-epi"
-          placeholder="Nome, CA, fabricante ou código"
+          id="busca-entrega"
+          placeholder="Trabalhador, equipamento ou CA"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
         <label className="caixa-marcar">
           <input
             type="checkbox"
-            id="epi-inativos"
-            checked={mostrarInativos}
-            onChange={(e) => setMostrarInativos(e.target.checked)}
+            id="so-pendentes"
+            checked={soPendentes}
+            onChange={(e) => setSoPendentes(e.target.checked)}
           />
-          Mostrar fora de linha
+          Só sem assinatura
         </label>
         <span style={{ flex: 1 }} />
-        <button type="button" className="btn btn-primary" onClick={abrirNovo}>
-          <Icone nome="mais" /> Novo equipamento
+        <button type="button" className="btn btn-primary" onClick={abrirNova}>
+          <Icone nome="mais" /> Nova entrega
         </button>
       </div>
 
       <div className="panel">
         <div className="panel-head">
           <span className="section-title">
-            {carregando
-              ? 'Carregando…'
-              : `${filtrados.length} equipamento${filtrados.length === 1 ? '' : 's'}`}
+            {carregando ? 'Carregando…' : `${listadas.length} entrega${listadas.length === 1 ? '' : 's'}`}
           </span>
         </div>
-        <div className="table-scroll">
-          <table className="tabela-colab">
-            <thead>
-              <tr>
-                <th>Equipamento</th>
-                <th>CA</th>
-                <th>Validade do CA</th>
-                <th>Troca a cada</th>
-                <th>Fabricante</th>
-                {interno && <th>Empresa</th>}
-                <th>Situação</th>
-                <th aria-label="Ações" />
-              </tr>
-            </thead>
-            <tbody>
-              {!carregando && filtrados.length === 0 && (
-                <tr>
-                  <td colSpan={interno ? 8 : 7} className="empty-state">
-                    Nenhum equipamento cadastrado ainda.
-                  </td>
-                </tr>
-              )}
-              {filtrados.map((e) => (
-                <tr key={e.id} className={e.ativo ? '' : 'inativo'}>
-                  <td className="nome">
-                    {e.nome}
-                    {e.complemento && <span className="complemento"> · {e.complemento}</span>}
-                    {!e.ativo && <span className="pill flat"> Fora de linha</span>}
-                  </td>
-                  <td className="mono">{e.ca || '—'}</td>
-                  <td className="mono">{dataBr(e.validade_ca) || '—'}</td>
-                  <td>{prazoTexto(e.vida_util_dias)}</td>
-                  <td>{e.fabricante || '—'}</td>
-                  {interno && <td>{nomeEmpresa(e.empresas)}</td>}
-                  <td>{seloCa(e)}</td>
-                  <td className="acoes">
-                    <button type="button" className="btn btn-sm" onClick={() => abrirEdicao(e)}>
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="lista-entregas">
+          {!carregando && listadas.length === 0 && (
+            <p className="empty-state">Nenhuma entrega registrada ainda.</p>
+          )}
+          {listadas.map((e) => (
+            <article key={e.id} className={`entrega ${e.cancelada_em ? 'cancelada' : ''}`}>
+              <div className="entrega-topo">
+                <strong>{e.colaboradores?.nome || '—'}</strong>
+                {e.cancelada_em ? (
+                  <span className="pill flat">Cancelada</span>
+                ) : e.assinado_em ? (
+                  <span className="pill good">Assinada</span>
+                ) : (
+                  <span className="pill warn">Aguardando assinatura</span>
+                )}
+              </div>
+              <p className="entrega-quando">
+                {dataHoraBr(e.entregue_em)}
+                {e.entregue_por_nome ? ` · por ${e.entregue_por_nome}` : ''}
+              </p>
+              <ul className="entrega-itens">
+                {e.epi_entregas_itens.map((i, n) => (
+                  <li key={n}>
+                    {i.quantidade > 1 ? `${i.quantidade}× ` : ''}
+                    {i.nome}
+                    {i.complemento ? ` · ${i.complemento}` : ''}
+                    {i.ca ? ` · CA ${i.ca}` : ''}
+                    <span className={venceu(i.troca_em) ? 'troca vencida' : 'troca'}>
+                      trocar até {dataBr(i.troca_em)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
         </div>
       </div>
 
-      {painelAberto && (
-        <div className="cortina" role="dialog" aria-modal="true" aria-label="Equipamento">
+      {/* ---------- nova entrega ---------- */}
+      {aberta && (
+        <div className="cortina" role="dialog" aria-modal="true" aria-label="Nova entrega">
           <form className="painel-lateral" onSubmit={salvar}>
             <div className="painel-head">
-              <h2>{form.id ? 'Editar equipamento' : 'Novo equipamento'}</h2>
+              <h2>Nova entrega</h2>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
-                onClick={() => setPainelAberto(false)}
+                onClick={() => setAberta(false)}
                 disabled={salvando}
               >
                 Fechar
@@ -449,155 +505,181 @@ export default function PainelEpi() {
             <div className="painel-corpo">
               {aviso && <div className="banner bad">{aviso}</div>}
 
-              {interno && (
-                <div className="field">
-                  <label htmlFor="epi-empresa">Empresa</label>
-                  <select
-                    id="epi-empresa"
-                    value={form.empresa_id}
-                    onChange={(e) => setForm({ ...form, empresa_id: e.target.value })}
-                    disabled={!!form.id}
-                  >
-                    <option value="">Escolha a empresa</option>
-                    {empresas.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.nome_fantasia || e.razao_social}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {interno && !empresaFiltro && (
+                <div className="banner">Escolha a empresa no filtro antes de registrar a entrega.</div>
               )}
 
               <div className="field">
-                <label htmlFor="epi-nome">Nome do equipamento</label>
-                <input
-                  id="epi-nome"
-                  placeholder="Luva de vaqueta, óculos de proteção…"
-                  value={form.nome}
-                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                  autoFocus
-                />
-              </div>
-
-              <div className="field-row">
-                <div className="field">
-                  <label htmlFor="epi-complemento">Tamanho ou cor</label>
-                  <input
-                    id="epi-complemento"
-                    placeholder="P, M, G, 42…"
-                    value={form.complemento}
-                    onChange={(e) => setForm({ ...form, complemento: e.target.value })}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="epi-tipo">Tipo</label>
-                  <select
-                    id="epi-tipo"
-                    value={form.tipo}
-                    onChange={(e) => setForm({ ...form, tipo: e.target.value as 'epi' | 'outros' })}
-                  >
-                    <option value="epi">EPI (tem CA)</option>
-                    <option value="outros">Outros (fardamento, uniforme)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="field-row">
-                <div className="field">
-                  <label htmlFor="epi-ca">Número do CA</label>
-                  <input
-                    id="epi-ca"
-                    inputMode="numeric"
-                    placeholder="41385"
-                    value={form.ca}
-                    onChange={(e) => setForm({ ...form, ca: e.target.value })}
-                    disabled={form.tipo === 'outros'}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="epi-validade">Validade do CA</label>
-                  <input
-                    id="epi-validade"
-                    type="date"
-                    value={form.validade_ca}
-                    onChange={(e) => setForm({ ...form, validade_ca: e.target.value })}
-                    disabled={form.tipo === 'outros'}
-                  />
-                </div>
+                <label htmlFor="entrega-quem">Quem está recebendo</label>
+                <select id="entrega-quem" value={quem} onChange={(e) => setQuem(e.target.value)}>
+                  <option value="">Escolha o trabalhador</option>
+                  {pessoasDaEmpresa.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                      {c.matricula ? ` · ${c.matricula}` : ''}
+                      {c.funcao ? ` · ${c.funcao}` : ''}
+                    </option>
+                  ))}
+                </select>
+                {quem && !colaboradores.find((c) => c.id === quem)?.cpf && (
+                  <p className="dica">
+                    Esta pessoa está sem CPF no cadastro. Sem CPF ela não consegue assinar — complete
+                    em Colaboradores antes de entregar.
+                  </p>
+                )}
               </div>
 
               <div className="field">
-                <label htmlFor="epi-vida">Trocar a cada (dias)</label>
-                <input
-                  id="epi-vida"
-                  type="number"
-                  min={1}
-                  max={3650}
-                  value={form.vida_util_dias}
-                  onChange={(e) => setForm({ ...form, vida_util_dias: e.target.value })}
-                />
-                <p className="dica">
-                  É o prazo que o portal usa para marcar a próxima troca na entrega. Vale a
-                  recomendação do fabricante ou o que a sua empresa pratica.
-                </p>
-              </div>
-
-              <div className="field-row">
-                <div className="field">
-                  <label htmlFor="epi-fabricante">Fabricante</label>
-                  <input
-                    id="epi-fabricante"
-                    value={form.fabricante}
-                    onChange={(e) => setForm({ ...form, fabricante: e.target.value })}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="epi-codigo">Código interno</label>
-                  <input
-                    id="epi-codigo"
-                    placeholder="Código do seu almoxarifado"
-                    value={form.codigo_externo}
-                    onChange={(e) => setForm({ ...form, codigo_externo: e.target.value })}
-                  />
-                </div>
+                <label>Equipamentos</label>
+                {episDaEmpresa.length === 0 ? (
+                  <p className="dica">
+                    Nenhum equipamento cadastrado para esta empresa. Cadastre em “Equipamentos”.
+                  </p>
+                ) : (
+                  <ul className="escolher-epi">
+                    {episDaEmpresa.map((e) => {
+                      const marcado = !!escolhidos[e.id]
+                      const caVencido = !!e.validade_ca && venceu(e.validade_ca)
+                      return (
+                        <li key={e.id} className={marcado ? 'marcado' : ''}>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={marcado}
+                              onChange={() => alternarEpi(e.id)}
+                              disabled={caVencido}
+                            />
+                            <span>
+                              <strong>
+                                {e.nome}
+                                {e.complemento ? ` · ${e.complemento}` : ''}
+                              </strong>
+                              <small>
+                                {e.ca ? `CA ${e.ca} · ` : ''}
+                                troca a cada {e.vida_util_dias} dias
+                                {caVencido ? ' · CA vencido' : ''}
+                              </small>
+                            </span>
+                          </label>
+                          {marcado && (
+                            <div className="item-detalhe">
+                              <input
+                                type="number"
+                                min={1}
+                                max={999}
+                                aria-label="Quantidade"
+                                value={escolhidos[e.id].qtd}
+                                onChange={(ev) =>
+                                  setEscolhidos({
+                                    ...escolhidos,
+                                    [e.id]: { ...escolhidos[e.id], qtd: Number(ev.target.value) || 1 },
+                                  })
+                                }
+                              />
+                              <select
+                                aria-label="Motivo"
+                                value={escolhidos[e.id].motivo}
+                                onChange={(ev) =>
+                                  setEscolhidos({
+                                    ...escolhidos,
+                                    [e.id]: { ...escolhidos[e.id], motivo: ev.target.value },
+                                  })
+                                }
+                              >
+                                {MOTIVOS.map((m) => (
+                                  <option key={m.valor} value={m.valor}>
+                                    {m.rotulo}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
               </div>
 
               <div className="field">
-                <label htmlFor="epi-obs">Observações</label>
-                <textarea
-                  id="epi-obs"
-                  value={form.observacoes}
-                  onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
-                />
-              </div>
-
-              {form.id && (
-                <label className="caixa-marcar">
-                  <input
-                    type="checkbox"
-                    id="epi-ativo"
-                    checked={!form.ativo}
-                    onChange={(e) => setForm({ ...form, ativo: !e.target.checked })}
-                  />
-                  Fora de linha — não aparece mais para entregar
+                <label htmlFor="entrega-foto">
+                  Foto da entrega <span className="obrigatorio">obrigatória</span>
                 </label>
-              )}
+                <input
+                  ref={campoFoto}
+                  id="entrega-foto"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={aoEscolherFoto}
+                  hidden
+                />
+                {foto ? (
+                  <div className="foto-feita">
+                    <img src={foto.url} alt="Foto da entrega" />
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => campoFoto.current?.click()}
+                    >
+                      Tirar outra
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="foto-vazia"
+                    onClick={() => campoFoto.current?.click()}
+                    disabled={preparandoFoto}
+                  >
+                    <span aria-hidden="true">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                    </span>
+                    {preparandoFoto ? 'Preparando a foto…' : 'Tirar a foto'}
+                    <small>Sem a foto a entrega não é salva</small>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="painel-rodape">
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setPainelAberto(false)}
-                disabled={salvando}
-              >
+              <button type="button" className="btn" onClick={() => setAberta(false)} disabled={salvando}>
                 Cancelar
               </button>
-              <button type="submit" className="btn btn-primary" disabled={salvando}>
-                {salvando ? 'Salvando…' : 'Salvar'}
+              <button type="submit" className="btn btn-primary" disabled={salvando || !foto}>
+                {salvando ? 'Registrando…' : 'Registrar entrega'}
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ---------- QR da assinatura ---------- */}
+      {qr && (
+        <div className="cortina" role="dialog" aria-modal="true" aria-label="Assinatura">
+          <div className="painel-qr">
+            <h2>Entrega registrada</h2>
+            <p>
+              Peça para {qr.nome.split(' ')[0]} apontar a câmera do celular e assinar agora.
+            </p>
+            <img src={qr.imagem} alt="Código QR para assinar o recebimento" width={240} height={240} />
+            <p className="qr-link">{qr.url}</p>
+            <div className="qr-acoes">
+              <button type="button" className="btn btn-sm" onClick={copiarLink}>
+                Copiar o link
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setQr(null)}>
+                Pronto
+              </button>
+            </div>
+            <p className="dica">
+              Se ele não assinar agora, a entrega fica em “Aguardando assinatura” e o link continua
+              valendo.
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -666,15 +666,45 @@ const manualInterno: Manual = {
 
     {
       id: 'epi',
-      titulo: 'EPI',
+      titulo: 'EPI · Entregas',
       rotas: ['/epi'],
+      slides: [
+        {
+          titulo: 'A entrega e a assinatura (supabase/epi-entregas.sql)',
+          texto:
+            'epi_entregas é o ato; epi_entregas_itens são os equipamentos dele. Nome, CA e vida útil são copiados para o item na hora da entrega: o cadastro muda, e a ficha precisa dizer o que saiu do almoxarifado naquele dia.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Entregas', botoes: ['Nova entrega'] },
+              { t: 'tabela', n: 1, colunas: ['Trabalhador', 'Equipamento', 'Entrega', 'Troca', 'Situação'], linhas: [['Marcos Pereira da Luz', 'Luva de vaqueta · CA 41385', '17/11 08:40', '17/02/2027', 'Assinada'], ['Ana Cláudia Ribeiro', 'Óculos · CA 28976', '17/11 08:52', '17/05/2027', 'Aguardando assinatura']], pilulas: 4 },
+            ],
+          },
+          passos: [
+            'A assinatura é por link: cada entrega nasce com um token de 16 bytes. A página /assinar-epi/<token> não exige login e passa por /api/publico/assinatura-epi, com a chave de serviço — não existe política para anônimo nas tabelas.',
+            'A rota exige o CPF do colaborador para assinar, limita tentativas por token, recusa assinar duas vezes e recusa entrega cancelada. Grava horário, IP e aparelho.',
+            'A foto vai para o balde privado epi-fotos, sob a pasta do id da empresa; a política de storage usa a mesma regra de acesso das entregas. A tela reduz para 900 px e 70% de qualidade antes de subir.',
+            'O gatilho do banco devolve todos os campos ao valor antigo em qualquer update: a entrega não se edita. Só assinatura e cancelamento mudam de estado.',
+          ],
+          atencao: 'O termo que o trabalhador aceita está em lib/epiTermo.ts e ainda não passou por revisão jurídica. É o texto que a empresa apresenta numa reclamatória.',
+          dica: 'O QR é gerado no navegador pela biblioteca qrcode, a primeira dependência nova do portal desde o começo. Sem ela, o link teria que ser digitado ou enviado por e-mail.',
+          link: { href: '/epi', rotulo: 'Abrir Entregas' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi-equipamentos',
+      titulo: 'EPI · Equipamentos',
+      rotas: ['/epi/equipamentos'],
       slides: [
         {
           titulo: 'Cadastro de equipamentos (supabase/epis.sql)',
           texto:
             'Primeira tela do módulo de EPI. O equipamento é da empresa, com CA, validade do CA e vida útil em dias; a entrega (ainda a construir) vai puxar daqui o CA e o prazo da próxima troca.',
           tela: {
-            url: '/epi',
+            url: '/epi/equipamentos',
             blocos: [
               menu('EPI'),
               { t: 'topo', sobre: 'EPI', titulo: 'Equipamentos', botoes: ['Novo equipamento'] },
@@ -689,7 +719,7 @@ const manualInterno: Manual = {
           ],
           atencao: 'A aba EPI ainda não é cobrada como módulo. Quando a entrega estiver pronta, ligar em MODULO_DA_ROTA e na vitrine, como os outros.',
           dica: 'O aviso de CA é de 60 dias (DIAS_AVISO_CA na tela). É tempo de comprar e trocar antes de o certificado cair.',
-          link: { href: '/epi', rotulo: 'Abrir EPI' },
+          link: { href: '/epi/equipamentos', rotulo: 'Abrir Equipamentos' },
         },
       ],
     },
