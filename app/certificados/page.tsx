@@ -67,6 +67,11 @@ type Certificado = {
   sem_vencimento?: boolean | null
   /* CPF do colaborador, só dígitos (supabase/certificados-cpf.sql). */
   cpf?: string | null
+  /* Treinamento que não será realizado novamente (supabase/certificados-nao-renovar.sql). */
+  nao_renovar?: boolean | null
+  nao_renovar_motivo?: MotivoNaoRenovar | null
+  nao_renovar_obs?: string | null
+  nao_renovar_em?: string | null
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
 }
 
@@ -202,6 +207,10 @@ const formVazio = {
   progresso_etapa: 'agendado' as EtapaManual,
   progresso_manual: '',
   sem_vencimento: false,
+  nao_renovar: false,
+  nao_renovar_motivo: '' as MotivoNaoRenovar | '',
+  nao_renovar_obs: '',
+  nao_renovar_em: '',
 }
 
 /*
@@ -254,7 +263,28 @@ function diasAte(validade: string | null) {
  * inclusive do histórico. Por padrão esses certificados nem aparecem;
  * só entram na lista e nos cartões com "Mostrar desligados".
  */
-type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade' | 'historico' | 'desligado'
+type Faixa = 'vencido' | 'ate90' | 'emdia' | 'sem_vencimento' | 'sem_validade' | 'historico' | 'desligado' | 'nao_renovar'
+
+/*
+ * "Não será renovado": o treinamento não vai ser realizado de novo. O
+ * certificado fica no cadastro, mas sai de vencidos e a vencer, dos avisos
+ * e dos e-mails de vencimento. Desligado e histórico valem acima dele.
+ */
+type MotivoNaoRenovar = 'atividade_nao_executada' | 'solicitacao_cliente' | 'outro'
+
+const MOTIVOS_NAO_RENOVAR: Record<MotivoNaoRenovar, string> = {
+  atividade_nao_executada: 'Atividade não é mais executada',
+  solicitacao_cliente: 'Solicitação do cliente',
+  outro: 'Outro motivo',
+}
+
+function situacaoNaoRenovar(c: { nao_renovar_motivo?: MotivoNaoRenovar | null; nao_renovar_obs?: string | null }) {
+  return {
+    texto: 'Não será renovado' + (c.nao_renovar_motivo ? ' · ' + MOTIVOS_NAO_RENOVAR[c.nao_renovar_motivo] : ''),
+    pill: 'pill flat nao-renovar',
+    icone: '',
+  }
+}
 
 function faixaDe(c: { validade: string | null; sem_vencimento?: boolean | null }): Faixa {
   const d = diasAte(c.validade)
@@ -397,6 +427,8 @@ function CertificadosPageConteudo() {
   const [suportaManual, setSuportaManual] = useState(true)
   /* false enquanto certificados-sem-vencimento.sql nao tiver rodado. */
   const [suportaSemVencimento, setSuportaSemVencimento] = useState(true)
+  /* Colunas de supabase/certificados-nao-renovar.sql; sem elas a opção some. */
+  const [suportaNaoRenovar, setSuportaNaoRenovar] = useState(true)
   /* Coluna cpf (supabase/certificados-cpf.sql). Sem ela, o campo some. */
   const [suportaCpf, setSuportaCpf] = useState(false)
 
@@ -502,7 +534,7 @@ function CertificadosPageConteudo() {
 
   const editando = form.id !== ''
 
-  function alterar(campo: Exclude<keyof typeof formVazio, 'sem_vencimento'>, valor: string) {
+  function alterar(campo: Exclude<keyof typeof formVazio, 'sem_vencimento' | 'nao_renovar' | 'nao_renovar_motivo'>, valor: string) {
     /*
      * O curso e sempre gravado em MAIUSCULAS, mesmo quando digitado
      * a mao. O e-mail e sempre em minusculas, para casar com o EAD.
@@ -659,8 +691,9 @@ function CertificadosPageConteudo() {
    */
   function faixaDo(c: Certificado): Faixa {
     if (desligamentoDo(c)) return 'desligado'
+    if (ehHistorico(c)) return 'historico'
 
-    return ehHistorico(c) ? 'historico' : faixaDe(c)
+    return c.nao_renovar ? 'nao_renovar' : faixaDe(c)
   }
 
   /*
@@ -668,7 +701,7 @@ function CertificadosPageConteudo() {
    * (lib/treinamentos.ts). Desligado e histórico ficam de fora.
    */
   function aguardaDo(c: Certificado) {
-    if (desligamentoDo(c) || ehHistorico(c)) return false
+    if (desligamentoDo(c) || ehHistorico(c) || c.nao_renovar) return false
 
     return aguardandoCertificado(c, progressoDe(c))
   }
@@ -677,8 +710,9 @@ function CertificadosPageConteudo() {
     const d = desligamentoDo(c)
 
     if (d) return situacaoDesligado(d)
+    if (ehHistorico(c)) return situacaoHistorico(substitutos.get(c.id))
 
-    return ehHistorico(c) ? situacaoHistorico(substitutos.get(c.id)) : situacao(c)
+    return c.nao_renovar ? situacaoNaoRenovar(c) : situacao(c)
   }
 
   /*
@@ -967,6 +1001,26 @@ function CertificadosPageConteudo() {
         for (const r of cpfs.data || []) if (r.cpf) cpfPorId.set(r.id, r.cpf)
       }
 
+      /*
+       * "Não será renovado" em consulta separada: sem as colunas (SQL não
+       * rodou, 42703) a tela segue como antes, só sem a opção.
+       */
+      const naoRenovar = await lerTudo<{ id: string; nao_renovar_motivo: MotivoNaoRenovar | null; nao_renovar_obs: string | null; nao_renovar_em: string | null }>(() =>
+        supabase
+          .from('certificados')
+          .select('id, nao_renovar_motivo, nao_renovar_obs, nao_renovar_em')
+          .eq('nao_renovar', true)
+          .order('id')
+      )
+      const naoRenovarPorId = new Map<string, { nao_renovar_motivo: MotivoNaoRenovar | null; nao_renovar_obs: string | null; nao_renovar_em: string | null }>()
+
+      if (naoRenovar.error) {
+        setSuportaNaoRenovar(false)
+      } else {
+        setSuportaNaoRenovar(true)
+        for (const r of naoRenovar.data || []) naoRenovarPorId.set(r.id, r)
+      }
+
       /* Falha aberta: sem a tabela, ninguém é desligado e os botões somem. */
       const desl = await carregarDesligados(supabase)
 
@@ -977,6 +1031,8 @@ function CertificadosPageConteudo() {
         (data || []).map((item: any) => ({
           ...item,
           cpf: cpfPorId.get(item.id) || null,
+          nao_renovar: naoRenovarPorId.has(item.id),
+          ...(naoRenovarPorId.get(item.id) || {}),
           empresas: Array.isArray(item.empresas) ? item.empresas[0] : item.empresas,
         }))
       )
@@ -1043,6 +1099,11 @@ function CertificadosPageConteudo() {
       return
     }
 
+    if (form.nao_renovar && !form.nao_renovar_motivo) {
+      setErro('Escolha o motivo de o treinamento não ser realizado novamente.')
+      return
+    }
+
     if (form.link_certificado.trim() && !linkValido(normalizarLink(form.link_certificado))) {
       setErro('O link do certificado precisa ser um endereço da internet (ex.: https://...). Anotações como "mais relatório fotográfico" vão em Observações.')
       return
@@ -1061,6 +1122,14 @@ function CertificadosPageConteudo() {
         emissao: form.emissao || null,
         validade: form.validade || null,
         ...(suportaSemVencimento ? { sem_vencimento: !form.validade && form.sem_vencimento } : {}),
+        ...(suportaNaoRenovar
+          ? {
+              nao_renovar: form.nao_renovar,
+              nao_renovar_motivo: form.nao_renovar ? form.nao_renovar_motivo || null : null,
+              nao_renovar_obs: form.nao_renovar ? form.nao_renovar_obs.trim() || null : null,
+              nao_renovar_em: form.nao_renovar ? form.nao_renovar_em || hojeIso() : null,
+            }
+          : {}),
         observacoes: form.observacoes.trim() || null,
         link_certificado: normalizarLink(form.link_certificado),
         ...(suportaCpf ? { cpf: cpfDigitos } : {}),
@@ -1143,6 +1212,10 @@ function CertificadosPageConteudo() {
       progresso_manual:
         typeof c.progresso_manual === 'number' ? String(c.progresso_manual) : '',
       sem_vencimento: !!c.sem_vencimento,
+      nao_renovar: !!c.nao_renovar,
+      nao_renovar_motivo: c.nao_renovar_motivo || '',
+      nao_renovar_obs: c.nao_renovar_obs || '',
+      nao_renovar_em: c.nao_renovar_em || '',
     })
     setMenuAberto(null)
     setPainelAberto(true)
@@ -1163,6 +1236,10 @@ function CertificadosPageConteudo() {
       emissao: '',
       validade: '',
       sem_vencimento: false,
+      nao_renovar: false,
+      nao_renovar_motivo: '',
+      nao_renovar_obs: '',
+      nao_renovar_em: '',
       link_certificado: '',
       observacoes: '',
       progresso_etapa: 'agendado',
@@ -1240,7 +1317,7 @@ function CertificadosPageConteudo() {
         if (filtroSituacao === 'aguardando') {
           if (!aguardaDo(c)) return false
         } else if (filtroSituacao === '30') {
-          if (faixa === 'historico' || faixa === 'desligado' || !(d !== null && d >= 0 && d <= 30)) return false
+          if (faixa === 'historico' || faixa === 'desligado' || faixa === 'nao_renovar' || !(d !== null && d >= 0 && d <= 30)) return false
         } else if (filtroSituacao.startsWith('etapa:')) {
           if (etapaDoProgresso(progressoDe(c)) !== filtroSituacao.slice(6)) return false
         } else if (faixa !== filtroSituacao) {
@@ -1422,6 +1499,7 @@ function CertificadosPageConteudo() {
       sem_validade: 0,
       historico: 0,
       desligado: 0,
+      nao_renovar: 0,
     }
     const etapa = { concluido: 0, andamento: 0, nao_iniciado: 0, sem_dados: 0 }
     let em30 = 0
@@ -1433,7 +1511,7 @@ function CertificadosPageConteudo() {
       faixa[f] += 1
 
       const d = diasAte(c.validade)
-      if (f !== 'historico' && f !== 'desligado' && d !== null && d >= 0 && d <= 30) em30 += 1
+      if (f !== 'historico' && f !== 'desligado' && f !== 'nao_renovar' && d !== null && d >= 0 && d <= 30) em30 += 1
 
       etapa[etapaDoProgresso(progressoDe(c))] += 1
       if (c.progresso_origem === 'manual') presenciais += 1
@@ -1862,7 +1940,7 @@ function CertificadosPageConteudo() {
           ) : (
             <span className="cert-sub">Sem arquivo</span>
           )}
-          {!interno && !deslig && !historico && (faixaDe(c) === 'vencido' || faixaDe(c) === 'ate90') && (
+          {!interno && !deslig && !historico && !c.nao_renovar && (faixaDe(c) === 'vencido' || faixaDe(c) === 'ate90') && (
             <Link
               className="btn btn-sm btn-primary"
               href={linkReciclagem(c)}
@@ -1998,6 +2076,15 @@ function CertificadosPageConteudo() {
               'bloqueio',
               'não contam como vencidos nem entram nos avisos'
             )}
+          {(indicadores.faixa.nao_renovar > 0 || filtroSituacao === 'nao_renovar') &&
+            cartaoIndicador(
+              'nao_renovar',
+              indicadores.faixa.nao_renovar,
+              'Não serão renovados',
+              'cinza',
+              'bloqueio',
+              'treinamento não será realizado de novo'
+            )}
         </div>
       </div>
 
@@ -2073,6 +2160,7 @@ function CertificadosPageConteudo() {
               {suportaSemVencimento && <option value="sem_vencimento">Sem vencimento</option>}
               <option value="sem_validade">Validade não informada</option>
               <option value="historico">Histórico (substituídos)</option>
+              {suportaNaoRenovar && <option value="nao_renovar">Não serão renovados</option>}
               {mostrarDesligados && <option value="desligado">De colaboradores desligados</option>}
               <option value="aguardando">Concluído no EAD, aguardando certificado</option>
               <option value="etapa:concluido">Treinamento concluído</option>
@@ -2678,6 +2766,48 @@ function CertificadosPageConteudo() {
               <span className="cert-sub" style={{ marginTop: -6 }}>
                 Sem data de validade e sem essa marcação, o certificado aparece como &quot;Validade não informada&quot;.
               </span>
+
+              {suportaNaoRenovar && (
+                <div className="cert-nao-renovar">
+                  <label className="cert-check">
+                    <input
+                      type="checkbox"
+                      checked={form.nao_renovar}
+                      onChange={(e) => setForm((atual) => ({ ...atual, nao_renovar: e.target.checked }))}
+                    />
+                    O treinamento não será realizado novamente
+                  </label>
+                  {form.nao_renovar && (
+                    <>
+                      <div className="field">
+                        <label>Motivo</label>
+                        <select
+                          value={form.nao_renovar_motivo}
+                          onChange={(e) => setForm((atual) => ({ ...atual, nao_renovar_motivo: e.target.value as MotivoNaoRenovar | '' }))}
+                        >
+                          <option value="">Escolha...</option>
+                          {(Object.keys(MOTIVOS_NAO_RENOVAR) as MotivoNaoRenovar[]).map((m) => (
+                            <option key={m} value={m}>
+                              {MOTIVOS_NAO_RENOVAR[m]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Detalhe (opcional)</label>
+                        <input
+                          value={form.nao_renovar_obs}
+                          onChange={(e) => setForm((atual) => ({ ...atual, nao_renovar_obs: e.target.value }))}
+                          placeholder="Ex.: setor de solda desativado em 10/2026"
+                        />
+                      </div>
+                      <span className="cert-sub" style={{ marginTop: -6 }}>
+                        O certificado continua no cadastro, mas sai de vencidos e a vencer, dos avisos e dos e-mails de vencimento.
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
 
               <div className="field">
                 <label>Link do certificado</label>
