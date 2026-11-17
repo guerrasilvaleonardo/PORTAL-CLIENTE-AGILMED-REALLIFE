@@ -383,11 +383,11 @@ const manualCliente: Manual = {
             ],
           },
           passos: [
-            'Anexos: clique em Selecionar arquivo e escolha o arquivo. Vai um por vez, com até 10 MB cada.',
-            'Abrir mostra o arquivo numa nova aba; Baixar salva no seu computador.',
+            'Anexos: clique em Selecionar arquivo e escolha o arquivo. Escolher ainda não anexa: aparece um quadro com o nome e o tamanho, e você confirma em Anexar arquivo ou desiste em Descartar. Vai um por vez, com até 10 MB cada.',
+            'Abrir mostra o arquivo numa nova aba; Baixar salva no seu computador. Renomear corrige o nome que aparece na lista, e Excluir tira do chamado o arquivo que você mesmo enviou.',
             'Links de acesso: informe nome e endereço e clique em Adicionar. Cada link aparece com os botões Abrir, Editar e Remover.',
           ],
-          atencao: 'Arquivos enviados não podem ser apagados por você. Confira antes de enviar e, se mandar o arquivo errado, avise a equipe na conversa.',
+          atencao: 'Renomear muda só o nome que aparece na lista, nunca o arquivo. Se mandou o errado, exclua e envie de novo — assim a data nova fica registrada, em vez de um arquivo trocado por baixo do que a equipe já viu.',
         },
         {
           titulo: 'Etapas e quem vê o chamado',
