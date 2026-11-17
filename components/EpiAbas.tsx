@@ -13,6 +13,7 @@ const PAGINAS = [
   { href: '/epi', rotulo: 'Entregas' },
   { href: '/epi/ficha', rotulo: 'Ficha' },
   { href: '/epi/equipamentos', rotulo: 'Equipamentos' },
+  { href: '/epi/painel', rotulo: 'Painel' },
 ]
 
 export default function EpiAbas() {

@@ -562,6 +562,26 @@ const manualCliente: Manual = {
           dica: 'Previsão de devolução é diferente de "trocar até": trocar até é quando a vida útil acaba; previsão de devolução é quando você espera o equipamento de volta, como no fim de um contrato.',
           link: { href: '/epi', rotulo: 'Abrir as Entregas' },
         },
+        {
+          titulo: 'O painel do EPI',
+          texto:
+            'Em "Painel" você vê de uma olhada o que está vencido, quem ainda não assinou e quanto a sua empresa está entregando. O número de trocas vencidas é o primeiro item que a fiscalização cobra.',
+          tela: {
+            url: '/epi/painel',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Painel' },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Entregas no período', valor: '34' }, { rotulo: 'Aguardando assinatura', valor: '2' }, { rotulo: 'Com troca vencida', valor: '5' }, { rotulo: 'Devolvidos no período', valor: '7' }] },
+            ],
+          },
+          passos: [
+            'Os prazos olham tudo que está em uso hoje, não só o período: o EPI que a pessoa pegou há oito meses continua com ela.',
+            'O resto dos números acompanha o período escolhido — 30 dias, 90 dias, 6 meses ou 1 ano.',
+            '"Quem entregou" mostra o responsável de cada entrega. Para o nome certo aparecer aqui, marque em Colaboradores quem entrega EPI.',
+          ],
+          dica: 'Equipamento devolvido sai da conta de "em uso" e não cobra mais troca de ninguém. Por isso vale dar baixa assim que o EPI volta.',
+          link: { href: '/epi/painel', rotulo: 'Abrir o Painel' },
+        },
       ],
     },
 
