@@ -691,6 +691,26 @@ const manualInterno: Manual = {
           dica: 'O QR é gerado no navegador pela biblioteca qrcode, a primeira dependência nova do portal desde o começo. Sem ela, o link teria que ser digitado ou enviado por e-mail.',
           link: { href: '/epi', rotulo: 'Abrir Entregas' },
         },
+        {
+          titulo: 'Ficha da NR-06 e cancelamento',
+          texto:
+            'A ficha (/epi/ficha) monta uma folha por trabalhador a partir das entregas não canceladas, com os itens, a foto e o horário da assinatura. A impressão usa @page A4 e uma ficha por página.',
+          tela: {
+            url: '/epi/ficha',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Ficha de entrega', botoes: ['Imprimir'] },
+              { t: 'tabela', n: 1, colunas: ['Entrega', 'Equipamento', 'CA', 'Trocar até', 'Assinatura'], linhas: [['17/11 08:40', 'Luva de vaqueta · G', '41385', '17/02/2027', 'assinado 17/11 08:42'], ['02/09 14:10', 'Botina de segurança', '48413', '02/03/2027', 'sem assinatura']] },
+            ],
+          },
+          passos: [
+            'As fotos vêm do balde privado por link assinado de uma hora, gerado em lote (createSignedUrls) só para as entregas que estão na tela.',
+            'Nada de reticências na ficha: os campos quebram linha e a altura acompanha. Ficha com nome ou equipamento cortado não serve como documento.',
+            'Cancelar é a única saída para uma entrega errada, porque ela não se edita nem se apaga. O motivo e o autor ficam gravados, e a entrega sai da ficha.',
+          ],
+          atencao: 'O que está na ficha é o que o banco guardou na entrega: CA e prazo congelados naquele dia, não o que o cadastro do EPI diz hoje.',
+          link: { href: '/epi/ficha', rotulo: 'Abrir a Ficha' },
+        },
       ],
     },
 

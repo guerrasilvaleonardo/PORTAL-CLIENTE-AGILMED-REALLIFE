@@ -253,3 +253,21 @@
     padding: 12px 14px;
   }
 }
+
+/* Cancelar fica discreto, ao lado da data: é saída de exceção, não ação
+   do dia a dia, e não tem volta. */
+.entrega-cancelar {
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0 0 0 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.entrega-cancelar:hover {
+  color: var(--primary);
+}

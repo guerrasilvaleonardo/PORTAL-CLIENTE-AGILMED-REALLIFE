@@ -11,6 +11,7 @@ import { usePathname } from 'next/navigation'
 
 const PAGINAS = [
   { href: '/epi', rotulo: 'Entregas' },
+  { href: '/epi/ficha', rotulo: 'Ficha' },
   { href: '/epi/equipamentos', rotulo: 'Equipamentos' },
 ]
 

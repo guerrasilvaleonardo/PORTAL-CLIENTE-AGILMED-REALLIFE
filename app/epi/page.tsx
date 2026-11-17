@@ -360,6 +360,33 @@ export default function EntregasEpi() {
     }
   }
 
+  /*
+   * Cancelar é a única saída para uma entrega errada: ela não se apaga
+   * nem se edita. O motivo fica registrado junto com quem cancelou.
+   */
+  async function cancelar(e: Entrega) {
+    const motivo = window.prompt(
+      `Cancelar a entrega de ${e.colaboradores?.nome || 'este trabalhador'}?\n\nPor quê? (fica registrado na ficha)`
+    )
+    if (motivo === null) return
+    if (!motivo.trim()) {
+      setErro('Diga o motivo do cancelamento.')
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('epi_entregas')
+        .update({ cancelada_em: new Date().toISOString(), motivo_cancelamento: motivo.trim() })
+        .eq('id', e.id)
+      if (error) throw error
+      await carregar()
+    } catch (err: any) {
+      console.error(err)
+      setErro(err?.message || 'Não foi possível cancelar a entrega.')
+    }
+  }
+
   async function copiarLink() {
     if (!qr) return
     try {
@@ -467,6 +494,11 @@ export default function EntregasEpi() {
               <p className="entrega-quando">
                 {dataHoraBr(e.entregue_em)}
                 {e.entregue_por_nome ? ` · por ${e.entregue_por_nome}` : ''}
+                {!e.cancelada_em && (
+                  <button type="button" className="entrega-cancelar" onClick={() => cancelar(e)}>
+                    Cancelar
+                  </button>
+                )}
               </p>
               <ul className="entrega-itens">
                 {e.epi_entregas_itens.map((i, n) => (

@@ -502,6 +502,26 @@ const manualCliente: Manual = {
           dica: 'A entrega não é editada nem apagada depois de salva: ela registra um ato que aconteceu. Se algo saiu errado, cancele — o cancelamento fica registrado com o motivo.',
           link: { href: '/epi', rotulo: 'Abrir Entregas' },
         },
+        {
+          titulo: 'A ficha que a fiscalização pede',
+          texto:
+            'Em "Ficha", o portal monta uma folha por trabalhador com tudo que ele recebeu: equipamento, CA, motivo, prazo de troca, a foto da entrega e a data em que ele assinou. É o documento do item 6.6.1 da NR-06.',
+          tela: {
+            url: '/epi/ficha',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Ficha de entrega', botoes: ['Imprimir'] },
+              { t: 'tabela', n: 1, colunas: ['Entrega', 'Equipamento', 'CA', 'Motivo', 'Trocar até', 'Assinatura'], linhas: [['17/11 08:40', 'Luva de vaqueta · G', '41385', 'Entrega', '17/02/2027', 'assinado 17/11 08:42'], ['02/09 14:10', 'Botina de segurança', '48413', 'Substituição', '02/03/2027', 'assinado 02/09 14:11']] },
+            ],
+          },
+          passos: [
+            'Escolha um trabalhador ou deixe em "Todos": sai uma ficha por página, pronta para imprimir ou salvar em PDF pelo próprio navegador.',
+            'As fotos entram como miniatura ao lado de cada entrega. Dá para tirá-las da ficha desmarcando "Incluir as fotos".',
+            'Entrega sem assinatura aparece marcada em vermelho — serve para você cobrar antes de a fiscalização aparecer.',
+          ],
+          dica: 'Entrega cancelada não entra na ficha. Para cancelar, use o botão "Cancelar" ao lado da data, na tela de Entregas; o motivo fica registrado.',
+          link: { href: '/epi/ficha', rotulo: 'Abrir a Ficha' },
+        },
       ],
     },
 
