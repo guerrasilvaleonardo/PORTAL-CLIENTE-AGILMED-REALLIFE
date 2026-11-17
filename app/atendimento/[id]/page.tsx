@@ -471,6 +471,14 @@ export default function AtendimentoChamadoPage() {
   const [links, setLinks] = useState<ChamadoLink[]>([])
 
   const [meuId, setMeuId] = useState('')
+
+  /* Anexos: o arquivo escolhido espera confirmação; renomear e excluir
+   * acontecem depois, na lista. */
+  const [arquivoEscolhido, setArquivoEscolhido] = useState<File | null>(null)
+  const [renomeando, setRenomeando] = useState('')
+  const [nomeNovo, setNomeNovo] = useState('')
+  const [salvandoNome, setSalvandoNome] = useState(false)
+  const [excluindoAnexo, setExcluindoAnexo] = useState('')
   /* Limite de chamados em andamento por pessoa (fase 1: só aviso). */
   const [limiteEmAndamento, setLimiteEmAndamento] = useState<number | null>(null)
 
@@ -1832,28 +1840,122 @@ export default function AtendimentoChamadoPage() {
     }
   }
 
-  async function enviarAnexo(
+  /* Renomear mexe só no nome que aparece na lista. O arquivo no balde
+   * continua o mesmo — trocar o conteúdo por baixo apagaria o que a
+   * outra parte já viu, sem deixar rastro. Arquivo errado se exclui e
+   * se envia de novo, e aí a data nova aparece. */
+  function abrirRenomear(anexo: Anexo) {
+    setErroAnexo('')
+    setRenomeando(anexo.id)
+    setNomeNovo(anexo.nome_arquivo)
+  }
+
+  async function salvarNome(anexo: Anexo) {
+    const nome = nomeNovo.trim()
+
+    if (!nome) {
+      setErroAnexo('O anexo precisa de um nome.')
+      return
+    }
+    if (nome === anexo.nome_arquivo) {
+      setRenomeando('')
+      return
+    }
+
+    try {
+      setSalvandoNome(true)
+      setErroAnexo('')
+
+      const { error } = await supabase
+        .from('chamado_anexos')
+        .update({ nome_arquivo: nome })
+        .eq('id', anexo.id)
+
+      if (error) {
+        throw error
+      }
+
+      setAnexos((atual) =>
+        atual.map((a) => (a.id === anexo.id ? { ...a, nome_arquivo: nome } : a))
+      )
+      setRenomeando('')
+    } catch (error) {
+      console.error('Erro ao renomear anexo:', error)
+      setErroAnexo(
+        mensagemDeErro(error) || 'Não foi possível renomear o arquivo.'
+      )
+    } finally {
+      setSalvandoNome(false)
+    }
+  }
+
+  async function excluirAnexo(anexo: Anexo) {
+    const certeza = window.confirm(
+      `Excluir "${anexo.nome_arquivo}"?\n\nO arquivo sai do chamado e não volta.`
+    )
+    if (!certeza) {
+      return
+    }
+
+    try {
+      setExcluindoAnexo(anexo.id)
+      setErroAnexo('')
+
+      const { error } = await supabase
+        .from('chamado_anexos')
+        .delete()
+        .eq('id', anexo.id)
+
+      if (error) {
+        throw error
+      }
+
+      /* O arquivo sai do balde depois da linha: se o balde falhar, ficou
+       * um arquivo órfão, que não aparece para ninguém. O contrário — a
+       * linha apontando para um arquivo que não existe mais — quebraria
+       * a lista do chamado. */
+      await supabase.storage
+        .from('chamados-anexos')
+        .remove([anexo.caminho_arquivo])
+
+      setAnexos((atual) => atual.filter((a) => a.id !== anexo.id))
+    } catch (error) {
+      console.error('Erro ao excluir anexo:', error)
+      setErroAnexo(
+        mensagemDeErro(error) || 'Não foi possível excluir o arquivo.'
+      )
+    } finally {
+      setExcluindoAnexo('')
+    }
+  }
+
+  /* Escolher não é anexar. O arquivo fica em espera, com nome e tamanho
+   * à vista, até alguém confirmar — é a última chance de perceber que o
+   * PDF é o errado antes de ele aparecer para a outra parte. */
+  function escolherArquivo(
     event: React.ChangeEvent<HTMLInputElement>
   ) {
-    const arquivo =
-      event.target.files?.[0]
-
+    const arquivo = event.target.files?.[0]
     event.target.value = ''
 
     if (!arquivo) {
       return
     }
 
-    const limite =
-      10 * 1024 * 1024
+    if (arquivo.size > 10 * 1024 * 1024) {
+      setErroAnexo('O arquivo é muito grande. O limite é 10 MB.')
+      setArquivoEscolhido(null)
+      return
+    }
 
-    if (
-      arquivo.size >
-      limite
-    ) {
-      setErroAnexo(
-        'O arquivo é muito grande. O limite é 10 MB.'
-      )
+    setErroAnexo('')
+    setArquivoEscolhido(arquivo)
+  }
+
+  async function enviarAnexo() {
+    const arquivo = arquivoEscolhido
+
+    if (!arquivo) {
       return
     }
 
@@ -1960,6 +2062,7 @@ export default function AtendimentoChamadoPage() {
           anexoData as Anexo,
         ]
       )
+      setArquivoEscolhido(null)
     } catch (error) {
       console.error(
         'Erro ao enviar anexo:',
@@ -3001,7 +3104,7 @@ export default function AtendimentoChamadoPage() {
                   id="arquivo-atendimento"
                   type="file"
                   onChange={
-                    enviarAnexo
+                    escolherArquivo
                   }
                   disabled={
                     enviandoAnexo
@@ -3012,6 +3115,77 @@ export default function AtendimentoChamadoPage() {
                   }}
                 />
               </div>
+
+              {/* O arquivo escolhido fica aqui, em espera. Confirmar é um
+                  segundo clique; desistir não deixa rastro nenhum. */}
+              {arquivoEscolhido && (
+                <div
+                  style={{
+                    background: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '10px',
+                    padding: '14px 16px',
+                    marginBottom: '15px',
+                  }}
+                >
+                  <div style={{ color: '#0f172a', marginBottom: '4px' }}>
+                    Anexar este arquivo ao chamado?
+                  </div>
+                  <div
+                    style={{
+                      color: '#0f172a',
+                      fontWeight: 700,
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {arquivoEscolhido.name}
+                  </div>
+                  <div
+                    style={{
+                      color: '#64748b',
+                      fontSize: '13px',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    {formatarTamanho(arquivoEscolhido.size)} · depois de
+                    anexado, a outra parte passa a ver este arquivo.
+                  </div>
+                  <div style={{ display: 'flex', gap: '9px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={enviarAnexo}
+                      disabled={enviandoAnexo}
+                      style={{
+                        border: 'none',
+                        background: enviandoAnexo ? '#94a3b8' : '#0f766e',
+                        color: '#ffffff',
+                        borderRadius: '8px',
+                        padding: '9px 14px',
+                        fontWeight: 700,
+                        cursor: enviandoAnexo ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {enviandoAnexo ? 'Anexando...' : 'Anexar arquivo'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setArquivoEscolhido(null)}
+                      disabled={enviandoAnexo}
+                      style={{
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        borderRadius: '8px',
+                        padding: '9px 14px',
+                        fontWeight: 700,
+                        cursor: enviandoAnexo ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {erroAnexo && (
                 <div
@@ -3132,24 +3306,78 @@ export default function AtendimentoChamadoPage() {
                               0,
                           }}
                         >
-                          <strong
-                            style={{
-                              display:
-                                'block',
-                              color:
-                                '#0f172a',
-                              overflow:
-                                'hidden',
-                              textOverflow:
-                                'ellipsis',
-                              whiteSpace:
-                                'nowrap',
-                            }}
-                          >
-                            {
-                              anexo.nome_arquivo
-                            }
-                          </strong>
+                          {renomeando === anexo.id ? (
+                            <div
+                              style={{
+                                display: 'flex',
+                                gap: '7px',
+                                flexWrap: 'wrap',
+                                marginBottom: '4px',
+                              }}
+                            >
+                              <input
+                                value={nomeNovo}
+                                onChange={(e) => setNomeNovo(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') salvarNome(anexo)
+                                  if (e.key === 'Escape') setRenomeando('')
+                                }}
+                                autoFocus
+                                style={{
+                                  flex: '1 1 180px',
+                                  minWidth: 0,
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '8px',
+                                  padding: '7px 9px',
+                                  font: 'inherit',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => salvarNome(anexo)}
+                                disabled={salvandoNome}
+                                style={{
+                                  border: 'none',
+                                  background: '#0f766e',
+                                  color: '#ffffff',
+                                  borderRadius: '8px',
+                                  padding: '7px 12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {salvandoNome ? 'Salvando...' : 'Salvar'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRenomeando('')}
+                                disabled={salvandoNome}
+                                style={{
+                                  border: '1px solid #cbd5e1',
+                                  background: '#ffffff',
+                                  color: '#0f172a',
+                                  borderRadius: '8px',
+                                  padding: '7px 12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <strong
+                              style={{
+                                display: 'block',
+                                color: '#0f172a',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {anexo.nome_arquivo}
+                            </strong>
+                          )}
 
                           <span
                             style={{
@@ -3222,6 +3450,46 @@ export default function AtendimentoChamadoPage() {
                             ? 'Baixando...'
                             : 'Baixar'}
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => abrirRenomear(anexo)}
+                          style={{
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            borderRadius: '8px',
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                          }}
+                        >
+                          Renomear
+                        </button>
+
+                        {anexo.enviado_por === meuId && (
+                          <button
+                            type="button"
+                            onClick={() => excluirAnexo(anexo)}
+                            disabled={excluindoAnexo === anexo.id}
+                            style={{
+                              border: '1px solid #fecaca',
+                              background: '#ffffff',
+                              color: '#b91c1c',
+                              borderRadius: '8px',
+                              padding: '8px 12px',
+                              cursor:
+                                excluindoAnexo === anexo.id
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {excluindoAnexo === anexo.id
+                              ? 'Excluindo...'
+                              : 'Excluir'}
+                          </button>
+                        )}
                       </div>
                     )
                   )}
