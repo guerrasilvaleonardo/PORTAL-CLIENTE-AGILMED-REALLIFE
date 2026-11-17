@@ -522,6 +522,26 @@ const manualCliente: Manual = {
           dica: 'Entrega cancelada não entra na ficha. Para cancelar, use o botão "Cancelar" ao lado da data, na tela de Entregas; o motivo fica registrado.',
           link: { href: '/epi/ficha', rotulo: 'Abrir a Ficha' },
         },
+        {
+          titulo: 'Quando o EPI volta',
+          texto:
+            'Em cada entrega há "Editar / dar baixa". É onde você registra que o equipamento voltou — no fim da obra, na troca, quando estraga ou quando a pessoa é desligada. Sem isso a ficha diz que o trabalhador está com tudo que já recebeu na vida.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Entrega de Priscila', botoes: ['Fechar'] },
+              { t: 'campos', n: 1, itens: [{ rotulo: 'Data e hora da entrega', valor: '17/11/2026 14:24', largo: true }, { rotulo: 'Trocar até', valor: '15/02/2027' }, { rotulo: 'Previsão de devolução', valor: '30/06/2027' }, { rotulo: 'Este equipamento voltou', valor: '17/11/2026 · Devolveu', largo: true }] },
+            ],
+          },
+          passos: [
+            'Marque "Este equipamento voltou", diga quando e por quê. Ele sai da conta do que está com a pessoa e passa a aparecer na coluna Devolução da ficha.',
+            'Errou a baixa? Desmarque e salve: a devolução é desfeita, e o registro de que ela existiu fica guardado.',
+            'Dá para corrigir a data da entrega, a observação e os prazos. O equipamento, o CA e a quantidade não: é o que está escrito na ficha que o trabalhador assinou.',
+          ],
+          dica: 'Previsão de devolução é diferente de "trocar até": trocar até é quando a vida útil acaba; previsão de devolução é quando você espera o equipamento de volta, como no fim de um contrato.',
+          link: { href: '/epi', rotulo: 'Abrir as Entregas' },
+        },
       ],
     },
 

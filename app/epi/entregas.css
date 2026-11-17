@@ -84,6 +84,63 @@
   font-weight: 700;
 }
 
+/* Equipamento que voltou sai do caminho: continua na ficha, mas não é
+   mais o que está com a pessoa hoje. Por isso fica apagado e sem prazo
+   de troca — o prazo de um EPI devolvido não cobra nada de ninguém. */
+.entrega-itens .item-devolvido {
+  color: var(--ink-muted);
+}
+.entrega-itens .baixa {
+  font-size: 12px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Editar fica ao lado de Cancelar, no mesmo tom discreto: são as duas
+   saídas de exceção da entrega, não a ação do dia a dia. */
+.entrega-acao {
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0 0 0 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.entrega-acao:hover {
+  color: var(--primary-strong);
+}
+
+/* ---------- editar a entrega ---------- */
+.item-edicao {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.item-edicao > strong {
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.item-edicao.baixado {
+  background: var(--surface-muted, #f6f7fa);
+  border-style: dashed;
+}
+.item-linha {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.item-linha .field {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
 /* ---------- escolher equipamentos ---------- */
 .escolher-epi {
   list-style: none;

@@ -47,6 +47,19 @@ type Item = {
   quantidade: number
   motivo: string
   troca_em: string
+  devolvido_em: string | null
+  devolucao_motivo: string | null
+}
+
+/* Por que o equipamento voltou — a coluna Devolução da ficha. Sem ela a
+ * ficha afirma que o trabalhador está com tudo que já recebeu na vida. */
+const MOTIVOS_DEVOLUCAO: Record<string, string> = {
+  devolucao: 'devolvido',
+  troca: 'trocado',
+  fim_vida_util: 'fim da vida útil',
+  dano: 'danificado',
+  perda: 'perdido',
+  desligamento: 'desligamento',
 }
 type Entrega = {
   id: string
@@ -120,7 +133,8 @@ export default function FichaEpi() {
           .from('epi_entregas')
           .select(
             'id, colaborador_id, empresa_id, entregue_em, assinado_em, cancelada_em, ' +
-              'entregue_por_nome, foto_path, epi_entregas_itens(nome, ca, complemento, quantidade, motivo, troca_em)'
+              'entregue_por_nome, foto_path, ' +
+              'epi_entregas_itens(nome, ca, complemento, quantidade, motivo, troca_em, devolvido_em, devolucao_motivo)'
           )
           .is('cancelada_em', null)
           .order('entregue_em'),
@@ -264,7 +278,14 @@ export default function FichaEpi() {
         </p>
       )}
 
-      {fichas.map(({ pessoa, linhas }) => (
+      {fichas.map(({ pessoa, linhas }) => {
+        /* A coluna Devolucao so entra quando ha algo devolvido nesta
+           ficha: em A4 cada coluna a mais espreme as outras, e a ficha
+           de quem nunca devolveu nada nao ganha nada com ela. */
+        const temDevolucao = linhas.some((e) =>
+          e.epi_entregas_itens.some((i) => i.devolvido_em)
+        )
+        return (
         <article key={pessoa.id} className="ficha">
           <header className="ficha-topo">
             <div>
@@ -313,6 +334,7 @@ export default function FichaEpi() {
                 <th>Qtd</th>
                 <th>Motivo</th>
                 <th>Trocar até</th>
+                {temDevolucao && <th>Devolução</th>}
                 {comFoto && <th>Foto</th>}
                 <th>Assinatura</th>
               </tr>
@@ -338,6 +360,19 @@ export default function FichaEpi() {
                     <td className="mono" data-rotulo="Trocar até">
                       {dataBr(i.troca_em)}
                     </td>
+                    {temDevolucao && (
+                    <td className="mono" data-rotulo="Devolução">
+                      {i.devolvido_em ? (
+                        <>
+                          {dataBr(i.devolvido_em.slice(0, 10))}
+                          <br />
+                          {MOTIVOS_DEVOLUCAO[i.devolucao_motivo || ''] || i.devolucao_motivo}
+                        </>
+                      ) : (
+                        'em uso'
+                      )}
+                    </td>
+                    )}
                     {comFoto && (
                       <td className="ficha-foto" data-rotulo="Foto">
                         {n === 0 && fotos[e.foto_path] ? (
@@ -394,7 +429,8 @@ export default function FichaEpi() {
             constam na coluna “Assinatura”, com data e hora.
           </p>
         </article>
-      ))}
+        )
+      })}
     </div>
   )
 }
