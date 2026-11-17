@@ -1,10 +1,13 @@
 /*
  * Ficha de entrega de EPI (NR-06, 6.6.1).
  *
- * A tela já mostra o documento como ele sai na impressora: folha branca,
- * uma ficha por página. O texto quebra linha e a altura acompanha —
- * ficha com nome ou equipamento cortado com reticências não serve como
- * documento.
+ * Desenhada igual à ficha que a empresa já usa: cabeçalho com a data de
+ * emissão e a página, o empregador no meio, o quadro do trabalhador em
+ * quatro células, o termo numa caixa e a tabela com grade fechada.
+ *
+ * A tela mostra o documento como ele sai na impressora. O texto quebra
+ * linha e a altura acompanha — ficha com nome ou equipamento cortado
+ * com reticências não serve como documento.
  */
 
 .caixa-marcar {
@@ -27,179 +30,213 @@
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
-  padding: 22px 24px 26px;
+  padding: 20px 22px 24px;
   margin-bottom: 18px;
   color: #1b1b1b;
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
   max-width: 210mm;
 }
 
+/* ---------- cabeçalho ---------- */
 .ficha-topo {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ficha-linha-topo {
+  display: flex;
   justify-content: space-between;
-  gap: 18px;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  border-bottom: 2px solid var(--primary);
-  padding-bottom: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  font-size: 10.5px;
+  color: #444;
 }
-.ficha-topo h2 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--primary);
-  font-weight: 800;
+.ficha-marca {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
-.ficha-base {
-  margin: 2px 0 0;
-  font-size: 11px;
-  color: #666;
+.ficha-logo {
+  width: 92px;
+  flex: 0 0 auto;
 }
-.ficha-empresa {
-  text-align: right;
+.ficha-identificacao {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  font-size: 11.5px;
+  align-items: center;
+  text-align: center;
+  gap: 1px;
 }
-.ficha-empresa strong {
-  color: var(--primary);
+.ficha-identificacao strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+  overflow-wrap: anywhere;
 }
-.ficha-empresa span {
-  color: #666;
+.ficha-identificacao span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #111;
 }
 
-/* Dados da pessoa: rótulo em cima, valor embaixo, quebrando quando precisa. */
-.ficha-pessoa {
+/* ---------- quadro do trabalhador ---------- */
+.ficha-dados {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 10px 16px;
-  margin: 0 0 14px;
+  grid-template-columns: 2fr 1.6fr 0.8fr 1fr;
+  border: 1px solid #333;
+  margin-bottom: 0;
 }
-.ficha-pessoa div {
+.ficha-dados > div {
+  border-right: 1px solid #333;
+  padding: 3px 6px 5px;
   min-width: 0;
 }
-.ficha-pessoa dt {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #777;
-  font-weight: 700;
+.ficha-dados > div:last-child {
+  border-right: 0;
 }
-.ficha-pessoa dd {
-  margin: 1px 0 0;
+.ficha-dados span {
+  display: block;
+  font-size: 9px;
+  color: #555;
+}
+.ficha-dados strong {
+  display: block;
   font-size: 12.5px;
-  color: #1b1b1b;
+  font-weight: 600;
+  color: #111;
+  min-height: 15px;
   overflow-wrap: anywhere;
 }
 
+/* ---------- termo ---------- */
+.ficha-termo {
+  border: 1px solid #333;
+  border-top: 0;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+}
+.ficha-termo p {
+  margin: 0;
+  font-size: 9.5px;
+  line-height: 1.45;
+  text-align: justify;
+  color: #222;
+}
+
+/* ---------- tabela ---------- */
 .ficha-tabela {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 10.5px;
+  /* Larguras fixas: sem isto o equipamento, que tem o texto mais
+     comprido, come as colunas de data e CA e elas quebram no meio do
+     numero ("4337 7"). */
+  table-layout: fixed;
+}
+.ficha-tabela th:nth-child(1) { width: 58px; }
+.ficha-tabela th:nth-child(2) { width: 68px; }
+.ficha-tabela th:nth-child(3) { width: 50px; }
+.ficha-tabela th:nth-child(4) { width: 38px; }
+.ficha-tabela th:nth-child(6) { width: 74px; }
+.ficha-tabela td:nth-child(1),
+.ficha-tabela td:nth-child(3),
+.ficha-tabela td:nth-child(4) {
+  white-space: nowrap;
 }
 .ficha-tabela th,
 .ficha-tabela td {
-  border-bottom: 1px solid #ddd;
-  padding: 6px 7px;
-  text-align: left;
-  vertical-align: top;
+  border: 1px solid #333;
+  padding: 5px 6px;
+  text-align: center;
+  vertical-align: middle;
   overflow-wrap: anywhere;
 }
 .ficha-tabela th {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #555;
-  font-weight: 700;
-  border-bottom: 1px solid #999;
-  /* Cabeçalho nunca parte no meio da palavra: era assim que saía
-     "EQUIPA MENTO" e "MOT IVO" na impressão feita do celular. */
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #111;
+  /* Cabeçalho nunca parte no meio da palavra. */
   overflow-wrap: normal;
   word-break: keep-all;
   hyphens: none;
 }
-.ficha-tabela .mono {
-  font-family: 'IBM Plex Mono', ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.ficha-tabela .ficha-equip {
+  text-align: left;
 }
-.ficha-ass {
-  font-size: 10px;
+.ficha-tabela .ficha-equip strong {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #111;
+  text-align: justify;
+}
+.ficha-mini {
+  display: block;
+  font-size: 9px;
+  color: #666;
   line-height: 1.35;
+  text-align: justify;
+}
+.ficha-tabela .mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A assinatura: o traço, o hash e o horário, um debaixo do outro. */
+.ficha-ass {
+  width: 118px;
+}
+.ficha-traco {
+  display: block;
+  width: 100%;
+  max-height: 42px;
+  object-fit: contain;
+  margin: 0 auto;
+}
+.ficha-sem-traco {
+  display: block;
+  font-size: 9px;
+  color: #666;
+  padding: 10px 0 2px;
+}
+.ficha-hash {
+  display: block;
+  font-size: 5.5px;
+  color: #999;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.ficha-quando {
+  display: block;
+  font-size: 9px;
+  color: #333;
+  border-top: 1px solid #bbb;
+  margin-top: 2px;
+  padding-top: 1px;
+  font-variant-numeric: tabular-nums;
 }
 .ficha-pendente {
   color: var(--danger);
   font-weight: 700;
+  font-size: 9.5px;
 }
 .ficha-foto img {
   width: 42px;
   height: 42px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 3px;
   border: 1px solid #ccc;
   display: block;
+  margin: 0 auto;
 }
 
-.ficha-termo {
-  margin-top: 14px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: #fafafa;
-}
-.ficha-termo h3 {
-  margin: 0 0 6px;
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #666;
-  font-weight: 700;
-}
-.ficha-termo p {
-  margin: 0 0 5px;
-  font-size: 10.5px;
-  line-height: 1.5;
-  color: #333;
-}
-.ficha-termo p:last-child {
-  margin-bottom: 0;
-}
-
-.ficha-assinaturas {
-  margin-top: 26px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 18px;
-}
-.ficha-assinaturas div {
-  border-top: 1px solid #777;
-  padding-top: 4px;
-  font-size: 9.5px;
-  color: #555;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.ficha-assinaturas span {
-  font-size: 11px;
-  color: #1b1b1b;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.ficha-rodape {
-  margin: 14px 0 0;
-  font-size: 9.5px;
-  color: #777;
-  line-height: 1.5;
-}
-
+/* ---------- impressão ---------- */
 @media print {
   @page {
     size: A4;
-    margin: 14mm 12mm;
+    margin: 10mm 9mm;
   }
   header,
   .nao-imprimir {
@@ -227,38 +264,43 @@
     break-after: auto;
   }
   .ficha-tabela tr,
-  .ficha-termo,
-  .ficha-assinaturas {
+  .ficha-termo {
     break-inside: avoid;
   }
-  /* Oito colunas em A4 só cabem se a data puder quebrar entre o dia e a
-     hora. Sem isto a coluna da data empurra as outras e a assinatura
-     — que é a prova da entrega — fica espremida até sumir. */
+  /* Sete colunas em A4 só cabem se a data puder quebrar entre o dia e
+     a hora. Sem isto a assinatura — a prova da entrega — fica espremida
+     até sumir. */
   .ficha-tabela .mono {
     white-space: normal;
-  }
-  .ficha-termo {
-    background: none;
   }
 }
 
 /*
- * No celular a tabela de 8 colunas não cabe: cada palavra do cabeçalho
- * quebrava no meio ("EQUIPA MENTO", "MOT IVO") e a coluna da assinatura,
- * que é a prova de que a entrega aconteceu, ficava ilegível. Em tela
- * estreita cada linha vira um cartão com rótulo ao lado do valor. Na
- * impressão nada disso vale: lá continua sendo a tabela do documento.
+ * No celular a tabela de sete colunas não cabe: cada palavra do
+ * cabeçalho quebrava no meio ("EQUIPA MENTO") e a coluna da assinatura
+ * ficava ilegível. Em tela estreita cada linha vira um cartão com
+ * rótulo ao lado do valor. Na impressão nada disso vale.
  */
 @media screen and (max-width: 760px) {
   .ficha {
     padding: 16px 14px 20px;
     font-size: 13px;
   }
-  .ficha-topo {
+  .ficha-marca {
+    flex-direction: column;
     gap: 8px;
   }
-  .ficha-empresa {
-    text-align: left;
+  .ficha-dados {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ficha-dados > div {
+    border-bottom: 1px solid #333;
+  }
+  .ficha-dados > div:nth-child(2n) {
+    border-right: 0;
+  }
+  .ficha-dados > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
   }
   .ficha-tabela,
   .ficha-tabela tbody,
@@ -284,7 +326,7 @@
     gap: 10px;
     align-items: baseline;
     font-size: 12.5px;
-    white-space: normal;
+    text-align: left;
   }
   /* Célula vazia é item repetido da mesma entrega — não vira linha solta. */
   .ficha-tabela td:empty {
@@ -300,15 +342,25 @@
     font-weight: 700;
   }
   .ficha-tabela .ficha-equip {
-    font-weight: 700;
+    display: block;
   }
-  /* A assinatura tem duas linhas (o "assinado" e a data), então aqui ela
-     não é flex: o rótulo fica em cima e o texto embaixo, inteiro. */
+  .ficha-tabela .ficha-equip::before {
+    display: block;
+    margin-bottom: 2px;
+  }
+  .ficha-tabela .ficha-foto {
+    align-items: center;
+  }
+  .ficha-foto img {
+    width: 64px;
+    height: 64px;
+    margin: 0;
+  }
+  /* A assinatura tem o traço, o hash e a data: fica em bloco, com o
+     rótulo em cima e tudo inteiro embaixo. */
   .ficha-tabela .ficha-ass {
     display: block;
-    font-size: 12.5px;
-    font-weight: 700;
-    line-height: 1.4;
+    width: auto;
     margin-top: 5px;
     padding-top: 7px;
     border-top: 1px dashed #ddd;
@@ -317,17 +369,16 @@
     display: block;
     margin-bottom: 2px;
   }
-  .ficha-tabela .mono {
-    white-space: normal;
+  .ficha-traco {
+    max-height: 56px;
+    margin: 0;
   }
-  .ficha-tabela .ficha-foto {
-    align-items: center;
+  .ficha-hash {
+    font-size: 7px;
   }
-  .ficha-foto img {
-    width: 64px;
-    height: 64px;
-  }
-  .ficha-assinaturas {
-    margin-top: 20px;
+  .ficha-quando {
+    font-size: 12px;
+    font-weight: 700;
+    border-top: 0;
   }
 }

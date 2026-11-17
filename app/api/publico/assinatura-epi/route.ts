@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { TERMO_ENTREGA_EPI } from '@/lib/epiTermo'
@@ -21,6 +22,8 @@ export const dynamic = 'force-dynamic'
  */
 
 const TOKEN = /^[0-9a-f]{32}$/
+/* O desenho chega como data URL de PNG, do <canvas> da pagina. */
+const DESENHO = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/
 const MAX_TENTATIVAS = 5
 const JANELA_MS = 15 * 60 * 1000
 
@@ -155,17 +158,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: 'CPF não confere com o do recebimento.' }, { status: 403 })
     }
 
+    /* O traço que a pessoa desenhou na tela. É o que a ficha imprime —
+     * um "assinado" escrito por nós prova menos que a assinatura dela. */
+    const desenho = String(corpo?.assinatura || '')
+    if (!DESENHO.test(desenho)) {
+      return NextResponse.json(
+        { erro: 'Assine no quadro antes de confirmar.' },
+        { status: 400 }
+      )
+    }
+    const bytes = Buffer.from(desenho.split(',')[1] || '', 'base64')
+    if (bytes.length < 400 || bytes.length > 400_000) {
+      return NextResponse.json(
+        { erro: 'Não foi possível ler a assinatura. Tente desenhar de novo.' },
+        { status: 400 }
+      )
+    }
+
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
       null
+    const assinadoEm = new Date().toISOString()
+
+    /* O desenho vai para o mesmo balde privado da foto, sob o id da
+     * entrega: quem lê a ficha já tem permissão para ver os dois. */
+    const caminho = `assinaturas/${e.id}.png`
+    const { error: erroUpload } = await supabaseAdmin.storage
+      .from('epi-fotos')
+      .upload(caminho, bytes, { contentType: 'image/png', upsert: true })
+    if (erroUpload) throw erroUpload
+
+    /* Hash do registro, não do arquivo: identifica esta assinatura e
+     * muda se alguém mexer no que foi assinado. Não é ICP-Brasil. */
+    const hash = createHash('sha256')
+      .update([e.id, e.token, cpfCadastro, assinadoEm, desenho].join('|'))
+      .digest('hex')
 
     const { error } = await supabaseAdmin
       .from('epi_entregas')
       .update({
-        assinado_em: new Date().toISOString(),
+        assinado_em: assinadoEm,
         assinatura_ip: ip,
         assinatura_agente: req.headers.get('user-agent')?.slice(0, 300) || null,
+        assinatura_imagem: caminho,
+        assinatura_hash: hash,
       })
       .eq('token', token)
       .is('assinado_em', null)
