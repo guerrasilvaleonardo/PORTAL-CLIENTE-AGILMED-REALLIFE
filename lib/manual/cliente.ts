@@ -7,7 +7,7 @@ import type { Bloco, Manual } from './tipos'
  * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
-const MENU = ['Início', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
+const MENU = ['Início', 'Chamados', 'Colaboradores', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualCliente: Manual = {
@@ -439,6 +439,36 @@ const manualCliente: Manual = {
             'O cartão de avaliação fica dentro do chamado, logo abaixo da conversa com a equipe.',
           ],
           dica: 'Quem avalia: quem abriu o chamado ou, quando a nossa equipe abriu o chamado por você, o solicitante indicado por ela. Se a equipe abriu sem indicar ninguém, qualquer usuário da empresa que veja o chamado pode avaliar. Vale a primeira avaliação.',
+        },
+      ],
+    },
+
+    {
+      id: 'colaboradores',
+      titulo: 'Colaboradores',
+      rotas: ['/colaboradores'],
+      slides: [
+        {
+          titulo: 'As pessoas da sua empresa',
+          texto:
+            'É a lista de quem trabalha na sua empresa, com CPF, matrícula e função. O portal usa este cadastro para saber que "João da Silva" e "JOAO SILVA" são a mesma pessoa e juntar os certificados dela.',
+          tela: {
+            url: '/colaboradores',
+            blocos: [
+              menu('Colaboradores'),
+              { t: 'topo', sobre: 'Cadastro', titulo: 'Colaboradores', botoes: ['Novo colaborador'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Cadastrados', valor: '38' }, { rotulo: 'Sem CPF', valor: '4' }, { rotulo: 'Afastados', valor: '1' }, { rotulo: 'Desligados', valor: '3' }] },
+              { t: 'tabela', n: 2, colunas: ['Nome', 'CPF', 'Matrícula', 'Função', 'Situação'], linhas: [['Marcos Pereira da Luz', '104.•••.•••-00', '1042', 'Pedreiro', 'Ativo'], ['Ana Cláudia Ribeiro', '228.•••.•••-11', '1088', 'Auxiliar de produção', 'Afastado']], pilulas: 4 },
+            ],
+          },
+          passos: [
+            'Os cartões mostram quantas pessoas estão cadastradas, quantas ainda estão sem CPF, quantas estão afastadas e quantas já foram desligadas.',
+            'A lista veio preenchida com as pessoas que já apareciam nos seus certificados. Confira e complete o que faltar, principalmente o CPF.',
+            '"Novo colaborador" abre o cadastro. Só o nome é obrigatório; CPF, matrícula, função e local de trabalho ajudam a identificar a pessoa certa.',
+          ],
+          dica: 'Preencher o CPF vale a pena: é o que junta todos os certificados da mesma pessoa, mesmo quando o nome foi escrito de formas diferentes ao longo dos anos.',
+          atencao: 'Para registrar quem saiu da empresa, use "Desligar" em Certificados. O desligamento vale para o portal inteiro e aparece aqui sozinho — esta tela não desliga ninguém.',
+          link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
         },
       ],
     },

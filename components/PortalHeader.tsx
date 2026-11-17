@@ -222,6 +222,7 @@ export default function PortalHeader() {
         { href: '/atendimento', rotulo: 'Atendimento' },
         { href: '/estrelas', rotulo: 'Estrelas' },
         { href: '/chamados', rotulo: 'Chamados' },
+        { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
@@ -230,6 +231,8 @@ export default function PortalHeader() {
     : [
         { href: '/', rotulo: 'Início' },
         { href: '/chamados', rotulo: 'Chamados' },
+        /* Cadastro de apoio, não cobrado: alimenta certificados e, depois, a entrega de EPI. */
+        { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },

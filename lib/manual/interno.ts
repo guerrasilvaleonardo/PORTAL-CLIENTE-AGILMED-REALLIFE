@@ -6,7 +6,7 @@ import type { Bloco, Manual } from './tipos'
  * (time interno) e, se o cliente vê ou é afetado, em cliente.ts.
  */
 
-const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
+const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Colaboradores', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualInterno: Manual = {
@@ -631,6 +631,35 @@ const manualInterno: Manual = {
             'Escolha a prioridade e, se quiser, marque os usuários do cliente que devem acompanhar. Sem ninguém marcado, o chamado fica visível para toda a empresa.',
           ],
           dica: 'Todo pedido de cliente deve virar chamado: é o que garante prazo, histórico e indicador. Na lista de Chamados, a linha abre a visão do cliente; para atender, use o Quadro.',
+        },
+      ],
+    },
+
+    {
+      id: 'colaboradores',
+      titulo: 'Colaboradores',
+      rotas: ['/colaboradores'],
+      slides: [
+        {
+          titulo: 'O cadastro de pessoas das empresas',
+          texto:
+            'Até aqui o portal não tinha cadastro de pessoas: o nome era digitado em cada certificado e o agrupamento saía da regra de empresa + nome normalizado, ou do CPF quando havia. Esta tela é esse cadastro (supabase/colaboradores.sql).',
+          tela: {
+            url: '/colaboradores',
+            blocos: [
+              menu('Colaboradores'),
+              { t: 'topo', sobre: 'Cadastro', titulo: 'Colaboradores', botoes: ['Novo colaborador'] },
+              { t: 'tabela', n: 1, colunas: ['Nome', 'CPF', 'Matrícula', 'Função', 'Empresa', 'Situação'], linhas: [['Marcos Pereira da Luz', '104.•••.•••-00', '1042', 'Pedreiro', 'Construtora exemplo', 'Ativo'], ['Ana Cláudia Ribeiro', '228.•••.•••-11', '1088', 'Auxiliar de produção', 'Construtora exemplo', 'Afastado']], pilulas: 5 },
+            ],
+          },
+          passos: [
+            'A tabela nasceu preenchida pela carga inicial do SQL, a partir dos certificados existentes: uma pessoa por empresa, reconhecida pelo CPF quando ele existe e pelo nome normalizado quando não.',
+            'A equipe interna vê todas as empresas e escolhe a empresa no filtro; o cliente só vê a dele, pela RLS (pode_gerir_colaboradores).',
+            'Ninguém apaga pessoa pelo portal: não existe política de DELETE. Quem saiu é marcado em Certificados, como já era.',
+          ],
+          atencao: 'Situação aqui é só "ativo" ou "afastado". Desligado continua vindo de colaboradores_desligados, para não existirem duas respostas sobre quem saiu da empresa.',
+          dica: 'O CPF passa pelo dígito verificador antes de salvar. CPF errado junta ou separa a pessoa errada nos certificados, então vale barrar na entrada.',
+          link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
         },
       ],
     },
