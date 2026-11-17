@@ -470,6 +470,26 @@ const manualCliente: Manual = {
           atencao: 'Para registrar quem saiu da empresa, use "Desligar" em Certificados. O desligamento vale para o portal inteiro e aparece aqui sozinho — esta tela não desliga ninguém.',
           link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
         },
+        {
+          titulo: 'Obras, frentes e quem entrega',
+          texto:
+            'Em "Locais de trabalho" você cadastra as obras, frentes, unidades e setores da sua empresa — sem precisar pedir para ninguém. Depois é só escolher o local de cada pessoa, e a ficha de EPI passa a dizer onde ela estava no dia da entrega.',
+          tela: {
+            url: '/colaboradores/locais',
+            blocos: [
+              menu('Colaboradores'),
+              { t: 'topo', sobre: 'Cadastros', titulo: 'Locais de trabalho', botoes: ['Novo local'] },
+              { t: 'tabela', n: 1, colunas: ['Local', 'Tipo', 'Cidade/UF', 'CNO', 'Responsável', 'Pessoas'], linhas: [['Obra Jardins', 'Obra', 'Porto Velho/RO', '12.345.67890/12', 'Vitor Oliveira', '14'], ['Unidade Centro', 'Unidade', 'Porto Velho/RO', '—', 'Priscila Macedo', '6']] },
+            ],
+          },
+          passos: [
+            'Canteiro de obra tem CNO: o número de 12 dígitos que liga a obra ao eSocial e à NR-18. Os outros tipos de local podem ficar sem.',
+            'Obra que acabou não se apaga: desmarque "Local em atividade". Ela sai das listas e continua nas fichas antigas, onde faz parte do registro.',
+            'Em Colaboradores, marque "Esta pessoa entrega EPI" em quem é almoxarife ou encarregado. Na entrega, o nome dela passa a poder ser escolhido como responsável.',
+          ],
+          dica: 'O nome de quem entrega importa na ficha: sem marcar ninguém, sai o nome de quem estava com o portal aberto — que nem sempre é quem passou o equipamento para a mão do trabalhador.',
+          link: { href: '/colaboradores/locais', rotulo: 'Abrir os Locais' },
+        },
       ],
     },
 

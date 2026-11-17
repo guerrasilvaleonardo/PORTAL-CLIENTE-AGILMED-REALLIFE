@@ -6,6 +6,7 @@ import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import { formatarCpf, soDigitosCpf, normalizarTexto } from '@/lib/historicoCertificados'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import Icone from '@/components/Icone'
+import CadastroAbas from '@/components/CadastroAbas'
 import './colaboradores.css'
 
 /*
@@ -35,6 +36,8 @@ type Colaborador = {
   matricula: string | null
   funcao: string | null
   local_trabalho: string | null
+  local_id: string | null
+  entrega_epi: boolean
   admissao: string | null
   situacao: 'ativo' | 'afastado'
   email: string | null
@@ -52,6 +55,8 @@ const formVazio = {
   matricula: '',
   funcao: '',
   local_trabalho: '',
+  local_id: '',
+  entrega_epi: false,
   admissao: '',
   situacao: 'ativo' as 'ativo' | 'afastado',
   email: '',
@@ -88,6 +93,7 @@ export default function Colaboradores() {
 
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [lista, setLista] = useState<Colaborador[]>([])
+  const [locais, setLocais] = useState<{ id: string; empresa_id: string; nome: string }[]>([])
   const [desligados, setDesligados] = useState<Set<string>>(new Set())
 
   const [busca, setBusca] = useState('')
@@ -152,6 +158,16 @@ export default function Colaboradores() {
           empresas: Array.isArray(c.empresas) ? c.empresas[0] : c.empresas,
         })) as Colaborador[]
       )
+
+      /* Os locais cadastrados viram a lista do campo "Local de trabalho".
+         Se o SQL dos locais ainda não rodou, a tela segue com o texto
+         livre de antes — por isso o erro aqui não interrompe nada. */
+      const { data: locs } = await supabase
+        .from('locais_trabalho')
+        .select('id, empresa_id, nome')
+        .eq('ativo', true)
+        .order('nome')
+      setLocais((locs || []) as { id: string; empresa_id: string; nome: string }[])
 
       /* Quem está desligado continua vindo de Certificados. */
       const { data: desl } = await supabase
@@ -220,6 +236,8 @@ export default function Colaboradores() {
       matricula: c.matricula || '',
       funcao: c.funcao || '',
       local_trabalho: c.local_trabalho || '',
+      local_id: c.local_id || '',
+      entrega_epi: Boolean(c.entrega_epi),
       admissao: c.admissao || '',
       situacao: c.situacao,
       email: c.email || '',
@@ -273,6 +291,8 @@ export default function Colaboradores() {
         matricula: form.matricula.trim() || null,
         funcao: form.funcao.trim() || null,
         local_trabalho: form.local_trabalho.trim() || null,
+        local_id: form.local_id || null,
+        entrega_epi: form.entrega_epi,
         admissao: form.admissao || null,
         situacao: form.situacao,
         email: form.email.trim() || null,
@@ -309,6 +329,8 @@ export default function Colaboradores() {
 
   return (
     <div className="app">
+      <CadastroAbas />
+
       <div>
         <p className="eyebrow">Cadastro</p>
         <h1 className="titulo-tela">Colaboradores</h1>
@@ -406,7 +428,10 @@ export default function Colaboradores() {
                     <td className="mono">{formatarCpf(c.cpf) || '—'}</td>
                     <td className="mono">{c.matricula || '—'}</td>
                     <td>{c.funcao || '—'}</td>
-                    <td>{c.local_trabalho || '—'}</td>
+                    <td>
+                      {locais.find((l) => l.id === c.local_id)?.nome || c.local_trabalho || '—'}
+                      {c.entrega_epi && <span className="pill flat"> entrega EPI</span>}
+                    </td>
                     {interno && <td>{nomeEmpresa(c.empresas)}</td>}
                     <td>
                       {fora ? (
@@ -511,14 +536,45 @@ export default function Colaboradores() {
                 </div>
                 <div className="field">
                   <label htmlFor="colab-local">Local de trabalho</label>
-                  <input
-                    id="colab-local"
-                    placeholder="Obra, setor ou frente"
-                    value={form.local_trabalho}
-                    onChange={(e) => setForm({ ...form, local_trabalho: e.target.value })}
-                  />
+                  {/* Quem já cadastrou locais escolhe da lista; quem ainda não
+                      cadastrou nenhum continua digitando, como sempre fez. */}
+                  {locais.length > 0 ? (
+                    <select
+                      id="colab-local"
+                      value={form.local_id}
+                      onChange={(e) => setForm({ ...form, local_id: e.target.value })}
+                    >
+                      <option value="">Sem local definido</option>
+                      {locais
+                        .filter((l) => !form.empresa_id || l.empresa_id === form.empresa_id)
+                        .map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.nome}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <input
+                      id="colab-local"
+                      placeholder="Obra, setor ou frente"
+                      value={form.local_trabalho}
+                      onChange={(e) => setForm({ ...form, local_trabalho: e.target.value })}
+                    />
+                  )}
                 </div>
               </div>
+
+              {/* Quem entrega EPI quase nunca é quem tem login no portal: é o
+                  almoxarife, o encarregado da frente. Marcando aqui, ele passa
+                  a aparecer na entrega como responsável. */}
+              <label className="caixa-marcar">
+                <input
+                  type="checkbox"
+                  checked={form.entrega_epi}
+                  onChange={(e) => setForm({ ...form, entrega_epi: e.target.checked })}
+                />
+                Esta pessoa entrega EPI
+              </label>
 
               <div className="field-row">
                 <div className="field">
