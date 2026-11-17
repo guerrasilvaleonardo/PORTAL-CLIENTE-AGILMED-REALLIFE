@@ -17,9 +17,9 @@
  * antes de virar rotina.
  */
 export const TERMO_ENTREGA_EPI = [
-  'Declaro que recebi gratuitamente os equipamentos de proteção individual descritos acima, em perfeito estado de conservação e funcionamento.',
-  'Fui orientado sobre o uso correto, a guarda e a conservação de cada um deles, e me comprometo a usá-los apenas para a finalidade a que se destinam, durante toda a jornada em que a atividade exigir.',
-  'Comprometo-me a comunicar ao meu superior qualquer dano, extravio ou alteração que torne o equipamento impróprio para uso, e a devolvê-lo quando for substituído ou ao deixar a empresa.',
-  'Estou ciente de que o descumprimento dessas obrigações constitui ato faltoso, nos termos da NR-06 e do art. 158 da CLT.',
-  'Estou ciente de que esta entrega é registrada com foto e com a data e hora desta assinatura, para comprovação do cumprimento da NR-06.',
+  'DECLARO ter recebido gratuitamente os Equipamentos de Proteção Individual — EPI descritos nesta ficha, em perfeito estado de conservação e funcionamento, nos termos dos artigos 166 e 167 da CLT, com a redação dada pela Lei Federal nº 6.514/77, destinados à proteção da minha integridade física e à neutralização de agentes insalubres, conforme o art. 191, inciso II, da mesma norma, e ter recebido treinamento sobre o uso correto de cada um deles.',
+  'COMPROMETO-ME a utilizá-los sempre para os fins a que se destinam, durante toda a jornada em que a atividade exigir, ciente de que o não uso constitui ato faltoso, nos termos do art. 158, parágrafo único, da CLT e do item 6.7.1 da NR-06, sujeitando-me às penalidades legais.',
+  'RESPONSABILIZO-ME pela guarda e conservação dos equipamentos e por devolvê-los no estado em que se encontrarem quando substituídos ou ao deixar a empresa, indenizando-a em caso de perda, extravio ou dano por uso incorreto, conforme o art. 462, § 1º, da CLT.',
+  'COMPROMETO-ME a comunicar ao meu superior hierárquico ou ao responsável pela segurança do trabalho qualquer alteração que torne o equipamento impróprio para uso, podendo solicitar a troca sempre que necessário.',
+  'ESTOU CIENTE de que esta entrega é registrada com fotografia e com a data e a hora desta assinatura, para comprovação do cumprimento da NR-06.',
 ]

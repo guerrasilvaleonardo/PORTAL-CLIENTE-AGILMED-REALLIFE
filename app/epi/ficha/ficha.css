@@ -113,6 +113,11 @@
   color: #555;
   font-weight: 700;
   border-bottom: 1px solid #999;
+  /* Cabeçalho nunca parte no meio da palavra: era assim que saía
+     "EQUIPA MENTO" e "MOT IVO" na impressão feita do celular. */
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: none;
 }
 .ficha-tabela .mono {
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
@@ -226,7 +231,103 @@
   .ficha-assinaturas {
     break-inside: avoid;
   }
+  /* Oito colunas em A4 só cabem se a data puder quebrar entre o dia e a
+     hora. Sem isto a coluna da data empurra as outras e a assinatura
+     — que é a prova da entrega — fica espremida até sumir. */
+  .ficha-tabela .mono {
+    white-space: normal;
+  }
   .ficha-termo {
     background: none;
+  }
+}
+
+/*
+ * No celular a tabela de 8 colunas não cabe: cada palavra do cabeçalho
+ * quebrava no meio ("EQUIPA MENTO", "MOT IVO") e a coluna da assinatura,
+ * que é a prova de que a entrega aconteceu, ficava ilegível. Em tela
+ * estreita cada linha vira um cartão com rótulo ao lado do valor. Na
+ * impressão nada disso vale: lá continua sendo a tabela do documento.
+ */
+@media screen and (max-width: 760px) {
+  .ficha {
+    padding: 16px 14px 20px;
+    font-size: 13px;
+  }
+  .ficha-topo {
+    gap: 8px;
+  }
+  .ficha-empresa {
+    text-align: left;
+  }
+  .ficha-tabela,
+  .ficha-tabela tbody,
+  .ficha-tabela tr,
+  .ficha-tabela td {
+    display: block;
+    width: auto;
+  }
+  .ficha-tabela thead {
+    display: none;
+  }
+  .ficha-tabela tr {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    background: #fcfcfc;
+  }
+  .ficha-tabela td {
+    border: 0;
+    padding: 3px 0;
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 12.5px;
+    white-space: normal;
+  }
+  /* Célula vazia é item repetido da mesma entrega — não vira linha solta. */
+  .ficha-tabela td:empty {
+    display: none;
+  }
+  .ficha-tabela td::before {
+    content: attr(data-rotulo);
+    flex: 0 0 86px;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #777;
+    font-weight: 700;
+  }
+  .ficha-tabela .ficha-equip {
+    font-weight: 700;
+  }
+  /* A assinatura tem duas linhas (o "assinado" e a data), então aqui ela
+     não é flex: o rótulo fica em cima e o texto embaixo, inteiro. */
+  .ficha-tabela .ficha-ass {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-top: 5px;
+    padding-top: 7px;
+    border-top: 1px dashed #ddd;
+  }
+  .ficha-tabela .ficha-ass::before {
+    display: block;
+    margin-bottom: 2px;
+  }
+  .ficha-tabela .mono {
+    white-space: normal;
+  }
+  .ficha-tabela .ficha-foto {
+    align-items: center;
+  }
+  .ficha-foto img {
+    width: 64px;
+    height: 64px;
+  }
+  .ficha-assinaturas {
+    margin-top: 20px;
   }
 }

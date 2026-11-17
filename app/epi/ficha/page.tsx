@@ -321,28 +321,36 @@ export default function FichaEpi() {
               {linhas.flatMap((e) =>
                 e.epi_entregas_itens.map((i, n) => (
                   <tr key={`${e.id}-${n}`}>
-                    <td className="mono">{n === 0 ? dataHoraBr(e.entregue_em) : ''}</td>
-                    <td>
+                    <td className="mono" data-rotulo="Entrega">
+                      {n === 0 ? dataHoraBr(e.entregue_em) : ''}
+                    </td>
+                    <td data-rotulo="Equipamento" className="ficha-equip">
                       {i.nome}
                       {i.complemento ? ` · ${i.complemento}` : ''}
                     </td>
-                    <td className="mono">{i.ca || '—'}</td>
-                    <td className="mono">{i.quantidade}</td>
-                    <td>{MOTIVOS[i.motivo] || i.motivo}</td>
-                    <td className="mono">{dataBr(i.troca_em)}</td>
+                    <td className="mono" data-rotulo="CA">
+                      {i.ca || '—'}
+                    </td>
+                    <td className="mono" data-rotulo="Qtd">
+                      {i.quantidade}
+                    </td>
+                    <td data-rotulo="Motivo">{MOTIVOS[i.motivo] || i.motivo}</td>
+                    <td className="mono" data-rotulo="Trocar até">
+                      {dataBr(i.troca_em)}
+                    </td>
                     {comFoto && (
-                      <td className="ficha-foto">
+                      <td className="ficha-foto" data-rotulo="Foto">
                         {n === 0 && fotos[e.foto_path] ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img src={fotos[e.foto_path]} alt="" />
                         ) : null}
                       </td>
                     )}
-                    <td className="mono ficha-ass">
+                    <td className="mono ficha-ass" data-rotulo="Assinatura">
                       {n === 0 ? (
                         e.assinado_em ? (
                           <>
-                            assinado
+                            <strong>Assinado</strong>
                             <br />
                             {dataHoraBr(e.assinado_em)}
                           </>
