@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
  * interna vê tudo.
  */
 
-export type Modulo = 'certificados' | 'treinamentos' | 'documentos'
+export type Modulo = 'certificados' | 'treinamentos' | 'documentos' | 'epi' | 'epi'
 
 export const MODULOS: Record<
   Modulo,
@@ -53,6 +53,19 @@ export const MODULOS: Record<
       'Avisos por e-mail antes do prazo e pedido de renovação em um clique',
     ],
   },
+  epi: {
+    rotulo: 'EPI',
+    chamada: 'A ficha da NR-06 pronta, sem papel e sem caderno',
+    href: '/epi',
+    coluna: 'modulo_epi',
+    resumo:
+      'Entrega de EPI com foto e assinatura do trabalhador no celular, controle de devolução e a ficha que a fiscalização pede.',
+    beneficios: [
+      'Entrega registrada com foto e assinada na hora, pelo celular',
+      'Ficha da NR-06 por trabalhador, pronta para imprimir',
+      'Painel do que está vencido, de quem não assinou e do que voltou',
+    ],
+  },
 }
 
 export type AcessoModulos = {
@@ -73,7 +86,7 @@ export function useModulos(): AcessoModulos {
   const [estado, setEstado] = useState<{ carregando: boolean; interno: boolean; liberados: Record<Modulo, boolean> }>({
     carregando: true,
     interno: false,
-    liberados: { certificados: true, treinamentos: true, documentos: true },
+    liberados: { certificados: true, treinamentos: true, documentos: true, epi: true },
   })
 
   useEffect(() => {
@@ -90,12 +103,12 @@ export function useModulos(): AcessoModulos {
         const { data: perfil } = await supabase.from('profiles').select('perfil, empresa_id').eq('id', user.id).single()
 
         const interno = PERFIS_INTERNOS.includes(perfil?.perfil || '')
-        let liberados = { certificados: true, treinamentos: true, documentos: true }
+        let liberados = { certificados: true, treinamentos: true, documentos: true, epi: true }
 
         if (!interno && perfil?.empresa_id) {
           const { data: emp, error } = await supabase
             .from('empresas')
-            .select('modulo_certificados, modulo_treinamentos, modulo_documentos')
+            .select('modulo_certificados, modulo_treinamentos, modulo_documentos, modulo_epi')
             .eq('id', perfil.empresa_id)
             .maybeSingle()
 
@@ -104,6 +117,7 @@ export function useModulos(): AcessoModulos {
               certificados: emp.modulo_certificados !== false,
               treinamentos: emp.modulo_treinamentos !== false,
               documentos: emp.modulo_documentos !== false,
+              epi: emp.modulo_epi !== false,
             }
           }
         }

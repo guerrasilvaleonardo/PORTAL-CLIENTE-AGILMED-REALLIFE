@@ -113,6 +113,15 @@ const DESENHOS = {
       <path d="M9 13h6M9 17h4" />
     </>
   ),
+  /* Capacete de segurança: a casca por cima e a aba reta embaixo. */
+  epi: (
+    <>
+      <path d="M4 16a8 8 0 0 1 16 0" />
+      <path d="M9.5 16V8.6a2.5 2.5 0 0 1 5 0V16" />
+      <path d="M3 16h18" />
+      <path d="M5 19h14" />
+    </>
+  ),
   conversas: (
     <>
       <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z" />
