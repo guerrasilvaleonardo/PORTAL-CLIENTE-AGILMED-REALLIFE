@@ -711,6 +711,26 @@ const manualInterno: Manual = {
           atencao: 'O que está na ficha é o que o banco guardou na entrega: CA e prazo congelados naquele dia, não o que o cadastro do EPI diz hoje.',
           link: { href: '/epi/ficha', rotulo: 'Abrir a Ficha' },
         },
+        {
+          titulo: 'Baixa, reversão e o histórico da entrega',
+          texto:
+            'supabase/epi-devolucao.sql dá baixa por item (devolvido_em, devolucao_motivo) e grava toda alteração em epi_entregas_alteracoes, com autor, valor antes e depois e se foi depois da assinatura.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Editar / dar baixa', botoes: ['Salvar'] },
+              { t: 'tabela', n: 1, colunas: ['Campo', 'Antes', 'Depois'], linhas: [['trocar_ate', '15/02/2027', '28/02/2027'], ['devolucao', '', '17/11/2026 · devolucao']] },
+            ],
+          },
+          passos: [
+            'O gatilho dos itens congela nome, CA, vida útil e quantidade mesmo no UPDATE. O que o portal deixa alterar é prazo, previsão, motivo, complemento e observação.',
+            'A entrega passou a aceitar correção de entregue_em e observacoes. Empresa, trabalhador, foto, token e assinatura continuam imutáveis.',
+            'A baixa grava o dia informado às 12h de Brasília: data pura viraria o dia anterior no fuso.',
+          ],
+          atencao: 'Editar entrega assinada é permitido de propósito, mas nunca em silêncio: apos_assinatura fica verdadeiro no histórico e o painel avisa antes.',
+          link: { href: '/epi', rotulo: 'Abrir as Entregas' },
+        },
       ],
     },
 

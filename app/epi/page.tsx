@@ -38,11 +38,38 @@ const MOTIVOS = [
   { valor: 'perda', rotulo: 'Perda' },
 ]
 
+/* Por que o EPI voltou. É o que a ficha precisa dizer para explicar
+ * por que aquele equipamento não está mais com o trabalhador. */
+const MOTIVOS_DEVOLUCAO = [
+  { valor: 'devolucao', rotulo: 'Devolveu' },
+  { valor: 'troca', rotulo: 'Troca por outro' },
+  { valor: 'fim_vida_util', rotulo: 'Fim da vida útil' },
+  { valor: 'dano', rotulo: 'Danificado' },
+  { valor: 'perda', rotulo: 'Perdido' },
+  { valor: 'desligamento', rotulo: 'Desligamento' },
+]
+const rotuloDevolucao = (v: string | null) =>
+  MOTIVOS_DEVOLUCAO.find((m) => m.valor === v)?.rotulo || v || ''
+
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 type Colaborador = { id: string; empresa_id: string; nome: string; cpf: string | null; funcao: string | null; matricula: string | null }
 type Epi = { id: string; empresa_id: string; nome: string; ca: string | null; complemento: string | null; vida_util_dias: number; tipo: string; ativo: boolean; validade_ca: string | null }
 
-type ItemEntrega = { nome: string; ca: string | null; complemento: string | null; quantidade: number; troca_em: string; motivo: string }
+type ItemEntrega = {
+  id: string
+  nome: string
+  ca: string | null
+  complemento: string | null
+  quantidade: number
+  troca_em: string
+  motivo: string
+  previsao_devolucao: string | null
+  devolvido_em: string | null
+  devolucao_motivo: string | null
+  devolucao_obs: string | null
+  devolvido_por_nome: string | null
+  observacao: string | null
+}
 type Entrega = {
   id: string
   empresa_id: string
@@ -51,8 +78,26 @@ type Entrega = {
   cancelada_em: string | null
   token: string
   entregue_por_nome: string | null
+  observacoes: string | null
   colaboradores: { nome: string; funcao: string | null } | null
   epi_entregas_itens: ItemEntrega[]
+}
+
+/* Campos de um item enquanto a entrega está sendo editada. */
+type ItemEmEdicao = {
+  troca_em: string
+  previsao_devolucao: string
+  observacao: string
+  devolvido: boolean
+  devolvido_em: string
+  devolucao_motivo: string
+  devolucao_obs: string
+}
+type Edicao = {
+  entrega: Entrega
+  data: string
+  observacoes: string
+  itens: Record<string, ItemEmEdicao>
 }
 
 const nomeEmpresa = (e: Empresa) => e.nome_fantasia || e.razao_social
@@ -60,6 +105,14 @@ const dataHoraBr = (iso: string) => new Date(iso).toLocaleString('pt-BR', { date
 const dataBr = (iso: string | null) => (iso ? iso.split('-').reverse().join('/') : '')
 
 const hojeBrasilia = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+
+/* O <input type="datetime-local"> quer "2026-11-17T18:24" no horário de
+ * quem está olhando — não o ISO em UTC, que apareceria com horas a menos. */
+function paraCampoDataHora(iso: string): string {
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 function emDias(dias: number): string {
   const d = new Date(hojeBrasilia() + 'T12:00:00')
@@ -121,6 +174,9 @@ export default function EntregasEpi() {
   /* QR da entrega recém-salva */
   const [qr, setQr] = useState<{ url: string; imagem: string; nome: string } | null>(null)
 
+  const [editando, setEditando] = useState<Edicao | null>(null)
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+
   const empresaAtual = interno ? empresaFiltro : minhaEmpresa
 
   async function carregar() {
@@ -162,9 +218,10 @@ export default function EntregasEpi() {
         supabase
           .from('epi_entregas')
           .select(
-            'id, empresa_id, entregue_em, assinado_em, cancelada_em, token, entregue_por_nome, ' +
+            'id, empresa_id, entregue_em, assinado_em, cancelada_em, token, entregue_por_nome, observacoes, ' +
               'colaboradores(nome, funcao), ' +
-              'epi_entregas_itens(nome, ca, complemento, quantidade, troca_em, motivo)'
+              'epi_entregas_itens(id, nome, ca, complemento, quantidade, troca_em, motivo, ' +
+              'previsao_devolucao, devolvido_em, devolucao_motivo, devolucao_obs, devolvido_por_nome, observacao)'
           )
           .order('entregue_em', { ascending: false })
           .limit(300),
@@ -387,6 +444,102 @@ export default function EntregasEpi() {
     }
   }
 
+  /* ---------- editar a entrega e dar baixa ----------
+   * O que se altera aqui é prazo, previsão e observação — e a baixa do
+   * equipamento que voltou. O que foi entregue (nome, CA, quantidade) e
+   * quem recebeu não mudam: se isso está errado, a saída é cancelar.
+   * Toda alteração fica gravada em epi_entregas_alteracoes pelo banco. */
+  function abrirEdicao(e: Entrega) {
+    setErro('')
+    setEditando({
+      entrega: e,
+      data: paraCampoDataHora(e.entregue_em),
+      observacoes: e.observacoes || '',
+      itens: Object.fromEntries(
+        e.epi_entregas_itens.map((i) => [
+          i.id,
+          {
+            troca_em: i.troca_em,
+            previsao_devolucao: i.previsao_devolucao || '',
+            observacao: i.observacao || '',
+            devolvido: Boolean(i.devolvido_em),
+            devolvido_em: i.devolvido_em ? i.devolvido_em.slice(0, 10) : hojeBrasilia(),
+            devolucao_motivo: i.devolucao_motivo || 'devolucao',
+            devolucao_obs: i.devolucao_obs || '',
+          },
+        ])
+      ),
+    })
+  }
+
+  async function salvarEdicao(ev: FormEvent) {
+    ev.preventDefault()
+    if (!editando) return
+    setSalvandoEdicao(true)
+    setErro('')
+
+    try {
+      const { entrega, data, observacoes, itens } = editando
+
+      const dataIso = new Date(data).toISOString()
+      if (dataIso !== entrega.entregue_em || (observacoes.trim() || null) !== (entrega.observacoes || null)) {
+        const { error } = await supabase
+          .from('epi_entregas')
+          .update({ entregue_em: dataIso, observacoes: observacoes.trim() || null })
+          .eq('id', entrega.id)
+        if (error) throw error
+      }
+
+      for (const item of entrega.epi_entregas_itens) {
+        const f = itens[item.id]
+        if (!f) continue
+
+        const baixaAntes = Boolean(item.devolvido_em)
+        const mudouPrazo =
+          f.troca_em !== item.troca_em ||
+          (f.previsao_devolucao || null) !== (item.previsao_devolucao || null) ||
+          (f.observacao.trim() || null) !== (item.observacao || null)
+        const mudouBaixa =
+          f.devolvido !== baixaAntes ||
+          (f.devolvido &&
+            (f.devolucao_motivo !== item.devolucao_motivo ||
+              (f.devolucao_obs.trim() || null) !== (item.devolucao_obs || null)))
+
+        if (!mudouPrazo && !mudouBaixa) continue
+
+        /* A baixa guarda o dia que a pessoa informou, às 12h de Brasília:
+         * sem hora cravada, o fuso joga a data para o dia anterior. */
+        const payload: Record<string, unknown> = {
+          troca_em: f.troca_em,
+          previsao_devolucao: f.previsao_devolucao || null,
+          observacao: f.observacao.trim() || null,
+          devolvido_em: f.devolvido ? `${f.devolvido_em}T12:00:00-03:00` : null,
+          devolucao_motivo: f.devolvido ? f.devolucao_motivo : null,
+          devolucao_obs: f.devolvido ? f.devolucao_obs.trim() || null : null,
+        }
+
+        const { error } = await supabase.from('epi_entregas_itens').update(payload).eq('id', item.id)
+        if (error) throw error
+      }
+
+      setEditando(null)
+      await carregar()
+    } catch (err: any) {
+      console.error(err)
+      setErro(err?.message || 'Não foi possível salvar a alteração.')
+    } finally {
+      setSalvandoEdicao(false)
+    }
+  }
+
+  function mudarItem(id: string, campo: string, valor: string | boolean) {
+    setEditando((atual) =>
+      atual
+        ? { ...atual, itens: { ...atual.itens, [id]: { ...atual.itens[id], [campo]: valor } } }
+        : atual
+    )
+  }
+
   async function copiarLink() {
     if (!qr) return
     try {
@@ -495,21 +648,33 @@ export default function EntregasEpi() {
                 {dataHoraBr(e.entregue_em)}
                 {e.entregue_por_nome ? ` · por ${e.entregue_por_nome}` : ''}
                 {!e.cancelada_em && (
-                  <button type="button" className="entrega-cancelar" onClick={() => cancelar(e)}>
-                    Cancelar
-                  </button>
+                  <>
+                    <button type="button" className="entrega-acao" onClick={() => abrirEdicao(e)}>
+                      Editar / dar baixa
+                    </button>
+                    <button type="button" className="entrega-cancelar" onClick={() => cancelar(e)}>
+                      Cancelar
+                    </button>
+                  </>
                 )}
               </p>
               <ul className="entrega-itens">
                 {e.epi_entregas_itens.map((i, n) => (
-                  <li key={n}>
+                  <li key={i.id || n} className={i.devolvido_em ? 'item-devolvido' : ''}>
                     {i.quantidade > 1 ? `${i.quantidade}× ` : ''}
                     {i.nome}
                     {i.complemento ? ` · ${i.complemento}` : ''}
                     {i.ca ? ` · CA ${i.ca}` : ''}
-                    <span className={venceu(i.troca_em) ? 'troca vencida' : 'troca'}>
-                      trocar até {dataBr(i.troca_em)}
-                    </span>
+                    {i.devolvido_em ? (
+                      <span className="baixa">
+                        devolvido {dataBr(i.devolvido_em.slice(0, 10))} ·{' '}
+                        {rotuloDevolucao(i.devolucao_motivo)}
+                      </span>
+                    ) : (
+                      <span className={venceu(i.troca_em) ? 'troca vencida' : 'troca'}>
+                        trocar até {dataBr(i.troca_em)}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -683,6 +848,166 @@ export default function EntregasEpi() {
               </button>
               <button type="submit" className="btn btn-primary" disabled={salvando || !foto}>
                 {salvando ? 'Registrando…' : 'Registrar entrega'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ---------- editar a entrega e dar baixa ---------- */}
+      {editando && (
+        <div className="cortina" role="dialog" aria-modal="true" aria-label="Editar entrega">
+          <form className="painel-lateral" onSubmit={salvarEdicao}>
+            <div className="painel-head">
+              <h2>Entrega de {editando.entrega.colaboradores?.nome || '—'}</h2>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setEditando(null)}
+                disabled={salvandoEdicao}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="painel-corpo">
+              {editando.entrega.assinado_em && (
+                <div className="banner">
+                  Esta entrega já foi assinada em {dataHoraBr(editando.entrega.assinado_em)}. O que
+                  você mudar aqui fica registrado com o seu nome e aparece na ficha.
+                </div>
+              )}
+
+              <div className="field">
+                <label htmlFor="edicao-data">Data e hora da entrega</label>
+                <input
+                  id="edicao-data"
+                  type="datetime-local"
+                  value={editando.data}
+                  onChange={(ev) => setEditando({ ...editando, data: ev.target.value })}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="edicao-obs">Observação da entrega</label>
+                <input
+                  id="edicao-obs"
+                  type="text"
+                  value={editando.observacoes}
+                  onChange={(ev) => setEditando({ ...editando, observacoes: ev.target.value })}
+                  placeholder="Opcional"
+                />
+              </div>
+
+              <p className="section-title">Equipamentos</p>
+              {editando.entrega.epi_entregas_itens.map((i) => {
+                const f = editando.itens[i.id]
+                if (!f) return null
+                return (
+                  <div key={i.id} className={`item-edicao ${f.devolvido ? 'baixado' : ''}`}>
+                    <strong>
+                      {i.quantidade > 1 ? `${i.quantidade}× ` : ''}
+                      {i.nome}
+                      {i.complemento ? ` · ${i.complemento}` : ''}
+                      {i.ca ? ` · CA ${i.ca}` : ''}
+                    </strong>
+
+                    <div className="item-linha">
+                      <div className="field">
+                        <label htmlFor={`troca-${i.id}`}>Trocar até</label>
+                        <input
+                          id={`troca-${i.id}`}
+                          type="date"
+                          value={f.troca_em}
+                          onChange={(ev) => mudarItem(i.id, 'troca_em', ev.target.value)}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`prev-${i.id}`}>Previsão de devolução</label>
+                        <input
+                          id={`prev-${i.id}`}
+                          type="date"
+                          value={f.previsao_devolucao}
+                          onChange={(ev) => mudarItem(i.id, 'previsao_devolucao', ev.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <label className="caixa-marcar">
+                      <input
+                        type="checkbox"
+                        checked={f.devolvido}
+                        onChange={(ev) => mudarItem(i.id, 'devolvido', ev.target.checked)}
+                      />
+                      Este equipamento voltou
+                    </label>
+
+                    {f.devolvido && (
+                      <div className="item-linha">
+                        <div className="field">
+                          <label htmlFor={`dev-${i.id}`}>Quando voltou</label>
+                          <input
+                            id={`dev-${i.id}`}
+                            type="date"
+                            value={f.devolvido_em}
+                            max={hojeBrasilia()}
+                            onChange={(ev) => mudarItem(i.id, 'devolvido_em', ev.target.value)}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`mot-${i.id}`}>Por quê</label>
+                          <select
+                            id={`mot-${i.id}`}
+                            value={f.devolucao_motivo}
+                            onChange={(ev) => mudarItem(i.id, 'devolucao_motivo', ev.target.value)}
+                          >
+                            {MOTIVOS_DEVOLUCAO.map((m) => (
+                              <option key={m.valor} value={m.valor}>
+                                {m.rotulo}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {f.devolvido && (
+                      <div className="field">
+                        <label htmlFor={`devobs-${i.id}`}>Observação da devolução</label>
+                        <input
+                          id={`devobs-${i.id}`}
+                          type="text"
+                          value={f.devolucao_obs}
+                          onChange={(ev) => mudarItem(i.id, 'devolucao_obs', ev.target.value)}
+                          placeholder="Opcional"
+                        />
+                      </div>
+                    )}
+
+                    {i.devolvido_por_nome && f.devolvido && (
+                      <p className="dica">Baixa registrada por {i.devolvido_por_nome}.</p>
+                    )}
+                  </div>
+                )
+              })}
+
+              <p className="dica">
+                O equipamento, o CA e a quantidade não mudam aqui: é o que está escrito na ficha
+                que o trabalhador assinou. Se a entrega saiu errada, cancele e faça outra.
+              </p>
+            </div>
+
+            <div className="painel-rodape">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setEditando(null)}
+                disabled={salvandoEdicao}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={salvandoEdicao}>
+                {salvandoEdicao ? 'Salvando…' : 'Salvar'}
               </button>
             </div>
           </form>
