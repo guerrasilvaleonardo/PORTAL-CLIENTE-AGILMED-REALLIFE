@@ -6,7 +6,7 @@ import type { Bloco, Manual } from './tipos'
  * (time interno) e, se o cliente vê ou é afetado, em cliente.ts.
  */
 
-const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Colaboradores', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
+const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Colaboradores', 'EPI', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualInterno: Manual = {
@@ -660,6 +660,36 @@ const manualInterno: Manual = {
           atencao: 'Situação aqui é só "ativo" ou "afastado". Desligado continua vindo de colaboradores_desligados, para não existirem duas respostas sobre quem saiu da empresa.',
           dica: 'O CPF passa pelo dígito verificador antes de salvar. CPF errado junta ou separa a pessoa errada nos certificados, então vale barrar na entrada.',
           link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi',
+      titulo: 'EPI',
+      rotas: ['/epi'],
+      slides: [
+        {
+          titulo: 'Cadastro de equipamentos (supabase/epis.sql)',
+          texto:
+            'Primeira tela do módulo de EPI. O equipamento é da empresa, com CA, validade do CA e vida útil em dias; a entrega (ainda a construir) vai puxar daqui o CA e o prazo da próxima troca.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Equipamentos', botoes: ['Novo equipamento'] },
+              { t: 'tabela', n: 1, colunas: ['Equipamento', 'CA', 'Validade do CA', 'Troca a cada', 'Empresa', 'Situação'], linhas: [['Luva de vaqueta · G', '41385', '30/06/2027', '3 meses', 'Construtora exemplo', 'No prazo'], ['Óculos de proteção', '28976', '10/01/2027', '6 meses', 'Construtora exemplo', 'Vence em 54 d']], pilulas: 5 },
+            ],
+          },
+          passos: [
+            'Tipo "epi" exige CA — a tela barra o salvamento sem ele. Tipo "outros" é para fardamento e uniforme, que entram na mesma entrega e não têm CA.',
+            'A chave única é empresa + nome + complemento + CA: "luva vaqueta P" e "luva vaqueta G" são dois cadastros, de propósito.',
+            'Ninguém apaga equipamento: sem política de DELETE. O que saiu de linha vai para ativo = false e some das listas de entrega, sem sumir do histórico.',
+            'Estoque e kit por função ficaram de fora desta etapa, de propósito. A primeira entrega precisa de equipamento com CA e prazo; saldo de almoxarifado é outro problema.',
+          ],
+          atencao: 'A aba EPI ainda não é cobrada como módulo. Quando a entrega estiver pronta, ligar em MODULO_DA_ROTA e na vitrine, como os outros.',
+          dica: 'O aviso de CA é de 60 dias (DIAS_AVISO_CA na tela). É tempo de comprar e trocar antes de o certificado cair.',
+          link: { href: '/epi', rotulo: 'Abrir EPI' },
         },
       ],
     },

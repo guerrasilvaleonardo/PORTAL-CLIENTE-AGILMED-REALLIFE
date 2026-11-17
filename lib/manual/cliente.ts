@@ -7,7 +7,7 @@ import type { Bloco, Manual } from './tipos'
  * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
-const MENU = ['Início', 'Chamados', 'Colaboradores', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
+const MENU = ['Início', 'Chamados', 'Colaboradores', 'EPI', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualCliente: Manual = {
@@ -469,6 +469,37 @@ const manualCliente: Manual = {
           dica: 'Preencher o CPF vale a pena: é o que junta todos os certificados da mesma pessoa, mesmo quando o nome foi escrito de formas diferentes ao longo dos anos.',
           atencao: 'Para registrar quem saiu da empresa, use "Desligar" em Certificados. O desligamento vale para o portal inteiro e aparece aqui sozinho — esta tela não desliga ninguém.',
           link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi',
+      titulo: 'EPI',
+      rotas: ['/epi'],
+      slides: [
+        {
+          titulo: 'Os equipamentos que você entrega',
+          texto:
+            'Cadastre aqui cada EPI com o número do CA, a validade do CA e de quantos em quantos dias ele é trocado. Na hora da entrega, escolher o equipamento já traz o CA e calcula a data da próxima troca.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Equipamentos', botoes: ['Novo equipamento'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Cadastrados', valor: '12' }, { rotulo: 'CA vencido', valor: '1', tom: 'ruim' }, { rotulo: 'CA vence em 60 dias', valor: '2', tom: 'alerta' }, { rotulo: 'Sem CA', valor: '0' }] },
+              { t: 'tabela', n: 2, colunas: ['Equipamento', 'CA', 'Validade do CA', 'Troca a cada', 'Situação'], linhas: [['Luva de vaqueta · G', '41385', '30/06/2027', '3 meses', 'No prazo'], ['Óculos de proteção', '28976', '10/01/2027', '6 meses', 'Vence em 54 d']], pilulas: 4 },
+            ],
+          },
+          passos: [
+            'Os cartões mostram quantos equipamentos estão cadastrados e quantos estão com o CA vencido ou perto de vencer.',
+            'A validade é a do Certificado de Aprovação, que o Ministério do Trabalho concede ao equipamento. Ela não é a validade do produto que está na sua prateleira.',
+            '"Trocar a cada" é o prazo que usamos para marcar a próxima troca de quem recebeu. Vale a recomendação do fabricante ou o que a sua empresa pratica.',
+            'Equipamento que saiu de linha: abra, marque "Fora de linha" e ele para de aparecer para entregar, sem sumir das entregas antigas.',
+          ],
+          atencao: 'EPI com CA vencido não pode ser entregue. É um dos primeiros itens que a fiscalização confere.',
+          dica: 'Tamanho e cor entram no campo "Tamanho ou cor": luva P e luva G ficam como dois cadastros, porque na prática são dois itens diferentes no almoxarifado.',
+          link: { href: '/epi', rotulo: 'Abrir EPI' },
         },
       ],
     },
