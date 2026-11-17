@@ -694,17 +694,23 @@ export default function EntregasEpi() {
         <div className="cortina" role="dialog" aria-modal="true" aria-label="Assinatura">
           <div className="painel-qr">
             <h2>Entrega registrada</h2>
-            <p>
-              Peça para {qr.nome.split(' ')[0]} apontar a câmera do celular e assinar agora.
-            </p>
-            <img src={qr.imagem} alt="Código QR para assinar o recebimento" width={240} height={240} />
+            <p>Falta {qr.nome.split(' ')[0]} assinar o recebimento.</p>
+            {/* Nem todo trabalhador tem o celular na mão, e quem entrega quase
+                sempre está com o aparelho aberto nesta tela. Passar o telefone
+                abre a MESMA página de assinatura, com o mesmo CPF e o mesmo
+                registro de horário — muda só como se chega nela. */}
+            <a href={qr.url} className="btn btn-primary btn-larga" target="_blank" rel="noreferrer">
+              Assinar neste aparelho
+            </a>
+            <p className="qr-ou">ou peça para ele apontar a câmera do próprio celular aqui</p>
+            <img src={qr.imagem} alt="Código QR para assinar o recebimento" width={210} height={210} />
             <p className="qr-link">{qr.url}</p>
             <div className="qr-acoes">
               <button type="button" className="btn btn-sm" onClick={copiarLink}>
                 Copiar o link
               </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => setQr(null)}>
-                Pronto
+              <button type="button" className="btn btn-sm" onClick={() => setQr(null)}>
+                Fechar
               </button>
             </div>
             <p className="dica">
