@@ -1,0 +1,232 @@
+/*
+ * Ficha de entrega de EPI (NR-06, 6.6.1).
+ *
+ * A tela já mostra o documento como ele sai na impressora: folha branca,
+ * uma ficha por página. O texto quebra linha e a altura acompanha —
+ * ficha com nome ou equipamento cortado com reticências não serve como
+ * documento.
+ */
+
+.caixa-marcar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.caixa-marcar input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+.ficha {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 22px 24px 26px;
+  margin-bottom: 18px;
+  color: #1b1b1b;
+  font-size: 12.5px;
+  line-height: 1.5;
+  max-width: 210mm;
+}
+
+.ficha-topo {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+.ficha-topo h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--primary);
+  font-weight: 800;
+}
+.ficha-base {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #666;
+}
+.ficha-empresa {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  font-size: 11.5px;
+}
+.ficha-empresa strong {
+  color: var(--primary);
+}
+.ficha-empresa span {
+  color: #666;
+}
+
+/* Dados da pessoa: rótulo em cima, valor embaixo, quebrando quando precisa. */
+.ficha-pessoa {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px 16px;
+  margin: 0 0 14px;
+}
+.ficha-pessoa div {
+  min-width: 0;
+}
+.ficha-pessoa dt {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #777;
+  font-weight: 700;
+}
+.ficha-pessoa dd {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: #1b1b1b;
+  overflow-wrap: anywhere;
+}
+
+.ficha-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.ficha-tabela th,
+.ficha-tabela td {
+  border-bottom: 1px solid #ddd;
+  padding: 6px 7px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.ficha-tabela th {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+  font-weight: 700;
+  border-bottom: 1px solid #999;
+}
+.ficha-tabela .mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ficha-ass {
+  font-size: 10px;
+  line-height: 1.35;
+}
+.ficha-pendente {
+  color: var(--danger);
+  font-weight: 700;
+}
+.ficha-foto img {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  display: block;
+}
+
+.ficha-termo {
+  margin-top: 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+.ficha-termo h3 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #666;
+  font-weight: 700;
+}
+.ficha-termo p {
+  margin: 0 0 5px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: #333;
+}
+.ficha-termo p:last-child {
+  margin-bottom: 0;
+}
+
+.ficha-assinaturas {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 18px;
+}
+.ficha-assinaturas div {
+  border-top: 1px solid #777;
+  padding-top: 4px;
+  font-size: 9.5px;
+  color: #555;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ficha-assinaturas span {
+  font-size: 11px;
+  color: #1b1b1b;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ficha-rodape {
+  margin: 14px 0 0;
+  font-size: 9.5px;
+  color: #777;
+  line-height: 1.5;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  header,
+  .nao-imprimir {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+    max-width: 210mm;
+  }
+  .app {
+    padding: 0 !important;
+    gap: 0 !important;
+    max-width: none !important;
+  }
+  .ficha {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    max-width: none;
+    break-after: page;
+  }
+  .ficha:last-child {
+    break-after: auto;
+  }
+  .ficha-tabela tr,
+  .ficha-termo,
+  .ficha-assinaturas {
+    break-inside: avoid;
+  }
+  .ficha-termo {
+    background: none;
+  }
+}

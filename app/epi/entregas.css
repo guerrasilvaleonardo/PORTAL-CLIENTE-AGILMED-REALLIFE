@@ -1,0 +1,273 @@
+/*
+ * Entregas de EPI. Reaproveita o cabeçalho, o painel lateral e os
+ * cartões da tela de Colaboradores; aqui fica o que é próprio da
+ * entrega: a lista em cartões, a escolha dos equipamentos, a foto e o
+ * quadro do QR.
+ *
+ * A lista é em cartões, não em tabela, porque esta tela é usada no
+ * celular, de pé no almoxarifado.
+ */
+
+.caixa-marcar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.caixa-marcar input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  margin: 0;
+}
+
+/* ---------- lista ---------- */
+.lista-entregas {
+  display: flex;
+  flex-direction: column;
+}
+.entrega {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.entrega:last-child {
+  border-bottom: 0;
+}
+.entrega.cancelada {
+  opacity: 0.6;
+}
+.entrega-topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.entrega-topo strong {
+  font-size: 15px;
+  color: var(--primary);
+}
+.entrega-quando {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.entrega-itens {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.entrega-itens li {
+  font-size: 13.5px;
+  color: var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.entrega-itens .troca {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.entrega-itens .troca.vencida {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ---------- escolher equipamentos ---------- */
+.escolher-epi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.escolher-epi li {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.escolher-epi li.marcado {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+}
+.escolher-epi label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+  margin: 0;
+}
+.escolher-epi input[type='checkbox'] {
+  width: 19px;
+  height: 19px;
+  margin: 1px 0 0;
+  accent-color: var(--primary);
+  flex: none;
+}
+.escolher-epi strong {
+  display: block;
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.escolher-epi small {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+.item-detalhe {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+  padding-left: 29px;
+}
+.item-detalhe input {
+  width: 74px;
+}
+.item-detalhe input,
+.item-detalhe select {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+/* ---------- foto ---------- */
+.obrigatorio {
+  color: var(--danger);
+  font-weight: 800;
+}
+.foto-vazia {
+  width: 100%;
+  border: 2px dashed var(--border);
+  background: var(--surface-sunken);
+  border-radius: 14px;
+  padding: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.foto-vazia:hover {
+  border-color: var(--primary);
+}
+.foto-vazia span {
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.foto-vazia small {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.foto-vazia:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.foto-feita {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-items: flex-start;
+}
+.foto-feita img {
+  width: 100%;
+  max-height: 230px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+
+/* ---------- QR ---------- */
+.painel-qr {
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 24px 22px;
+  margin: auto;
+  width: min(380px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.painel-qr h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.painel-qr p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+.painel-qr img {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.qr-link {
+  font-size: 11.5px !important;
+  color: var(--ink-faint) !important;
+  word-break: break-all;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+.qr-acoes {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 560px) {
+  .entrega {
+    padding: 12px 14px;
+  }
+}
+
+/* Cancelar fica discreto, ao lado da data: é saída de exceção, não ação
+   do dia a dia, e não tem volta. */
+.entrega-cancelar {
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font-weight: 700;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0 0 0 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.entrega-cancelar:hover {
+  color: var(--primary);
+}

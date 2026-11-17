@@ -6,7 +6,7 @@ import type { Bloco, Manual } from './tipos'
  * (time interno) e, se o cliente vê ou é afetado, em cliente.ts.
  */
 
-const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
+const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Colaboradores', 'EPI', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualInterno: Manual = {
@@ -631,6 +631,115 @@ const manualInterno: Manual = {
             'Escolha a prioridade e, se quiser, marque os usuários do cliente que devem acompanhar. Sem ninguém marcado, o chamado fica visível para toda a empresa.',
           ],
           dica: 'Todo pedido de cliente deve virar chamado: é o que garante prazo, histórico e indicador. Na lista de Chamados, a linha abre a visão do cliente; para atender, use o Quadro.',
+        },
+      ],
+    },
+
+    {
+      id: 'colaboradores',
+      titulo: 'Colaboradores',
+      rotas: ['/colaboradores'],
+      slides: [
+        {
+          titulo: 'O cadastro de pessoas das empresas',
+          texto:
+            'Até aqui o portal não tinha cadastro de pessoas: o nome era digitado em cada certificado e o agrupamento saía da regra de empresa + nome normalizado, ou do CPF quando havia. Esta tela é esse cadastro (supabase/colaboradores.sql).',
+          tela: {
+            url: '/colaboradores',
+            blocos: [
+              menu('Colaboradores'),
+              { t: 'topo', sobre: 'Cadastro', titulo: 'Colaboradores', botoes: ['Novo colaborador'] },
+              { t: 'tabela', n: 1, colunas: ['Nome', 'CPF', 'Matrícula', 'Função', 'Empresa', 'Situação'], linhas: [['Marcos Pereira da Luz', '104.•••.•••-00', '1042', 'Pedreiro', 'Construtora exemplo', 'Ativo'], ['Ana Cláudia Ribeiro', '228.•••.•••-11', '1088', 'Auxiliar de produção', 'Construtora exemplo', 'Afastado']], pilulas: 5 },
+            ],
+          },
+          passos: [
+            'A tabela nasceu preenchida pela carga inicial do SQL, a partir dos certificados existentes: uma pessoa por empresa, reconhecida pelo CPF quando ele existe e pelo nome normalizado quando não.',
+            'A equipe interna vê todas as empresas e escolhe a empresa no filtro; o cliente só vê a dele, pela RLS (pode_gerir_colaboradores).',
+            'Ninguém apaga pessoa pelo portal: não existe política de DELETE. Quem saiu é marcado em Certificados, como já era.',
+          ],
+          atencao: 'Situação aqui é só "ativo" ou "afastado". Desligado continua vindo de colaboradores_desligados, para não existirem duas respostas sobre quem saiu da empresa.',
+          dica: 'O CPF passa pelo dígito verificador antes de salvar. CPF errado junta ou separa a pessoa errada nos certificados, então vale barrar na entrada.',
+          link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi',
+      titulo: 'EPI · Entregas',
+      rotas: ['/epi'],
+      slides: [
+        {
+          titulo: 'A entrega e a assinatura (supabase/epi-entregas.sql)',
+          texto:
+            'epi_entregas é o ato; epi_entregas_itens são os equipamentos dele. Nome, CA e vida útil são copiados para o item na hora da entrega: o cadastro muda, e a ficha precisa dizer o que saiu do almoxarifado naquele dia.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Entregas', botoes: ['Nova entrega'] },
+              { t: 'tabela', n: 1, colunas: ['Trabalhador', 'Equipamento', 'Entrega', 'Troca', 'Situação'], linhas: [['Marcos Pereira da Luz', 'Luva de vaqueta · CA 41385', '17/11 08:40', '17/02/2027', 'Assinada'], ['Ana Cláudia Ribeiro', 'Óculos · CA 28976', '17/11 08:52', '17/05/2027', 'Aguardando assinatura']], pilulas: 4 },
+            ],
+          },
+          passos: [
+            'A assinatura é por link: cada entrega nasce com um token de 16 bytes. A página /assinar-epi/<token> não exige login e passa por /api/publico/assinatura-epi, com a chave de serviço — não existe política para anônimo nas tabelas.',
+            'A rota exige o CPF do colaborador para assinar, limita tentativas por token, recusa assinar duas vezes e recusa entrega cancelada. Grava horário, IP e aparelho.',
+            'A foto vai para o balde privado epi-fotos, sob a pasta do id da empresa; a política de storage usa a mesma regra de acesso das entregas. A tela reduz para 900 px e 70% de qualidade antes de subir.',
+            'O gatilho do banco devolve todos os campos ao valor antigo em qualquer update: a entrega não se edita. Só assinatura e cancelamento mudam de estado.',
+          ],
+          atencao: 'O termo que o trabalhador aceita está em lib/epiTermo.ts e ainda não passou por revisão jurídica. É o texto que a empresa apresenta numa reclamatória.',
+          dica: 'O QR é gerado no navegador pela biblioteca qrcode, a primeira dependência nova do portal desde o começo. Sem ela, o link teria que ser digitado ou enviado por e-mail.',
+          link: { href: '/epi', rotulo: 'Abrir Entregas' },
+        },
+        {
+          titulo: 'Ficha da NR-06 e cancelamento',
+          texto:
+            'A ficha (/epi/ficha) monta uma folha por trabalhador a partir das entregas não canceladas, com os itens, a foto e o horário da assinatura. A impressão usa @page A4 e uma ficha por página.',
+          tela: {
+            url: '/epi/ficha',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Ficha de entrega', botoes: ['Imprimir'] },
+              { t: 'tabela', n: 1, colunas: ['Entrega', 'Equipamento', 'CA', 'Trocar até', 'Assinatura'], linhas: [['17/11 08:40', 'Luva de vaqueta · G', '41385', '17/02/2027', 'assinado 17/11 08:42'], ['02/09 14:10', 'Botina de segurança', '48413', '02/03/2027', 'sem assinatura']] },
+            ],
+          },
+          passos: [
+            'As fotos vêm do balde privado por link assinado de uma hora, gerado em lote (createSignedUrls) só para as entregas que estão na tela.',
+            'Nada de reticências na ficha: os campos quebram linha e a altura acompanha. Ficha com nome ou equipamento cortado não serve como documento.',
+            'Cancelar é a única saída para uma entrega errada, porque ela não se edita nem se apaga. O motivo e o autor ficam gravados, e a entrega sai da ficha.',
+          ],
+          atencao: 'O que está na ficha é o que o banco guardou na entrega: CA e prazo congelados naquele dia, não o que o cadastro do EPI diz hoje.',
+          link: { href: '/epi/ficha', rotulo: 'Abrir a Ficha' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi-equipamentos',
+      titulo: 'EPI · Equipamentos',
+      rotas: ['/epi/equipamentos'],
+      slides: [
+        {
+          titulo: 'Cadastro de equipamentos (supabase/epis.sql)',
+          texto:
+            'Primeira tela do módulo de EPI. O equipamento é da empresa, com CA, validade do CA e vida útil em dias; a entrega (ainda a construir) vai puxar daqui o CA e o prazo da próxima troca.',
+          tela: {
+            url: '/epi/equipamentos',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Equipamentos', botoes: ['Novo equipamento'] },
+              { t: 'tabela', n: 1, colunas: ['Equipamento', 'CA', 'Validade do CA', 'Troca a cada', 'Empresa', 'Situação'], linhas: [['Luva de vaqueta · G', '41385', '30/06/2027', '3 meses', 'Construtora exemplo', 'No prazo'], ['Óculos de proteção', '28976', '10/01/2027', '6 meses', 'Construtora exemplo', 'Vence em 54 d']], pilulas: 5 },
+            ],
+          },
+          passos: [
+            'Tipo "epi" exige CA — a tela barra o salvamento sem ele. Tipo "outros" é para fardamento e uniforme, que entram na mesma entrega e não têm CA.',
+            'A chave única é empresa + nome + complemento + CA: "luva vaqueta P" e "luva vaqueta G" são dois cadastros, de propósito.',
+            'Ninguém apaga equipamento: sem política de DELETE. O que saiu de linha vai para ativo = false e some das listas de entrega, sem sumir do histórico.',
+            'Estoque e kit por função ficaram de fora desta etapa, de propósito. A primeira entrega precisa de equipamento com CA e prazo; saldo de almoxarifado é outro problema.',
+          ],
+          atencao: 'A aba EPI ainda não é cobrada como módulo. Quando a entrega estiver pronta, ligar em MODULO_DA_ROTA e na vitrine, como os outros.',
+          dica: 'O aviso de CA é de 60 dias (DIAS_AVISO_CA na tela). É tempo de comprar e trocar antes de o certificado cair.',
+          link: { href: '/epi/equipamentos', rotulo: 'Abrir Equipamentos' },
         },
       ],
     },

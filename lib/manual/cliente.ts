@@ -7,7 +7,7 @@ import type { Bloco, Manual } from './tipos'
  * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
-const MENU = ['Início', 'Chamados', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
+const MENU = ['Início', 'Chamados', 'Colaboradores', 'EPI', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualCliente: Manual = {
@@ -439,6 +439,119 @@ const manualCliente: Manual = {
             'O cartão de avaliação fica dentro do chamado, logo abaixo da conversa com a equipe.',
           ],
           dica: 'Quem avalia: quem abriu o chamado ou, quando a nossa equipe abriu o chamado por você, o solicitante indicado por ela. Se a equipe abriu sem indicar ninguém, qualquer usuário da empresa que veja o chamado pode avaliar. Vale a primeira avaliação.',
+        },
+      ],
+    },
+
+    {
+      id: 'colaboradores',
+      titulo: 'Colaboradores',
+      rotas: ['/colaboradores'],
+      slides: [
+        {
+          titulo: 'As pessoas da sua empresa',
+          texto:
+            'É a lista de quem trabalha na sua empresa, com CPF, matrícula e função. O portal usa este cadastro para saber que "João da Silva" e "JOAO SILVA" são a mesma pessoa e juntar os certificados dela.',
+          tela: {
+            url: '/colaboradores',
+            blocos: [
+              menu('Colaboradores'),
+              { t: 'topo', sobre: 'Cadastro', titulo: 'Colaboradores', botoes: ['Novo colaborador'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Cadastrados', valor: '38' }, { rotulo: 'Sem CPF', valor: '4' }, { rotulo: 'Afastados', valor: '1' }, { rotulo: 'Desligados', valor: '3' }] },
+              { t: 'tabela', n: 2, colunas: ['Nome', 'CPF', 'Matrícula', 'Função', 'Situação'], linhas: [['Marcos Pereira da Luz', '104.•••.•••-00', '1042', 'Pedreiro', 'Ativo'], ['Ana Cláudia Ribeiro', '228.•••.•••-11', '1088', 'Auxiliar de produção', 'Afastado']], pilulas: 4 },
+            ],
+          },
+          passos: [
+            'Os cartões mostram quantas pessoas estão cadastradas, quantas ainda estão sem CPF, quantas estão afastadas e quantas já foram desligadas.',
+            'A lista veio preenchida com as pessoas que já apareciam nos seus certificados. Confira e complete o que faltar, principalmente o CPF.',
+            '"Novo colaborador" abre o cadastro. Só o nome é obrigatório; CPF, matrícula, função e local de trabalho ajudam a identificar a pessoa certa.',
+          ],
+          dica: 'Preencher o CPF vale a pena: é o que junta todos os certificados da mesma pessoa, mesmo quando o nome foi escrito de formas diferentes ao longo dos anos.',
+          atencao: 'Para registrar quem saiu da empresa, use "Desligar" em Certificados. O desligamento vale para o portal inteiro e aparece aqui sozinho — esta tela não desliga ninguém.',
+          link: { href: '/colaboradores', rotulo: 'Abrir Colaboradores' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi',
+      titulo: 'EPI · Entregas',
+      rotas: ['/epi'],
+      slides: [
+        {
+          titulo: 'Entregar EPI e colher a assinatura',
+          texto:
+            'A entrega é feita no celular, com o trabalhador na frente: você escolhe a pessoa, marca os equipamentos, tira a foto e salva. Na tela seguinte aparece um QR; ele aponta a câmera, confere o CPF e assina ali mesmo.',
+          tela: {
+            url: '/epi',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Entregas', botoes: ['Nova entrega'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Nos últimos 30 dias', valor: '38' }, { rotulo: 'Aguardando assinatura', valor: '6', tom: 'alerta' }, { rotulo: 'Com troca vencida', valor: '4', tom: 'ruim' }] },
+              { t: 'campos', n: 2, itens: [{ rotulo: 'Quem está recebendo', valor: 'Marcos Pereira da Luz · 1042 · Pedreiro' }, { rotulo: 'Equipamentos', valor: 'Luva de vaqueta · G · CA 41385' }, { rotulo: 'Foto da entrega', valor: 'obrigatória', obrigatorio: true }] },
+              { t: 'aviso', n: 3, texto: 'Entrega registrada. Peça para ele apontar a câmera e assinar agora.', tom: 'bom' },
+            ],
+          },
+          passos: [
+            'Os cartões mostram o movimento dos últimos 30 dias, quantas entregas ainda não foram assinadas e quantas já passaram do prazo de troca.',
+            'Em "Nova entrega", a pessoa vem do cadastro de Colaboradores e os equipamentos do cadastro de EPI — o CA e o prazo de troca entram sozinhos.',
+            'A foto é obrigatória: o botão de registrar só funciona depois dela. Ela é reduzida no próprio aparelho antes de subir.',
+            'Salvou, aparece o QR. Se o trabalhador não puder assinar na hora, a entrega fica como "Aguardando assinatura" e o link continua valendo.',
+          ],
+          atencao: 'Equipamento com CA vencido não pode ser marcado na entrega, e quem está sem CPF no cadastro não consegue assinar. Os dois casos aparecem avisados na própria tela.',
+          dica: 'A entrega não é editada nem apagada depois de salva: ela registra um ato que aconteceu. Se algo saiu errado, cancele — o cancelamento fica registrado com o motivo.',
+          link: { href: '/epi', rotulo: 'Abrir Entregas' },
+        },
+        {
+          titulo: 'A ficha que a fiscalização pede',
+          texto:
+            'Em "Ficha", o portal monta uma folha por trabalhador com tudo que ele recebeu: equipamento, CA, motivo, prazo de troca, a foto da entrega e a data em que ele assinou. É o documento do item 6.6.1 da NR-06.',
+          tela: {
+            url: '/epi/ficha',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Ficha de entrega', botoes: ['Imprimir'] },
+              { t: 'tabela', n: 1, colunas: ['Entrega', 'Equipamento', 'CA', 'Motivo', 'Trocar até', 'Assinatura'], linhas: [['17/11 08:40', 'Luva de vaqueta · G', '41385', 'Entrega', '17/02/2027', 'assinado 17/11 08:42'], ['02/09 14:10', 'Botina de segurança', '48413', 'Substituição', '02/03/2027', 'assinado 02/09 14:11']] },
+            ],
+          },
+          passos: [
+            'Escolha um trabalhador ou deixe em "Todos": sai uma ficha por página, pronta para imprimir ou salvar em PDF pelo próprio navegador.',
+            'As fotos entram como miniatura ao lado de cada entrega. Dá para tirá-las da ficha desmarcando "Incluir as fotos".',
+            'Entrega sem assinatura aparece marcada em vermelho — serve para você cobrar antes de a fiscalização aparecer.',
+          ],
+          dica: 'Entrega cancelada não entra na ficha. Para cancelar, use o botão "Cancelar" ao lado da data, na tela de Entregas; o motivo fica registrado.',
+          link: { href: '/epi/ficha', rotulo: 'Abrir a Ficha' },
+        },
+      ],
+    },
+
+    {
+      id: 'epi-equipamentos',
+      titulo: 'EPI · Equipamentos',
+      rotas: ['/epi/equipamentos'],
+      slides: [
+        {
+          titulo: 'Os equipamentos que você entrega',
+          texto:
+            'Cadastre aqui cada EPI com o número do CA, a validade do CA e de quantos em quantos dias ele é trocado. Na hora da entrega, escolher o equipamento já traz o CA e calcula a data da próxima troca.',
+          tela: {
+            url: '/epi/equipamentos',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: 'Equipamentos', botoes: ['Novo equipamento'] },
+              { t: 'stats', n: 1, itens: [{ rotulo: 'Cadastrados', valor: '12' }, { rotulo: 'CA vencido', valor: '1', tom: 'ruim' }, { rotulo: 'CA vence em 60 dias', valor: '2', tom: 'alerta' }, { rotulo: 'Sem CA', valor: '0' }] },
+              { t: 'tabela', n: 2, colunas: ['Equipamento', 'CA', 'Validade do CA', 'Troca a cada', 'Situação'], linhas: [['Luva de vaqueta · G', '41385', '30/06/2027', '3 meses', 'No prazo'], ['Óculos de proteção', '28976', '10/01/2027', '6 meses', 'Vence em 54 d']], pilulas: 4 },
+            ],
+          },
+          passos: [
+            'Os cartões mostram quantos equipamentos estão cadastrados e quantos estão com o CA vencido ou perto de vencer.',
+            'A validade é a do Certificado de Aprovação, que o Ministério do Trabalho concede ao equipamento. Ela não é a validade do produto que está na sua prateleira.',
+            '"Trocar a cada" é o prazo que usamos para marcar a próxima troca de quem recebeu. Vale a recomendação do fabricante ou o que a sua empresa pratica.',
+            'Equipamento que saiu de linha: abra, marque "Fora de linha" e ele para de aparecer para entregar, sem sumir das entregas antigas.',
+          ],
+          atencao: 'EPI com CA vencido não pode ser entregue. É um dos primeiros itens que a fiscalização confere.',
+          dica: 'Tamanho e cor entram no campo "Tamanho ou cor": luva P e luva G ficam como dois cadastros, porque na prática são dois itens diferentes no almoxarifado.',
+          link: { href: '/epi/equipamentos', rotulo: 'Abrir Equipamentos' },
         },
       ],
     },
