@@ -106,6 +106,8 @@ export default function PainelEpi() {
   /* Marcação da empresa: impedir entrega quando a prateleira zerou. */
   const [bloquear, setBloquear] = useState(false)
   const [salvandoLinha, setSalvandoLinha] = useState('')
+  const [buscandoCa, setBuscandoCa] = useState(false)
+  const [achadoCa, setAchadoCa] = useState('')
 
   const [painelAberto, setPainelAberto] = useState(false)
   const [form, setForm] = useState(formVazio)
@@ -264,6 +266,51 @@ export default function PainelEpi() {
       console.error(error)
       setErro('Não foi possível salvar a marcação.')
       setBloquear(!ligado)
+    }
+  }
+
+  /* Busca o número na cópia da base do MTE e preenche o cadastro.
+   * O que a pessoa já escreveu não é sobrescrito — menos a validade e
+   * a descrição, que vêm do certificado e valem mais que o palpite de
+   * quem digitou. */
+  async function buscarCa() {
+    const numero = form.ca.replace(/\D/g, '')
+    if (!numero) return
+    setBuscandoCa(true)
+    setAchadoCa('')
+    try {
+      const { data, error } = await supabase
+        .from('caepi')
+        .select('ca, validade, situacao, razao_social, nome_equipamento, descricao')
+        .eq('ca', numero)
+        .maybeSingle()
+
+      if (error) {
+        /* Base ainda não importada: a tela segue servindo para digitar
+           à mão, que é como era antes. */
+        setAchadoCa('A base de CAs ainda não foi importada neste portal. Preencha à mão.')
+        return
+      }
+      if (!data) {
+        setAchadoCa(`O CA ${numero} não está na base do MTE. Confira o número ou preencha à mão.`)
+        return
+      }
+
+      setForm((atual) => ({
+        ...atual,
+        ca: numero,
+        nome: atual.nome.trim() || data.nome_equipamento || '',
+        fabricante: atual.fabricante.trim() || data.razao_social || '',
+        validade_ca: data.validade || atual.validade_ca,
+        observacoes: data.descricao || atual.observacoes,
+      }))
+      setAchadoCa(
+        data.situacao && data.situacao.toUpperCase() !== 'VÁLIDO'
+          ? `Atenção: na base do MTE este CA está ${data.situacao.toLowerCase()}.`
+          : 'Preenchido com os dados do certificado.'
+      )
+    } finally {
+      setBuscandoCa(false)
     }
   }
 
@@ -664,14 +711,31 @@ export default function PainelEpi() {
               <div className="field-row">
                 <div className="field">
                   <label htmlFor="epi-ca">Número do CA</label>
-                  <input
-                    id="epi-ca"
-                    inputMode="numeric"
-                    placeholder="41385"
-                    value={form.ca}
-                    onChange={(e) => setForm({ ...form, ca: e.target.value })}
-                    disabled={form.tipo === 'outros'}
-                  />
+                  <div className="linha-ca">
+                    <input
+                      id="epi-ca"
+                      inputMode="numeric"
+                      placeholder="41385"
+                      value={form.ca}
+                      onChange={(e) => setForm({ ...form, ca: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          buscarCa()
+                        }
+                      }}
+                      disabled={form.tipo === 'outros'}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={buscarCa}
+                      disabled={buscandoCa || form.tipo === 'outros' || !form.ca.trim()}
+                    >
+                      {buscandoCa ? 'Buscando…' : 'Buscar no CAEPI'}
+                    </button>
+                  </div>
+                  {achadoCa && <p className="dica">{achadoCa}</p>}
                 </div>
                 <div className="field">
                   <label htmlFor="epi-validade">Validade do CA</label>

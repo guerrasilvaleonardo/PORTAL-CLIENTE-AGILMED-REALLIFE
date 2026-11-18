@@ -114,3 +114,17 @@
   font-size: 12px;
   margin-top: 2px;
 }
+
+/* O número do CA com o botão de buscar ao lado. */
+.linha-ca {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.linha-ca input {
+  flex: 1;
+  min-width: 0;
+}
+.linha-ca button {
+  white-space: nowrap;
+}
