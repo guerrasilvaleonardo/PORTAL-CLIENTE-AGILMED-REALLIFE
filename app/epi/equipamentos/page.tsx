@@ -108,6 +108,9 @@ export default function PainelEpi() {
   const [salvandoLinha, setSalvandoLinha] = useState('')
   const [buscandoCa, setBuscandoCa] = useState(false)
   const [achadoCa, setAchadoCa] = useState('')
+  /* Se o que foi achado é um aviso e não uma boa notícia. Muda só a cor:
+   * um alerta em cinza miúdo é um alerta que ninguém lê. */
+  const [caComAviso, setCaComAviso] = useState(false)
 
   const [painelAberto, setPainelAberto] = useState(false)
   const [form, setForm] = useState(formVazio)
@@ -278,6 +281,7 @@ export default function PainelEpi() {
     if (!numero) return
     setBuscandoCa(true)
     setAchadoCa('')
+    setCaComAviso(false)
     try {
       const { data, error } = await supabase
         .from('caepi')
@@ -288,10 +292,12 @@ export default function PainelEpi() {
       if (error) {
         /* Base ainda não importada: a tela segue servindo para digitar
            à mão, que é como era antes. */
+        setCaComAviso(true)
         setAchadoCa('A base de CAs ainda não foi importada neste portal. Preencha à mão.')
         return
       }
       if (!data) {
+        setCaComAviso(true)
         setAchadoCa(`O CA ${numero} não está na base do MTE. Confira o número ou preencha à mão.`)
         return
       }
@@ -304,9 +310,27 @@ export default function PainelEpi() {
         validade_ca: data.validade || atual.validade_ca,
         observacoes: data.descricao || atual.observacoes,
       }))
+      /* Duas coisas diferentes podem estar erradas, e uma não implica a
+       * outra: o CA 43377 está VÁLIDO na base do MTE e mesmo assim tem
+       * validade de 29/08/2024, já vencida. Por isso os dois avisos são
+       * checados separadamente. Datas comparadas como texto aaaa-mm-dd,
+       * que ordena certo e não passa pelo fuso. */
+      const hoje = new Date()
+      const hojeTexto = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+
+      const avisos: string[] = []
+      if (data.situacao && data.situacao.toUpperCase() !== 'VÁLIDO') {
+        avisos.push(`na base do MTE este CA está ${data.situacao.toLowerCase()}`)
+      }
+      if (data.validade && data.validade < hojeTexto) {
+        const [a, m, d] = data.validade.split('-')
+        avisos.push(`o CA venceu em ${d}/${m}/${a}`)
+      }
+
+      setCaComAviso(avisos.length > 0)
       setAchadoCa(
-        data.situacao && data.situacao.toUpperCase() !== 'VÁLIDO'
-          ? `Atenção: na base do MTE este CA está ${data.situacao.toLowerCase()}.`
+        avisos.length
+          ? `Atenção: ${avisos.join('; ')}. Preenchi assim mesmo, confira antes de salvar.`
           : 'Preenchido com os dados do certificado.'
       )
     } finally {
@@ -735,7 +759,7 @@ export default function PainelEpi() {
                       {buscandoCa ? 'Buscando…' : 'Buscar no CAEPI'}
                     </button>
                   </div>
-                  {achadoCa && <p className="dica">{achadoCa}</p>}
+                  {achadoCa && <p className={caComAviso ? 'dica bad' : 'dica'}>{achadoCa}</p>}
                 </div>
                 <div className="field">
                   <label htmlFor="epi-validade">Validade do CA</label>

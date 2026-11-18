@@ -128,3 +128,10 @@
 .linha-ca button {
   white-space: nowrap;
 }
+
+/* O aviso do CA em vermelho: CA vencido, cancelado ou não encontrado.
+   Mesma cor de alerta do resto do portal. */
+.field .dica.bad {
+  color: var(--danger);
+  font-weight: 600;
+}
