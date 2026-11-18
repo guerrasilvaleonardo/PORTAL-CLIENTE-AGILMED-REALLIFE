@@ -203,7 +203,10 @@ export default function EntregasEpi() {
     comCanceladas: false,
   })
   const [marcados, setMarcados] = useState<Set<string>>(new Set())
-  const [menuAberto, setMenuAberto] = useState<string | null>(null)
+  const [menuAberto, setMenuAberto] = useState<{ id: string; x: number; y: number } | null>(null)
+  /* Oito ações de 33px mais a borda: o bastante para saber se cabe
+   * abaixo do botão ou se precisa subir. */
+  const ALTURA_MENU = 310
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(25)
 
@@ -1170,13 +1173,29 @@ export default function EntregasEpi() {
                         type="button"
                         className="btn btn-sm"
                         aria-haspopup="menu"
-                        aria-expanded={menuAberto === i.id}
-                        onClick={() => setMenuAberto(menuAberto === i.id ? null : i.id)}
+                        aria-expanded={menuAberto?.id === i.id}
+                        onClick={(ev) => {
+                          if (menuAberto?.id === i.id) {
+                            setMenuAberto(null)
+                            return
+                          }
+                          const r = ev.currentTarget.getBoundingClientRect()
+                          const cabeAbaixo = r.bottom + ALTURA_MENU < window.innerHeight
+                          setMenuAberto({
+                            id: i.id,
+                            x: r.right,
+                            y: cabeAbaixo ? r.bottom + 4 : r.top - ALTURA_MENU - 4,
+                          })
+                        }}
                       >
                         Opções ▾
                       </button>
-                      {menuAberto === i.id && (
-                        <div className="menu-lista" role="menu">
+                      {menuAberto?.id === i.id && (
+                        <div
+                          className="menu-lista"
+                          role="menu"
+                          style={{ top: menuAberto.y, left: menuAberto.x }}
+                        >
                           <button type="button" onClick={() => acaoLinha('alterar', e, i)}>
                             Alterar
                           </button>
