@@ -343,3 +343,130 @@
 .entrega-cancelar:hover {
   color: var(--primary);
 }
+
+/* ---------- a tabela de entregas ----------
+   Uma linha por equipamento, como na tela que a equipe já conhece: é
+   assim que se marca um item para dar baixa sem mexer no resto da
+   entrega. */
+.tabela-entregas .col-marca {
+  width: 34px;
+  text-align: center;
+}
+.tabela-entregas .col-marca input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  margin: 0;
+}
+.tabela-entregas .motivo-item {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.tabela-entregas .troca.vencida {
+  color: var(--danger);
+  font-weight: 700;
+}
+.tabela-entregas .baixa {
+  color: var(--ink-faint);
+}
+.tabela-entregas tr.item-devolvido td {
+  color: var(--ink-muted);
+}
+
+/* Filtro de coluna: some no papel e no celular, onde a tabela vira
+   outra coisa. */
+.linha-filtros th {
+  padding-top: 0;
+  padding-bottom: 8px;
+}
+.linha-filtros input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  background: var(--surface);
+}
+
+/* O menu de ações da linha. Abre ancorado no botão e fecha ao clicar
+   fora — a lista é longa demais para caber em botões soltos. */
+.menu-linha {
+  position: relative;
+  display: inline-block;
+}
+.menu-lista {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 210px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(16, 20, 40, 0.16);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.menu-lista button {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.menu-lista button:hover:not(:disabled) {
+  background: var(--surface-sunken, #f2f4f8);
+}
+.menu-lista button:disabled {
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+.menu-lista button.perigo {
+  color: var(--danger);
+}
+
+/* Painel de filtros por data, aberto pelo botão "Filtros". */
+.painel-filtros {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l, 16px);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.linha-marcas {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.btn-ativo {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.paginacao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  flex-wrap: wrap;
+}
+.paginacao select {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 12.5px;
+}
