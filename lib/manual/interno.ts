@@ -771,6 +771,26 @@ const manualInterno: Manual = {
           atencao: 'O limite da consulta é 2000 entregas. Quando alguma empresa passar disso, os números começam a mentir pelo corte e será hora de agregar no banco.',
           link: { href: '/epi/painel', rotulo: 'Abrir o Painel' },
         },
+        {
+          titulo: 'Estoque: gatilhos e bloqueio',
+          texto:
+            'supabase/epi-estoque.sql dá a epis estoque, estoque_minimo e foto_path, e a empresas a marcação epi_bloquear_sem_estoque. A conta é feita por gatilho, não pela tela.',
+          tela: {
+            url: '/epi/equipamentos',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: "Configuração de EPI's" },
+              { t: 'tabela', n: 1, colunas: ['Equipamento', 'Estoque', 'Estoque mínimo'], linhas: [['41385 - LUVA DE VAQUETA', '12', '5']] },
+            ],
+          },
+          passos: [
+            'epi_estoque_na_entrega desconta no INSERT do item e recusa quando a empresa bloqueia e falta quantidade.',
+            'epi_estoque_no_cancelamento devolve ao estoque quando a entrega é cancelada: ela não aconteceu.',
+            'Devolução não devolve ao estoque de propósito — se quiser recontar, é na tela, não no gatilho.',
+          ],
+          atencao: 'Estoque negativo é permitido com o bloqueio desligado. Quem não controla estoque de verdade não pode ser impedido de registrar uma entrega que aconteceu.',
+          link: { href: '/epi/equipamentos', rotulo: 'Abrir a Configuração' },
+        },
       ],
     },
 

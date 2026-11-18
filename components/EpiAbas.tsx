@@ -12,7 +12,7 @@ import { usePathname } from 'next/navigation'
 const PAGINAS = [
   { href: '/epi', rotulo: 'Entregas' },
   { href: '/epi/ficha', rotulo: 'Ficha' },
-  { href: '/epi/equipamentos', rotulo: 'Equipamentos' },
+  { href: '/epi/equipamentos', rotulo: "Configuração de EPI's" },
   { href: '/epi/painel', rotulo: 'Painel' },
 ]
 

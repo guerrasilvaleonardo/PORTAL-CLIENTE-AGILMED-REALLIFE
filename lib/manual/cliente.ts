@@ -582,6 +582,26 @@ const manualCliente: Manual = {
           dica: 'Equipamento devolvido sai da conta de "em uso" e não cobra mais troca de ninguém. Por isso vale dar baixa assim que o EPI volta.',
           link: { href: '/epi/painel', rotulo: 'Abrir o Painel' },
         },
+        {
+          titulo: 'Estoque do EPI',
+          texto:
+            'Em "Configuração de EPI\'s" cada equipamento tem estoque e estoque mínimo, editáveis na própria linha. Cada entrega desconta; quando o número chega ao mínimo, ele fica vermelho.',
+          tela: {
+            url: '/epi/equipamentos',
+            blocos: [
+              menu('EPI'),
+              { t: 'topo', sobre: 'EPI', titulo: "Configuração de EPI's", botoes: ['Novo equipamento'] },
+              { t: 'tabela', n: 1, colunas: ['Equipamento', 'Vida útil', 'Estoque', 'Estoque mínimo', 'É EPI'], linhas: [['41385 - LUVA DE VAQUETA', '90', '12', '5', 'sim'], ['48413 - BOTINA DE SEGURANÇA', '180', '2', '4', 'sim']] },
+            ],
+          },
+          passos: [
+            'Clique no número, digite e saia do campo: salva sozinho. Vale para complemento, vida útil, estoque, estoque mínimo e código.',
+            'Marque "Bloquear entrega de EPI sem estoque" se quiser que o portal recuse a entrega quando a prateleira não tiver a quantidade pedida.',
+            'Com o bloqueio desligado, a entrega passa e o estoque fica negativo. É de propósito: a ficha assinada vale mais que o número certo.',
+          ],
+          dica: 'Devolução não volta para o estoque. A bota que voltou do pé de alguém não é bota nova na prateleira — se você recuperou o equipamento, ajuste o número na mão.',
+          link: { href: '/epi/equipamentos', rotulo: "Abrir a Configuração de EPI's" },
+        },
       ],
     },
 

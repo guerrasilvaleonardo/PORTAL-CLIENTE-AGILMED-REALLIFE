@@ -37,6 +37,8 @@ type Epi = {
   fabricante: string | null
   codigo_externo: string | null
   observacoes: string | null
+  estoque: number
+  estoque_minimo: number
   ativo: boolean
   empresas?: { nome_fantasia: string | null; razao_social: string } | null
 }
@@ -53,6 +55,8 @@ const formVazio = {
   fabricante: '',
   codigo_externo: '',
   observacoes: '',
+  estoque: '0',
+  estoque_minimo: '0',
   ativo: true,
 }
 
@@ -97,6 +101,11 @@ export default function PainelEpi() {
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [mostrarInativos, setMostrarInativos] = useState(false)
+  /* Os filtros de estoque da tela dele. */
+  const [filtroEstoque, setFiltroEstoque] = useState<'todos' | 'com' | 'zerado'>('todos')
+  /* Marcação da empresa: impedir entrega quando a prateleira zerou. */
+  const [bloquear, setBloquear] = useState(false)
+  const [salvandoLinha, setSalvandoLinha] = useState('')
 
   const [painelAberto, setPainelAberto] = useState(false)
   const [form, setForm] = useState(formVazio)
@@ -134,6 +143,17 @@ export default function PainelEpi() {
           .select('id, razao_social, nome_fantasia')
           .order('razao_social')
         setEmpresas((emps || []) as Empresa[])
+      }
+
+      /* A marcação de bloqueio é da empresa, não do equipamento. */
+      const alvo = ehInterno ? empresaFiltro || null : perfil?.empresa_id || null
+      if (alvo) {
+        const { data: emp } = await supabase
+          .from('empresas')
+          .select('epi_bloquear_sem_estoque')
+          .eq('id', alvo)
+          .maybeSingle()
+        setBloquear(Boolean(emp?.epi_bloquear_sem_estoque))
       }
 
       const { data, error } = await supabase
@@ -181,11 +201,13 @@ export default function PainelEpi() {
     return lista.filter((e) => {
       if (empresaFiltro && e.empresa_id !== empresaFiltro) return false
       if (!mostrarInativos && !e.ativo) return false
+      if (filtroEstoque === 'com' && e.estoque <= 0) return false
+      if (filtroEstoque === 'zerado' && e.estoque > 0) return false
       if (!palavras.length) return true
       const alvo = [e.nome, e.complemento, e.ca, e.fabricante, e.codigo_externo].filter(Boolean).join(' ')
       return casaBusca(alvo, palavras)
     })
-  }, [lista, busca, empresaFiltro, mostrarInativos])
+  }, [lista, busca, empresaFiltro, mostrarInativos, filtroEstoque])
 
   const numeros = useMemo(() => {
     const base = (empresaFiltro ? lista.filter((e) => e.empresa_id === empresaFiltro) : lista).filter((e) => e.ativo)
@@ -197,6 +219,53 @@ export default function PainelEpi() {
       semCa: base.filter((e) => e.tipo === 'epi' && !e.ca).length,
     }
   }, [lista, empresaFiltro])
+
+  /* Edição na linha, como na tela dele: o número que muda toda semana
+   * — estoque, mínimo, vida útil — não merece abrir um painel. Grava ao
+   * sair do campo, e só quando mudou de verdade. */
+  async function salvarCampo(e: Epi, campo: string, bruto: string | boolean) {
+    const valor =
+      typeof bruto === 'boolean'
+        ? bruto
+        : campo === 'complemento' || campo === 'codigo_externo'
+          ? bruto.trim() || null
+          : Math.trunc(Number(bruto))
+
+    if (typeof valor === 'number' && !Number.isFinite(valor)) return
+    if ((e as unknown as Record<string, unknown>)[campo] === valor) return
+
+    try {
+      setSalvandoLinha(e.id)
+      const { error } = await supabase.from('epis').update({ [campo]: valor }).eq('id', e.id)
+      if (error) throw error
+      setLista((atual) =>
+        atual.map((x) => (x.id === e.id ? ({ ...x, [campo]: valor } as Epi) : x))
+      )
+    } catch (err: any) {
+      console.error(err)
+      setErro(err?.message || 'Não foi possível salvar.')
+    } finally {
+      setSalvandoLinha('')
+    }
+  }
+
+  async function alternarBloqueio(ligado: boolean) {
+    const alvo = interno ? empresaFiltro : minhaEmpresa
+    if (!alvo) {
+      setErro('Escolha a empresa antes de mudar essa marcação.')
+      return
+    }
+    setBloquear(ligado)
+    const { error } = await supabase
+      .from('empresas')
+      .update({ epi_bloquear_sem_estoque: ligado })
+      .eq('id', alvo)
+    if (error) {
+      console.error(error)
+      setErro('Não foi possível salvar a marcação.')
+      setBloquear(!ligado)
+    }
+  }
 
   function abrirNovo() {
     setForm({ ...formVazio, empresa_id: interno ? empresaFiltro : minhaEmpresa })
@@ -217,6 +286,8 @@ export default function PainelEpi() {
       fabricante: e.fabricante || '',
       codigo_externo: e.codigo_externo || '',
       observacoes: e.observacoes || '',
+      estoque: String(e.estoque ?? 0),
+      estoque_minimo: String(e.estoque_minimo ?? 0),
       ativo: e.ativo,
     })
     setAviso('')
@@ -261,6 +332,8 @@ export default function PainelEpi() {
         fabricante: form.fabricante.trim() || null,
         codigo_externo: form.codigo_externo.trim() || null,
         observacoes: form.observacoes.trim() || null,
+        estoque: Math.trunc(Number(form.estoque)) || 0,
+        estoque_minimo: Math.max(0, Math.trunc(Number(form.estoque_minimo)) || 0),
         ativo: form.ativo,
       }
 
@@ -311,10 +384,10 @@ export default function PainelEpi() {
     <div className="app">
       <div>
         <p className="eyebrow">EPI</p>
-        <h1 className="titulo-tela">Equipamentos</h1>
+        <h1 className="titulo-tela">Configuração de EPI's</h1>
         <p className="subtitulo-tela">
-          Os equipamentos que a sua empresa entrega, com CA, validade e prazo de troca. Na entrega,
-          escolher o equipamento já traz o CA e calcula a próxima troca.
+          Os equipamentos que a sua empresa entrega, com CA, validade, prazo de troca e estoque. Na
+          entrega, escolher o equipamento já traz o CA e calcula a próxima troca.
         </p>
       </div>
 
@@ -370,11 +443,37 @@ export default function PainelEpi() {
           />
           Mostrar fora de linha
         </label>
+        <div className="field" style={{ minWidth: 150 }}>
+          <label htmlFor="filtro-estoque">Estoque</label>
+          <select
+            id="filtro-estoque"
+            value={filtroEstoque}
+            onChange={(e) => setFiltroEstoque(e.target.value as 'todos' | 'com' | 'zerado')}
+          >
+            <option value="todos">Todos</option>
+            <option value="com">Só com estoque</option>
+            <option value="zerado">Só com estoque zerado</option>
+          </select>
+        </div>
         <span style={{ flex: 1 }} />
         <button type="button" className="btn btn-primary" onClick={abrirNovo}>
           <Icone nome="mais" /> Novo equipamento
         </button>
       </div>
+
+      {/* A marcação da empresa, no alto da tela, como na dele. */}
+      <label className="caixa-marcar linha-bloqueio">
+        <input
+          type="checkbox"
+          checked={bloquear}
+          onChange={(e) => alternarBloqueio(e.target.checked)}
+        />
+        Bloquear entrega de EPI sem estoque
+        <small>
+          Com isto ligado, a entrega é recusada quando a prateleira não tem a quantidade pedida.
+          Desligado, a entrega passa e o estoque fica negativo — a ficha vale mais que o número.
+        </small>
+      </label>
 
       <div className="panel">
         <div className="panel-head">
@@ -385,41 +484,101 @@ export default function PainelEpi() {
           </span>
         </div>
         <div className="table-scroll">
-          <table className="tabela-colab">
+          <table className="tabela-colab tabela-epis">
             <thead>
               <tr>
                 <th>Equipamento</th>
-                <th>CA</th>
-                <th>Validade do CA</th>
-                <th>Troca a cada</th>
-                <th>Fabricante</th>
+                <th>Complemento</th>
+                <th>Vida útil (dias)</th>
+                <th>Estoque</th>
+                <th>Estoque mínimo</th>
+                <th>Código externo</th>
+                <th>É EPI</th>
                 {interno && <th>Empresa</th>}
-                <th>Situação</th>
                 <th aria-label="Ações" />
               </tr>
             </thead>
             <tbody>
               {!carregando && filtrados.length === 0 && (
                 <tr>
-                  <td colSpan={interno ? 8 : 7} className="empty-state">
+                  <td colSpan={interno ? 9 : 8} className="empty-state">
                     Nenhum equipamento cadastrado ainda.
                   </td>
                 </tr>
               )}
               {filtrados.map((e) => (
                 <tr key={e.id} className={e.ativo ? '' : 'inativo'}>
-                  <td className="nome">
-                    {e.nome}
-                    {e.complemento && <span className="complemento"> · {e.complemento}</span>}
-                    {!e.ativo && <span className="pill flat"> Fora de linha</span>}
+                  {/* Nome, CA, validade e descrição no mesmo bloco, como
+                      na ficha e na tela dele. */}
+                  <td className="celula-epi">
+                    <strong>
+                      {e.ca ? `${e.ca} - ` : ''}
+                      {e.nome.toUpperCase()}
+                    </strong>
+                    {e.validade_ca && (
+                      <span className="epi-mini">
+                        Validade do C.A.: {dataBr(e.validade_ca)} {seloCa(e)}
+                      </span>
+                    )}
+                    {!e.ativo && <span className="pill flat">Fora de linha</span>}
+                    {e.observacoes && <span className="epi-mini">{e.observacoes}</span>}
                   </td>
-                  <td className="mono">{e.ca || '—'}</td>
-                  <td className="mono">{dataBr(e.validade_ca) || '—'}</td>
-                  <td>{prazoTexto(e.vida_util_dias)}</td>
-                  <td>{e.fabricante || '—'}</td>
+                  <td>
+                    <input
+                      className="campo-linha"
+                      defaultValue={e.complemento || ''}
+                      placeholder="Digite"
+                      onBlur={(ev) => salvarCampo(e, 'complemento', ev.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="campo-linha numero"
+                      type="number"
+                      min={1}
+                      max={3650}
+                      defaultValue={e.vida_util_dias}
+                      onBlur={(ev) => salvarCampo(e, 'vida_util_dias', ev.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className={`campo-linha numero ${e.estoque <= e.estoque_minimo ? 'baixo' : ''}`}
+                      type="number"
+                      defaultValue={e.estoque}
+                      onBlur={(ev) => salvarCampo(e, 'estoque', ev.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="campo-linha numero"
+                      type="number"
+                      min={0}
+                      defaultValue={e.estoque_minimo}
+                      onBlur={(ev) => salvarCampo(e, 'estoque_minimo', ev.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="campo-linha"
+                      defaultValue={e.codigo_externo || ''}
+                      placeholder="Digite"
+                      onBlur={(ev) => salvarCampo(e, 'codigo_externo', ev.target.value)}
+                    />
+                  </td>
+                  <td className="centro">
+                    <input
+                      type="checkbox"
+                      aria-label="Considerar como EPI"
+                      checked={e.tipo === 'epi'}
+                      onChange={(ev) =>
+                        salvarCampo(e, 'tipo', ev.target.checked ? 'epi' : 'outros')
+                      }
+                    />
+                  </td>
                   {interno && <td>{nomeEmpresa(e.empresas)}</td>}
-                  <td>{seloCa(e)}</td>
                   <td className="acoes">
+                    {salvandoLinha === e.id && <span className="epi-mini">salvando…</span>}
                     <button type="button" className="btn btn-sm" onClick={() => abrirEdicao(e)}>
                       Editar
                     </button>
@@ -541,6 +700,33 @@ export default function PainelEpi() {
                   recomendação do fabricante ou o que a sua empresa pratica.
                 </p>
               </div>
+
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="epi-estoque">Estoque</label>
+                  <input
+                    id="epi-estoque"
+                    type="number"
+                    value={form.estoque}
+                    onChange={(e) => setForm({ ...form, estoque: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="epi-estoque-min">Estoque mínimo</label>
+                  <input
+                    id="epi-estoque-min"
+                    type="number"
+                    min={0}
+                    value={form.estoque_minimo}
+                    onChange={(e) => setForm({ ...form, estoque_minimo: e.target.value })}
+                  />
+                </div>
+              </div>
+              <p className="dica">
+                Cada entrega desconta do estoque; a entrega cancelada devolve. Devolução não volta
+                para a prateleira — a bota que voltou do pé de alguém não é bota nova. Quando o
+                estoque chega ao mínimo, o número fica vermelho na lista.
+              </p>
 
               <div className="field-row">
                 <div className="field">
