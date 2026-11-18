@@ -94,28 +94,48 @@ const cabecalho = linhas.shift().replace(/^#/, '').split('|');
 const col = Object.fromEntries(cabecalho.map((c, i) => [c.trim(), i]));
 console.log('linhas no arquivo:', linhas.length);
 
-const vistos = new Set();
-const registros = [];
+/* O arquivo traz UMA LINHA POR LAUDO, não por CA: o mesmo certificado
+ * aparece repetido, uma vez para cada ensaio de laboratório. Conferido
+ * no CA 32297, que tem 70 linhas: do número à cor, tudo é idêntico em
+ * todas elas; só mudam laboratório, nº do laudo e norma. Então a
+ * primeira linha define o registro, e as demais servem para juntar as
+ * normas, que é o que de fato varia e interessa. */
+const porCa = new Map();
 for (const linha of linhas) {
   const c = linha.split('|');
   const ca = limpo(c[col.NRRegistroCA]);
-  if (!ca || vistos.has(ca)) continue;
-  vistos.add(ca);
-  registros.push({
-    ca,
-    validade: soData(c[col.DataValidade]),
-    situacao: limpo(c[col.Situacao]),
-    cnpj: limpo(c[col.CNPJ]),
-    razao_social: limpo(c[col.RazaoSocial]),
-    natureza: limpo(c[col.Natureza]),
-    nome_equipamento: limpo(c[col.NomeEquipamento]),
-    descricao: limpo(c[col.DescricaoEquipamento]),
-    marca: limpo(c[col.MarcaCA]),
-    referencia: limpo(c[col.Referencia]),
-    cor: limpo(c[col.Cor]),
-    norma: limpo(c[col.Norma]),
+  if (!ca) continue;
+  const norma = limpo(c[col.Norma]);
+
+  const jaVisto = porCa.get(ca);
+  if (jaVisto) {
+    if (norma) jaVisto.normas.add(norma);
+    continue;
+  }
+
+  porCa.set(ca, {
+    normas: new Set(norma ? [norma] : []),
+    registro: {
+      ca,
+      validade: soData(c[col.DataValidade]),
+      situacao: limpo(c[col.Situacao]),
+      cnpj: limpo(c[col.CNPJ]),
+      razao_social: limpo(c[col.RazaoSocial]),
+      natureza: limpo(c[col.Natureza]),
+      nome_equipamento: limpo(c[col.NomeEquipamento]),
+      descricao: limpo(c[col.DescricaoEquipamento]),
+      marca: limpo(c[col.MarcaCA]),
+      referencia: limpo(c[col.Referencia]),
+      cor: limpo(c[col.Cor]),
+      norma: null,
+    },
   });
 }
+
+const registros = [...porCa.values()].map(({ registro, normas }) => ({
+  ...registro,
+  norma: normas.size ? [...normas].join(' · ') : null,
+}));
 console.log('CAs distintos:', registros.length);
 
 /* ---------- 3. gravar em lotes ---------- */
