@@ -50,10 +50,13 @@ rem .gitignore impede que ele seja enviado para o GitHub.
 > "%CHAVE%" echo # Chave do portal. Este arquivo fica SO na sua maquina.
 >> "%CHAVE%" echo # Nao mande para ninguem e nao cole no chat.
 >> "%CHAVE%" echo #
->> "%CHAVE%" echo # A chave esta na Vercel, em:
->> "%CHAVE%" echo #   Settings ^> Environment Variables ^> SUPABASE_SERVICE_ROLE_KEY
->> "%CHAVE%" echo # Clique no olhinho para revelar, copie, e cole abaixo no
->> "%CHAVE%" echo # lugar de cole-a-chave-aqui. Depois salve e feche o Bloco de Notas.
+>> "%CHAVE%" echo # A chave esta no painel do Supabase, NAO na Vercel: la ela e
+>> "%CHAVE%" echo # "sensitive" e nao pode mais ser revelada depois de salva.
+>> "%CHAVE%" echo #
+>> "%CHAVE%" echo # supabase.com/dashboard/project/emhtpemdulddsghzklta/settings/api-keys
+>> "%CHAVE%" echo #   secao "Secret keys", no botao de copiar ao lado do olhinho.
+>> "%CHAVE%" echo #
+>> "%CHAVE%" echo # Cole abaixo no lugar de cole-a-chave-aqui, salve e feche.
 >> "%CHAVE%" echo.
 >> "%CHAVE%" echo NEXT_PUBLIC_SUPABASE_URL=https://emhtpemdulddsghzklta.supabase.co
 >> "%CHAVE%" echo SUPABASE_SERVICE_ROLE_KEY=cole-a-chave-aqui
@@ -72,7 +75,7 @@ exit /b 1
 :chave_vazia
 echo.
 echo O arquivo chave-do-portal.txt ainda esta sem a chave.
-echo Vou abri-lo de novo. Troque cole-a-chave-aqui pela chave da Vercel,
+echo Vou abri-lo de novo. Troque cole-a-chave-aqui pela chave do Supabase,
 echo salve, feche, e rode este programa outra vez.
 echo.
 start "" notepad "%CHAVE%"
