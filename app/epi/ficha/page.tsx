@@ -114,6 +114,15 @@ export default function FichaEpi() {
 
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [quem, setQuem] = useState('')
+  /* Quem veio marcado da tela de Pessoas, pelo endereço. Lido do
+   * window em vez de useSearchParams para a página não precisar de
+   * Suspense só por causa disso. */
+  const [escolhidas, setEscolhidas] = useState<string[]>([])
+
+  useEffect(() => {
+    const lista = new URLSearchParams(window.location.search).get('pessoas')
+    if (lista) setEscolhidas(lista.split(',').filter(Boolean))
+  }, [])
   const [comFoto, setComFoto] = useState(false)
 
   async function carregar() {
@@ -196,13 +205,19 @@ export default function FichaEpi() {
   const fichas = useMemo(() => {
     const comEntrega = new Set(entregas.map((e) => e.colaborador_id))
     return pessoas
-      .filter((c) => (quem ? c.id === quem : comEntrega.has(c.id)))
+      .filter((c) =>
+        quem
+          ? c.id === quem
+          : escolhidas.length
+            ? escolhidas.includes(c.id)
+            : comEntrega.has(c.id)
+      )
       .map((c) => ({
         pessoa: c,
         linhas: entregas.filter((e) => e.colaborador_id === c.id),
       }))
       .filter((f) => f.linhas.length > 0)
-  }, [pessoas, entregas, quem])
+  }, [pessoas, entregas, quem, escolhidas])
 
   /* As fotos ficam num balde privado: cada uma precisa de link assinado. */
   useEffect(() => {
@@ -278,6 +293,23 @@ export default function FichaEpi() {
       </div>
 
       {erro && <div className="banner bad nao-imprimir">{erro}</div>}
+
+      {escolhidas.length > 0 && (
+        <div className="banner">
+          Mostrando {escolhidas.length} trabalhador{escolhidas.length > 1 ? 'es' : ''} escolhido
+          {escolhidas.length > 1 ? 's' : ''} em Colaboradores.{' '}
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => {
+              setEscolhidas([])
+              window.history.replaceState(null, '', '/epi/ficha')
+            }}
+          >
+            Ver todos
+          </button>
+        </div>
+      )}
 
       <div className="filters nao-imprimir">
         {interno && (

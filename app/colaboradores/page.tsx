@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import { formatarCpf, soDigitosCpf, normalizarTexto } from '@/lib/historicoCertificados'
@@ -99,6 +100,13 @@ export default function Colaboradores() {
   const [busca, setBusca] = useState('')
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [situacaoFiltro, setSituacaoFiltro] = useState('')
+  /* Os papéis do topo da tela dele. "Trabalhadores" é todo mundo que
+   * recebe EPI, que no portal é qualquer pessoa da empresa;
+   * "Encarregados" são os que entregam. Os outros papéis do OnSafety
+   * — instrutores, profissionais da saúde, candidatos — são gente da
+   * Real Life ou de outro fluxo, e não existem neste cadastro. */
+  const [papel, setPapel] = useState<'todos' | 'recebem' | 'entregam'>('todos')
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
 
   const [painelAberto, setPainelAberto] = useState(false)
   const [form, setForm] = useState(formVazio)
@@ -201,6 +209,7 @@ export default function Colaboradores() {
     const palavras = palavrasDaBusca(busca)
     return lista.filter((c) => {
       if (empresaFiltro && c.empresa_id !== empresaFiltro) return false
+      if (papel === 'entregam' && !c.entrega_epi) return false
       if (situacaoFiltro === 'desligado' && !estaDesligado(c)) return false
       if (situacaoFiltro === 'ativo' && (estaDesligado(c) || c.situacao !== 'ativo')) return false
       if (situacaoFiltro === 'afastado' && (estaDesligado(c) || c.situacao !== 'afastado')) return false
@@ -208,7 +217,7 @@ export default function Colaboradores() {
       const alvo = [c.nome, c.matricula, c.funcao, c.local_trabalho, formatarCpf(c.cpf)].filter(Boolean).join(' ')
       return casaBusca(alvo, palavras)
     })
-  }, [lista, busca, empresaFiltro, situacaoFiltro, desligados])
+  }, [lista, busca, empresaFiltro, situacaoFiltro, desligados, papel])
 
   const numeros = useMemo(() => {
     const base = empresaFiltro ? lista.filter((c) => c.empresa_id === empresaFiltro) : lista
@@ -392,6 +401,35 @@ export default function Colaboradores() {
         </button>
       </div>
 
+      {/* Papéis no alto, como as opções da tela dele. */}
+      <div className="papeis">
+        {(
+          [
+            ['todos', 'Todos'],
+            ['recebem', 'Trabalhadores'],
+            ['entregam', 'Encarregados'],
+          ] as const
+        ).map(([valor, rotulo]) => (
+          <label key={valor} className="caixa-marcar">
+            <input
+              type="radio"
+              name="papel"
+              checked={papel === valor}
+              onChange={() => setPapel(valor)}
+            />
+            {rotulo}
+          </label>
+        ))}
+        <span style={{ flex: 1 }} />
+        <Link
+          href={marcados.size ? `/epi/ficha?pessoas=${[...marcados].join(',')}` : '/epi/ficha'}
+          className="btn btn-sm"
+        >
+          Gerar fichas de EPI
+          {marcados.size > 0 ? ` (${marcados.size})` : ''}
+        </Link>
+      </div>
+
       <div className="panel">
         <div className="panel-head">
           <span className="section-title">
@@ -402,6 +440,18 @@ export default function Colaboradores() {
           <table className="tabela-colab">
             <thead>
               <tr>
+                <th className="col-marca">
+                  <input
+                    type="checkbox"
+                    aria-label="Marcar todos da lista"
+                    checked={filtrados.length > 0 && filtrados.every((c) => marcados.has(c.id))}
+                    onChange={(e) =>
+                      setMarcados(
+                        e.target.checked ? new Set(filtrados.map((c) => c.id)) : new Set()
+                      )
+                    }
+                  />
+                </th>
                 <th>Nome</th>
                 <th>CPF</th>
                 <th>Matrícula</th>
@@ -415,7 +465,7 @@ export default function Colaboradores() {
             <tbody>
               {!carregando && filtrados.length === 0 && (
                 <tr>
-                  <td colSpan={interno ? 8 : 7} className="empty-state">
+                  <td colSpan={interno ? 9 : 8} className="empty-state">
                     Nenhum colaborador encontrado.
                   </td>
                 </tr>
@@ -424,6 +474,21 @@ export default function Colaboradores() {
                 const fora = estaDesligado(c)
                 return (
                   <tr key={c.id} className={fora ? 'inativo' : ''}>
+                    <td className="col-marca">
+                      <input
+                        type="checkbox"
+                        aria-label={`Marcar ${c.nome}`}
+                        checked={marcados.has(c.id)}
+                        onChange={() =>
+                          setMarcados((atual) => {
+                            const novo = new Set(atual)
+                            if (novo.has(c.id)) novo.delete(c.id)
+                            else novo.add(c.id)
+                            return novo
+                          })
+                        }
+                      />
+                    </td>
                     <td className="nome">{c.nome}</td>
                     <td className="mono">{formatarCpf(c.cpf) || '—'}</td>
                     <td className="mono">{c.matricula || '—'}</td>
