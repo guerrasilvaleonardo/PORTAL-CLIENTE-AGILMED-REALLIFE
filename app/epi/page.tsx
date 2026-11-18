@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import QRCode from 'qrcode'
 import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
@@ -48,6 +49,10 @@ const MOTIVOS_DEVOLUCAO = [
   { valor: 'perda', rotulo: 'Perdido' },
   { valor: 'desligamento', rotulo: 'Desligamento' },
 ]
+const MOTIVO_ROTULO: Record<string, string> = Object.fromEntries(
+  MOTIVOS.map((m) => [m.valor, m.rotulo])
+)
+
 const rotuloDevolucao = (v: string | null) =>
   MOTIVOS_DEVOLUCAO.find((m) => m.valor === v)?.rotulo || v || ''
 
@@ -78,6 +83,7 @@ type Epi = {
 
 type ItemEntrega = {
   id: string
+  epi_id: string | null
   nome: string
   ca: string | null
   complemento: string | null
@@ -100,7 +106,8 @@ type Entrega = {
   token: string
   entregue_por_nome: string | null
   observacoes: string | null
-  colaboradores: { nome: string; funcao: string | null } | null
+  colaborador_id: string
+  colaboradores: { nome: string; funcao: string | null; matricula: string | null } | null
   epi_entregas_itens: ItemEntrega[]
 }
 
@@ -180,8 +187,25 @@ export default function EntregasEpi() {
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
 
   const [empresaFiltro, setEmpresaFiltro] = useState('')
-  const [busca, setBusca] = useState('')
   const [soPendentes, setSoPendentes] = useState(false)
+
+  /* A tabela no formato do OnSafety: filtro em cada coluna, painel de
+   * filtros por data, seleção em massa e paginação. */
+  const [colunas, setColunas] = useState({ trabalhador: '', matricula: '', ca: '', equipamento: '' })
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+  const [filtros, setFiltros] = useState({
+    entregaDe: '',
+    entregaAte: '',
+    trocaDe: '',
+    trocaAte: '',
+    comBaixa: false,
+    soVencidos: false,
+    comCanceladas: false,
+  })
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
+  const [menuAberto, setMenuAberto] = useState<string | null>(null)
+  const [pagina, setPagina] = useState(1)
+  const [porPagina, setPorPagina] = useState(25)
 
   /* Nova entrega */
   const [aberta, setAberta] = useState(false)
@@ -247,9 +271,9 @@ export default function EntregasEpi() {
         supabase
           .from('epi_entregas')
           .select(
-            'id, empresa_id, entregue_em, assinado_em, cancelada_em, token, entregue_por_nome, observacoes, ' +
-              'colaboradores!colaborador_id(nome, funcao), ' +
-              'epi_entregas_itens(id, nome, ca, complemento, quantidade, troca_em, motivo, ' +
+            'id, empresa_id, colaborador_id, entregue_em, assinado_em, cancelada_em, token, entregue_por_nome, observacoes, ' +
+              'colaboradores!colaborador_id(nome, funcao, matricula), ' +
+              'epi_entregas_itens(id, epi_id, nome, ca, complemento, quantidade, troca_em, motivo, ' +
               'previsao_devolucao, devolvido_em, devolucao_motivo, devolucao_obs, devolvido_por_nome, observacao)'
           )
           .order('entregue_em', { ascending: false })
@@ -291,6 +315,17 @@ export default function EntregasEpi() {
     carregar()
   }, [])
 
+  /* Menu aberto fecha ao clicar em qualquer outro lugar da tela. */
+  useEffect(() => {
+    if (!menuAberto) return
+    function aoClicar(ev: MouseEvent) {
+      const alvo = ev.target as HTMLElement
+      if (!alvo.closest('.menu-linha')) setMenuAberto(null)
+    }
+    document.addEventListener('click', aoClicar)
+    return () => document.removeEventListener('click', aoClicar)
+  }, [menuAberto])
+
   useEffect(() => {
     return () => {
       if (foto) URL.revokeObjectURL(foto.url)
@@ -310,16 +345,101 @@ export default function EntregasEpi() {
     [epis, empresaAtual]
   )
 
-  const listadas = useMemo(() => {
-    const palavras = palavrasDaBusca(busca)
-    return entregas.filter((e) => {
-      if (empresaFiltro && e.empresa_id !== empresaFiltro) return false
-      if (soPendentes && (e.assinado_em || e.cancelada_em)) return false
-      if (!palavras.length) return true
-      const alvo = [e.colaboradores?.nome, ...e.epi_entregas_itens.map((i) => `${i.nome} ${i.ca || ''}`)].join(' ')
-      return casaBusca(alvo, palavras)
+  /* Uma linha por equipamento, não por entrega: é assim que a tela do
+   * OnSafety mostra, e é assim que se marca um item para dar baixa. */
+  const linhas = useMemo(() => {
+    const texto = (v: string, alvo: string | null | undefined) =>
+      !v.trim() || casaBusca(alvo || '', palavrasDaBusca(v))
+
+    const saida: { e: Entrega; i: ItemEntrega }[] = []
+    for (const e of entregas) {
+      if (empresaFiltro && e.empresa_id !== empresaFiltro) continue
+      if (e.cancelada_em && !filtros.comCanceladas) continue
+      if (soPendentes && (e.assinado_em || e.cancelada_em)) continue
+      if (filtros.entregaDe && e.entregue_em.slice(0, 10) < filtros.entregaDe) continue
+      if (filtros.entregaAte && e.entregue_em.slice(0, 10) > filtros.entregaAte) continue
+      if (!texto(colunas.trabalhador, e.colaboradores?.nome)) continue
+      if (!texto(colunas.matricula, e.colaboradores?.matricula)) continue
+
+      for (const i of e.epi_entregas_itens) {
+        if (i.devolvido_em && !filtros.comBaixa) continue
+        if (filtros.soVencidos && (i.devolvido_em || !venceu(i.troca_em))) continue
+        if (filtros.trocaDe && i.troca_em < filtros.trocaDe) continue
+        if (filtros.trocaAte && i.troca_em > filtros.trocaAte) continue
+        if (!texto(colunas.ca, i.ca)) continue
+        if (!texto(colunas.equipamento, `${i.nome} ${i.complemento || ''}`)) continue
+        saida.push({ e, i })
+      }
+    }
+    return saida
+  }, [entregas, empresaFiltro, soPendentes, colunas, filtros])
+
+  const totalPaginas = Math.max(1, Math.ceil(linhas.length / porPagina))
+  const linhasPagina = useMemo(
+    () => linhas.slice((pagina - 1) * porPagina, pagina * porPagina),
+    [linhas, pagina, porPagina]
+  )
+
+  /* Filtro que mudou de lugar não pode deixar a pessoa numa página que
+   * não existe mais. */
+  useEffect(() => {
+    setPagina((n) => Math.min(n, Math.max(1, Math.ceil(linhas.length / porPagina))))
+  }, [linhas.length, porPagina])
+
+  const filtrosLigados = useMemo(
+    () =>
+      Object.entries(filtros).filter(([, v]) => (typeof v === 'boolean' ? v : Boolean(v))).length +
+      Object.values(colunas).filter(Boolean).length +
+      (soPendentes ? 1 : 0),
+    [filtros, colunas, soPendentes]
+  )
+
+  /* Os itens marcados, com a entrega de cada um ao lado. */
+  const marcadas = useMemo(() => linhas.filter(({ i }) => marcados.has(i.id)), [linhas, marcados])
+  const emUsoMarcados = marcadas.filter(({ e, i }) => !i.devolvido_em && !e.cancelada_em)
+  const podeDarBaixa = emUsoMarcados.length > 0
+  /* Trocar abre uma entrega nova para a MESMA pessoa: misturar
+   * trabalhadores aqui daria uma entrega que não é de ninguém. */
+  const podeTrocar =
+    emUsoMarcados.length > 0 &&
+    new Set(emUsoMarcados.map(({ e }) => e.colaborador_id)).size === 1
+
+  const marcouTudoNaPagina =
+    linhasPagina.length > 0 && linhasPagina.every(({ i }) => marcados.has(i.id))
+
+  function alternarMarca(id: string) {
+    setMarcados((atual) => {
+      const novo = new Set(atual)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
+      return novo
     })
-  }, [entregas, empresaFiltro, soPendentes, busca])
+  }
+
+  function marcarPagina(ligar: boolean) {
+    setMarcados((atual) => {
+      const novo = new Set(atual)
+      for (const { i } of linhasPagina) {
+        if (ligar) novo.add(i.id)
+        else novo.delete(i.id)
+      }
+      return novo
+    })
+  }
+
+  function limparFiltros() {
+    setColunas({ trabalhador: '', matricula: '', ca: '', equipamento: '' })
+    setFiltros({
+      entregaDe: '',
+      entregaAte: '',
+      trocaDe: '',
+      trocaAte: '',
+      comBaixa: false,
+      soVencidos: false,
+      comCanceladas: false,
+    })
+    setSoPendentes(false)
+  }
 
   const numeros = useMemo(() => {
     const base = empresaFiltro ? entregas.filter((e) => e.empresa_id === empresaFiltro) : entregas
@@ -604,6 +724,111 @@ export default function EntregasEpi() {
     )
   }
 
+  /* Baixa de um item: grava a devolução do dia, como o "Dar Baixa" dele.
+   * O motivo entra como "devolveu"; quem precisa de outro motivo usa o
+   * painel de alteração, onde a lista inteira aparece. */
+  async function baixarItens(itens: { e: Entrega; i: ItemEntrega }[], motivo = 'devolucao') {
+    if (!itens.length) return
+    const quando = `${hojeBrasilia()}T12:00:00-03:00`
+    setErro('')
+    try {
+      for (const { i } of itens) {
+        const { error } = await supabase
+          .from('epi_entregas_itens')
+          .update({ devolvido_em: quando, devolucao_motivo: motivo })
+          .eq('id', i.id)
+        if (error) throw error
+      }
+      setMarcados(new Set())
+      await carregar()
+    } catch (err: any) {
+      console.error(err)
+      setErro(err?.message || 'Não foi possível dar baixa.')
+    }
+  }
+
+  async function reverterItem(i: ItemEntrega) {
+    setErro('')
+    try {
+      const { error } = await supabase
+        .from('epi_entregas_itens')
+        .update({ devolvido_em: null, devolucao_motivo: null })
+        .eq('id', i.id)
+      if (error) throw error
+      await carregar()
+    } catch (err: any) {
+      console.error(err)
+      setErro(err?.message || 'Não foi possível reverter a baixa.')
+    }
+  }
+
+  /* Abre a entrega nova já com parte do caminho andado, como os "Copiar"
+   * da tela dele. Nada é gravado aqui: é só o formulário preenchido. */
+  function novaEntregaCom(opcoes: { pessoa?: string; epiId?: string; motivo?: string }) {
+    abrirNova()
+    if (opcoes.pessoa) setQuem(opcoes.pessoa)
+    if (opcoes.epiId) {
+      setEscolhidos({ [opcoes.epiId]: { qtd: 1, motivo: opcoes.motivo || 'entrega' } })
+    }
+  }
+
+  async function acaoLinha(acao: string, e: Entrega, i: ItemEntrega) {
+    setMenuAberto(null)
+    if (acao === 'alterar' || acao === 'prazo') {
+      abrirEdicao(e)
+      return
+    }
+    if (acao === 'baixa') {
+      const certeza = window.confirm(
+        `Dar baixa em "${i.nome}" de ${e.colaboradores?.nome || 'este trabalhador'}?\n\nFica registrado que voltou hoje. Dá para reverter depois.`
+      )
+      if (certeza) await baixarItens([{ e, i }])
+      return
+    }
+    if (acao === 'reverter') {
+      await reverterItem(i)
+      return
+    }
+    if (acao === 'trocar') {
+      /* Trocar é dar baixa no que está com a pessoa e entregar outro no
+       * lugar: a baixa fica para quando a entrega nova for salva, senão
+       * ela some da lista antes de existir substituta. */
+      novaEntregaCom({ pessoa: e.colaborador_id, epiId: i.epi_id || undefined, motivo: 'substituicao' })
+      return
+    }
+    if (acao === 'copiar-epi') {
+      novaEntregaCom({ epiId: i.epi_id || undefined })
+      return
+    }
+    if (acao === 'copiar-pessoa') {
+      novaEntregaCom({ pessoa: e.colaborador_id })
+      return
+    }
+    if (acao === 'cancelar') await cancelar(e)
+  }
+
+  async function darBaixaMarcados() {
+    const itens = marcadas.filter(({ e, i }) => !i.devolvido_em && !e.cancelada_em)
+    if (!itens.length) return
+    const certeza = window.confirm(
+      `Dar baixa em ${itens.length} equipamento${itens.length > 1 ? 's' : ''}?\n\nFica registrado que voltaram hoje. Dá para reverter depois.`
+    )
+    if (certeza) await baixarItens(itens)
+  }
+
+  function trocarMarcados() {
+    const itens = marcadas.filter(({ e, i }) => !i.devolvido_em && !e.cancelada_em)
+    if (!itens.length) return
+    const pessoa = itens[0].e.colaborador_id
+    abrirNova()
+    setQuem(pessoa)
+    const escolha: Record<string, { qtd: number; motivo: string }> = {}
+    for (const { i } of itens) {
+      if (i.epi_id) escolha[i.epi_id] = { qtd: i.quantidade, motivo: 'substituicao' }
+    }
+    setEscolhidos(escolha)
+  }
+
   async function copiarLink() {
     if (!qr) return
     try {
@@ -656,6 +881,8 @@ export default function EntregasEpi() {
         </div>
       </div>
 
+      {/* Barra de cima, na ordem do OnSafety: o que cria à esquerda, o
+          que age sobre o que está marcado à direita. */}
       <div className="filters">
         {interno && (
           <FiltroEmpresa
@@ -664,86 +891,341 @@ export default function EntregasEpi() {
             opcoes={empresas.map((e) => ({ id: e.id, nome: nomeEmpresa(e) }))}
           />
         )}
-        <input
-          type="search"
-          id="busca-entrega"
-          placeholder="Trabalhador, equipamento ou CA"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
-        <label className="caixa-marcar">
-          <input
-            type="checkbox"
-            id="so-pendentes"
-            checked={soPendentes}
-            onChange={(e) => setSoPendentes(e.target.checked)}
-          />
-          Só sem assinatura
-        </label>
-        <span style={{ flex: 1 }} />
         <button type="button" className="btn btn-primary" onClick={abrirNova}>
           <Icone nome="mais" /> Nova entrega
         </button>
+        <button
+          type="button"
+          className={`btn ${filtrosAbertos ? 'btn-ativo' : ''}`}
+          onClick={() => setFiltrosAbertos((a) => !a)}
+        >
+          Filtros{filtrosLigados > 0 ? ` (${filtrosLigados})` : ''}
+        </button>
+        <span style={{ flex: 1 }} />
+        <Link
+          href={marcadas.length ? `/epi/ficha?itens=${marcadas.length}` : '/epi/ficha'}
+          className="btn"
+        >
+          Fichas de EPI
+        </Link>
+        <button
+          type="button"
+          className="btn"
+          disabled={!podeTrocar}
+          onClick={trocarMarcados}
+          title={podeTrocar ? '' : 'Marque equipamentos em uso, de um trabalhador só'}
+        >
+          Trocar
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!podeDarBaixa}
+          onClick={darBaixaMarcados}
+          title={podeDarBaixa ? '' : 'Marque equipamentos que ainda estão em uso'}
+        >
+          Dar baixa
+        </button>
       </div>
+
+      {filtrosAbertos && (
+        <div className="painel-filtros">
+          <div className="item-linha">
+            <div className="field">
+              <label htmlFor="f-entrega-de">Entrega — de</label>
+              <input
+                id="f-entrega-de"
+                type="date"
+                value={filtros.entregaDe}
+                onChange={(e) => setFiltros({ ...filtros, entregaDe: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="f-entrega-ate">Entrega — até</label>
+              <input
+                id="f-entrega-ate"
+                type="date"
+                value={filtros.entregaAte}
+                onChange={(e) => setFiltros({ ...filtros, entregaAte: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="f-troca-de">Trocar até — de</label>
+              <input
+                id="f-troca-de"
+                type="date"
+                value={filtros.trocaDe}
+                onChange={(e) => setFiltros({ ...filtros, trocaDe: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="f-troca-ate">Trocar até — até</label>
+              <input
+                id="f-troca-ate"
+                type="date"
+                value={filtros.trocaAte}
+                onChange={(e) => setFiltros({ ...filtros, trocaAte: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="linha-marcas">
+            <label className="caixa-marcar">
+              <input
+                type="checkbox"
+                checked={filtros.comBaixa}
+                onChange={(e) => setFiltros({ ...filtros, comBaixa: e.target.checked })}
+              />
+              Mostrar devolvidos
+            </label>
+            <label className="caixa-marcar">
+              <input
+                type="checkbox"
+                checked={soPendentes}
+                onChange={(e) => setSoPendentes(e.target.checked)}
+              />
+              Só sem assinatura
+            </label>
+            <label className="caixa-marcar">
+              <input
+                type="checkbox"
+                checked={filtros.soVencidos}
+                onChange={(e) => setFiltros({ ...filtros, soVencidos: e.target.checked })}
+              />
+              Só com troca vencida
+            </label>
+            <label className="caixa-marcar">
+              <input
+                type="checkbox"
+                checked={filtros.comCanceladas}
+                onChange={(e) => setFiltros({ ...filtros, comCanceladas: e.target.checked })}
+              />
+              Mostrar canceladas
+            </label>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm" onClick={limparFiltros}>
+              Limpar filtros
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">
           <span className="section-title">
-            {carregando ? 'Carregando…' : `${listadas.length} entrega${listadas.length === 1 ? '' : 's'}`}
+            {carregando
+              ? 'Carregando…'
+              : `${linhas.length} equipamento${linhas.length === 1 ? '' : 's'} entregue${
+                  linhas.length === 1 ? '' : 's'
+                }`}
+          </span>
+          <span className="paginacao">
+            <label htmlFor="por-pagina">Por página</label>
+            <select
+              id="por-pagina"
+              value={porPagina}
+              onChange={(e) => {
+                setPorPagina(Number(e.target.value))
+                setPagina(1)
+              }}
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={pagina <= 1}
+              onClick={() => setPagina((n) => n - 1)}
+            >
+              Anterior
+            </button>
+            <span className="mono">
+              {pagina} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={pagina >= totalPaginas}
+              onClick={() => setPagina((n) => n + 1)}
+            >
+              Próxima
+            </button>
           </span>
         </div>
-        <div className="lista-entregas">
-          {!carregando && listadas.length === 0 && (
-            <p className="empty-state">Nenhuma entrega registrada ainda.</p>
-          )}
-          {listadas.map((e) => (
-            <article key={e.id} className={`entrega ${e.cancelada_em ? 'cancelada' : ''}`}>
-              <div className="entrega-topo">
-                <strong>{e.colaboradores?.nome || '—'}</strong>
-                {e.cancelada_em ? (
-                  <span className="pill flat">Cancelada</span>
-                ) : e.assinado_em ? (
-                  <span className="pill good">Assinada</span>
-                ) : (
-                  <span className="pill warn">Aguardando assinatura</span>
-                )}
-              </div>
-              <p className="entrega-quando">
-                {dataHoraBr(e.entregue_em)}
-                {e.entregue_por_nome ? ` · por ${e.entregue_por_nome}` : ''}
-                {!e.cancelada_em && (
-                  <>
-                    <button type="button" className="entrega-acao" onClick={() => abrirEdicao(e)}>
-                      Editar / dar baixa
-                    </button>
-                    <button type="button" className="entrega-cancelar" onClick={() => cancelar(e)}>
-                      Cancelar
-                    </button>
-                  </>
-                )}
-              </p>
-              <ul className="entrega-itens">
-                {e.epi_entregas_itens.map((i, n) => (
-                  <li key={i.id || n} className={i.devolvido_em ? 'item-devolvido' : ''}>
-                    {i.quantidade > 1 ? `${i.quantidade}× ` : ''}
+
+        <div className="table-scroll">
+          <table className="tabela-colab tabela-entregas">
+            <thead>
+              <tr>
+                <th className="col-marca">
+                  <input
+                    type="checkbox"
+                    aria-label="Marcar todos desta página"
+                    checked={marcouTudoNaPagina}
+                    onChange={(e) => marcarPagina(e.target.checked)}
+                  />
+                </th>
+                <th>Trabalhador</th>
+                <th>Matrícula</th>
+                <th>Qtde.</th>
+                <th>CA</th>
+                <th>Equipamento</th>
+                <th>Entrega</th>
+                <th>Previsão de troca</th>
+                <th aria-label="Opções" />
+              </tr>
+              {/* Filtro em cada coluna, como na tela dele: dá para achar um
+                  CA ou um nome sem sair da tabela. */}
+              <tr className="linha-filtros">
+                <th />
+                <th>
+                  <input
+                    value={colunas.trabalhador}
+                    onChange={(e) => setColunas({ ...colunas, trabalhador: e.target.value })}
+                    aria-label="Filtrar por trabalhador"
+                  />
+                </th>
+                <th>
+                  <input
+                    value={colunas.matricula}
+                    onChange={(e) => setColunas({ ...colunas, matricula: e.target.value })}
+                    aria-label="Filtrar por matrícula"
+                  />
+                </th>
+                <th />
+                <th>
+                  <input
+                    value={colunas.ca}
+                    onChange={(e) => setColunas({ ...colunas, ca: e.target.value })}
+                    aria-label="Filtrar por CA"
+                  />
+                </th>
+                <th>
+                  <input
+                    value={colunas.equipamento}
+                    onChange={(e) => setColunas({ ...colunas, equipamento: e.target.value })}
+                    aria-label="Filtrar por equipamento"
+                  />
+                </th>
+                <th />
+                <th />
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {!carregando && linhas.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="empty-state">
+                    Nenhum equipamento entregue com esses filtros.
+                  </td>
+                </tr>
+              )}
+              {linhasPagina.map(({ e, i }) => (
+                <tr
+                  key={i.id}
+                  className={e.cancelada_em ? 'inativo' : i.devolvido_em ? 'item-devolvido' : ''}
+                >
+                  <td className="col-marca">
+                    <input
+                      type="checkbox"
+                      aria-label="Marcar este equipamento"
+                      checked={marcados.has(i.id)}
+                      onChange={() => alternarMarca(i.id)}
+                    />
+                  </td>
+                  <td className="nome">
+                    {e.colaboradores?.nome || '—'}
+                    {e.cancelada_em ? (
+                      <span className="pill flat"> Cancelada</span>
+                    ) : e.assinado_em ? null : (
+                      <span className="pill warn"> Sem assinatura</span>
+                    )}
+                  </td>
+                  <td className="mono">{e.colaboradores?.matricula || '—'}</td>
+                  <td className="mono">{i.quantidade}</td>
+                  <td className="mono">{i.ca || '—'}</td>
+                  <td>
                     {i.nome}
-                    {i.complemento ? ` · ${i.complemento}` : ''}
-                    {i.ca ? ` · CA ${i.ca}` : ''}
+                    {i.complemento && <span className="complemento"> · {i.complemento}</span>}
+                    <span className="motivo-item"> · {MOTIVO_ROTULO[i.motivo] || i.motivo}</span>
+                  </td>
+                  <td className="mono">{dataHoraBr(e.entregue_em)}</td>
+                  <td className="mono">
                     {i.devolvido_em ? (
                       <span className="baixa">
-                        devolvido {dataBr(i.devolvido_em.slice(0, 10))} ·{' '}
-                        {rotuloDevolucao(i.devolucao_motivo)}
+                        devolvido {dataBr(i.devolvido_em.slice(0, 10))}
                       </span>
                     ) : (
                       <span className={venceu(i.troca_em) ? 'troca vencida' : 'troca'}>
-                        trocar até {dataBr(i.troca_em)}
+                        {dataBr(i.troca_em)}
                       </span>
                     )}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
+                  </td>
+                  <td className="acoes">
+                    <div className="menu-linha">
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        aria-haspopup="menu"
+                        aria-expanded={menuAberto === i.id}
+                        onClick={() => setMenuAberto(menuAberto === i.id ? null : i.id)}
+                      >
+                        Opções ▾
+                      </button>
+                      {menuAberto === i.id && (
+                        <div className="menu-lista" role="menu">
+                          <button type="button" onClick={() => acaoLinha('alterar', e, i)}>
+                            Alterar
+                          </button>
+                          <button type="button" onClick={() => acaoLinha('prazo', e, i)}>
+                            Alterar previsão de troca
+                          </button>
+                          <button
+                            type="button"
+                            disabled={Boolean(i.devolvido_em || e.cancelada_em)}
+                            onClick={() => acaoLinha('trocar', e, i)}
+                          >
+                            Trocar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={Boolean(i.devolvido_em || e.cancelada_em)}
+                            onClick={() => acaoLinha('baixa', e, i)}
+                          >
+                            Dar baixa
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!i.devolvido_em}
+                            onClick={() => acaoLinha('reverter', e, i)}
+                          >
+                            Reverter baixa
+                          </button>
+                          <button type="button" onClick={() => acaoLinha('copiar-epi', e, i)}>
+                            Copiar EPI
+                          </button>
+                          <button type="button" onClick={() => acaoLinha('copiar-pessoa', e, i)}>
+                            Copiar trabalhador
+                          </button>
+                          <button
+                            type="button"
+                            className="perigo"
+                            disabled={Boolean(e.cancelada_em)}
+                            onClick={() => acaoLinha('cancelar', e, i)}
+                          >
+                            Cancelar a entrega
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
