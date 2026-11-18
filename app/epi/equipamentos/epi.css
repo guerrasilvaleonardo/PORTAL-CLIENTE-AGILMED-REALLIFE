@@ -42,3 +42,75 @@
   border: 0;
   padding: 0;
 }
+
+/* ---------- Configuração de EPI's ----------
+   A tabela no formato que a equipe já conhece: o equipamento com o CA,
+   a validade e a descrição num bloco só, e os números do dia a dia
+   editáveis na própria linha — estoque não merece abrir painel. */
+.tabela-epis .celula-epi {
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tabela-epis .celula-epi strong {
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.epi-mini {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  line-height: 1.4;
+}
+.campo-linha {
+  width: 100%;
+  min-width: 72px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12.5px;
+  background: var(--surface);
+}
+.campo-linha:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.campo-linha.numero {
+  max-width: 96px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Estoque no mínimo ou abaixo: é o aviso que evita a falta. */
+.campo-linha.numero.baixo {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+.tabela-epis .centro {
+  text-align: center;
+}
+.tabela-epis .centro input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+/* A marcação da empresa, acima da tabela. */
+.linha-bloqueio {
+  align-items: flex-start;
+  gap: 9px;
+  white-space: normal;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m, 14px);
+  padding: 12px 14px;
+}
+.linha-bloqueio small {
+  display: block;
+  font-weight: 500;
+  color: var(--ink-faint);
+  font-size: 12px;
+  margin-top: 2px;
+}
