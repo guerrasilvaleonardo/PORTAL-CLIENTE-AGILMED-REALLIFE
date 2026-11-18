@@ -397,10 +397,11 @@
   display: inline-block;
 }
 .menu-lista {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 30;
+  /* Em relacao a janela, nao a tabela: dentro da .table-scroll o menu
+     era recortado pela rolagem, e so a primeira linha dele aparecia. */
+  position: fixed;
+  transform: translateX(-100%);
+  z-index: 60;
   min-width: 210px;
   background: var(--surface);
   border: 1px solid var(--border);
