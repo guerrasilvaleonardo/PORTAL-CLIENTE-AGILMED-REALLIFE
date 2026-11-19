@@ -471,3 +471,23 @@
   font: inherit;
   font-size: 12.5px;
 }
+
+/* A lista de quem nunca recebeu EPI, no painel. */
+.lista-sem-epi {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.lista-sem-epi li {
+  padding: 6px 0;
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.lista-sem-epi li + li {
+  border-top: 1px solid var(--border);
+}
