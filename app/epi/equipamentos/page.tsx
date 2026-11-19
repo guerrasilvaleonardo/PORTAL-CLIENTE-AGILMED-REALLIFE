@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import EpiAbas from '@/components/EpiAbas'
+import ImportarPlanilha from './ImportarPlanilha'
 import Icone from '@/components/Icone'
 import '../../colaboradores/colaboradores.css'
 import './epi.css'
@@ -531,6 +532,18 @@ export default function PainelEpi() {
           </select>
         </div>
         <span style={{ flex: 1 }} />
+        {(interno ? empresaFiltro : minhaEmpresa) && (
+          <ImportarPlanilha
+            empresaId={interno ? empresaFiltro : minhaEmpresa}
+            nomeEmpresa={
+              empresas.find((e) => e.id === (interno ? empresaFiltro : minhaEmpresa))?.nome_fantasia ||
+              empresas.find((e) => e.id === (interno ? empresaFiltro : minhaEmpresa))?.razao_social ||
+              'esta empresa'
+            }
+            epis={lista}
+            aoTerminar={carregar}
+          />
+        )}
         <button type="button" className="btn btn-primary" onClick={abrirNovo}>
           <Icone nome="mais" /> Novo equipamento
         </button>
