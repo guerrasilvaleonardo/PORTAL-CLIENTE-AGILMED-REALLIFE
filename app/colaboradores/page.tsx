@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import { formatarCpf, soDigitosCpf, normalizarTexto } from '@/lib/historicoCertificados'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import ImportarFuncoes from './ImportarFuncoes'
 import Icone from '@/components/Icone'
 import CadastroAbas from '@/components/CadastroAbas'
 import './colaboradores.css'
@@ -396,6 +397,18 @@ export default function Colaboradores() {
           <option value="desligado">Desligados</option>
         </select>
         <span style={{ flex: 1 }} />
+        {(interno ? empresaFiltro : minhaEmpresa) && (
+          <ImportarFuncoes
+            empresaId={interno ? empresaFiltro : minhaEmpresa}
+            nomeEmpresa={
+              empresas.find((e) => e.id === (interno ? empresaFiltro : minhaEmpresa))?.nome_fantasia ||
+              empresas.find((e) => e.id === (interno ? empresaFiltro : minhaEmpresa))?.razao_social ||
+              'esta empresa'
+            }
+            pessoas={lista}
+            aoTerminar={carregar}
+          />
+        )}
         <button type="button" className="btn btn-primary" onClick={abrirNovo}>
           <Icone nome="mais" /> Novo colaborador
         </button>
