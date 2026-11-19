@@ -155,3 +155,11 @@
   accent-color: var(--primary);
   margin: 0;
 }
+
+/* O campo de arquivo com o botao do modelo ao lado, na importacao. */
+.linha-arquivo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}

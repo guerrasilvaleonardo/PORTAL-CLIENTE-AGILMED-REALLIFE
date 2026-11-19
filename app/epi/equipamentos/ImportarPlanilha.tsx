@@ -336,7 +336,10 @@ export default function ImportarPlanilha({
             </button>
           </div>
 
-          {lendo && <p className="dica">Lendo {arquivo}…</p>}
+          {/* O campo de arquivo é limpo depois da leitura, para dar para
+              escolher o mesmo arquivo de novo. Sem isto ele diria
+              "nenhum arquivo escolhido" com a prévia na tela. */}
+          {arquivo && <p className="dica">{lendo ? `Lendo ${arquivo}…` : arquivo}</p>}
 
           {plano && contas && (
             <>
