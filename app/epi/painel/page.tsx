@@ -56,6 +56,16 @@ const horaDe = (iso: string) =>
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
+/* Os mesmos rótulos da tela de Entregas, para o painel não inventar
+ * nomes diferentes para a mesma coisa. */
+const MOTIVOS: Record<string, string> = {
+  entrega: 'Primeira entrega',
+  substituicao: 'Substituição',
+  desgaste: 'Desgaste',
+  dano: 'Dano',
+  perda: 'Perda',
+}
+
 const diaDaSemanaDe = (iso: string) => {
   const ymd = new Date(iso).toLocaleDateString('en-CA', { timeZone: FUSO })
   return new Date(ymd + 'T12:00:00Z').getUTCDay()
@@ -66,7 +76,16 @@ const diasEntre = (de: string, ate: string) =>
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 
+type Pessoa = {
+  id: string
+  empresa_id: string
+  nome: string
+  nome_chave: string
+  funcao: string | null
+}
+
 type Item = {
+  motivo: string
   nome: string
   complemento: string | null
   ca: string | null
@@ -131,6 +150,10 @@ export default function PainelEpi() {
   const [interno, setInterno] = useState(false)
 
   const [empresas, setEmpresas] = useState<Empresa[]>([])
+  /* O quadro de gente da empresa, para saber quem NÃO recebeu. Sem esta
+   * lista o painel só consegue falar de quem já apareceu numa entrega. */
+  const [pessoas, setPessoas] = useState<Pessoa[]>([])
+  const [desligados, setDesligados] = useState<Set<string>>(new Set())
   const [entregas, setEntregas] = useState<Entrega[]>([])
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [periodo, setPeriodo] = useState(90)
@@ -171,10 +194,25 @@ export default function PainelEpi() {
         .select(
           'id, empresa_id, entregue_em, assinado_em, cancelada_em, entregue_por_nome, ' +
             'local_nome, colaborador_id, colaboradores!colaborador_id(nome), ' +
-            'epi_entregas_itens(nome, complemento, ca, quantidade, troca_em, devolvido_em, devolucao_motivo)'
+            'epi_entregas_itens(motivo, nome, complemento, ca, quantidade, troca_em, devolvido_em, devolucao_motivo)'
         )
         .order('entregue_em', { ascending: false })
         .limit(2000)
+
+      /* Quem trabalha na empresa, e quem já saiu. O desligamento mora em
+       * Certificados, na colaboradores_desligados — a mesma fonte que a
+       * tela de Colaboradores lê, para não haver duas respostas. */
+      const [{ data: gente }, { data: fora }] = await Promise.all([
+        supabase.from('colaboradores').select('id, empresa_id, nome, nome_chave, funcao'),
+        supabase
+          .from('colaboradores_desligados')
+          .select('empresa_id, nome_chave')
+          .is('reativado_em', null),
+      ])
+      setPessoas((gente || []) as Pessoa[])
+      setDesligados(
+        new Set(((fora || []) as any[]).map((d) => `${d.empresa_id}|${d.nome_chave}`))
+      )
 
       if (error) {
         if (error.code === '42P01' || /does not exist|schema cache/i.test(error.message || '')) {
@@ -259,6 +297,33 @@ export default function PainelEpi() {
     const porDiaSemana = new Array(7).fill(0)
     for (const e of noPeriodo) porDiaSemana[diaDaSemanaDe(e.entregue_em)] += 1
 
+    /* Por motivo: o item diz por que foi entregue. Perda e dano repetidos
+     * contam uma história que a soma de entregas esconde. */
+    const porMotivo = new Map<string, number>()
+    for (const i of itensNoPeriodo) {
+      const rotulo = MOTIVOS[i.motivo] || i.motivo
+      porMotivo.set(rotulo, (porMotivo.get(rotulo) || 0) + 1)
+    }
+
+    /* Tempo médio com o EPI, por trabalhador: só o que já voltou, igual
+     * ao gráfico de permanência. */
+    const diasPorPessoa = new Map<string, number[]>()
+    for (const { e, i } of devolvidosParaMedia) {
+      const nome = e.colaboradores?.nome || '— sem nome —'
+      const atual = diasPorPessoa.get(nome) || []
+      atual.push(diasEntre(e.entregue_em, i.devolvido_em as string))
+      diasPorPessoa.set(nome, atual)
+    }
+
+    /* Quem nunca recebeu nada. Desligado não entra: já foi embora, e a
+     * lista existe para alguém ir atrás da pessoa hoje. */
+    const recebeuAlguma = new Set(vivas.map((e) => e.colaborador_id))
+    const semNenhum = pessoas
+      .filter((c) => !empresaFiltro || c.empresa_id === empresaFiltro)
+      .filter((c) => !desligados.has(`${c.empresa_id}|${c.nome_chave}`))
+      .filter((c) => !recebeuAlguma.has(c.id))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
     const porMes = new Map<string, number>()
     for (const e of noPeriodo) {
       const chave = rotuloMes(e.entregue_em)
@@ -292,8 +357,19 @@ export default function PainelEpi() {
         .sort((a, b) => a[0] - b[0])
         .map(([h, valor]) => ({ rotulo: `${String(h).padStart(2, '0')}h`, valor })),
       porDiaSemana: porDiaSemana.map((valor, i) => ({ rotulo: DIAS_SEMANA[i], valor })),
+      porMotivo: [...porMotivo.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([rotulo, valor]) => ({ rotulo, valor })),
+      permanenciaPorPessoa: [...diasPorPessoa.entries()]
+        .map(([rotulo, ns]) => ({
+          rotulo,
+          valor: Math.round(ns.reduce((s, n) => s + n, 0) / ns.length),
+        }))
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 10),
+      semNenhum,
     }
-  }, [entregas, empresaFiltro, periodo])
+  }, [entregas, empresaFiltro, periodo, pessoas, desligados])
 
   if (semTabela) {
     return (
@@ -528,6 +604,77 @@ export default function PainelEpi() {
               <div className="empty-state">Nenhuma entrega no período.</div>
             ) : (
               <Barras barras={numeros.porDiaSemana} />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Nunca receberam EPI</div>
+          </div>
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando…</div>
+            ) : interno && !empresaFiltro ? (
+              /* Sem empresa escolhida a lista misturaria o pessoal de
+                 todos os clientes, e ninguém vai atrás de uma lista
+                 assim. */
+              <div className="empty-state">
+                Escolha a empresa para ver quem está sem equipamento.
+              </div>
+            ) : numeros.semNenhum.length === 0 ? (
+              <div className="empty-state">Todo mundo do cadastro já recebeu alguma coisa.</div>
+            ) : (
+              <>
+                <p className="dica" style={{ marginBottom: 12 }}>
+                  <strong>{numeros.semNenhum.length}</strong> pessoa
+                  {numeros.semNenhum.length > 1 ? 's' : ''} no cadastro sem nenhuma entrega
+                  registrada. Quem já foi desligado não entra na conta.
+                </p>
+                <ul className="lista-sem-epi">
+                  {numeros.semNenhum.slice(0, 12).map((c) => (
+                    <li key={c.id}>
+                      {c.nome}
+                      {c.funcao && <span className="complemento"> · {c.funcao}</span>}
+                    </li>
+                  ))}
+                </ul>
+                {numeros.semNenhum.length > 12 && (
+                  <p className="dica" style={{ marginTop: 10 }}>
+                    e mais {numeros.semNenhum.length - 12}.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">EPI por motivo</div>
+          </div>
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando…</div>
+            ) : (
+              <Barras barras={numeros.porMotivo} vazio="Nenhuma entrega no período." />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Tempo com o EPI, por trabalhador</div>
+          </div>
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando…</div>
+            ) : (
+              <Barras
+                sufixo=" dias"
+                barras={numeros.permanenciaPorPessoa}
+                vazio="Nenhum equipamento devolvido no período."
+              />
             )}
           </div>
         </div>
