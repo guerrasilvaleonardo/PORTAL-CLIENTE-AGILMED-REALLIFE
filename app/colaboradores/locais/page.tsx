@@ -37,6 +37,10 @@ type Local = {
   empresa_id: string
   nome: string
   tipo: string
+  /* Atalho de digitação, único na empresa (supabase/locais-ambientes.sql). */
+  codigo: string | null
+  /* O estabelecimento onde este ambiente fica. Um nível só. */
+  local_pai_id: string | null
   endereco: string | null
   cidade_uf: string | null
   cno: string | null
@@ -51,6 +55,8 @@ const formVazio = {
   empresa_id: '',
   nome: '',
   tipo: 'obra',
+  codigo: '',
+  local_pai_id: '',
   endereco: '',
   cidade_uf: '',
   cno: '',
@@ -179,10 +185,42 @@ export default function LocaisTrabalho() {
       if (empresaFiltro && l.empresa_id !== empresaFiltro) return false
       if (!mostrarInativos && !l.ativo) return false
       if (!palavras.length) return true
-      const alvo = [l.nome, l.endereco, l.cidade_uf, l.responsavel, l.cno].filter(Boolean).join(' ')
+      const alvo = [l.nome, l.codigo, l.endereco, l.cidade_uf, l.responsavel, l.cno]
+        .filter(Boolean)
+        .join(' ')
       return casaBusca(alvo, palavras)
     })
   }, [lista, busca, empresaFiltro, mostrarInativos])
+
+  /* Os estabelecimentos primeiro, cada um seguido dos seus ambientes.
+   * Ambiente cujo estabelecimento ficou de fora da busca aparece solto,
+   * no fim — é melhor mostrar do que esconder. */
+  const emArvore = useMemo(() => {
+    const visiveis = new Set(filtrados.map((l) => l.id))
+    const paes = filtrados.filter((l) => !l.local_pai_id)
+    const filhos = filtrados.filter((l) => l.local_pai_id)
+
+    const saida: { local: Local; dentro: boolean }[] = []
+    for (const pai of paes) {
+      saida.push({ local: pai, dentro: false })
+      for (const f of filhos.filter((x) => x.local_pai_id === pai.id)) {
+        saida.push({ local: f, dentro: true })
+      }
+    }
+    for (const f of filhos) {
+      if (!f.local_pai_id || !visiveis.has(f.local_pai_id)) saida.push({ local: f, dentro: true })
+    }
+    return saida
+  }, [filtrados])
+
+  /* Onde um ambiente pode ser colocado: os locais da mesma empresa que
+   * ainda não estão dentro de ninguém, menos ele mesmo. */
+  const possiveisPais = useMemo(() => {
+    const empresaDoForm = form.empresa_id || (interno ? empresaFiltro : minhaEmpresa)
+    return lista.filter(
+      (l) => l.empresa_id === empresaDoForm && !l.local_pai_id && l.id !== form.id && l.ativo
+    )
+  }, [lista, form.empresa_id, form.id, interno, empresaFiltro, minhaEmpresa])
 
   const numeros = useMemo(() => {
     const base = (empresaFiltro ? lista.filter((l) => l.empresa_id === empresaFiltro) : lista).filter(
@@ -207,6 +245,8 @@ export default function LocaisTrabalho() {
       empresa_id: l.empresa_id,
       nome: l.nome,
       tipo: l.tipo,
+      codigo: l.codigo || '',
+      local_pai_id: l.local_pai_id || '',
       endereco: l.endereco || '',
       cidade_uf: l.cidade_uf || '',
       cno: l.cno || '',
@@ -244,6 +284,8 @@ export default function LocaisTrabalho() {
         empresa_id: empresaId,
         nome,
         tipo: form.tipo,
+        codigo: form.codigo.trim() || null,
+        local_pai_id: form.local_pai_id || null,
         endereco: form.endereco.trim() || null,
         cidade_uf: form.cidade_uf.trim() || null,
         cno: cno || null,
@@ -375,9 +417,11 @@ export default function LocaisTrabalho() {
                   </td>
                 </tr>
               )}
-              {filtrados.map((l) => (
+              {emArvore.map(({ local: l, dentro }) => (
                 <tr key={l.id} className={l.ativo ? '' : 'inativo'}>
                   <td className="nome">
+                    {dentro && <span className="dentro-de" aria-hidden="true" />}
+                    {l.codigo && <span className="codigo-local">{l.codigo}</span>}
                     {l.nome}
                     {l.endereco && <span className="complemento"> · {l.endereco}</span>}
                     {!l.ativo && <span className="pill flat"> Encerrado</span>}
@@ -461,6 +505,38 @@ export default function LocaisTrabalho() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="field">
+                <label htmlFor="local-codigo">Código</label>
+                <input
+                  id="local-codigo"
+                  placeholder="ALM-01"
+                  value={form.codigo}
+                  onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                />
+                <p className="dica">
+                  Atalho curto, do jeito que a empresa chama. Opcional, e não se repete.
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor="local-pai">Dentro de</label>
+                <select
+                  id="local-pai"
+                  value={form.local_pai_id}
+                  onChange={(e) => setForm({ ...form, local_pai_id: e.target.value })}
+                >
+                  <option value="">Não fica dentro de outro</option>
+                  {possiveisPais.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nome}
+                    </option>
+                  ))}
+                </select>
+                <p className="dica">
+                  Para um ambiente do estabelecimento: o almoxarifado dentro da obra. Um nível só.
+                </p>
               </div>
 
               <div className="field">

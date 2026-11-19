@@ -163,3 +163,25 @@
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* O ambiente aparece recuado embaixo do estabelecimento dele. */
+.dentro-de {
+  display: inline-block;
+  width: 18px;
+  border-top: 1px solid var(--border);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+/* O codigo curto do local, antes do nome. */
+.codigo-local {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
