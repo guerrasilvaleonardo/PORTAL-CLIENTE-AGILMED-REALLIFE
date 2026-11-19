@@ -192,7 +192,9 @@ export default function EntregasEpi() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([])
   const [epis, setEpis] = useState<Epi[]>([])
   const [entregas, setEntregas] = useState<Entrega[]>([])
-  const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
+  const [locais, setLocais] = useState<{ id: string; nome: string; local_pai_id: string | null }[]>(
+    []
+  )
 
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [soPendentes, setSoPendentes] = useState(false)
@@ -316,9 +318,9 @@ export default function EntregasEpi() {
       /* Só para traduzir local_id em nome na hora de gravar a entrega. */
       const { data: locs } = await supabase
         .from('locais_trabalho')
-        .select('id, nome')
+        .select('id, nome, local_pai_id')
         .eq('ativo', true)
-      setLocais((locs || []) as { id: string; nome: string }[])
+      setLocais((locs || []) as { id: string; nome: string; local_pai_id: string | null }[])
       setEntregas(
         ((ents || []) as any[]).map((e) => ({
           ...e,
@@ -490,7 +492,13 @@ export default function EntregasEpi() {
   function localDoTrabalhador(id: string): string | null {
     const c = colaboradores.find((x) => x.id === id)
     if (!c) return null
-    return locais.find((l) => l.id === c.local_id)?.nome || c.local_trabalho || null
+    const local = locais.find((l) => l.id === c.local_id)
+    if (!local) return c.local_trabalho || null
+
+    /* Ambiente sai com o estabelecimento junto: "Almoxarifado" sozinho
+     * numa ficha de dois anos atrás não diz onde a pessoa estava. */
+    const pai = local.local_pai_id ? locais.find((l) => l.id === local.local_pai_id) : null
+    return pai ? `${pai.nome} · ${local.nome}` : local.nome
   }
 
   function abrirNova() {
