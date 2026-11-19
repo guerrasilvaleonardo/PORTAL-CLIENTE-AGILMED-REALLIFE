@@ -38,6 +38,32 @@ const PERIODOS = [
  * sem equipamento. */
 const DIAS_PROXIMO = 30
 
+/* Hora e dia da semana no fuso de Porto Velho, que é onde o
+ * almoxarifado fica. Pelo fuso do navegador, uma entrega das 14h de
+ * Porto Velho apareceria às 15h para quem abrisse o painel em São
+ * Paulo — e o gráfico existe justamente para dizer a que horas a
+ * equipe trabalha. */
+const FUSO = 'America/Porto_Velho'
+
+const horaDe = (iso: string) =>
+  Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: FUSO,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(iso))
+  )
+
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+
+const diaDaSemanaDe = (iso: string) => {
+  const ymd = new Date(iso).toLocaleDateString('en-CA', { timeZone: FUSO })
+  return new Date(ymd + 'T12:00:00Z').getUTCDay()
+}
+
+const diasEntre = (de: string, ate: string) =>
+  Math.round((new Date(ate).getTime() - new Date(de).getTime()) / 86400000)
+
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 
 type Item = {
@@ -201,6 +227,38 @@ export default function PainelEpi() {
       .flatMap((e) => e.epi_entregas_itens)
       .filter((i) => i.devolvido_em && new Date(i.devolvido_em) >= limite).length
 
+    /* Permanência: quanto tempo o equipamento ficou com a pessoa, contra
+     * quanto tempo era para ficar. Só entra o que já voltou — enquanto o
+     * EPI está no pé de alguém não há "realizada" para comparar, e
+     * misturar os dois daria uma média que não quer dizer nada. */
+    const devolvidosParaMedia = vivas
+      .flatMap((e) => e.epi_entregas_itens.map((i) => ({ e, i })))
+      .filter(({ i }) => i.devolvido_em && new Date(i.devolvido_em) >= limite)
+
+    const media = (ns: number[]) =>
+      ns.length ? Math.round(ns.reduce((s, n) => s + n, 0) / ns.length) : 0
+
+    const permanencia = {
+      quantos: devolvidosParaMedia.length,
+      planejada: media(devolvidosParaMedia.map(({ e, i }) => diasEntre(e.entregue_em, i.troca_em))),
+      realizada: media(
+        devolvidosParaMedia.map(({ e, i }) => diasEntre(e.entregue_em, i.devolvido_em as string))
+      ),
+    }
+
+    /* Por hora: só as horas que tiveram entrega. Vinte e quatro linhas,
+     * vinte delas zeradas, é ruído. */
+    const porHora = new Map<number, number>()
+    for (const e of noPeriodo) {
+      const h = horaDe(e.entregue_em)
+      porHora.set(h, (porHora.get(h) || 0) + 1)
+    }
+
+    /* Por dia da semana: os sete sempre, inclusive os zerados. Aqui o
+     * vazio é a informação — sábado sem nenhuma entrega diz algo. */
+    const porDiaSemana = new Array(7).fill(0)
+    for (const e of noPeriodo) porDiaSemana[diaDaSemanaDe(e.entregue_em)] += 1
+
     const porMes = new Map<string, number>()
     for (const e of noPeriodo) {
       const chave = rotuloMes(e.entregue_em)
@@ -229,6 +287,11 @@ export default function PainelEpi() {
       ),
       porTrabalhador: ranking(noPeriodo.map((e) => e.colaboradores?.nome || null)),
       porLocal: ranking(noPeriodo.map((e) => e.local_nome), 8, '— sem local —'),
+      permanencia,
+      porHora: [...porHora.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([h, valor]) => ({ rotulo: `${String(h).padStart(2, '0')}h`, valor })),
+      porDiaSemana: porDiaSemana.map((valor, i) => ({ rotulo: DIAS_SEMANA[i], valor })),
     }
   }, [entregas, empresaFiltro, periodo])
 
@@ -403,6 +466,68 @@ export default function PainelEpi() {
               <div className="empty-state">Carregando…</div>
             ) : (
               <Barras barras={numeros.porTrabalhador} vazio="Nenhuma entrega no período." />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Permanência: planejada x realizada</div>
+          </div>
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando…</div>
+            ) : numeros.permanencia.quantos === 0 ? (
+              <div className="empty-state">
+                Nenhum equipamento devolvido no período — sem devolução não há o que comparar.
+              </div>
+            ) : (
+              <>
+                <Barras
+                  sufixo=" dias"
+                  barras={[
+                    { rotulo: 'Planejada', valor: numeros.permanencia.planejada },
+                    { rotulo: 'Realizada', valor: numeros.permanencia.realizada },
+                  ]}
+                />
+                <p className="dica" style={{ marginTop: 12 }}>
+                  Média de {numeros.permanencia.quantos} equipamento
+                  {numeros.permanencia.quantos > 1 ? 's' : ''} que voltaram no período.
+                  {numeros.permanencia.realizada < numeros.permanencia.planejada
+                    ? ' Voltando antes do prazo: pode ser desgaste mais rápido do que o previsto.'
+                    : numeros.permanencia.realizada > numeros.permanencia.planejada
+                      ? ' Ficando além do prazo: a troca está saindo depois do planejado.'
+                      : ''}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Entregas por hora do dia</div>
+          </div>
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando…</div>
+            ) : (
+              <Barras barras={numeros.porHora} vazio="Nenhuma entrega no período." />
+            )}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Entregas por dia da semana</div>
+          </div>
+          <div className="panel-body">
+            {carregando ? (
+              <div className="empty-state">Carregando…</div>
+            ) : numeros.entregas === 0 ? (
+              <div className="empty-state">Nenhuma entrega no período.</div>
+            ) : (
+              <Barras barras={numeros.porDiaSemana} />
             )}
           </div>
         </div>
