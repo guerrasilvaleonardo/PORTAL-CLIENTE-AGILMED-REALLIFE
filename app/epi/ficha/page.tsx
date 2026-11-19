@@ -75,6 +75,9 @@ type Entrega = {
   assinatura_hash: string | null
   cancelada_em: string | null
   entregue_por_nome: string | null
+  /* A função do dia da entrega (supabase/epi-por-funcao.sql). Nas
+   * entregas antigas pode vir vazia. */
+  funcao: string | null
   foto_path: string
   epi_entregas_itens: Item[]
 }
@@ -163,7 +166,7 @@ export default function FichaEpi() {
         supabase
           .from('epi_entregas')
           .select(
-            'id, colaborador_id, empresa_id, entregue_em, assinado_em, cancelada_em, ' +
+            'id, colaborador_id, empresa_id, entregue_em, assinado_em, cancelada_em, funcao, ' +
               'entregue_por_nome, foto_path, assinatura_imagem, assinatura_hash, ' +
               'epi_entregas_itens(nome, ca, complemento, quantidade, motivo, troca_em, ' +
               'devolvido_em, devolucao_motivo, validade_ca, descricao)'
@@ -356,6 +359,14 @@ export default function FichaEpi() {
       )}
 
       {fichas.map(({ pessoa, linhas }, n) => {
+        /* A função que vai no cabeçalho é a da última entrega desta
+         * ficha, não a do cadastro de hoje: se a pessoa mudou de cargo,
+         * o documento tem de dizer o que ela era quando recebeu. Entrega
+         * antiga, de antes de guardarmos isso, cai no cadastro. */
+        const funcaoDaFicha =
+          [...linhas].reverse().map((l) => l.funcao).find((f) => f && f.trim()) ||
+          pessoa.funcao ||
+          ''
         return (
         <article key={pessoa.id} className="ficha">
           {/* Cabeçalho no formato da ficha que a empresa já conhece:
@@ -387,7 +398,7 @@ export default function FichaEpi() {
             </div>
             <div>
               <span>Função</span>
-              <strong>{pessoa.funcao || ''}</strong>
+              <strong>{funcaoDaFicha}</strong>
             </div>
             <div>
               <span>Matrícula</span>

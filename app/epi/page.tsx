@@ -8,6 +8,7 @@ import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import { formatarCpf } from '@/lib/historicoCertificados'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import EpiAbas from '@/components/EpiAbas'
+import { chaveDaFuncao } from '@/lib/funcao'
 import Icone from '@/components/Icone'
 import '../colaboradores/colaboradores.css'
 import './entregas.css'
@@ -57,6 +58,13 @@ const rotuloDevolucao = (v: string | null) =>
   MOTIVOS_DEVOLUCAO.find((m) => m.valor === v)?.rotulo || v || ''
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
+type LinhaPorFuncao = {
+  empresa_id: string
+  funcao_chave: string
+  epi_id: string
+  quantidade: number
+}
+
 type Colaborador = {
   id: string
   empresa_id: string
@@ -227,6 +235,10 @@ export default function EntregasEpi() {
   const [editando, setEditando] = useState<Edicao | null>(null)
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
 
+  /* O que cada função recebe (supabase/epi-por-funcao.sql). Serve para
+   * marcar sozinho os equipamentos quando se escolhe o trabalhador. */
+  const [porFuncao, setPorFuncao] = useState<LinhaPorFuncao[]>([])
+
   const empresaAtual = interno ? empresaFiltro : minhaEmpresa
 
   async function carregar() {
@@ -293,6 +305,13 @@ export default function EntregasEpi() {
 
       setColaboradores((cols || []) as Colaborador[])
       setEpis((eqs || []) as Epi[])
+
+      /* A lista de cada função. Se o SQL ainda não rodou, a tela segue
+       * funcionando como antes — só não marca nada sozinha. */
+      const { data: kits } = await supabase
+        .from('epi_funcoes')
+        .select('empresa_id, funcao_chave, epi_id, quantidade')
+      setPorFuncao((kits || []) as LinhaPorFuncao[])
 
       /* Só para traduzir local_id em nome na hora de gravar a entrega. */
       const { data: locs } = await supabase
@@ -482,6 +501,35 @@ export default function EntregasEpi() {
     setFoto(null)
     setAviso('')
     setAberta(true)
+  }
+
+  /* Ao escolher o trabalhador, marca o que a função dele recebe. O que
+   * já estava marcado não se perde: quem abriu a entrega por uma
+   * substituição tem aquele item escolhido de propósito. Nada é
+   * obrigatório — quem entrega desmarca o que não for o caso. */
+  function escolherPessoa(id: string) {
+    setQuem(id)
+    if (!id) return
+
+    const pessoa = colaboradores.find((c) => c.id === id)
+    const chave = chaveDaFuncao(pessoa?.funcao)
+    if (!chave) return
+
+    const kit = porFuncao.filter(
+      (l) => l.funcao_chave === chave && (!empresaAtual || l.empresa_id === empresaAtual)
+    )
+    if (!kit.length) return
+
+    setEscolhidos((atual) => {
+      const copia = { ...atual }
+      for (const linha of kit) {
+        const epi = epis.find((e) => e.id === linha.epi_id)
+        if (!epi || !epi.ativo) continue
+        if (copia[linha.epi_id]) continue
+        copia[linha.epi_id] = { qtd: linha.quantidade, motivo: 'entrega' }
+      }
+      return copia
+    })
   }
 
   function alternarEpi(id: string) {
@@ -1273,7 +1321,7 @@ export default function EntregasEpi() {
 
               <div className="field">
                 <label htmlFor="entrega-quem">Quem está recebendo</label>
-                <select id="entrega-quem" value={quem} onChange={(e) => setQuem(e.target.value)}>
+                <select id="entrega-quem" value={quem} onChange={(e) => escolherPessoa(e.target.value)}>
                   <option value="">Escolha o trabalhador</option>
                   {pessoasDaEmpresa.map((c) => (
                     <option key={c.id} value={c.id}>

@@ -13,6 +13,7 @@ const PAGINAS = [
   { href: '/epi', rotulo: 'Entregas' },
   { href: '/epi/ficha', rotulo: 'Ficha' },
   { href: '/epi/equipamentos', rotulo: "Configuração de EPI's" },
+  { href: '/epi/funcoes', rotulo: 'EPI por função' },
   { href: '/epi/painel', rotulo: 'Painel' },
 ]
 
