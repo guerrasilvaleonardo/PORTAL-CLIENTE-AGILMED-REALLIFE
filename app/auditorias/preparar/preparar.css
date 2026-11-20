@@ -1,0 +1,119 @@
+/*
+ * Tela "Antes de começar": passos numerados e a árvore de pastas.
+ * A árvore usa recuo e linha à esquerda para parecer o que é — uma
+ * pasta dentro de outra.
+ */
+
+.prep-passos {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prep-passos li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.prep-passos li div > div {
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.prep-num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--brand, #2563eb);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.prep-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.prep-campo input {
+  min-width: 200px;
+}
+
+.prep-aviso {
+  margin: 10px 0 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.prep-arvore {
+  margin-top: 10px;
+}
+
+.prep-pasta.nivel-0 {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.prep-pasta.nivel-1 {
+  margin: 8px 0 0 14px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.prep-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.prep-nome {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.prep-pasta.nivel-1 .prep-nome {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+/* O número do requisito ao lado da pasta: é a ponte entre o disco do
+   cliente e o checklist da auditoria. */
+.prep-req {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-sunken, #f1f3f6);
+  color: var(--ink-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.prep-oque {
+  margin-top: 3px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media print {
+  .filters,
+  .prep-aviso {
+    display: none;
+  }
+}
