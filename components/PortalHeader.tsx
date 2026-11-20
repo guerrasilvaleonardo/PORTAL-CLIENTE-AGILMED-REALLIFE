@@ -100,6 +100,7 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/atendimento/relatorio-mensal', rotulo: 'Relatório mensal' },
   ],
   '/inspecoes': [
+    { href: '/inspecoes/painel', rotulo: 'Visão geral' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
     { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
