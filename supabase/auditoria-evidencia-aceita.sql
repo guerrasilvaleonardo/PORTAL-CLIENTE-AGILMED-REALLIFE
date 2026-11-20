@@ -45,16 +45,25 @@ alter table public.inspecao_respostas
 
 -- Só aceita objeto, e só com os valores previstos. jsonb aceita
 -- qualquer coisa por padrão, e "qualquer coisa" vira bug de tela.
+--
+-- A regra mora numa função porque o Postgres não aceita subconsulta
+-- dentro de check — e para percorrer as chaves do jsonb é preciso uma.
+create or replace function public.anexos_estado_valido(j jsonb)
+returns boolean
+language sql
+immutable
+as $fn$
+  select jsonb_typeof(j) = 'object'
+     and not exists (
+       select 1 from jsonb_each_text(j) e
+        where e.value not in ('aceita', 'recusada')
+     );
+$fn$;
+
 alter table public.inspecao_respostas drop constraint if exists inspecao_respostas_anexos_estado;
 alter table public.inspecao_respostas
   add constraint inspecao_respostas_anexos_estado
-  check (
-    jsonb_typeof(anexos_estado) = 'object'
-    and not exists (
-      select 1 from jsonb_each_text(anexos_estado) e
-       where e.value not in ('aceita', 'recusada')
-    )
-  );
+  check (public.anexos_estado_valido(anexos_estado));
 
 
 -- ---------- Conferência -------------------------------------------------
