@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
@@ -58,6 +58,7 @@ type NC = {
   local_nome: string | null
   descricao: string
   gravidade: string
+  classificacao: string | null
   probabilidade: number | null
   severidade: number | null
   risco: number | null
@@ -157,7 +158,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
       const { data, error } = await supabase
         .from('nao_conformidades')
         .select(
-          'id, empresa_id, inspecao_id, origem, local_nome, descricao, gravidade, prazo, ' +
+          'id, empresa_id, inspecao_id, origem, local_nome, descricao, gravidade, classificacao, prazo, ' +
             'probabilidade, severidade, risco, porque_1, porque_2, porque_3, porque_4, porque_5, ' +
             'responsavel_nome, acao_imediata, causa, acao_corretiva, situacao, eficaz, ' +
             'verificacao_obs, ocorrido_em, tipo_incidente, envolvido_nome, afastamento_dias, created_at'
@@ -326,192 +327,12 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     )
   }
 
-  return (
-    <div className="app">
-      <div>
-        <p className="eyebrow">{auditoria ? 'AUDITORIAS' : 'INSPEÇÕES'}</p>
-        <h1 className="titulo-tela">{auditoria ? 'Constatações' : 'Não conformidades'}</h1>
-        <p className="subtitulo-tela">
-          {auditoria
-            ? 'O que a auditoria constatou, maior e menor, com o tratamento do item 10.2: causa, ação corretiva e verificação da eficácia. Enquanto a constatação não for verificada eficaz, o requisito continua em aberto.'
-            : 'O que a inspeção reprovou e os incidentes, com o mesmo tratamento: ação imediata, causa, ação corretiva e verificação da eficácia — o ciclo do item 10.2 da ISO 45001 e da 9001.'}
-        </p>
-      </div>
-
-      {erro && <div className="banner bad">{erro}</div>}
-
-      <div className="filters">
-        {interno && (
-          <FiltroEmpresa
-            valor={empresaFiltro}
-            aoMudar={(v) => {
-              setEmpresaFiltro(v)
-              setEscolhida('')
-            }}
-            opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
-          />
-        )}
-        <label className="caixa-marcar">
-          <input type="checkbox" checked={soAbertas} onChange={(e) => setSoAbertas(e.target.checked)} />
-          Só as que faltam tratar
-        </label>
-        <span style={{ flex: 1 }} />
-        {/* Acidente e quase-acidente são do mundo de campo. Auditoria de
-         * sistema de gestão não lança incidente: ela constata requisito. */}
-        {!auditoria && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setAbrindoIncidente((a) => !a)}
-          >
-            {abrindoIncidente ? 'Fechar' : 'Lançar incidente'}
-          </button>
-        )}
-      </div>
-
-      {!auditoria && abrindoIncidente && (
-        <div className="panel">
-          <div className="panel-head">
-            <div className="section-title">Incidente</div>
-          </div>
-          <div className="panel-body insp-ficha">
-            <label>
-              O que aconteceu
-              <input
-                type="text"
-                value={inc.descricao}
-                onChange={(e) => setInc({ ...inc, descricao: e.target.value })}
-                placeholder="Ex.: Trabalhador escorregou na rampa molhada"
-              />
-            </label>
-            <div className="duas">
-              <label>
-                Quando
-                <input
-                  type="datetime-local"
-                  value={inc.ocorrido_em}
-                  onChange={(e) => setInc({ ...inc, ocorrido_em: e.target.value })}
-                />
-              </label>
-              <label>
-                Tipo
-                <select
-                  value={inc.tipo_incidente}
-                  onChange={(e) => setInc({ ...inc, tipo_incidente: e.target.value })}
-                >
-                  {Object.entries(TIPO_INCIDENTE).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="duas">
-              <label>
-                Quem se envolveu
-                <input
-                  type="text"
-                  value={inc.envolvido_nome}
-                  onChange={(e) => setInc({ ...inc, envolvido_nome: e.target.value })}
-                  placeholder="Nome (pode ser terceiro ou visitante)"
-                />
-              </label>
-              <label>
-                Dias de afastamento
-                <input
-                  type="number"
-                  min={0}
-                  value={inc.afastamento_dias}
-                  disabled={inc.tipo_incidente !== 'acidente_com_afastamento'}
-                  onChange={(e) => setInc({ ...inc, afastamento_dias: e.target.value })}
-                />
-              </label>
-            </div>
-            <label>
-              Onde
-              <input
-                type="text"
-                value={inc.local_do_evento}
-                onChange={(e) => setInc({ ...inc, local_do_evento: e.target.value })}
-                placeholder="Ex.: Rampa de acesso ao galpão 2"
-              />
-            </label>
-            <button type="button" className="btn btn-primary" disabled={salvando} onClick={lancarIncidente}>
-              Lançar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {carregando ? (
-        <p className="empty-state">Carregando…</p>
-      ) : visiveis.length === 0 ? (
-        <p className="empty-state">
-          {interno && !empresaFiltro
-            ? 'Escolha a empresa para ver as não conformidades.'
-            : soAbertas
-              ? 'Nada pendente de tratamento.'
-              : 'Nenhuma não conformidade registrada.'}
-        </p>
-      ) : (
-        <table className="tabela-colab">
-          <thead>
-            <tr>
-              <th>O que foi encontrado</th>
-              <th>Origem</th>
-              <th>Local</th>
-              <th>Gravidade</th>
-              <th>Prazo</th>
-              <th>Situação</th>
-              <th className="acoes" />
-            </tr>
-          </thead>
-          <tbody>
-            {visiveis.map((n) => {
-              const vencida = n.prazo && n.prazo < hoje() && !['encerrada', 'cancelada'].includes(n.situacao)
-              return (
-                <tr key={n.id}>
-                  <td className="nome">
-                    {n.descricao}
-                    {n.envolvido_nome && (
-                      <span style={{ fontWeight: 500 }}> · {n.envolvido_nome}</span>
-                    )}
-                  </td>
-                  <td>
-                    {n.origem === 'incidente' ? (
-                      <span className="pill bad">
-                        {TIPO_INCIDENTE[n.tipo_incidente || ''] || 'Incidente'}
-                      </span>
-                    ) : n.origem === 'inspecao' ? (
-                      'Inspeção'
-                    ) : (
-                      'Avulsa'
-                    )}
-                  </td>
-                  <td>{n.local_nome || '—'}</td>
-                  <td>{GRAVIDADE[n.gravidade] || n.gravidade}</td>
-                  <td>
-                    {vencida ? (
-                      <span className="pill warn">{dataBr(n.prazo)}</span>
-                    ) : (
-                      dataBr(n.prazo)
-                    )}
-                  </td>
-                  <td>{SITUACAO[n.situacao] || n.situacao}</td>
-                  <td className="acoes">
-                    <button type="button" className="btn btn-sm" onClick={() => abrir(n)}>
-                      Tratar
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-
-      {atual && (
+  /* A ficha de tratamento abre DENTRO da linha, não no fim da página.
+   * Com trinta constatações, clicar em "Tratar" e ser jogado para o
+   * rodapé faz perder de vista qual item estava sendo tratado — e na
+   * volta ninguém sabe onde parou. */
+  const ficha =
+    atual ? (
         <div className="panel" style={{ marginTop: 16 }}>
           <div className="panel-head">
             <div className="section-title">{atual.descricao}</div>
@@ -761,7 +582,217 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             </p>
           </div>
         </div>
+    ) : null
+
+  return (
+    <div className="app">
+      <div>
+        <p className="eyebrow">{auditoria ? 'AUDITORIAS' : 'INSPEÇÕES'}</p>
+        <h1 className="titulo-tela">{auditoria ? 'Constatações' : 'Não conformidades'}</h1>
+        <p className="subtitulo-tela">
+          {auditoria
+            ? 'O que a auditoria constatou, maior e menor, com o tratamento do item 10.2: causa, ação corretiva e verificação da eficácia. Enquanto a constatação não for verificada eficaz, o requisito continua em aberto.'
+            : 'O que a inspeção reprovou e os incidentes, com o mesmo tratamento: ação imediata, causa, ação corretiva e verificação da eficácia — o ciclo do item 10.2 da ISO 45001 e da 9001.'}
+        </p>
+      </div>
+
+      {erro && <div className="banner bad">{erro}</div>}
+
+      <div className="filters">
+        {interno && (
+          <FiltroEmpresa
+            valor={empresaFiltro}
+            aoMudar={(v) => {
+              setEmpresaFiltro(v)
+              setEscolhida('')
+            }}
+            opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
+          />
+        )}
+        <label className="caixa-marcar">
+          <input type="checkbox" checked={soAbertas} onChange={(e) => setSoAbertas(e.target.checked)} />
+          Só as que faltam tratar
+        </label>
+        <span style={{ flex: 1 }} />
+        {/* Acidente e quase-acidente são do mundo de campo. Auditoria de
+         * sistema de gestão não lança incidente: ela constata requisito. */}
+        {!auditoria && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setAbrindoIncidente((a) => !a)}
+          >
+            {abrindoIncidente ? 'Fechar' : 'Lançar incidente'}
+          </button>
+        )}
+      </div>
+
+      {!auditoria && abrindoIncidente && (
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Incidente</div>
+          </div>
+          <div className="panel-body insp-ficha">
+            <label>
+              O que aconteceu
+              <input
+                type="text"
+                value={inc.descricao}
+                onChange={(e) => setInc({ ...inc, descricao: e.target.value })}
+                placeholder="Ex.: Trabalhador escorregou na rampa molhada"
+              />
+            </label>
+            <div className="duas">
+              <label>
+                Quando
+                <input
+                  type="datetime-local"
+                  value={inc.ocorrido_em}
+                  onChange={(e) => setInc({ ...inc, ocorrido_em: e.target.value })}
+                />
+              </label>
+              <label>
+                Tipo
+                <select
+                  value={inc.tipo_incidente}
+                  onChange={(e) => setInc({ ...inc, tipo_incidente: e.target.value })}
+                >
+                  {Object.entries(TIPO_INCIDENTE).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="duas">
+              <label>
+                Quem se envolveu
+                <input
+                  type="text"
+                  value={inc.envolvido_nome}
+                  onChange={(e) => setInc({ ...inc, envolvido_nome: e.target.value })}
+                  placeholder="Nome (pode ser terceiro ou visitante)"
+                />
+              </label>
+              <label>
+                Dias de afastamento
+                <input
+                  type="number"
+                  min={0}
+                  value={inc.afastamento_dias}
+                  disabled={inc.tipo_incidente !== 'acidente_com_afastamento'}
+                  onChange={(e) => setInc({ ...inc, afastamento_dias: e.target.value })}
+                />
+              </label>
+            </div>
+            <label>
+              Onde
+              <input
+                type="text"
+                value={inc.local_do_evento}
+                onChange={(e) => setInc({ ...inc, local_do_evento: e.target.value })}
+                placeholder="Ex.: Rampa de acesso ao galpão 2"
+              />
+            </label>
+            <button type="button" className="btn btn-primary" disabled={salvando} onClick={lancarIncidente}>
+              Lançar
+            </button>
+          </div>
+        </div>
       )}
+
+      {carregando ? (
+        <p className="empty-state">Carregando…</p>
+      ) : visiveis.length === 0 ? (
+        <p className="empty-state">
+          {interno && !empresaFiltro
+            ? 'Escolha a empresa para ver as não conformidades.'
+            : soAbertas
+              ? 'Nada pendente de tratamento.'
+              : 'Nenhuma não conformidade registrada.'}
+        </p>
+      ) : (
+        <table className="tabela-colab">
+          <thead>
+            <tr>
+              <th>O que foi encontrado</th>
+              {/* Em auditoria a pergunta não é "de onde veio" — veio da
+                  auditoria, todas vieram. O que importa é se é maior ou
+                  menor, que é o que decide a certificação. */}
+              <th>{auditoria ? 'Classificação' : 'Origem'}</th>
+              {!auditoria && <th>Local</th>}
+              {!auditoria && <th>Gravidade</th>}
+              <th>Prazo</th>
+              <th>Situação</th>
+              <th className="acoes" />
+            </tr>
+          </thead>
+          <tbody>
+            {visiveis.map((n) => {
+              const vencida = n.prazo && n.prazo < hoje() && !['encerrada', 'cancelada'].includes(n.situacao)
+              return (
+                <Fragment key={n.id}>
+                <tr>
+                  <td className="nome">
+                    {n.descricao}
+                    {n.envolvido_nome && (
+                      <span style={{ fontWeight: 500 }}> · {n.envolvido_nome}</span>
+                    )}
+                  </td>
+                  <td>
+                    {auditoria ? (
+                      n.classificacao === 'maior' ? (
+                        <span className="pill bad">Maior</span>
+                      ) : n.classificacao === 'menor' ? (
+                        <span className="pill warn">Menor</span>
+                      ) : n.classificacao === 'observacao' ? (
+                        <span className="pill flat">Observação</span>
+                      ) : (
+                        '—'
+                      )
+                    ) : n.origem === 'incidente' ? (
+                      <span className="pill bad">
+                        {TIPO_INCIDENTE[n.tipo_incidente || ''] || 'Incidente'}
+                      </span>
+                    ) : n.origem === 'inspecao' ? (
+                      'Inspeção'
+                    ) : (
+                      'Avulsa'
+                    )}
+                  </td>
+                  {!auditoria && <td>{n.local_nome || '—'}</td>}
+                  {!auditoria && <td>{GRAVIDADE[n.gravidade] || n.gravidade}</td>}
+                  <td>
+                    {vencida ? (
+                      <span className="pill warn">{dataBr(n.prazo)}</span>
+                    ) : (
+                      dataBr(n.prazo)
+                    )}
+                  </td>
+                  <td>{SITUACAO[n.situacao] || n.situacao}</td>
+                  <td className="acoes">
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => (escolhida === n.id ? setEscolhida('') : abrir(n))}
+                    >
+                      {escolhida === n.id ? 'Fechar' : 'Tratar'}
+                    </button>
+                  </td>
+                </tr>
+                {escolhida === n.id && (
+                  <tr className="linha-ficha">
+                    <td colSpan={auditoria ? 5 : 7}>{ficha}</td>
+                  </tr>
+                )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
     </div>
   )
 }

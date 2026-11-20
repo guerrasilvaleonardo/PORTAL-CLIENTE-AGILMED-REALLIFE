@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import '../auditoria.css'
 
 /*
  * Aplicar a inspeção (supabase/inspecoes.sql).
@@ -29,6 +30,7 @@ type Resposta = {
   observacao: string | null
   fotos: string[]
   anexos: string[]
+  anexos_estado: Record<string, 'aceita' | 'recusada'> | null
   item_id: string | null
   inspecao_modelo_itens?: ItemDoModelo | ItemDoModelo[] | null
 }
@@ -97,6 +99,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [alteracoes, setAlteracoes] = useState<Alteracao[]>([])
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
   const [empresaNome, setEmpresaNome] = useState('')
+  const [recolhidas, setRecolhidas] = useState<Record<string, boolean>>({})
   const [editando, setEditando] = useState(false)
   const [cabecalho, setCabecalho] = useState<{ local_id: string; observacoes: string }>({
     local_id: '',
@@ -124,7 +127,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
       const { data: rs } = await supabase
         .from('inspecao_respostas')
-        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, item_id, ' +
+        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, anexos_estado, item_id, ' +
           'inspecao_modelo_itens!item_id(requisito, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
         .eq('inspecao_id', id)
         .order('ordem')
@@ -257,6 +260,30 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     } finally {
       setEnviando('')
     }
+  }
+
+  /* Aceitar ou recusar um arquivo como evidência. Clicar de novo no
+   * mesmo estado desfaz: errar a marcação é comum e desmarcar não pode
+   * exigir recarregar a página. */
+  async function avaliarAnexo(rid: string, caminho: string, estado: 'aceita' | 'recusada' | null) {
+    const r = respostas.find((x) => x.id === rid)
+    if (!r) return
+
+    const atual = { ...(r.anexos_estado || {}) }
+    if (estado) atual[caminho] = estado
+    else delete atual[caminho]
+
+    const { error } = await supabase
+      .from('inspecao_respostas')
+      .update({ anexos_estado: atual })
+      .eq('id', rid)
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setRespostas((lista) => lista.map((x) => (x.id === rid ? { ...x, anexos_estado: atual } : x)))
   }
 
   async function tirarEvidencia(rid: string, caminho: string) {
@@ -830,10 +857,37 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           Este modelo não tinha pergunta nenhuma quando a inspeção foi aberta.
         </p>
       ) : (
-        <div>
-          {secoes.map((secao) => (
-            <div key={secao.titulo || 'sem-secao'}>
-              {secao.titulo && <div className="insp-secao">{secao.titulo}</div>}
+        <div className={auditoria ? 'insp-auditoria' : undefined}>
+          {secoes.map((secao) => {
+            const chave = secao.titulo || 'sem-secao'
+            const recolhida = !!recolhidas[chave]
+            const feitos = secao.itens.filter(({ r }) => r.resposta).length
+            const completa = feitos === secao.itens.length
+
+            return (
+            <div key={chave} className={'insp-grupo' + (recolhida ? ' recolhido' : '')}>
+              {/* Agrupado como planilha: a seção recolhe, e o contador
+                  da direita diz o que falta nela sem precisar abrir.
+                  Auditoria de 30 requisitos em sete seções não se lê
+                  numa rolagem só. */}
+              {secao.titulo && (
+                <button
+                  type="button"
+                  className="insp-grupo-cabeca"
+                  aria-expanded={!recolhida}
+                  onClick={() => setRecolhidas((d) => ({ ...d, [chave]: !d[chave] }))}
+                >
+                  <span className="sinal" aria-hidden="true">
+                    {recolhida ? '+' : '−'}
+                  </span>
+                  <span className="titulo">{secao.titulo}</span>
+                  <span className={'conta' + (completa ? ' completa' : '')}>
+                    {feitos} de {secao.itens.length}
+                  </span>
+                </button>
+              )}
+
+              <div className="insp-grupo-corpo">
               {secao.itens.map(({ r, n }) => (
             <div key={r.id} className={'insp-item respondido-' + (r.resposta || 'nenhum')}>
               {/* Constatação se escreve contra um requisito, não contra
@@ -987,8 +1041,15 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                     </label>
                   )}
 
-                  {(r.anexos || []).map((a) => (
-                    <span key={a} className="insp-arquivo">
+                  {/* O estado do arquivo responde outra pergunta que a
+                      do requisito: "o documento que você mandou serve
+                      como evidência?". Recusar e pedir outro acontece
+                      antes de fechar o item, e sem registro disso o
+                      cliente reenvia o mesmo PDF três vezes. */}
+                  {(r.anexos || []).map((a) => {
+                    const estado = (r.anexos_estado || {})[a]
+                    return (
+                    <span key={a} className={'insp-arquivo' + (estado ? ' ' + estado : '')}>
                       <button
                         type="button"
                         className="nome"
@@ -997,19 +1058,52 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                       >
                         {nomes[a] || nomeDoArquivo(a)}
                       </button>
+
+                      {estado && (
+                        <span className={'pill ' + (estado === 'aceita' ? 'good' : 'bad')}>
+                          {estado}
+                        </span>
+                      )}
+
+                      {auditoria && !fechada && (
+                        <>
+                          <button
+                            type="button"
+                            className="avaliar"
+                            title="Aceitar como evidência"
+                            onClick={() => avaliarAnexo(r.id, a, estado === 'aceita' ? null : 'aceita')}
+                          >
+                            ✓
+                          </button>
+                          <button
+                            type="button"
+                            className="avaliar"
+                            title="Recusar: pedir outro documento"
+                            onClick={() =>
+                              avaliarAnexo(r.id, a, estado === 'recusada' ? null : 'recusada')
+                            }
+                          >
+                            !
+                          </button>
+                        </>
+                      )}
+
                       {!fechada && (
                         <button type="button" onClick={() => tirarEvidencia(r.id, a)} title="Tirar">
                           ×
                         </button>
                       )}
                     </span>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
               ))}
+              </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
