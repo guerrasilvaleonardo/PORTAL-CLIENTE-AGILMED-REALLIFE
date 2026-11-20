@@ -103,6 +103,8 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/auditorias', rotulo: 'Auditorias' },
     { href: '/auditorias/programa', rotulo: 'Programa do ano' },
     { href: '/auditorias/nc', rotulo: 'Constatações' },
+    /* Bancada da equipe: o cliente que entrar vê um aviso, não um erro. */
+    { href: '/auditorias/modelos', rotulo: 'Modelos e explicações' },
   ],
   '/inspecoes': [
     { href: '/inspecoes/painel', rotulo: 'Visão geral' },

@@ -1,0 +1,173 @@
+/*
+ * Relatório de auditoria: feito para ser lido na tela e impresso em
+ * PDF sem ajuste. Por isso a largura é de página, não de painel.
+ */
+
+.rel {
+  max-width: 900px;
+}
+
+.rel-capa {
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--linha, #e3e6ea);
+}
+
+.rel-capa h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(20px, 3vw, 26px);
+  line-height: 1.25;
+}
+
+.rel-sub {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.rel section {
+  margin-top: 26px;
+}
+
+.rel section h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rel-campos {
+  display: grid;
+  gap: 12px;
+}
+
+.rel-campo {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+@media (max-width: 620px) {
+  .rel-campo {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+.rel-rotulo {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rel-valor {
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* O que falta aparece como lacuna declarada, não some. */
+.rel-valor.falta,
+.rel-nota.falta {
+  color: #8a5a00;
+  font-style: italic;
+}
+
+.rel-conclusao {
+  padding: 14px 16px;
+  border-radius: var(--radius-m, 10px);
+  background: var(--surface-2, #f1f3f6);
+  font-size: 14.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.rel-conclusao.falta {
+  background: #fdf4e3;
+  color: #8a5a00;
+  font-style: italic;
+}
+
+.rel-nota {
+  margin: 8px 0 0;
+  color: var(--ink-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.rel-mini {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.rel-req {
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rel-itens td {
+  vertical-align: top;
+}
+
+.rel-envio {
+  margin-top: 14px;
+}
+
+.rel-rodape {
+  margin: 34px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--linha, #e3e6ea);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .rel-conclusao.falta {
+    background: #3a2f16;
+    color: #f0d08a;
+  }
+  :root:not([data-theme='light']) .rel-valor.falta,
+  :root:not([data-theme='light']) .rel-nota.falta {
+    color: #f0d08a;
+  }
+}
+
+:root[data-theme='dark'] .rel-conclusao.falta {
+  background: #3a2f16;
+  color: #f0d08a;
+}
+
+:root[data-theme='dark'] .rel-valor.falta,
+:root[data-theme='dark'] .rel-nota.falta {
+  color: #f0d08a;
+}
+
+/* Impressão: sem painel, sem cinza de fundo, e uma seção não parte no
+   meio quando dá para evitar. */
+@media print {
+  .rel {
+    max-width: none;
+  }
+
+  .rel section {
+    break-inside: avoid;
+  }
+
+  .rel-conclusao {
+    background: none;
+    border: 1px solid #ccc;
+  }
+
+  .rel table {
+    break-inside: auto;
+  }
+
+  .rel tr {
+    break-inside: avoid;
+  }
+}

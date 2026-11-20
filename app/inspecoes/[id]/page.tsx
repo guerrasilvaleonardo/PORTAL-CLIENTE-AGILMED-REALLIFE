@@ -34,6 +34,7 @@ type Resposta = {
 }
 
 type ItemDoModelo = {
+  requisito: string | null
   explicacao: string | null
   orientacao: string | null
   modelo_arquivo: string | null
@@ -58,6 +59,7 @@ type Inspecao = {
   norma: string | null
   local_nome: string | null
   inspetor_nome: string | null
+  auditor_lider: string | null
   iniciada_em: string
   concluida_em: string | null
   situacao: string
@@ -94,6 +96,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [motivoReabrir, setMotivoReabrir] = useState('')
   const [alteracoes, setAlteracoes] = useState<Alteracao[]>([])
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
+  const [empresaNome, setEmpresaNome] = useState('')
   const [editando, setEditando] = useState(false)
   const [cabecalho, setCabecalho] = useState<{ local_id: string; observacoes: string }>({
     local_id: '',
@@ -122,7 +125,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
       const { data: rs } = await supabase
         .from('inspecao_respostas')
         .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, item_id, ' +
-          'inspecao_modelo_itens!item_id(explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
+          'inspecao_modelo_itens!item_id(requisito, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
         .eq('inspecao_id', id)
         .order('ordem')
       setRespostas((rs || []) as unknown as Resposta[])
@@ -147,7 +150,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         observacoes: (i as any).observacoes || '',
       })
 
-      const [{ data: as }, { data: ls }] = await Promise.all([
+      const [{ data: as }, { data: ls }, { data: emp }] = await Promise.all([
         supabase
           .from('inspecoes_alteracoes')
           .select('id, de, para, motivo, por_nome, created_at')
@@ -158,9 +161,17 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           .select('id, nome')
           .eq('empresa_id', (i as any).empresa_id)
           .order('nome'),
+        /* O relatório de auditoria é da EMPRESA auditada: o nome dela
+         * fica no título, não escondido num campo lá embaixo. */
+        supabase
+          .from('empresas')
+          .select('razao_social, nome_fantasia')
+          .eq('id', (i as any).empresa_id)
+          .single(),
       ])
       setAlteracoes((as || []) as unknown as Alteracao[])
       setLocais((ls || []) as { id: string; nome: string }[])
+      setEmpresaNome(((emp as any)?.nome_fantasia || (emp as any)?.razao_social || '') as string)
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível abrir a inspeção.')
@@ -175,6 +186,23 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   }, [id])
 
   const auditoria = inspecao?.tipo === 'auditoria'
+
+  const respondidas = respostas.filter((r) => r.resposta).length
+
+  /* Agrupa pela seção da norma, na ordem em que as perguntas vieram do
+   * modelo. Auditoria se conduz seção a seção — "agora vamos ao 9" — e
+   * uma lista corrida de 30 itens perde o fio. A numeração continua
+   * global para o relatório poder citar "item 18". */
+  const secoes = respostas.reduce<{ titulo: string; itens: { r: Resposta; n: number }[] }[]>(
+    (acc, r, i) => {
+      const titulo = r.categoria || ''
+      const ultima = acc[acc.length - 1]
+      if (ultima && ultima.titulo === titulo) ultima.itens.push({ r, n: i + 1 })
+      else acc.push({ titulo, itens: [{ r, n: i + 1 }] })
+      return acc
+    },
+    []
+  )
 
   /* O PostgREST devolve a relação ora como objeto, ora como lista de um. */
   function itemDe(r: Resposta) {
@@ -505,13 +533,49 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="app">
-      <div>
-        <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">{inspecao.modelo_nome}</h1>
-        <p className="subtitulo-tela">
-          {[inspecao.norma, inspecao.local_nome, inspecao.inspetor_nome].filter(Boolean).join(' · ')}
-        </p>
+      {/* Em auditoria o título é a norma e a empresa auditada — é assim
+       * que o documento vai ser citado depois. Em inspeção de campo o
+       * que identifica é o checklist e o local. */}
+      <div className="insp-cabeca">
+        <div>
+          <p className="eyebrow">{auditoria ? 'AUDITORIA INTERNA' : 'INSPEÇÕES'}</p>
+          <h1 className="titulo-tela">
+            {auditoria
+              ? [inspecao.norma || inspecao.modelo_nome, empresaNome].filter(Boolean).join(' — ')
+              : inspecao.modelo_nome}
+          </h1>
+          <p className="subtitulo-tela">
+            {(auditoria
+              ? [inspecao.auditor_lider || inspecao.inspetor_nome, inspecao.local_nome]
+              : [inspecao.norma, inspecao.local_nome, inspecao.inspetor_nome]
+            )
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        </div>
+
+        <div className="insp-cabeca-acoes nao-imprimir">
+          {/* Quem está no meio de uma auditoria de 30 requisitos precisa
+           * saber quanto falta sem contar na mão. */}
+          {respostas.length > 0 && (
+            <span className="insp-contagem">
+              {respondidas} de {respostas.length} respondidos
+            </span>
+          )}
+
+          {auditoria && (
+            <Link href={'/auditorias/' + inspecao.id + '/relatorio'} className="btn btn-sm">
+              Emitir relatório
+            </Link>
+          )}
+        </div>
       </div>
+
+      {respostas.length > 0 && (
+        <div className="insp-barra" aria-hidden="true">
+          <span style={{ width: Math.round((respondidas / respostas.length) * 100) + '%' }} />
+        </div>
+      )}
 
       {erro && <div className="banner bad">{erro}</div>}
 
@@ -767,12 +831,22 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         </p>
       ) : (
         <div>
-          {respostas.map((r, n) => (
+          {secoes.map((secao) => (
+            <div key={secao.titulo || 'sem-secao'}>
+              {secao.titulo && <div className="insp-secao">{secao.titulo}</div>}
+              {secao.itens.map(({ r, n }) => (
             <div key={r.id} className={'insp-item respondido-' + (r.resposta || 'nenhum')}>
+              {/* Constatação se escreve contra um requisito, não contra
+                  uma impressão: "não atende ao 9.3" é auditável; "a
+                  direção não acompanha" é conversa. */}
               <div className="pergunta">
-                {n + 1}. {r.pergunta}
+                {itemDe(r)?.requisito ? (
+                  <span className="insp-requisito">{itemDe(r)!.requisito}</span>
+                ) : (
+                  <span className="insp-requisito vazio">{n}</span>
+                )}
+                {r.pergunta}
               </div>
-              {r.categoria && <div className="orientacao">{r.categoria}</div>}
 
               {/* Em auditoria, o que se pede para ver. É a evidência
                   objetiva da ISO 19011 — sem isso o auditor julga
@@ -814,12 +888,34 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                 ))}
               </div>
 
-              {(r.resposta === 'nao_conforme' || r.observacao) && (
+              {/* Em auditoria, dizer na hora o que aquela marcação vai
+                  custar. O auditor que só descobre no fim que abriu oito
+                  constatações maiores tende a voltar atrás no atacado —
+                  e aí a auditoria vira negociação. */}
+              {auditoria && (r.resposta === 'nao_conforme' || r.resposta === 'atende_parcial') && (
+                <div className={'insp-aviso-nc ' + (r.resposta === 'nao_conforme' ? 'maior' : 'menor')}>
+                  <strong>
+                    {r.resposta === 'nao_conforme'
+                      ? 'Não conformidade maior'
+                      : 'Não conformidade menor'}
+                  </strong>{' '}
+                  — abre tratamento com causa, ação e verificação da eficácia ao encerrar a
+                  auditoria. Escreva abaixo a evidência que sustenta a constatação.
+                </div>
+              )}
+
+              {(r.resposta === 'nao_conforme' ||
+                (auditoria && r.resposta === 'atende_parcial') ||
+                r.observacao) && (
                 <input
                   type="text"
                   value={r.observacao || ''}
                   disabled={fechada}
-                  placeholder="O que foi encontrado (entra na não conformidade)"
+                  placeholder={
+                    auditoria
+                      ? 'A evidência objetiva: o que foi visto, em que documento, com que data'
+                      : 'O que foi encontrado (entra na não conformidade)'
+                  }
                   onChange={(e) => anotar(r.id, e.target.value)}
                 />
               )}
@@ -910,6 +1006,8 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                   ))}
                 </div>
               )}
+            </div>
+              ))}
             </div>
           ))}
         </div>
