@@ -91,7 +91,10 @@ begin
       raise exception 'O local onde este fica é de outra empresa.';
     end if;
     if v_avo is not null then
-      raise exception 'Só um nível: este local já está dentro de outro que também está dentro de um terceiro.';
+      -- Quem já está dentro de alguém é o local ESCOLHIDO, não o que
+      -- está sendo salvo. A frase anterior dizia "este local" e deixava
+      -- quem lia procurando o erro no lugar errado.
+      raise exception 'Só um nível: o local que você escolheu já está dentro de outro.';
     end if;
 
     -- Quem tem filho não pode virar filho: seria o terceiro nível pelo
