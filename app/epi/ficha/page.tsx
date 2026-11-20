@@ -34,6 +34,7 @@ type Colaborador = {
   id: string
   empresa_id: string
   nome: string
+  nome_chave?: string | null
   cpf: string | null
   matricula: string | null
   funcao: string | null
@@ -116,17 +117,42 @@ export default function FichaEpi() {
   const [assinaturas, setAssinaturas] = useState<Record<string, string>>({})
 
   const [empresaFiltro, setEmpresaFiltro] = useState('')
-  const [quem, setQuem] = useState('')
   /* Quem veio marcado da tela de Pessoas, pelo endereço. Lido do
    * window em vez de useSearchParams para a página não precisar de
    * Suspense só por causa disso. */
   const [escolhidas, setEscolhidas] = useState<string[]>([])
 
+  const [comFoto, setComFoto] = useState(false)
+
+  /*
+   * A tela abre na LISTA de trabalhadores, e a ficha é montada só para
+   * quem foi escolhido — é a ordem do OnSafety (escolhe o pessoal e o
+   * período, clica em emitir). Montar todas as fichas de uma empresa de
+   * 900 pessoas de uma vez, como era antes, trava o navegador, e quase
+   * sempre quem entra aqui quer a ficha de uma pessoa só.
+   */
+  const [modo, setModo] = useState<'lista' | 'ficha'>('lista')
+  const [marcados, setMarcados] = useState<string[]>([])
+  const [local, setLocal] = useState('')
+  const [de, setDe] = useState('')
+  const [ate, setAte] = useState('')
+  const [busca, setBusca] = useState('')
+  /* Quem saiu da empresa continua tendo ficha — ela é o documento que
+   * prova a entrega numa reclamatória depois do desligamento. Mas fica
+   * fora da lista do dia a dia. */
+  const [comDesligados, setComDesligados] = useState(false)
+  const [desligados, setDesligados] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     const lista = new URLSearchParams(window.location.search).get('pessoas')
-    if (lista) setEscolhidas(lista.split(',').filter(Boolean))
+    if (lista) {
+      const ids = lista.split(',').filter(Boolean)
+      setEscolhidas(ids)
+      /* Veio de Colaboradores com gente marcada: já abre a ficha. */
+      setMarcados(ids)
+      setModo('ficha')
+    }
   }, [])
-  const [comFoto, setComFoto] = useState(false)
 
   async function carregar() {
     try {
@@ -158,10 +184,12 @@ export default function FichaEpi() {
         .order('razao_social')
       setEmpresas((emps || []) as Empresa[])
 
-      const [{ data: cols }, { data: ents, error: erroEnt }] = await Promise.all([
+      const [{ data: cols }, { data: ents, error: erroEnt }, { data: fora }] = await Promise.all([
         supabase
           .from('colaboradores')
-          .select('id, empresa_id, nome, cpf, matricula, funcao, local_trabalho, local_id, admissao, locais_trabalho(nome)')
+          .select(
+            'id, empresa_id, nome, nome_chave, cpf, matricula, funcao, local_trabalho, local_id, admissao, locais_trabalho(nome)'
+          )
           .order('nome'),
         supabase
           .from('epi_entregas')
@@ -173,6 +201,9 @@ export default function FichaEpi() {
           )
           .is('cancelada_em', null)
           .order('entregue_em'),
+        /* Mesma fonte que Colaboradores e o painel leem, para não haver
+         * duas respostas sobre quem está desligado. */
+        supabase.from('colaboradores_desligados').select('empresa_id, nome_chave').is('reativado_em', null),
       ])
 
       if (erroEnt) {
@@ -185,6 +216,7 @@ export default function FichaEpi() {
 
       setColaboradores((cols || []) as Colaborador[])
       setEntregas((ents || []) as unknown as Entrega[])
+      setDesligados(new Set(((fora || []) as any[]).map((d) => `${d.empresa_id}|${d.nome_chave}`)))
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível carregar a ficha.')
@@ -204,23 +236,80 @@ export default function FichaEpi() {
     [colaboradores, empresaAtual]
   )
 
-  /* Quem aparece: a pessoa escolhida, ou todas que têm entrega. */
-  const fichas = useMemo(() => {
-    const comEntrega = new Set(entregas.map((e) => e.colaborador_id))
+  /* O período filtra a DATA DA ENTREGA, como no OnSafety: a ficha sai
+   * com o que foi entregue naquele intervalo. Vazio = tudo. */
+  const entregasNoPeriodo = useMemo(
+    () =>
+      entregas.filter((e) => {
+        const dia = e.entregue_em.slice(0, 10)
+        if (de && dia < de) return false
+        if (ate && dia > ate) return false
+        return true
+      }),
+    [entregas, de, ate]
+  )
+
+  const hojeIso = new Date().toISOString().slice(0, 10)
+
+  /* Uma linha por trabalhador que tem entrega no período. */
+  const linhas = useMemo(() => {
+    const porPessoa = new Map<string, Entrega[]>()
+    for (const e of entregasNoPeriodo) {
+      porPessoa.set(e.colaborador_id, [...(porPessoa.get(e.colaborador_id) || []), e])
+    }
+
+    const texto = busca.trim().toLowerCase()
+
     return pessoas
-      .filter((c) =>
-        quem
-          ? c.id === quem
-          : escolhidas.length
-            ? escolhidas.includes(c.id)
-            : comEntrega.has(c.id)
+      .filter((c) => porPessoa.has(c.id))
+      .filter((c) => !local || nomeDoLocal(c) === local)
+      .filter((c) => comDesligados || !desligados.has(`${c.empresa_id}|${c.nome_chave || ''}`))
+      .filter(
+        (c) =>
+          !texto ||
+          c.nome.toLowerCase().includes(texto) ||
+          (c.matricula || '').toLowerCase().includes(texto)
       )
+      .map((c) => {
+        const suas = porPessoa.get(c.id) || []
+        const ultima = suas[suas.length - 1]
+        const itens = suas.flatMap((e) => e.epi_entregas_itens || [])
+        return {
+          pessoa: c,
+          entregas: suas,
+          ultima: ultima?.entregue_em || '',
+          /* A função do dia da última entrega, que é a que vai na ficha. */
+          funcao: [...suas].reverse().map((e) => e.funcao).find((f) => f && f.trim()) || c.funcao || '',
+          semAssinatura: suas.filter((e) => !e.assinado_em).length,
+          vencidos: itens.filter((i) => !i.devolvido_em && i.troca_em < hojeIso).length,
+          desligado: desligados.has(`${c.empresa_id}|${c.nome_chave || ''}`),
+        }
+      })
+  }, [pessoas, entregasNoPeriodo, local, busca, comDesligados, desligados, hojeIso])
+
+  const locais = useMemo(
+    () => [...new Set(pessoas.map((c) => nomeDoLocal(c)).filter((n) => n && n !== '—'))].sort(),
+    [pessoas]
+  )
+
+  /* Quem entra na emissão: os marcados na lista. */
+  const fichas = useMemo(() => {
+    if (!marcados.length) return []
+    return pessoas
+      .filter((c) => marcados.includes(c.id))
       .map((c) => ({
         pessoa: c,
-        linhas: entregas.filter((e) => e.colaborador_id === c.id),
+        linhas: entregasNoPeriodo.filter((e) => e.colaborador_id === c.id),
       }))
       .filter((f) => f.linhas.length > 0)
-  }, [pessoas, entregas, quem, escolhidas])
+  }, [pessoas, entregasNoPeriodo, marcados])
+
+  function emitir(ids: string[]) {
+    if (!ids.length) return
+    setMarcados(ids)
+    setModo('ficha')
+    window.scrollTo(0, 0)
+  }
 
   /* As fotos ficam num balde privado: cada uma precisa de link assinado. */
   useEffect(() => {
@@ -290,15 +379,16 @@ export default function FichaEpi() {
         <p className="eyebrow">EPI</p>
         <h1 className="titulo-tela">Ficha de entrega</h1>
         <p className="subtitulo-tela">
-          Uma folha por trabalhador, com tudo que ele recebeu, o CA de cada equipamento e quando
+          Clique no trabalhador para emitir a ficha dele, ou marque vários e emita de uma vez. Uma
+          folha por trabalhador, com tudo que ele recebeu, o CA de cada equipamento e quando
           assinou. É o documento exigido pelo item 6.6.1 da NR-06.
         </p>
       </div>
 
       {erro && <div className="banner bad nao-imprimir">{erro}</div>}
 
-      {escolhidas.length > 0 && (
-        <div className="banner">
+      {escolhidas.length > 0 && modo === 'ficha' && (
+        <div className="banner nao-imprimir">
           Mostrando {escolhidas.length} trabalhador{escolhidas.length > 1 ? 'es' : ''} escolhido
           {escolhidas.length > 1 ? 's' : ''} em Colaboradores.{' '}
           <button
@@ -306,10 +396,12 @@ export default function FichaEpi() {
             className="btn btn-sm"
             onClick={() => {
               setEscolhidas([])
+              setMarcados([])
+              setModo('lista')
               window.history.replaceState(null, '', '/epi/ficha')
             }}
           >
-            Ver todos
+            Ver a lista
           </button>
         </div>
       )}
@@ -320,45 +412,185 @@ export default function FichaEpi() {
             valor={empresaFiltro}
             aoMudar={(v) => {
               setEmpresaFiltro(v)
-              setQuem('')
+              setMarcados([])
+              setModo('lista')
             }}
             opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
           />
         )}
-        <select id="ficha-quem" value={quem} onChange={(e) => setQuem(e.target.value)}>
-          <option value="">Todos os trabalhadores com entrega</option>
-          {pessoas.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome}
-            </option>
-          ))}
-        </select>
-        <label className="caixa-marcar">
-          <input
-            type="checkbox"
-            id="ficha-foto"
-            checked={comFoto}
-            onChange={(e) => setComFoto(e.target.checked)}
-          />
-          Incluir as fotos
-        </label>
-        <span style={{ flex: 1 }} />
-        <button type="button" className="btn btn-primary" onClick={() => window.print()}>
-          Imprimir
-        </button>
+
+        {modo === 'lista' ? (
+          <>
+            <input
+              type="search"
+              id="ficha-busca"
+              placeholder="Nome ou matrícula"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <select id="ficha-local" value={local} onChange={(e) => setLocal(e.target.value)}>
+              <option value="">Todos os locais</option>
+              {locais.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <label className="caixa-marcar">
+              Entregas de
+              <input type="date" id="ficha-de" value={de} onChange={(e) => setDe(e.target.value)} />
+            </label>
+            <label className="caixa-marcar">
+              até
+              <input type="date" id="ficha-ate" value={ate} onChange={(e) => setAte(e.target.value)} />
+            </label>
+            <label className="caixa-marcar">
+              <input
+                type="checkbox"
+                id="ficha-desligados"
+                checked={comDesligados}
+                onChange={(e) => setComDesligados(e.target.checked)}
+              />
+              Incluir desligados
+            </label>
+            <span style={{ flex: 1 }} />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!marcados.length}
+              onClick={() => emitir(marcados)}
+            >
+              Emitir ficha{marcados.length > 1 ? ` (${marcados.length})` : ''}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn" onClick={() => setModo('lista')}>
+              ← Voltar à lista
+            </button>
+            <label className="caixa-marcar">
+              <input
+                type="checkbox"
+                id="ficha-foto"
+                checked={comFoto}
+                onChange={(e) => setComFoto(e.target.checked)}
+              />
+              Incluir as fotos
+            </label>
+            <span style={{ flex: 1 }} />
+            <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+              Imprimir
+            </button>
+          </>
+        )}
       </div>
 
       {carregando && <p className="empty-state nao-imprimir">Carregando…</p>}
 
-      {!carregando && fichas.length === 0 && (
+      {!carregando && modo === 'lista' && (
+        interno && !empresaFiltro ? (
+          <p className="empty-state">Escolha a empresa para ver as fichas.</p>
+        ) : linhas.length === 0 ? (
+          <p className="empty-state">
+            {de || ate || busca || local
+              ? 'Nenhuma entrega com esses filtros.'
+              : 'Nenhuma entrega registrada ainda.'}
+          </p>
+        ) : (
+          <table className="tabela-colab">
+            <thead>
+              <tr>
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Marcar todos"
+                    checked={marcados.length > 0 && marcados.length === linhas.length}
+                    onChange={(e) => setMarcados(e.target.checked ? linhas.map((l) => l.pessoa.id) : [])}
+                  />
+                </th>
+                <th>Trabalhador</th>
+                <th>Função</th>
+                <th>Local</th>
+                <th>Entregas</th>
+                <th>Última entrega</th>
+                <th>Situação</th>
+                <th className="acoes" />
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l) => (
+                <tr
+                  key={l.pessoa.id}
+                  className={l.desligado ? 'inativo' : ''}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => emitir([l.pessoa.id])}
+                >
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={'Marcar ' + l.pessoa.nome}
+                      checked={marcados.includes(l.pessoa.id)}
+                      onChange={(e) =>
+                        setMarcados((atual) =>
+                          e.target.checked
+                            ? [...atual, l.pessoa.id]
+                            : atual.filter((id) => id !== l.pessoa.id)
+                        )
+                      }
+                    />
+                  </td>
+                  <td className="nome">
+                    {l.pessoa.nome}
+                    {l.pessoa.matricula ? ' · ' + l.pessoa.matricula : ''}
+                    {l.desligado && <span className="pill flat"> Desligado</span>}
+                  </td>
+                  <td>{l.funcao || '—'}</td>
+                  <td>{nomeDoLocal(l.pessoa)}</td>
+                  <td>{l.entregas.length}</td>
+                  <td>{l.ultima ? dataHoraBr(l.ultima) : '—'}</td>
+                  <td>
+                    {l.vencidos > 0 && (
+                      <span className="pill warn">
+                        {l.vencidos} vencido{l.vencidos > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {l.semAssinatura > 0 && (
+                      <span className="pill warn">
+                        {' '}
+                        {l.semAssinatura} sem assinatura
+                      </span>
+                    )}
+                    {!l.vencidos && !l.semAssinatura && (
+                      <span style={{ color: 'var(--ink-faint)' }}>em dia</span>
+                    )}
+                  </td>
+                  <td className="acoes">
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        emitir([l.pessoa.id])
+                      }}
+                    >
+                      Emitir ficha
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      )}
+
+      {!carregando && modo === 'ficha' && fichas.length === 0 && (
         <p className="empty-state nao-imprimir">
-          {interno && !empresaFiltro
-            ? 'Escolha a empresa para montar a ficha.'
-            : 'Nenhuma entrega registrada ainda.'}
+          Nenhuma entrega no período para quem você escolheu.
         </p>
       )}
 
-      {fichas.map(({ pessoa, linhas }, n) => {
+      {modo === 'ficha' &&
+        fichas.map(({ pessoa, linhas }, n) => {
         /* A função que vai no cabeçalho é a da última entrega desta
          * ficha, não a do cadastro de hoje: se a pessoa mudou de cargo,
          * o documento tem de dizer o que ela era quando recebeu. Entrega
