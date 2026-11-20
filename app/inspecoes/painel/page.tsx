@@ -85,8 +85,6 @@ function PainelInspecoesConteudo() {
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
   const [respostas, setRespostas] = useState<Resposta[]>([])
   const [ncs, setNcs] = useState<NC[]>([])
-  /* Só para estimar as horas-homem das taxas. */
-  const [colaboradores, setColaboradores] = useState<{ empresa_id: string }[]>([])
 
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
@@ -156,9 +154,6 @@ function PainelInspecoesConteudo() {
 
       setRespostas((rs || []) as unknown as Resposta[])
       setNcs((ns || []) as unknown as NC[])
-
-      const { data: cols } = await supabase.from('colaboradores').select('empresa_id')
-      setColaboradores((cols || []) as { empresa_id: string }[])
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível montar o painel.')
@@ -315,46 +310,6 @@ function PainelInspecoesConteudo() {
     }
   }, [ncsVisiveis, respostas, inspecoes])
 
-  /*
-   * TF e TG — as taxas que o dono da empresa entende.
-   *
-   * TF = acidentes com afastamento x 1.000.000 / horas-homem.
-   * TG = dias perdidos x 1.000.000 / horas-homem.
-   *
-   * AS HORAS SÃO ESTIMADAS: o portal não registra hora trabalhada, e
-   * inventar um cadastro que ninguém preenche daria um número pior que
-   * nenhum. A conta usa o nº de pessoas no cadastro x 176 h por mês, e
-   * a tela diz que é estimativa. Quando houver hora real, troca-se a
-   * origem do número sem mexer no resto.
-   */
-  const taxas = useMemo(() => {
-    const meses =
-      de && ate
-        ? Math.max(
-            1,
-            Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / 2592000000)
-          )
-        : 12
-
-    const pessoas = empresaAtual
-      ? colaboradores.filter((c) => c.empresa_id === empresaAtual).length
-      : colaboradores.length
-
-    const hht = pessoas * 176 * meses
-    const comAfastamento = ncsVisiveis.filter(
-      (n) => n.tipo_incidente === 'acidente_com_afastamento'
-    ).length
-    const diasPerdidos = ncsVisiveis.reduce((s, n) => s + (n.afastamento_dias || 0), 0)
-
-    return {
-      pessoas,
-      meses,
-      hht,
-      tf: hht ? Math.round((1000000 * comAfastamento) / hht * 100) / 100 : null,
-      tg: hht ? Math.round((1000000 * diasPerdidos) / hht * 100) / 100 : null,
-    }
-  }, [ncsVisiveis, colaboradores, empresaAtual, de, ate])
-
   /* ---------- Incidentes ---------- */
   const incidentes = useMemo(() => {
     const sos = ncsVisiveis.filter((n) => n.origem === 'incidente')
@@ -466,30 +421,6 @@ function PainelInspecoesConteudo() {
                 encerrada, o portal procura a mesma pergunta reprovando de novo no mesmo local
                 nos 90 dias seguintes. É a verificação da eficácia que o item 10.2 pede,
                 virada em número.
-              </p>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-head">
-              <div className="section-title">Taxas de frequência e gravidade</div>
-            </div>
-            <div className="panel-body">
-              <div className="stats">
-                <div className="stat">
-                  <div className="num">{taxas.tf ?? '—'}</div>
-                  <div className="lbl">TF — acidentes com afastamento por milhão de horas</div>
-                </div>
-                <div className="stat">
-                  <div className="num">{taxas.tg ?? '—'}</div>
-                  <div className="lbl">TG — dias perdidos por milhão de horas</div>
-                </div>
-              </div>
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
-                Horas estimadas: {taxas.pessoas} pessoa{taxas.pessoas === 1 ? '' : 's'} no cadastro
-                × 176 h × {taxas.meses} {taxas.meses === 1 ? 'mês' : 'meses'} ={' '}
-                {taxas.hht.toLocaleString('pt-BR')} horas. O portal ainda não registra hora
-                trabalhada — quando registrar, a conta troca de origem e o número fica exato.
               </p>
             </div>
           </div>
