@@ -122,6 +122,13 @@ const DESENHOS = {
       <path d="M5 19h14" />
     </>
   ),
+  /* Selo com o visto: a auditoria é o que certifica, não o que mede. */
+  auditoria: (
+    <>
+      <path d="M12 3l2.4 1.4 2.8-.2.9 2.6 2.3 1.6-1.1 2.6 1.1 2.6-2.3 1.6-.9 2.6-2.8-.2L12 19l-2.4-1.4-2.8.2-.9-2.6L3.6 13.6 4.7 11 3.6 8.4l2.3-1.6.9-2.6 2.8.2z" />
+      <path d="M9.5 11.5l1.8 1.8 3.4-3.4" />
+    </>
+  ),
   /* Prancheta com o visto: é o checklist aplicado em campo. */
   inspecoes: (
     <>
