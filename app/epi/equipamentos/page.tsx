@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
-import EpiAbas from '@/components/EpiAbas'
 import ImportarPlanilha from './ImportarPlanilha'
 import Icone from '@/components/Icone'
 import '../../colaboradores/colaboradores.css'
@@ -445,7 +444,6 @@ export default function PainelEpi() {
   if (semTabela) {
     return (
       <div className="app">
-        <EpiAbas />
         <div className="banner bad">
           O cadastro de EPIs ainda não foi criado no banco. Rode <code>supabase/epis.sql</code> no
           SQL Editor do Supabase.
@@ -456,8 +454,6 @@ export default function PainelEpi() {
 
   return (
     <div className="app">
-      <EpiAbas />
-
       <div>
         <p className="eyebrow">EPI</p>
         <h1 className="titulo-tela">Configuração de EPI's</h1>

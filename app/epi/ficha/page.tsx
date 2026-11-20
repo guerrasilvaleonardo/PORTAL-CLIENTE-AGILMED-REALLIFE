@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase'
 import { formatarCpf } from '@/lib/historicoCertificados'
 import { TERMO_ENTREGA_EPI } from '@/lib/epiTermo'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
-import EpiAbas from '@/components/EpiAbas'
 import '../../colaboradores/colaboradores.css'
 import './ficha.css'
 
@@ -361,7 +360,6 @@ export default function FichaEpi() {
   if (semTabela) {
     return (
       <div className="app">
-        <EpiAbas />
         <div className="banner bad">
           As entregas ainda não foram criadas no banco. Rode <code>supabase/epi-entregas.sql</code>.
         </div>
@@ -371,10 +369,6 @@ export default function FichaEpi() {
 
   return (
     <div className="app">
-      <div className="nao-imprimir">
-        <EpiAbas />
-      </div>
-
       <div className="nao-imprimir">
         <p className="eyebrow">EPI</p>
         <h1 className="titulo-tela">Ficha de entrega</h1>
