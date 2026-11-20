@@ -284,3 +284,93 @@
   line-height: 1;
   padding: 0 2px;
 }
+
+/* ---------- Cabeçalho da auditoria ---------------------------------- */
+/* O contador fica ao lado do título, não embaixo: quem está no meio de
+   30 requisitos olha para ele o tempo todo. */
+.insp-cabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.insp-contagem {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--surface-2, #f1f3f6);
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.insp-barra {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2, #f1f3f6);
+  overflow: hidden;
+  margin: 10px 0 4px;
+}
+
+.insp-barra span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand, #2563eb);
+  transition: width 0.25s ease;
+}
+
+/* Seção da norma: auditoria se conduz seção a seção. */
+.insp-secao {
+  margin: 22px 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.insp-secao:first-child {
+  margin-top: 8px;
+}
+
+/* O preço da marcação, dito na hora. */
+.insp-aviso-nc {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-m, 10px);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.insp-aviso-nc.maior {
+  background: #fdeaea;
+  color: #8a1c1c;
+}
+
+.insp-aviso-nc.menor {
+  background: #fdf4e3;
+  color: #8a5a00;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .insp-aviso-nc.maior {
+    background: #3a1a1a;
+    color: #f3b7b7;
+  }
+  :root:not([data-theme='light']) .insp-aviso-nc.menor {
+    background: #3a2f16;
+    color: #f0d08a;
+  }
+}
+
+:root[data-theme='dark'] .insp-aviso-nc.maior {
+  background: #3a1a1a;
+  color: #f3b7b7;
+}
+
+:root[data-theme='dark'] .insp-aviso-nc.menor {
+  background: #3a2f16;
+  color: #f0d08a;
+}
