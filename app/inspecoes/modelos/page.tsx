@@ -48,7 +48,14 @@ type Item = {
   ativo: boolean
 }
 
-function ModelosDeInspecaoConteudo() {
+/*
+ * A mesma tela serve aos dois: o que muda é o TIPO de checklist que
+ * ela lista e cria. Checklist de campo e checklist de norma são dois
+ * ofícios diferentes, e misturá-los numa lista só foi exatamente o que
+ * fez o ISO 45001 aparecer dentro de Inspeções.
+ */
+function ModelosDeInspecaoConteudo({ tipo }: { tipo: 'inspecao' | 'auditoria' }) {
+  const auditoria = tipo === 'auditoria'
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [semTabela, setSemTabela] = useState(false)
@@ -105,6 +112,7 @@ function ModelosDeInspecaoConteudo() {
       const { data: ms, error: erroM } = await supabase
         .from('inspecao_modelos')
         .select('id, empresa_id, nome, descricao, norma, ativo')
+        .eq('tipo', tipo)
         .order('nome')
 
       if (erroM) {
@@ -156,7 +164,9 @@ function ModelosDeInspecaoConteudo() {
     setSalvando(true)
     const { data, error } = await supabase
       .from('inspecao_modelos')
-      .insert({ nome, norma: novaNorma.trim() || null, empresa_id: empresa })
+      /* Nasce no tipo da tela em que foi criado: checklist de auditoria
+       * criado aqui não pode cair na lista de campo. */
+      .insert({ nome, norma: novaNorma.trim() || null, empresa_id: empresa, tipo })
       .select('id, empresa_id, nome, descricao, norma, ativo')
       .single()
     setSalvando(false)
@@ -221,11 +231,14 @@ function ModelosDeInspecaoConteudo() {
   return (
     <div className="app">
       <div>
-        <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">Modelos de checklist</h1>
+        <p className="eyebrow">{auditoria ? 'AUDITORIAS' : 'INSPEÇÕES'}</p>
+        <h1 className="titulo-tela">
+          {auditoria ? 'Checklists de auditoria' : 'Modelos de checklist'}
+        </h1>
         <p className="subtitulo-tela">
-          A folha que o técnico leva para campo. Escreva a pergunta com as suas palavras e use o
-          campo da norma só como referência — &quot;NR-18&quot;, &quot;ISO 45001:2024 — 9.2&quot;.
+          {auditoria
+            ? 'Os requisitos que a auditoria percorre, na ordem da norma. Escreva a pergunta com as suas palavras e use o campo da norma só como referência — o texto da ABNT é vendido por ela.'
+            : 'A folha que o técnico leva para campo. Escreva a pergunta com as suas palavras e use o campo da norma só como referência — "NR-18", "ISO 45001:2024 — 9.2".'}
         </p>
       </div>
 
@@ -391,7 +404,9 @@ function ModelosDeInspecaoConteudo() {
 export default function ModelosDeInspecao() {
   return (
     <ComModulo modulo="inspecoes">
-      <ModelosDeInspecaoConteudo />
+      <ModelosDeInspecaoConteudo tipo="inspecao" />
     </ComModulo>
   )
 }
+
+export { ModelosDeInspecaoConteudo }
