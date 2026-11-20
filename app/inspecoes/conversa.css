@@ -182,3 +182,41 @@
     display: none;
   }
 }
+
+/* Prescrição: aula dentro do item, fechada por padrão.
+   Quem já sabe não tropeça nela; quem não sabe acha ali. */
+.insp-prescricao {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m, 10px);
+  background: var(--surface-sunken, #f7f8fa);
+}
+
+.insp-prescricao summary {
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand, #2563eb);
+  list-style: none;
+}
+
+.insp-prescricao summary::-webkit-details-marker {
+  display: none;
+}
+
+.insp-prescricao summary::before {
+  content: '+ ';
+  font-weight: 700;
+}
+
+.insp-prescricao[open] summary::before {
+  content: '− ';
+}
+
+.insp-prescricao > div {
+  padding: 0 14px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

@@ -2,187 +2,117 @@
  * A estrutura de pastas que o cliente monta ANTES de responder a
  * primeira pergunta da auditoria.
  *
- * DE ONDE ELA VEM. Não foi inventada: é a estrutura que a Real Life já
- * usa no SGI da Norte Sul, em produção. Estrutura testada em empresa
- * real vale mais do que organograma bonito que ninguém nunca encheu.
+ * ELA É GERADA A PARTIR DO CHECKLIST, não escrita à mão. Uma pasta por
+ * requisito da norma, na ordem da norma, agrupada pelo capítulo. Assim
+ * pasta e pergunta nunca divergem: mudou o checklist, muda a estrutura
+ * na próxima vez que alguém baixar.
  *
- * POR QUE ISSO É O PRIMEIRO PASSO. Auditoria trava quando a empresa
- * sabe que tem o documento mas não sabe onde. O tempo da auditoria
- * vira tempo de procurar arquivo, e o que não é achado em dez minutos
- * vira constatação por falta de evidência — mesmo quando a evidência
- * existe. Organizar antes não é burocracia: é o que faz a auditoria
- * durar um dia em vez de uma semana.
+ * POR QUE POR REQUISITO, E NÃO POR TEMA. Organizar por tema parece mais
+ * natural para quem trabalha na empresa, mas a auditoria não pergunta
+ * por tema: pergunta pelo item. Com a pasta nomeada pelo número, "me
+ * mostra o 8.5.4" vira um clique. É também o que deixa visível o que
+ * falta — pasta vazia é requisito sem evidência.
  *
- * CADA PASTA DIZ QUE REQUISITO ELA RESPONDE. É a ponte entre o disco
- * do cliente e o checklist: quando o auditor pedir o 7.5, a empresa
- * sabe que é a 01/01, e não sai procurando em seis lugares.
+ * O NOME DA PASTA É SÓ O NÚMERO. Colocar título junto obrigaria a
+ * inventar um resumo para cada um dos 89 requisitos, e nome de pasta
+ * longo quebra caminho no Windows. O que a pasta quer está escrito no
+ * LEIA-ME dentro dela, com a pergunta e o que pedir para ver.
+ *
+ * UM DOCUMENTO PODE SERVIR A MAIS DE UM REQUISITO. A ata da análise
+ * crítica responde ao 9.3 e alimenta o 10.1. Nesse caso o arquivo mora
+ * em um lugar só e o LEIA-ME do outro aponta para ele — cópia em duas
+ * pastas vira duas versões diferentes em três meses.
  */
 
-export type Pasta = {
-  nome: string
-  oque: string
-  /* Requisitos que costumam ser respondidos com o que mora aqui. */
-  requisitos?: string[]
-  filhas?: Pasta[]
+export type ItemDaNorma = {
+  requisito: string
+  categoria: string
+  pergunta: string
+  orientacao?: string | null
 }
 
-export const ESTRUTURA_SGI: Pasta[] = [
+/* Um requisito pode ter mais de uma pergunta — o 4.1 tem a do contexto
+ * e a da mudança climática, o 10.2 tem três. A pasta é uma só, e o
+ * LEIA-ME dela lista todas. Antes disso o segundo LEIA-ME apagava o
+ * primeiro, e a pasta ficava explicando metade do que guarda. */
+export type PastaDeRequisito = {
+  requisito: string
+  perguntas: string[]
+  orientacoes: string[]
+}
+
+export type GrupoDePastas = {
+  /* "04 - Contexto", já no formato que ordena sozinho no Explorer. */
+  pasta: string
+  titulo: string
+  itens: PastaDeRequisito[]
+}
+
+/* Pastas que não saem do checklist, mas que toda auditoria usa. */
+export const PASTAS_FIXAS: { nome: string; oque: string }[] = [
   {
-    nome: '00 - Governança SGI',
-    oque: 'A base do sistema: quem decide, o que a empresa se compromete a fazer e onde isso está escrito.',
-    requisitos: ['4.1', '4.2', '4.3', '5.2', '5.3'],
-    filhas: [
-      { nome: '01 - Política SGI', oque: 'A política assinada pela direção, e as versões anteriores.', requisitos: ['5.2'] },
-      { nome: '02 - Objetivos SGI', oque: 'Objetivos do ano, com meta, indicador, responsável e prazo.', requisitos: ['6.2'] },
-      {
-        nome: '03 - Contexto e partes interessadas',
-        oque: 'Análise de contexto, lista de partes interessadas e o que cada uma exige. É aqui que entra a análise sobre mudança climática.',
-        requisitos: ['4.1', '4.2'],
-      },
-      { nome: '04 - Papéis e responsabilidades', oque: 'Quem responde pelo quê, por escrito.', requisitos: ['5.3'] },
-      {
-        nome: '05 - Reuniões e análises críticas',
-        oque: 'Atas da análise crítica pela direção, com entradas, decisões e prazos.',
-        requisitos: ['9.3'],
-      },
-    ],
+    nome: '00 - Programa e plano de auditoria',
+    oque: 'Programa do ano, plano de cada auditoria, convocações e atas das reuniões de abertura e encerramento.',
   },
   {
-    nome: '01 - Controle de documentos e registros',
-    oque: 'O controle do que é documento: versão vigente, quem aprovou, por quanto tempo guarda.',
-    requisitos: ['7.5'],
-    filhas: [
-      { nome: '01 - Lista mestra', oque: 'A lista de todos os documentos do sistema, com versão e guarda.', requisitos: ['7.5'] },
-      { nome: '02 - Procedimentos documentados', oque: 'Os procedimentos vigentes.', requisitos: ['7.5', '8.1'] },
-      { nome: '03 - Modelos e formulários', oque: 'Os formulários em branco, prontos para usar.' },
-      { nome: '04 - Registros SGI', oque: 'Registros preenchidos que não cabem em outra pasta.' },
-    ],
-  },
-  {
-    nome: '02 - Planejamento e riscos',
-    oque: 'O que pode dar errado, o que a lei exige, e o plano para tratar os dois.',
-    requisitos: ['6.1.1', '6.1.2', '6.1.3', '6.1.4'],
-    filhas: [
-      {
-        nome: '01 - Riscos e oportunidades',
-        oque: 'Levantamento de perigos e avaliação de riscos, com o critério usado. E as oportunidades, que quase sempre são esquecidas.',
-        requisitos: ['6.1.1', '6.1.2', '6.1.3'],
-      },
-      {
-        nome: '02 - Requisitos legais e outros',
-        oque: 'A lista do que se aplica à empresa, e a avaliação periódica de atendimento.',
-        requisitos: ['6.1.3', '9.1.2'],
-      },
-      {
-        nome: '03 - Planos de ação',
-        oque: 'O plano que transforma risco em ação, com responsável, prazo e verificação da eficácia.',
-        requisitos: ['6.1.4'],
-      },
-    ],
-  },
-  {
-    nome: '03 - Operação por obra',
-    oque: 'Uma pasta por obra ou contrato. É onde a evidência de campo mora, e onde o auditor vai pedir amostra.',
-    requisitos: ['8.1.1', '8.1.3', '8.1.4'],
-    filhas: [
-      { nome: '01 - Contrato e plano da obra', oque: 'Contrato, escopo e plano específico daquela obra.' },
-      { nome: '02 - Integração e treinamentos', oque: 'Integração de quem entrou, com lista de presença.', requisitos: ['7.2', '7.3'] },
-      { nome: '03 - APR, PT e PGR', oque: 'Análise de risco da tarefa, permissões de trabalho e o PGR da obra.', requisitos: ['6.1.2', '8.1.1'] },
-      { nome: '04 - EPI e EPC', oque: 'Fichas de entrega, CA e controle de validade.', requisitos: ['7.1', '8.1.2'] },
-      { nome: '05 - Inspeções', oque: 'Inspeções feitas em campo e o tratamento do que reprovou.', requisitos: ['9.1.1'] },
-      { nome: '06 - Ocorrências', oque: 'Incidentes, quase-acidentes e acidentes daquela obra.', requisitos: ['10.2'] },
-      { nome: '07 - Encerramento', oque: 'O que fecha a obra: devoluções, desmobilização, lições.' },
-    ],
-  },
-  {
-    nome: '04 - Saúde ocupacional',
-    oque: 'Documento de saúde é dado sensível. Esta pasta tem acesso restrito — não é só organização, é obrigação legal.',
-    requisitos: ['7.1', '8.2'],
-    filhas: [
-      { nome: '01 - PCMSO', oque: 'Programa vigente e os anteriores.' },
-      { nome: '02 - ASO e exames', oque: 'Atestados de saúde ocupacional, por colaborador. ACESSO RESTRITO.' },
-      { nome: '03 - Afastamentos', oque: 'Afastamentos, com início, fim e motivo. ACESSO RESTRITO.' },
-      { nome: '04 - Controle de vencimentos', oque: 'Quem vence quando, para não deixar passar.' },
-    ],
-  },
-  {
-    nome: '05 - Segurança do trabalho',
-    oque: 'Procedimentos, treinamentos e a evidência de que o sistema funciona no dia a dia.',
-    requisitos: ['7.2', '7.3', '8.1.1', '8.2'],
-    filhas: [
-      { nome: '01 - Procedimentos SST', oque: 'Procedimentos de segurança, por risco ou atividade.' },
-      { nome: '02 - Treinamentos e DDS', oque: 'Certificados, listas de presença e os DDS.', requisitos: ['7.2', '7.3'] },
-      { nome: '03 - Catálogo EPI e EPC', oque: 'O que a empresa usa, com CA e critério de escolha.' },
-      { nome: '04 - Emergência', oque: 'Plano de emergência, brigada e registro dos simulados.', requisitos: ['8.2'] },
-      { nome: '05 - Acidentes e incidentes', oque: 'Investigação, causa e ação. É o que o auditor cruza com o 10.2.', requisitos: ['10.2'] },
-    ],
-  },
-  {
-    nome: '06 - Qualidade e processos',
-    oque: 'Só para quem tem ISO 9001: processos, fornecedores e controle de produto ou serviço.',
-    requisitos: ['4.4', '8.4.1', '8.5.1', '8.6', '8.7'],
-    filhas: [
-      { nome: '01 - Mapa de processos', oque: 'Os processos, com entradas, saídas e responsáveis.', requisitos: ['4.4'] },
-      { nome: '02 - Fornecedores', oque: 'Avaliação, critério e o que foi comunicado a eles.', requisitos: ['8.4.1', '8.4.2', '8.4.3'] },
-      { nome: '03 - Controle de produto e serviço', oque: 'Liberação, rastreabilidade e saídas não conformes.', requisitos: ['8.5.1', '8.6', '8.7'] },
-      { nome: '04 - Satisfação do cliente', oque: 'Como a empresa mede e o que fez com o resultado.', requisitos: ['9.1.2'] },
-    ],
-  },
-  {
-    nome: '07 - Avaliação de desempenho',
-    oque: 'Os números do sistema e as auditorias. É daqui que sai metade da evidência do capítulo 9.',
-    requisitos: ['9.1.1', '9.1.3', '9.2', '9.3'],
-    filhas: [
-      { nome: '01 - Indicadores', oque: 'O que é medido, com que método e o resultado no tempo.', requisitos: ['9.1.1', '9.1.3'] },
-      { nome: '02 - Auditorias', oque: 'Programa do ano, planos, relatórios e as constatações.', requisitos: ['9.2'] },
-      { nome: '03 - Análise crítica', oque: 'Material levado à direção e o que ela decidiu.', requisitos: ['9.3'] },
-      { nome: '04 - Relatórios de desempenho', oque: 'Consolidados que vão para o cliente e para a direção.' },
-    ],
-  },
-  {
-    nome: '08 - Melhoria',
-    oque: 'O que deu errado, o que foi feito, e o que mudou por vontade própria.',
-    requisitos: ['10.1', '10.2'],
-    filhas: [
-      { nome: '01 - Não conformidades', oque: 'Registro, causa e tratamento.', requisitos: ['10.2'] },
-      { nome: '02 - Ações corretivas', oque: 'A ação, o prazo e a verificação da eficácia.', requisitos: ['10.2'] },
-      { nome: '03 - Lições aprendidas', oque: 'O que a empresa não quer repetir.' },
-      {
-        nome: '04 - Melhorias implementadas',
-        oque: 'Melhoria que NÃO nasceu de problema. É a evidência que falta em quase toda empresa.',
-        requisitos: ['10.1'],
-      },
-    ],
+    nome: '98 - Relatorios de auditoria',
+    oque: 'Os relatórios emitidos e o registro de para quem foram enviados.',
   },
   {
     nome: '99 - Arquivo e legado',
-    oque: 'Onde vai o que saiu de uso. Nunca é repositório de documento vigente — e é isso que evita o auditor achar a versão errada.',
-    requisitos: ['7.5'],
-    filhas: [
-      { nome: '01 - Legado a revisar', oque: 'O que veio de antes e ainda não foi conferido.' },
-      { nome: '02 - Obsoletos', oque: 'Versões antigas, marcadas como obsoletas.' },
-      { nome: '03 - Duplicados para validação', oque: 'Dois arquivos iguais em lugares diferentes, à espera de decisão.' },
-    ],
+    oque: 'Versões antigas e documentos fora de uso. Nunca guarde documento vigente aqui — é isso que evita o auditor achar a versão errada.',
   },
 ]
 
-/* Gera o .bat que cria tudo isso na pasta escolhida.
+/* "9 Avaliação" vira "09 - Avaliação": o zero à esquerda é o que faz o
+ * Explorer ordenar certo, senão o 10 aparece antes do 4. */
+export function pastaDoCapitulo(categoria: string) {
+  const m = categoria.match(/^(\d+)\s+(.*)$/)
+  if (!m) return categoria
+  return m[1].padStart(2, '0') + ' - ' + m[2]
+}
+
+export function agrupar(itens: ItemDaNorma[]): GrupoDePastas[] {
+  return itens.reduce<GrupoDePastas[]>((acc, i) => {
+    const pasta = pastaDoCapitulo(i.categoria)
+    let grupo = acc[acc.length - 1]
+    if (!grupo || grupo.pasta !== pasta) {
+      grupo = { pasta, titulo: i.categoria, itens: [] }
+      acc.push(grupo)
+    }
+
+    const existente = grupo.itens.find((x) => x.requisito === i.requisito)
+    const alvo = existente || { requisito: i.requisito, perguntas: [], orientacoes: [] }
+    if (!existente) grupo.itens.push(alvo)
+
+    alvo.perguntas.push(i.pergunta)
+    if (i.orientacao) alvo.orientacoes.push(i.orientacao)
+
+    return acc
+  }, [])
+}
+
+/* Windows não aceita estes caracteres em nome de pasta. */
+const limpar = (s: string) => s.replace(/[\\/:*?"<>|]/g, '').trim()
+
+/*
+ * Gera o .bat que cria a estrutura.
  *
  * .bat e não instruções na tela porque ele é clicado duas vezes e
- * pronto. Pedir para alguém criar 45 pastas à mão é pedir para a
+ * pronto. Pedir para alguém criar 60 pastas à mão é pedir para a
  * estrutura nascer torta — e estrutura torta no começo é retrabalho no
  * meio da auditoria.
  *
  * `chcp 65001` no topo: sem isso o cmd escreve "Avaliação" como
- * "AvaliaÃ§Ã£o" e a pasta nasce com o nome errado. */
-export function gerarBatEstrutura(raiz: string) {
+ * "AvaliaÃ§Ã£o" e a pasta nasce com o nome errado.
+ */
+export function gerarBatEstrutura(raiz: string, norma: string, grupos: GrupoDePastas[]) {
   const linhas: string[] = [
     '@echo off',
     'chcp 65001 > nul',
-    'setlocal enabledelayedexpansion',
     '',
-    'rem Cria a estrutura de pastas do SGI para ISO 45001 e ISO 9001.',
-    'rem Gerado pelo portal da Real Life SSMA.',
+    `rem Estrutura de pastas por requisito da ${limpar(norma)}.`,
+    'rem Gerada pelo portal da Real Life SSMA.',
     'rem Rodar de novo nao apaga nada: pasta que ja existe e mantida.',
     '',
     `set "RAIZ=${raiz.replace(/"/g, '')}"`,
@@ -195,40 +125,58 @@ export function gerarBatEstrutura(raiz: string) {
   /* O cmd trata estes caracteres como comando dentro do echo. */
   const seguro = (s: string) => s.replace(/[\^&<>|%]/g, (c) => '^' + c)
 
-  /* Cada pasta ganha um LEIA-ME dizendo o que guardar nela e que
-   * requisito ela responde. Sem isso a estrutura dura três meses: a
-   * pessoa que criou sabe para que serve cada pasta, quem chegou
-   * depois não — e aí começam as pastas paralelas. */
-  const leiaMe = (caminho: string, p: Pasta) => {
+  const criar = (caminho: string) =>
+    linhas.push(`if not exist "%RAIZ%\\${caminho}" mkdir "%RAIZ%\\${caminho}"`)
+
+  const leiaMe = (caminho: string, titulo: string, corpo: string[]) => {
     const arq = `%RAIZ%\\${caminho}\\LEIA-ME.txt`
-    linhas.push(`> "${arq}" echo ${seguro(p.nome)}`)
-    linhas.push(`>> "${arq}" echo.`)
-    linhas.push(`>> "${arq}" echo ${seguro(p.oque)}`)
-    if (p.requisitos?.length) {
+    linhas.push(`> "${arq}" echo ${seguro(titulo)}`)
+    for (const l of corpo) {
       linhas.push(`>> "${arq}" echo.`)
-      linhas.push(
-        `>> "${arq}" echo Responde aos requisitos: ${seguro(p.requisitos.join(', '))}`
-      )
+      linhas.push(`>> "${arq}" echo ${seguro(l)}`)
     }
     linhas.push(`>> "${arq}" echo.`)
     linhas.push(`>> "${arq}" echo Real Life SSMA - portal do cliente`)
   }
 
-  for (const p of ESTRUTURA_SGI) {
-    linhas.push(`if not exist "%RAIZ%\\${p.nome}" mkdir "%RAIZ%\\${p.nome}"`)
-    leiaMe(p.nome, p)
-    for (const f of p.filhas || []) {
-      const caminho = `${p.nome}\\${f.nome}`
-      linhas.push(`if not exist "%RAIZ%\\${caminho}" mkdir "%RAIZ%\\${caminho}"`)
-      leiaMe(caminho, f)
+  for (const f of PASTAS_FIXAS.slice(0, 1)) {
+    criar(f.nome)
+    leiaMe(f.nome, f.nome, [f.oque])
+  }
+
+  for (const g of grupos) {
+    criar(g.pasta)
+    leiaMe(g.pasta, g.titulo, [
+      `Uma pasta por requisito deste capitulo da ${limpar(norma)}.`,
+      'Pasta vazia e requisito sem evidencia.',
+    ])
+
+    for (const i of g.itens) {
+      const caminho = `${g.pasta}\\${limpar(i.requisito)}`
+      criar(caminho)
+      leiaMe(caminho, `Requisito ${i.requisito}`, [
+        i.perguntas.length > 1
+          ? 'Guarde aqui a evidencia que responde a estas perguntas:'
+          : 'Guarde aqui a evidencia que responde a:',
+        ...i.perguntas,
+        ...(i.orientacoes.length ? ['O que o auditor pede para ver:', ...i.orientacoes] : []),
+      ])
     }
   }
+
+  for (const f of PASTAS_FIXAS.slice(1)) {
+    criar(f.nome)
+    leiaMe(f.nome, f.nome, [f.oque])
+  }
+
+  const total =
+    PASTAS_FIXAS.length + grupos.length + grupos.reduce((s, g) => s + g.itens.length, 0)
 
   linhas.push(
     '',
     'echo.',
-    'echo Pronto. A estrutura foi criada.',
-    'echo Abra o LEIA-ME dentro de cada pasta para saber o que guardar nela.',
+    `echo Pronto. ${total} pastas criadas.`,
+    'echo Abra o LEIA-ME dentro de cada uma para saber o que guardar nela.',
     'echo.',
     'pause'
   )
