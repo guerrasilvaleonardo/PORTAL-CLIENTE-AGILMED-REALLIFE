@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { pessoasDaEmpresa } from '@/lib/pessoasDaEmpresa'
 import { carregarDesligados, estaDesligado } from '@/lib/colaboradoresDesligados'
-import { enderecoDoPortal, enviarEmail, escapar, marcaDaEmpresa, montarEmail } from '@/lib/email'
-import { dataBr, diasAteData, hojePortoVelho } from '@/lib/documentosSst'
+import { enviarEmail } from '@/lib/email'
+import { montarAvisoEpi, type ItemAvisoEpi } from '@/lib/avisoEpi'
+import { diasAteData, hojePortoVelho } from '@/lib/documentosSst'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -49,73 +50,7 @@ function fimDaSemana(hoje: string) {
   return d.toISOString().slice(0, 10)
 }
 
-type Item = {
-  nome: string
-  ca: string | null
-  quantidade: number
-  troca_em: string
-  dias: number
-  colaborador: string
-  funcao: string | null
-  empresa_id: string
-  empresa: any
-}
-
-function descricao(i: Item) {
-  if (i.dias < 0) {
-    const n = Math.abs(i.dias)
-    return { texto: 'venceu há ' + n + (n === 1 ? ' dia' : ' dias'), cor: '#b91c1c' }
-  }
-  if (i.dias === 0) return { texto: 'vence hoje', cor: '#b45309' }
-  return { texto: 'vence em ' + i.dias + (i.dias === 1 ? ' dia' : ' dias'), cor: '#b45309' }
-}
-
-/* Uma linha por pessoa, com os EPIs dela embaixo: é como a ficha é lida. */
-function blocoPessoas(itens: Item[]) {
-  const porPessoa = new Map<string, Item[]>()
-  for (const i of itens) porPessoa.set(i.colaborador, [...(porPessoa.get(i.colaborador) || []), i])
-
-  const pessoas = [...porPessoa.entries()].sort(
-    (a, b) => Math.min(...a[1].map((i) => i.dias)) - Math.min(...b[1].map((i) => i.dias))
-  )
-
-  return (
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:6px 0 4px;">' +
-    pessoas
-      .map(([pessoa, lista]) => {
-        const funcao = lista[0].funcao
-        return (
-          '<tr><td style="padding:9px 0;border-bottom:1px solid #e2e8f0;font-size:14px;color:#334155;">' +
-          '<strong style="color:#0f172a;">' +
-          escapar(pessoa) +
-          '</strong>' +
-          (funcao ? ' <span style="color:#64748b;font-size:12.5px;">· ' + escapar(funcao) + '</span>' : '') +
-          lista
-            .sort((a, b) => a.dias - b.dias)
-            .map((i) => {
-              const d = descricao(i)
-              return (
-                '<br><span style="font-size:13px;">' +
-                escapar(i.nome) +
-                (i.ca ? ' <span style="color:#64748b;">· CA ' + escapar(i.ca) + '</span>' : '') +
-                (i.quantidade > 1 ? ' <span style="color:#64748b;">· ' + i.quantidade + ' un.</span>' : '') +
-                ' — <span style="color:' +
-                d.cor +
-                ';">' +
-                dataBr(i.troca_em) +
-                ' · ' +
-                d.texto +
-                '</span></span>'
-              )
-            })
-            .join('') +
-          '</td></tr>'
-        )
-      })
-      .join('') +
-    '</table>'
-  )
-}
+type Item = ItemAvisoEpi & { empresa_id: string; empresa: any }
 
 export async function GET(request: Request) {
   if (!autorizado(request)) {
@@ -191,47 +126,16 @@ export async function GET(request: Request) {
   for (const [empresaId, lista] of porEmpresa) {
     if (semModulo.has(empresaId)) continue
 
-    const empresa = lista[0].empresa
-    const nomeEmpresa = empresa?.nome_fantasia || empresa?.razao_social || 'sua empresa'
-    const marca = marcaDaEmpresa(empresa?.marca)
-
     const para = (await pessoasDaEmpresa(empresaId)).map((p) => p.email || '').filter(Boolean)
     if (!para.length) continue
 
-    const vencidos = lista.filter((i) => i.dias < 0).length
-    const pessoas = new Set(lista.map((i) => i.colaborador)).size
-
-    const r = await enviarEmail({
-      para,
-      assunto:
-        'EPI — ' +
-        lista.length +
-        (lista.length === 1 ? ' troca' : ' trocas') +
-        ' nesta semana' +
-        (vencidos ? ', ' + vencidos + ' já vencida' + (vencidos === 1 ? '' : 's') : '') +
-        ' — ' +
-        nomeEmpresa,
-      html: montarEmail(
-        marca,
-        'EPIs para trocar nesta semana',
-        [
-          'Estes EPIs entregues em <strong>' +
-            escapar(nomeEmpresa) +
-            '</strong> têm a troca prevista até ' +
-            dataBr(limite) +
-            (vencidos ? ', e ' + vencidos + ' já passou da data' : '') +
-            ' — ' +
-            pessoas +
-            (pessoas === 1 ? ' trabalhador' : ' trabalhadores') +
-            ':',
-          blocoPessoas(lista),
-          'Depois de entregar o equipamento novo, lance a entrega no portal: a ficha do trabalhador é o documento que comprova a entrega na fiscalização.',
-        ],
-        { rotulo: 'Ver as entregas', url: enderecoDoPortal(marca) + '/epi' },
-        'Aviso automático do Portal do Cliente. Sai toda segunda-feira enquanto houver EPI a vencer.'
-      ),
-      marca,
+    const { assunto, html, marca } = montarAvisoEpi({
+      empresa: lista[0].empresa || {},
+      itens: lista,
+      limite,
     })
+
+    const r = await enviarEmail({ para, assunto, html, marca })
 
     if (r.enviado) {
       envios++
