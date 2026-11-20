@@ -222,3 +222,65 @@
 .insp-add-foto input {
   display: none;
 }
+
+/* Auditoria: explicação do requisito, modelo e evidência. */
+.insp-explicacao {
+  font-size: 13px;
+  color: var(--ink-muted);
+  line-height: 1.6;
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+}
+
+.insp-respostas button.meio.ativo {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #fff;
+}
+
+.insp-evidencia {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.insp-add-arquivo input {
+  display: none;
+}
+
+.insp-arquivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 3px 6px 3px 10px;
+  font-size: 12.5px;
+  max-width: 260px;
+}
+
+.insp-arquivo .nome {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insp-arquivo button:last-child {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+}

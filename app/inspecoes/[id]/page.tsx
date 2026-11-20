@@ -28,6 +28,16 @@ type Resposta = {
   resposta: string | null
   observacao: string | null
   fotos: string[]
+  anexos: string[]
+  item_id: string | null
+  inspecao_modelo_itens?: ItemDoModelo | ItemDoModelo[] | null
+}
+
+type ItemDoModelo = {
+  explicacao: string | null
+  orientacao: string | null
+  modelo_arquivo: string | null
+  modelo_rotulo: string | null
 }
 
 type Alteracao = {
@@ -42,6 +52,7 @@ type Alteracao = {
 type Inspecao = {
   id: string
   empresa_id: string
+  tipo: string
   local_id: string | null
   modelo_nome: string
   norma: string | null
@@ -69,6 +80,8 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   /* Links assinados das fotos: o balde é privado. */
   const [links, setLinks] = useState<Record<string, string>>({})
   const [enviando, setEnviando] = useState('')
+  /* Nome original do arquivo enviado, para a tela não mostrar o uuid. */
+  const [nomes, setNomes] = useState<Record<string, string>>({})
 
   /* Reabrir para corrigir, e o histórico de quem reabriu. */
   const [reabrindo, setReabrindo] = useState(false)
@@ -89,7 +102,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
       const { data: i, error: erroI } = await supabase
         .from('inspecoes')
         .select(
-          'id, empresa_id, local_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
+          'id, empresa_id, tipo, local_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
             'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
         )
         .eq('id', id)
@@ -100,7 +113,8 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
       const { data: rs } = await supabase
         .from('inspecao_respostas')
-        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos')
+        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, item_id, ' +
+          'inspecao_modelo_itens!item_id(explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
         .eq('inspecao_id', id)
         .order('ordem')
       setRespostas((rs || []) as unknown as Resposta[])
@@ -136,6 +150,88 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     carregar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  const auditoria = inspecao?.tipo === 'auditoria'
+
+  /* O PostgREST devolve a relação ora como objeto, ora como lista de um. */
+  function itemDe(r: Resposta) {
+    const rel = Array.isArray(r.inspecao_modelo_itens)
+      ? r.inspecao_modelo_itens[0]
+      : r.inspecao_modelo_itens
+    return rel || null
+  }
+
+  const nomeDoArquivo = (caminho: string) => caminho.split('/').pop() || caminho
+
+  /*
+   * Evidência é documento do cliente — PDF, planilha, foto da ata. Fica
+   * num balde privado por empresa, e a avaliação é do ITEM, não de cada
+   * arquivo: julgar arquivo por arquivo dividiria a mesma decisão em
+   * duas e deixaria as duas pela metade.
+   */
+  async function enviarEvidencia(rid: string, arquivo: File | undefined) {
+    if (!arquivo || !inspecao || fechada || enviando) return
+
+    const r = respostas.find((x) => x.id === rid)
+    if (!r) return
+    if ((r.anexos || []).length >= 10) {
+      setErro('Dez arquivos por item já é bastante.')
+      return
+    }
+
+    setEnviando(rid)
+    setErro('')
+
+    try {
+      const extensao = (arquivo.name.split('.').pop() || 'dat').toLowerCase().slice(0, 8)
+      const caminho = `${inspecao.empresa_id}/${crypto.randomUUID()}.${extensao}`
+
+      const { error: erroUp } = await supabase.storage
+        .from('inspecao-evidencias')
+        .upload(caminho, arquivo, { upsert: false })
+      if (erroUp) throw erroUp
+
+      const anexos = [...(r.anexos || []), caminho]
+      const { error } = await supabase
+        .from('inspecao_respostas')
+        .update({ anexos })
+        .eq('id', rid)
+      if (error) throw error
+
+      setRespostas((lista) => lista.map((x) => (x.id === rid ? { ...x, anexos } : x)))
+      setNomes((n) => ({ ...n, [caminho]: arquivo.name }))
+    } catch (e: any) {
+      console.error(e)
+      setErro(e?.message || 'Não foi possível enviar a evidência.')
+    } finally {
+      setEnviando('')
+    }
+  }
+
+  async function tirarEvidencia(rid: string, caminho: string) {
+    if (fechada) return
+    const r = respostas.find((x) => x.id === rid)
+    if (!r) return
+
+    const anexos = (r.anexos || []).filter((a) => a !== caminho)
+    const { error } = await supabase.from('inspecao_respostas').update({ anexos }).eq('id', rid)
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setRespostas((lista) => lista.map((x) => (x.id === rid ? { ...x, anexos } : x)))
+    await supabase.storage.from('inspecao-evidencias').remove([caminho])
+  }
+
+  async function abrirArquivo(balde: string, caminho: string) {
+    const { data, error } = await supabase.storage.from(balde).createSignedUrl(caminho, 300)
+    if (error || !data?.signedUrl) {
+      setErro(error?.message || 'Não foi possível abrir o arquivo.')
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noreferrer')
+  }
 
   /* As fotos ficam num balde privado: cada uma precisa de link assinado. */
   useEffect(() => {
@@ -486,31 +582,44 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
               </div>
               {r.categoria && <div className="orientacao">{r.categoria}</div>}
 
+              {/* Em auditoria, o que se pede para ver. É a evidência
+                  objetiva da ISO 19011 — sem isso o auditor julga
+                  impressão. */}
+              {(itemDe(r)?.explicacao || itemDe(r)?.orientacao) && (
+                <div className="insp-explicacao">
+                  {itemDe(r)?.explicacao || itemDe(r)?.orientacao}
+                </div>
+              )}
+
+              {/* Em auditoria o meio-termo é real: o programa existe mas
+                  não cobre tudo. Forçar atende/não atende empurra o
+                  auditor para o lado generoso e a constatação perde
+                  valor. Em inspeção de campo não existe meio extintor
+                  desobstruído, então a opção não aparece. */}
               <div className="insp-respostas">
-                <button
-                  type="button"
-                  className={'sim' + (r.resposta === 'conforme' ? ' ativo' : '')}
-                  disabled={fechada}
-                  onClick={() => responder(r.id, 'conforme')}
-                >
-                  Conforme
-                </button>
-                <button
-                  type="button"
-                  className={'nao' + (r.resposta === 'nao_conforme' ? ' ativo' : '')}
-                  disabled={fechada}
-                  onClick={() => responder(r.id, 'nao_conforme')}
-                >
-                  Não conforme
-                </button>
-                <button
-                  type="button"
-                  className={'na' + (r.resposta === 'nao_aplicavel' ? ' ativo' : '')}
-                  disabled={fechada}
-                  onClick={() => responder(r.id, 'nao_aplicavel')}
-                >
-                  Não se aplica
-                </button>
+                {(auditoria
+                  ? ([
+                      ['conforme', 'sim', 'Atende'],
+                      ['atende_parcial', 'meio', 'Atende parcialmente'],
+                      ['nao_conforme', 'nao', 'Não atende'],
+                      ['nao_aplicavel', 'na', 'Não se aplica'],
+                    ] as const)
+                  : ([
+                      ['conforme', 'sim', 'Conforme'],
+                      ['nao_conforme', 'nao', 'Não conforme'],
+                      ['nao_aplicavel', 'na', 'Não se aplica'],
+                    ] as const)
+                ).map(([valor, classe, rotulo]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    className={classe + (r.resposta === valor ? ' ativo' : '')}
+                    disabled={fechada}
+                    onClick={() => responder(r.id, valor)}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
               </div>
 
               {(r.resposta === 'nao_conforme' || r.observacao) && (
@@ -560,6 +669,55 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                   </label>
                 )}
               </div>
+
+              {/* Auditoria: o modelo para baixar e a evidência para
+                  enviar. Baixar o modelo transforma "você está
+                  reprovado" em "aqui está como resolver". */}
+              {auditoria && (
+                <div className="insp-evidencia">
+                  {itemDe(r)?.modelo_arquivo && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => abrirArquivo('inspecao-modelos', itemDe(r)!.modelo_arquivo!)}
+                    >
+                      Baixar {itemDe(r)?.modelo_rotulo || 'modelo'}
+                    </button>
+                  )}
+
+                  {!fechada && (r.anexos || []).length < 10 && (
+                    <label className="btn btn-sm insp-add-arquivo">
+                      {enviando === r.id ? 'Enviando…' : 'Enviar evidência'}
+                      <input
+                        type="file"
+                        disabled={!!enviando}
+                        onChange={(e) => {
+                          enviarEvidencia(r.id, e.target.files?.[0])
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                  )}
+
+                  {(r.anexos || []).map((a) => (
+                    <span key={a} className="insp-arquivo">
+                      <button
+                        type="button"
+                        className="nome"
+                        onClick={() => abrirArquivo('inspecao-evidencias', a)}
+                        title="Abrir"
+                      >
+                        {nomes[a] || nomeDoArquivo(a)}
+                      </button>
+                      {!fechada && (
+                        <button type="button" onClick={() => tirarEvidencia(r.id, a)} title="Tirar">
+                          ×
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
