@@ -99,6 +99,8 @@ function NaoConformidadesConteudo() {
   const [escolhida, setEscolhida] = useState<string>('')
   const [rascunho, setRascunho] = useState<Partial<NC>>({})
   const [salvando, setSalvando] = useState(false)
+  /* Encerrar é o fim da linha: a tela pergunta de novo antes. */
+  const [confirmandoFim, setConfirmandoFim] = useState(false)
 
   /* Lançar incidente. */
   const [abrindoIncidente, setAbrindoIncidente] = useState(false)
@@ -188,6 +190,7 @@ function NaoConformidadesConteudo() {
 
   function abrir(n: NC) {
     setEscolhida(n.id)
+    setConfirmandoFim(false)
     setRascunho({
       gravidade: n.gravidade,
       probabilidade: n.probabilidade,
@@ -259,6 +262,7 @@ function NaoConformidadesConteudo() {
     }
 
     setEscolhida('')
+    setConfirmandoFim(false)
     await carregar()
   }
 
@@ -674,18 +678,68 @@ function NaoConformidadesConteudo() {
               </label>
             </div>
 
+            {/* Encerrar é o fim da linha: sai da fila, entra na conta da
+                eficácia e vira registro de que o problema foi tratado.
+                Por isso a tela pergunta de novo, mostrando o que vai
+                ficar gravado. */}
+            {confirmandoFim ? (
+              <div className="banner">
+                <div>
+                  <strong>Encerrar esta não conformidade?</strong>
+                  <div style={{ fontWeight: 500, marginTop: 4 }}>
+                    Vai ficar registrado que a causa foi{' '}
+                    <em>{(rascunho.causa || '').trim() || '(em branco)'}</em>, que a ação corretiva
+                    foi <em>{(rascunho.acao_corretiva || '').trim() || '(em branco)'}</em>, e que a
+                    ação {rascunho.eficaz ?? true ? 'resolveu' : 'não resolveu'}.
+                    {atual.prazo && atual.prazo < hoje() && ' O prazo já estava vencido.'}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="btn" disabled={salvando} onClick={() => salvar(false)}>
                 Salvar
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={salvando}
-                onClick={() => salvar(true)}
-              >
-                Encerrar
-              </button>
+
+              {confirmandoFim ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={salvando}
+                    onClick={() => salvar(true)}
+                  >
+                    Sim, encerrar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={salvando}
+                    onClick={() => setConfirmandoFim(false)}
+                  >
+                    Ainda não
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={salvando}
+                  onClick={() => {
+                    /* A checagem vem antes da pergunta: não adianta
+                       confirmar o que o banco vai recusar. */
+                    if (!rascunho.causa?.trim() || !rascunho.acao_corretiva?.trim()) {
+                      setErro('Para encerrar, preencha a causa e a ação corretiva.')
+                      return
+                    }
+                    setErro('')
+                    setConfirmandoFim(true)
+                  }}
+                >
+                  Encerrar
+                </button>
+              )}
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
               Encerrar exige a causa e a ação corretiva preenchidas. É o que a ISO 45001 e a ISO
