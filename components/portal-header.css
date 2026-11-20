@@ -41,3 +41,109 @@
 @media (prefers-reduced-motion: reduce) {
   .selo-msg-nova::before { animation: none; }
 }
+
+/* ---------------------------------------------------------------
+   Barra lateral do portal (ver components/PortalHeader.tsx).
+
+   Os módulos ficam numa coluna à esquerda e o módulo aberto mostra as
+   seções dele recuadas embaixo — uma coluna só, como no OnSafety. Duas
+   colunas comeriam a largura das tabelas, que é onde está o trabalho.
+   --------------------------------------------------------------- */
+
+.portal-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.portal-menu {
+  flex: 0 0 auto;
+  /* Acompanha a rolagem, abaixo do cabeçalho fixo. */
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  padding: 18px 0 18px clamp(14px, 3vw, 32px);
+}
+
+.portal-conteudo {
+  flex: 1 1 auto;
+  /* Sem isto, uma tabela larga empurra a coluna do menu. */
+  min-width: 0;
+}
+
+.modtabs.vertical {
+  flex-direction: column;
+  align-items: stretch;
+  width: 196px;
+  border-radius: var(--radius-l);
+  padding: 6px;
+}
+
+.modtabs.vertical .modtab-grupo {
+  display: flex;
+  flex-direction: column;
+}
+
+.modtabs.vertical a {
+  border-radius: var(--radius-m);
+  justify-content: flex-start;
+  padding: 9px 12px;
+}
+
+/* As seções do módulo aberto: recuadas e menores, para se lerem como
+   parte do módulo e não como mais módulos. */
+.modtabs.vertical .submenu {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 4px 14px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+
+.modtabs.vertical .submenu a {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 10px;
+}
+
+.modtabs.vertical .submenu a.active {
+  background: var(--primary-tint);
+  color: var(--primary-strong);
+}
+
+/* Celular: a barra vira a faixa de botões de antes. Coluna lateral numa
+   tela de 360px come metade do espaço. */
+@media (max-width: 860px) {
+  .portal-shell {
+    flex-direction: column;
+  }
+
+  .portal-menu {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding: 14px clamp(14px, 3vw, 32px) 0;
+    width: 100%;
+  }
+
+  .modtabs.vertical {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: auto;
+    border-radius: var(--radius-l);
+  }
+
+  .modtabs.vertical .submenu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 0;
+    padding-left: 6px;
+  }
+}
+
+@media print {
+  .portal-menu {
+    display: none;
+  }
+}

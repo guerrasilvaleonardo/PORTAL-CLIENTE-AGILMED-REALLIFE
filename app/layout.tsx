@@ -28,8 +28,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
-        <PortalHeader />
-        {children}
+        {/* O conteúdo vai por dentro do cabeçalho: ele monta a barra
+            lateral, que precisa ficar ao lado das telas. */}
+        <PortalHeader>{children}</PortalHeader>
       </body>
     </html>
   )
