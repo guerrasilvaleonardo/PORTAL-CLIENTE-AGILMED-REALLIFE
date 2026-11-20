@@ -100,6 +100,10 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/atendimento/relatorio-mensal', rotulo: 'Relatório mensal' },
   ],
   '/auditorias': [
+    /* Primeiro da lista de propósito: organizar vem antes de responder.
+     * Quem abre a auditoria sem a casa arrumada passa o dia procurando
+     * arquivo, e o que não aparece vira constatação. */
+    { href: '/auditorias/preparar', rotulo: 'Antes de começar' },
     { href: '/auditorias', rotulo: 'Auditorias' },
     { href: '/auditorias/programa', rotulo: 'Programa do ano' },
     { href: '/auditorias/nc', rotulo: 'Constatações' },
