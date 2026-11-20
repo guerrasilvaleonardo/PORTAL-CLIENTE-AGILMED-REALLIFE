@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { gerarDocx } from '@/lib/word'
+import { minutaDoRequisito } from '@/lib/minutasAuditoria'
 import '../../colaboradores/colaboradores.css'
 import '../../inspecoes/inspecoes.css'
 
@@ -198,6 +200,72 @@ export default function ModelosDeAuditoria() {
     )
   }
 
+  /* Gera a minuta em Word e já deixa pendurada no requisito.
+   *
+   * O documento sai como FORMULÁRIO, não preenchido: minuta pronta é a
+   * forma mais rápida de produzir evidência falsa — a empresa assina um
+   * papel que não descreve o que ela faz, e o auditor externo percebe
+   * na primeira pergunta. O que entregamos é a estrutura certa. */
+  async function gerarMinuta(item: Item) {
+    setEnviando(item.id)
+    setErro('')
+
+    try {
+      const modelo = modelos.find((m) => m.id === escolhido)
+      const { blocos, rotulo } = minutaDoRequisito({
+        requisito: item.requisito,
+        norma: modelo?.norma || null,
+        pergunta: item.pergunta,
+        explicacao: item.explicacao || item.orientacao,
+      })
+
+      const arquivo = gerarDocx(blocos)
+      const base = (item.requisito || String(item.ordem)).replace(/[^0-9a-zA-Z.]/g, '-')
+      const caminho = `${escolhido}/${base}-${crypto.randomUUID().slice(0, 8)}.docx`
+
+      const { error: erroUp } = await supabase.storage
+        .from('inspecao-modelos')
+        .upload(caminho, arquivo, {
+          contentType:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        })
+
+      if (erroUp) throw erroUp
+
+      const { error } = await supabase
+        .from('inspecao_modelo_itens')
+        .update({ modelo_arquivo: caminho, modelo_rotulo: rotulo })
+        .eq('id', item.id)
+
+      if (error) throw error
+
+      setItens((l) =>
+        l.map((i) =>
+          i.id === item.id ? { ...i, modelo_arquivo: caminho, modelo_rotulo: rotulo } : i
+        )
+      )
+      setAviso('Minuta gerada.')
+      setTimeout(() => setAviso(''), 2500)
+    } catch (e: any) {
+      console.error(e)
+      setErro(e?.message || 'Não foi possível gerar a minuta.')
+    } finally {
+      setEnviando('')
+    }
+  }
+
+  /* Gera o que ainda não tem, de uma vez. Trinta requisitos, um a um,
+   * ninguém faz. */
+  async function gerarTudo() {
+    const faltando = itens.filter((i) => !i.modelo_arquivo)
+    if (faltando.length === 0) return
+    if (!confirm(`Gerar a minuta de ${faltando.length} requisito(s) que ainda não têm?`)) return
+
+    for (const item of faltando) {
+      await gerarMinuta(item)
+    }
+  }
+
   async function tirarModelo(item: Item) {
     if (!item.modelo_arquivo) return
     if (!confirm('Tirar o modelo deste requisito? O cliente deixa de ver o botão de baixar.')) return
@@ -287,9 +355,21 @@ export default function ModelosDeAuditoria() {
           ))}
         </select>
         {itens.length > 0 && (
-          <span className="insp-contagem">
-            {comExplicacao} de {itens.length} explicados · {comModelo} com modelo
-          </span>
+          <>
+            <span className="insp-contagem">
+              {comExplicacao} de {itens.length} explicados · {comModelo} com modelo
+            </span>
+            {comModelo < itens.length && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!!enviando}
+                onClick={gerarTudo}
+              >
+                {enviando ? 'Gerando…' : `Gerar as ${itens.length - comModelo} que faltam`}
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -340,17 +420,27 @@ export default function ModelosDeAuditoria() {
                         </button>
                       </>
                     ) : (
-                      <label className="btn btn-sm insp-add-arquivo">
-                        {enviando === item.id ? 'Enviando…' : 'Subir modelo'}
-                        <input
-                          type="file"
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
                           disabled={!!enviando}
-                          onChange={(e) => {
-                            enviarModelo(item, e.target.files?.[0])
-                            e.target.value = ''
-                          }}
-                        />
-                      </label>
+                          onClick={() => gerarMinuta(item)}
+                        >
+                          {enviando === item.id ? 'Gerando…' : 'Gerar minuta em Word'}
+                        </button>
+                        <label className="btn btn-sm insp-add-arquivo">
+                          Subir o meu
+                          <input
+                            type="file"
+                            disabled={!!enviando}
+                            onChange={(e) => {
+                              enviarModelo(item, e.target.files?.[0])
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                      </>
                     )}
                   </div>
                 </div>
