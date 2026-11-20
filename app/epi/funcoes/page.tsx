@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import { chaveDaFuncao } from '@/lib/funcao'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
-import EpiAbas from '@/components/EpiAbas'
 import '../../colaboradores/colaboradores.css'
 import './funcoes.css'
 
@@ -248,7 +247,6 @@ export default function EpiPorFuncao() {
   if (semTabela) {
     return (
       <div className="app">
-        <EpiAbas />
         <div className="banner bad">
           O EPI por função ainda não foi criado no banco. Rode{' '}
           <code>supabase/epi-por-funcao.sql</code> no SQL Editor do Supabase.
@@ -259,8 +257,6 @@ export default function EpiPorFuncao() {
 
   return (
     <div className="app">
-      <EpiAbas />
-
       <div>
         <p className="eyebrow">EPI</p>
         <h1 className="titulo-tela">EPI por função</h1>

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Rosca, Barras } from '@/lib/graficos'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
-import EpiAbas from '@/components/EpiAbas'
 import '../../colaboradores/colaboradores.css'
 import '../entregas.css'
 
@@ -384,8 +383,6 @@ export default function PainelEpi() {
 
   return (
     <div className="app">
-      <EpiAbas />
-
       <div>
         <p className="eyebrow">EPI</p>
         <h1 className="titulo-tela">Painel</h1>

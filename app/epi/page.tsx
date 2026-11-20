@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import { formatarCpf } from '@/lib/historicoCertificados'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
-import EpiAbas from '@/components/EpiAbas'
 import { chaveDaFuncao } from '@/lib/funcao'
 import Icone from '@/components/Icone'
 import '../colaboradores/colaboradores.css'
@@ -901,7 +900,6 @@ export default function EntregasEpi() {
   if (semTabela) {
     return (
       <div className="app">
-        <EpiAbas />
         <div className="banner bad">
           As entregas ainda não foram criadas no banco. Rode <code>supabase/epi-entregas.sql</code>{' '}
           no SQL Editor do Supabase.
@@ -912,8 +910,6 @@ export default function EntregasEpi() {
 
   return (
     <div className="app">
-      <EpiAbas />
-
       <div>
         <p className="eyebrow">EPI</p>
         <h1 className="titulo-tela">Entregas</h1>
