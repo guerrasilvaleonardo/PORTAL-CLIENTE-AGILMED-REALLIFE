@@ -1,0 +1,153 @@
+/* Telas de Inspeções e não conformidades. */
+
+.insp-duas {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .insp-duas {
+    grid-template-columns: 1fr;
+  }
+}
+
+.insp-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insp-lista button {
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-m);
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.insp-lista button.ativo {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.insp-lista .sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+/* Um item da inspeção em andamento. */
+.insp-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: var(--surface);
+}
+
+.insp-item.respondido-nao_conforme {
+  border-color: var(--danger);
+  background: var(--danger-tint);
+}
+
+.insp-item.respondido-conforme {
+  border-color: var(--success);
+}
+
+.insp-item.respondido-nao_aplicavel {
+  opacity: 0.7;
+}
+
+.insp-item .pergunta {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.insp-item .orientacao {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.insp-respostas {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.insp-respostas button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+.insp-respostas button.sim.ativo {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+
+.insp-respostas button.nao.ativo {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.insp-respostas button.na.ativo {
+  background: var(--surface-sunken);
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.insp-item input[type='text'] {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Ficha de tratamento da não conformidade. */
+.insp-ficha {
+  display: grid;
+  gap: 10px;
+}
+
+.insp-ficha label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.insp-ficha textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.insp-ficha .duas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 700px) {
+  .insp-ficha .duas {
+    grid-template-columns: 1fr;
+  }
+}

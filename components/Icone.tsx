@@ -122,6 +122,14 @@ const DESENHOS = {
       <path d="M5 19h14" />
     </>
   ),
+  /* Prancheta com o visto: é o checklist aplicado em campo. */
+  inspecoes: (
+    <>
+      <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z" />
+      <path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+      <path d="M8.5 13.5l2 2 4.5-4.5" />
+    </>
+  ),
   conversas: (
     <>
       <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z" />
