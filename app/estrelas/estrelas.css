@@ -232,3 +232,41 @@
 @media (max-width: 520px) {
   .avaliacao-opcoes { grid-template-columns: 1fr; }
 }
+
+/* ---------- fila de prazos aguardando decisao ---------- */
+.campo-justificativa {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.campo-justificativa input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 400;
+}
+
+.linha-prazo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 0;
+}
+
+.linha-prazo + .linha-prazo {
+  border-top: 1px solid var(--border);
+}
+
+.acoes-prazo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
