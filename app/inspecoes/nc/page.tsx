@@ -84,7 +84,15 @@ type NC = {
 const dataBr = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—')
 const hoje = () => new Date().toISOString().slice(0, 10)
 
-function NaoConformidadesConteudo() {
+/*
+ * A mesma tela serve aos dois processos, porque o tratamento é o mesmo
+ * — causa, ação corretiva, verificação da eficácia, o ciclo do 10.2.
+ * O que NÃO é o mesmo é a lista: constatação de auditoria não aparece
+ * em inspeção e vice-versa. Quem separa é o `tipo`, que o banco grava
+ * na constatação a partir de quem a abriu.
+ */
+export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditoria' }) {
+  const auditoria = tipo === 'auditoria'
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [semTabela, setSemTabela] = useState(false)
@@ -154,6 +162,7 @@ function NaoConformidadesConteudo() {
             'responsavel_nome, acao_imediata, causa, acao_corretiva, situacao, eficaz, ' +
             'verificacao_obs, ocorrido_em, tipo_incidente, envolvido_nome, afastamento_dias, created_at'
         )
+        .eq('tipo', tipo)
         .order('created_at', { ascending: false })
         .limit(500)
 
@@ -320,11 +329,12 @@ function NaoConformidadesConteudo() {
   return (
     <div className="app">
       <div>
-        <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">Não conformidades</h1>
+        <p className="eyebrow">{auditoria ? 'AUDITORIAS' : 'INSPEÇÕES'}</p>
+        <h1 className="titulo-tela">{auditoria ? 'Constatações' : 'Não conformidades'}</h1>
         <p className="subtitulo-tela">
-          O que a inspeção reprovou e os incidentes, com o mesmo tratamento: ação imediata, causa,
-          ação corretiva e verificação da eficácia — o ciclo do item 10.2 da ISO 45001 e da 9001.
+          {auditoria
+            ? 'O que a auditoria constatou, maior e menor, com o tratamento do item 10.2: causa, ação corretiva e verificação da eficácia. Enquanto a constatação não for verificada eficaz, o requisito continua em aberto.'
+            : 'O que a inspeção reprovou e os incidentes, com o mesmo tratamento: ação imediata, causa, ação corretiva e verificação da eficácia — o ciclo do item 10.2 da ISO 45001 e da 9001.'}
         </p>
       </div>
 
@@ -346,16 +356,20 @@ function NaoConformidadesConteudo() {
           Só as que faltam tratar
         </label>
         <span style={{ flex: 1 }} />
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setAbrindoIncidente((a) => !a)}
-        >
-          {abrindoIncidente ? 'Fechar' : 'Lançar incidente'}
-        </button>
+        {/* Acidente e quase-acidente são do mundo de campo. Auditoria de
+         * sistema de gestão não lança incidente: ela constata requisito. */}
+        {!auditoria && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setAbrindoIncidente((a) => !a)}
+          >
+            {abrindoIncidente ? 'Fechar' : 'Lançar incidente'}
+          </button>
+        )}
       </div>
 
-      {abrindoIncidente && (
+      {!auditoria && abrindoIncidente && (
         <div className="panel">
           <div className="panel-head">
             <div className="section-title">Incidente</div>
@@ -759,7 +773,7 @@ function NaoConformidadesConteudo() {
 export default function NaoConformidades() {
   return (
     <ComModulo modulo="inspecoes">
-      <NaoConformidadesConteudo />
+      <NaoConformidadesConteudo tipo="inspecao" />
     </ComModulo>
   )
 }

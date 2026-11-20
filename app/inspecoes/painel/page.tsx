@@ -128,6 +128,10 @@ function PainelInspecoesConteudo() {
           'id, empresa_id, modelo_nome, local_nome, iniciada_em, concluida_em, situacao, ' +
             'itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
         )
+        /* Indicador de inspeção de campo não soma auditoria de sistema
+         * de gestão: a conta de "conformidade" quer dizer coisas
+         * diferentes nos dois, e somar as duas não significa nada. */
+        .neq('tipo', 'auditoria')
         .order('iniciada_em', { ascending: false })
         .limit(1000)
 
@@ -149,6 +153,7 @@ function PainelInspecoesConteudo() {
             'id, empresa_id, origem, gravidade, situacao, prazo, ocorrido_em, resposta_id, ' +
               'local_nome, risco, tipo_incidente, afastamento_dias, created_at, encerrada_em'
           )
+          .eq('tipo', 'inspecao')
           .limit(2000),
       ])
 

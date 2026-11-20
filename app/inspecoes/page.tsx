@@ -102,6 +102,10 @@ function InspecoesConteudo() {
           'id, empresa_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, ' +
             'concluida_em, situacao, itens_total, nao_conformes, percentual'
         )
+        /* Auditoria de sistema de gestão é outro processo e tem tela
+         * própria. Misturar as duas aqui faria o canteiro e o requisito
+         * 9.3 da ISO disputarem a mesma lista. */
+        .neq('tipo', 'auditoria')
         .order('iniciada_em', { ascending: false })
         .limit(300)
 
@@ -116,7 +120,12 @@ function InspecoesConteudo() {
       setInspecoes((lista || []) as unknown as Inspecao[])
 
       const [{ data: ms }, { data: ls }] = await Promise.all([
-        supabase.from('inspecao_modelos').select('id, empresa_id, nome, norma, ativo').order('nome'),
+        /* Os checklists de auditoria ficam na tela de Auditorias. */
+        supabase
+          .from('inspecao_modelos')
+          .select('id, empresa_id, nome, norma, ativo')
+          .neq('tipo', 'auditoria')
+          .order('nome'),
         supabase.from('locais_trabalho').select('id, empresa_id, nome').order('nome'),
       ])
       setModelos((ms || []) as Modelo[])
