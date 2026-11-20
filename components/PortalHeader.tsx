@@ -83,12 +83,28 @@ const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
  * Tela nova de um módulo entra aqui e não monta navegação própria.
  */
 const SECOES: Record<string, { href: string; rotulo: string }[]> = {
+  /*
+   * As telas do Atendimento existiam desde sempre sem entrada em menu
+   * nenhum: só se chegava nelas por link direto ou digitando o
+   * endereço. Chamados entra aqui (e sai do menu principal) porque é
+   * a mesma conversa com o cliente que o quadro despacha.
+   */
+  '/atendimento': [
+    { href: '/atendimento', rotulo: 'Quadro' },
+    { href: '/chamados', rotulo: 'Chamados' },
+    { href: '/atendimento/agenda', rotulo: 'Agenda' },
+    { href: '/atendimento/prioridades', rotulo: 'Prioridades e SLA' },
+    { href: '/atendimento/feriados', rotulo: 'Feriados' },
+    { href: '/atendimento/historico', rotulo: 'Histórico' },
+    { href: '/atendimento/desempenho', rotulo: 'Desempenho' },
+    { href: '/atendimento/relatorio-mensal', rotulo: 'Relatório mensal' },
+  ],
   '/epi': [
+    { href: '/epi/painel', rotulo: 'Visão geral' },
     { href: '/epi', rotulo: 'Entregas' },
-    { href: '/epi/ficha', rotulo: 'Ficha' },
-    { href: '/epi/equipamentos', rotulo: "Configuração de EPI's" },
+    { href: '/epi/ficha', rotulo: 'Fichas de EPI' },
     { href: '/epi/funcoes', rotulo: 'EPI por função' },
-    { href: '/epi/painel', rotulo: 'Painel' },
+    { href: '/epi/equipamentos', rotulo: 'Cadastro de EPIs' },
   ],
   '/colaboradores': [
     { href: '/colaboradores', rotulo: 'Pessoas' },
@@ -243,14 +259,14 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
 
   const itens = interno
     ? [
-        { href: '/painel', rotulo: 'Painel' },
+        { href: '/painel', rotulo: 'Visão geral' },
+        /* Chamados saiu daqui e virou seção do Atendimento. */
         { href: '/atendimento', rotulo: 'Atendimento' },
         { href: '/estrelas', rotulo: 'Estrelas' },
-        { href: '/chamados', rotulo: 'Chamados' },
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/certificados', rotulo: 'Certificados' },
-        { href: '/documentos', rotulo: 'Documentos SST' },
+        { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
         { href: '/equipe', rotulo: 'Conversas' },
       ]
@@ -261,7 +277,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/certificados', rotulo: 'Certificados' },
-        { href: '/documentos', rotulo: 'Documentos SST' },
+        { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
         { href: '/equipe', rotulo: 'Conversas' },
         /* Vitrine: ferramentas, serviços e pedidos de orçamento (só cliente). */
@@ -354,8 +370,18 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
             const bloqueado =
               !interno && !!MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
 
-            const aberto = ativo(item.href)
             const secoes = SECOES[item.href]
+
+            /* Chamados é seção do Atendimento e não começa com
+             * /atendimento: sem olhar as seções, abrir um chamado não
+             * acenderia nada no menu. */
+            const aberto = ativo(item.href) || (secoes || []).some((s) => ativo(s.href))
+
+            /* A seção que repete o endereço do módulo (o "Quadro", as
+             * "Entregas") só acende na tela dela; as outras acendem
+             * também nas telas de dentro, como a de um chamado. */
+            const naSecao = (href: string) =>
+              pathname === href || (href !== item.href && pathname.startsWith(href + '/'))
 
             return (
               <div key={item.href} className="modtab-grupo">
@@ -403,7 +429,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
                       <Link
                         key={s.href}
                         href={s.href}
-                        className={pathname === s.href ? 'active' : ''}
+                        className={naSecao(s.href) ? 'active' : ''}
                       >
                         {s.rotulo}
                       </Link>
