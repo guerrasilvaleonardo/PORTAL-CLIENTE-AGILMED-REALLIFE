@@ -83,6 +83,7 @@ type Inspecao = {
   conformes: number
   nao_conformes: number
   nao_aplicaveis: number
+  parciais: number
   percentual: number | null
 }
 
@@ -134,7 +135,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           'id, empresa_id, tipo, local_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
             'objetivo, escopo, criterios, equipe, auditor_lider, plano_agenda, abertura_em, ' +
             'abertura_participantes, encerramento_em, encerramento_participantes, conclusao, ' +
-            'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
+            'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, parciais, percentual'
         )
         .eq('id', id)
         .single()
@@ -725,15 +726,36 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
       {erro && <div className="banner bad">{erro}</div>}
 
+      {/* O link tem de ir para a tela do PRÓPRIO módulo. Mandar a
+          auditoria para as não conformidades de inspeção joga o cliente
+          numa lista que não é a dele — e ainda por cima vazia, porque
+          cada tela filtra o que é seu. */}
       {fechada && (
         <div className="banner">
-          Inspeção concluída. {inspecao.conformes} conforme{inspecao.conformes === 1 ? '' : 's'},{' '}
-          {inspecao.nao_conformes} não conforme{inspecao.nao_conformes === 1 ? '' : 's'},{' '}
-          {inspecao.nao_aplicaveis} não aplicável
-          {inspecao.percentual !== null ? ` — ${inspecao.percentual}% de conformidade` : ''}.{' '}
-          <Link href="/inspecoes/nc" className="btn btn-sm">
-            Ver as não conformidades
-          </Link>
+          {auditoria ? (
+            <>
+              Auditoria encerrada. {inspecao.conformes} atende
+              {inspecao.parciais > 0 ? `, ${inspecao.parciais} atende em parte` : ''},{' '}
+              {inspecao.nao_conformes} não atende
+              {inspecao.percentual !== null ? ` — ${inspecao.percentual}% de conformidade` : ''}.{' '}
+              <Link href="/auditorias/nc" className="btn btn-sm">
+                Ver as constatações
+              </Link>{' '}
+              <Link href={'/auditorias/' + inspecao.id + '/relatorio'} className="btn btn-sm">
+                Emitir relatório
+              </Link>
+            </>
+          ) : (
+            <>
+              Inspeção concluída. {inspecao.conformes} conforme
+              {inspecao.conformes === 1 ? '' : 's'}, {inspecao.nao_conformes} não conforme
+              {inspecao.nao_conformes === 1 ? '' : 's'}, {inspecao.nao_aplicaveis} não aplicável
+              {inspecao.percentual !== null ? ` — ${inspecao.percentual}% de conformidade` : ''}.{' '}
+              <Link href="/inspecoes/nc" className="btn btn-sm">
+                Ver as não conformidades
+              </Link>
+            </>
+          )}
         </div>
       )}
 
