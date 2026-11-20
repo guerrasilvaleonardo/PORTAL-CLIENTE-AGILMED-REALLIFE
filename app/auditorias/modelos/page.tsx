@@ -266,6 +266,27 @@ export default function ModelosDeAuditoria() {
     }
   }
 
+  /* Refazer TODAS, inclusive as que já têm arquivo.
+   *
+   * Sem isto, minuta gerada por uma versão antiga do gerador fica presa
+   * para sempre: como já existe arquivo, o botão de gerar some. Foi
+   * exatamente o que aconteceu quando as minutas passaram a vir com
+   * exemplo — as 58 continuaram em branco. */
+  async function regerarTudo() {
+    if (itens.length === 0) return
+    if (
+      !confirm(
+        `Refazer as ${itens.length} minutas deste checklist com a versão atual do gerador?\n\n` +
+          'O arquivo antigo não é apagado do balde, mas deixa de ser o que o cliente baixa.'
+      )
+    )
+      return
+
+    for (const item of itens) {
+      await gerarMinuta(item)
+    }
+  }
+
   async function tirarModelo(item: Item) {
     if (!item.modelo_arquivo) return
     if (!confirm('Tirar o modelo deste requisito? O cliente deixa de ver o botão de baixar.')) return
@@ -369,6 +390,9 @@ export default function ModelosDeAuditoria() {
                 {enviando ? 'Gerando…' : `Gerar as ${itens.length - comModelo} que faltam`}
               </button>
             )}
+            <button type="button" className="btn" disabled={!!enviando} onClick={regerarTudo}>
+              {enviando ? 'Gerando…' : `Refazer as ${itens.length}`}
+            </button>
           </>
         )}
       </div>
@@ -415,6 +439,14 @@ export default function ModelosDeAuditoria() {
                           onBlur={(e) => salvarRotulo(item, e.target.value)}
                           style={{ maxWidth: 260 }}
                         />
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={!!enviando}
+                          onClick={() => gerarMinuta(item)}
+                        >
+                          {enviando === item.id ? 'Refazendo…' : 'Refazer'}
+                        </button>
                         <button type="button" className="btn btn-sm" onClick={() => tirarModelo(item)}>
                           Tirar
                         </button>
