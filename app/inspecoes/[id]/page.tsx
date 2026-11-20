@@ -30,9 +30,19 @@ type Resposta = {
   fotos: string[]
 }
 
+type Alteracao = {
+  id: number
+  de: string
+  para: string
+  motivo: string
+  por_nome: string | null
+  created_at: string
+}
+
 type Inspecao = {
   id: string
   empresa_id: string
+  local_id: string | null
   modelo_nome: string
   norma: string | null
   local_nome: string | null
@@ -60,6 +70,17 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [links, setLinks] = useState<Record<string, string>>({})
   const [enviando, setEnviando] = useState('')
 
+  /* Reabrir para corrigir, e o histórico de quem reabriu. */
+  const [reabrindo, setReabrindo] = useState(false)
+  const [motivoReabrir, setMotivoReabrir] = useState('')
+  const [alteracoes, setAlteracoes] = useState<Alteracao[]>([])
+  const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
+  const [editando, setEditando] = useState(false)
+  const [cabecalho, setCabecalho] = useState<{ local_id: string; observacoes: string }>({
+    local_id: '',
+    observacoes: '',
+  })
+
   async function carregar() {
     try {
       setCarregando(true)
@@ -68,7 +89,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
       const { data: i, error: erroI } = await supabase
         .from('inspecoes')
         .select(
-          'id, empresa_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
+          'id, empresa_id, local_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
             'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
         )
         .eq('id', id)
@@ -83,6 +104,26 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         .eq('inspecao_id', id)
         .order('ordem')
       setRespostas((rs || []) as unknown as Resposta[])
+
+      setCabecalho({
+        local_id: (i as any).local_id || '',
+        observacoes: (i as any).observacoes || '',
+      })
+
+      const [{ data: as }, { data: ls }] = await Promise.all([
+        supabase
+          .from('inspecoes_alteracoes')
+          .select('id, de, para, motivo, por_nome, created_at')
+          .eq('inspecao_id', id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('locais_trabalho')
+          .select('id, nome')
+          .eq('empresa_id', (i as any).empresa_id)
+          .order('nome'),
+      ])
+      setAlteracoes((as || []) as unknown as Alteracao[])
+      setLocais((ls || []) as { id: string; nome: string }[])
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível abrir a inspeção.')
@@ -220,6 +261,54 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     await supabase.from('inspecao_respostas').update({ observacao: texto || null }).eq('id', rid)
   }
 
+  /*
+   * Reabrir não é desfazer: a conclusão anterior fica no histórico, com
+   * quem reabriu e por quê. O que protege o documento não é impedir a
+   * correção — é deixar claro o que foi corrigido.
+   */
+  async function reabrir() {
+    if (motivoReabrir.trim().length < 5) {
+      setErro('Diga por que está reabrindo (ao menos algumas palavras).')
+      return
+    }
+
+    setErro('')
+    const { error } = await supabase
+      .from('inspecoes')
+      .update({ situacao: 'em_andamento', motivo_reabertura: motivoReabrir.trim() })
+      .eq('id', id)
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setReabrindo(false)
+    setMotivoReabrir('')
+    await carregar()
+  }
+
+  async function salvarCabecalho() {
+    const local = locais.find((l) => l.id === cabecalho.local_id) || null
+
+    const { error } = await supabase
+      .from('inspecoes')
+      .update({
+        local_id: local?.id || null,
+        local_nome: local?.nome || null,
+        observacoes: cabecalho.observacoes || null,
+      })
+      .eq('id', id)
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setEditando(false)
+    await carregar()
+  }
+
   async function concluir() {
     if (concluindo || fechada) return
 
@@ -291,13 +380,98 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         <Link href="/inspecoes" className="btn btn-sm">
           ← Voltar
         </Link>
+        {!fechada && (
+          <button type="button" className="btn btn-sm" onClick={() => setEditando((e) => !e)}>
+            {editando ? 'Fechar' : 'Editar local e observações'}
+          </button>
+        )}
         <span style={{ flex: 1 }} />
+        {fechada && inspecao.situacao === 'concluida' && (
+          <button type="button" className="btn btn-sm" onClick={() => setReabrindo((r) => !r)}>
+            {reabrindo ? 'Deixar como está' : 'Reabrir para corrigir'}
+          </button>
+        )}
         {!fechada && (
           <button type="button" className="btn btn-primary" disabled={concluindo} onClick={concluir}>
             {concluindo ? 'Concluindo…' : 'Concluir inspeção'}
           </button>
         )}
       </div>
+
+      {reabrindo && (
+        <div className="panel">
+          <div className="panel-body insp-ficha">
+            <label>
+              Por que está reabrindo?
+              <input
+                type="text"
+                value={motivoReabrir}
+                onChange={(e) => setMotivoReabrir(e.target.value)}
+                placeholder="Ex.: marquei conforme por engano no item 7"
+              />
+            </label>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
+              Fica registrado com o seu nome e a data. Ao concluir de novo, o item que deixar de
+              ser não conforme tem a não conformidade dele cancelada — as já encerradas não são
+              tocadas.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={reabrir}>
+              Reabrir
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editando && (
+        <div className="panel">
+          <div className="panel-body insp-ficha">
+            <label>
+              Local
+              <select
+                value={cabecalho.local_id}
+                onChange={(e) => setCabecalho({ ...cabecalho, local_id: e.target.value })}
+              >
+                <option value="">Sem local</option>
+                {locais.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Observações da inspeção
+              <textarea
+                value={cabecalho.observacoes}
+                onChange={(e) => setCabecalho({ ...cabecalho, observacoes: e.target.value })}
+                placeholder="O que vale dizer sobre a visita como um todo"
+              />
+            </label>
+            <button type="button" className="btn btn-primary" onClick={salvarCabecalho}>
+              Salvar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {alteracoes.length > 0 && (
+        <div className="panel nao-imprimir">
+          <div className="panel-head">
+            <div className="section-title">Reaberturas</div>
+          </div>
+          <div className="panel-body">
+            {alteracoes.map((a) => (
+              <div key={a.id} style={{ fontSize: 13, color: 'var(--ink-muted)' }}>
+                {new Date(a.created_at).toLocaleString('pt-BR', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}{' '}
+                · {a.por_nome || 'alguém'} reabriu: {a.motivo}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {respostas.length === 0 ? (
         <p className="empty-state">
