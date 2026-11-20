@@ -49,6 +49,7 @@ type Mensagem = {
 
 type ItemDoModelo = {
   requisito: string | null
+  prescricao: string | null
   explicacao: string | null
   orientacao: string | null
   modelo_arquivo: string | null
@@ -145,7 +146,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         .from('inspecao_respostas')
         .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, anexos_estado, ' +
           'aprovado_em, aprovado_nome, item_id, ' +
-          'inspecao_modelo_itens!item_id(requisito, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
+          'inspecao_modelo_itens!item_id(requisito, prescricao, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
         .eq('inspecao_id', id)
         .order('ordem')
       const listaR = (rs || []) as unknown as Resposta[]
@@ -1067,6 +1068,17 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                 <div className="insp-explicacao">
                   {itemDe(r)?.explicacao || itemDe(r)?.orientacao}
                 </div>
+              )}
+
+              {/* A prescrição é aula, não cola: vem fechada para não
+                  atrapalhar quem já sabe, e abre para quem precisa. São
+                  dois leitores no mesmo item — o auditor olha a linha
+                  acima de relance; a empresa lê isto com calma antes. */}
+              {auditoria && itemDe(r)?.prescricao && (
+                <details className="insp-prescricao">
+                  <summary>Como atender este requisito</summary>
+                  <div>{itemDe(r)!.prescricao}</div>
+                </details>
               )}
 
               {/* Em auditoria o meio-termo é real: o programa existe mas
