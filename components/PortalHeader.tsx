@@ -99,6 +99,11 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/atendimento/desempenho', rotulo: 'Desempenho' },
     { href: '/atendimento/relatorio-mensal', rotulo: 'Relatório mensal' },
   ],
+  '/inspecoes': [
+    { href: '/inspecoes', rotulo: 'Inspeções' },
+    { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
+    { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
+  ],
   '/epi': [
     { href: '/epi/painel', rotulo: 'Visão geral' },
     { href: '/epi', rotulo: 'Entregas' },
@@ -123,7 +128,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
   const chamadosNovos = Object.keys(useChamadosNaoLidos(!carregando && !!marca)).length
   /* Ferramentas cobradas à parte: cadeado no menu do cliente sem contratação. */
   const modulos = useModulos()
-  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi' }
+  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi', '/inspecoes': 'inspecoes' }
 
   useEffect(() => {
     let ativo = true
@@ -265,6 +270,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/estrelas', rotulo: 'Estrelas' },
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
+        { href: '/inspecoes', rotulo: 'Inspeções' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
@@ -276,6 +282,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         /* Cadastro de apoio, não cobrado: alimenta certificados e, depois, a entrega de EPI. */
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
+        { href: '/inspecoes', rotulo: 'Inspeções' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
