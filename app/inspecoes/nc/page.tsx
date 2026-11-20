@@ -202,6 +202,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     setEscolhida(n.id)
     setConfirmandoFim(false)
     setRascunho({
+      classificacao: n.classificacao,
       gravidade: n.gravidade,
       probabilidade: n.probabilidade,
       severidade: n.severidade,
@@ -246,6 +247,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     const { error } = await supabase
       .from('nao_conformidades')
       .update({
+        classificacao: rascunho.classificacao || null,
         gravidade: rascunho.gravidade,
         probabilidade: rascunho.probabilidade || null,
         severidade: rascunho.severidade || null,
@@ -341,6 +343,26 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             </button>
           </div>
           <div className="panel-body insp-ficha">
+            {/* Numa auditoria, o nível do achado é a primeira decisão e
+                muda tudo o que vem depois: a maior trava a certificação,
+                a oportunidade de melhoria não pede ação corretiva
+                nenhuma. Antes isto só existia no banco. */}
+            {auditoria && (
+              <label>
+                Nível do achado
+                <select
+                  value={rascunho.classificacao || ''}
+                  onChange={(e) => setRascunho({ ...rascunho, classificacao: e.target.value })}
+                >
+                  <option value="">Sem classificação</option>
+                  <option value="maior">Não conformidade maior</option>
+                  <option value="menor">Não conformidade menor</option>
+                  <option value="observacao">Observação</option>
+                  <option value="oportunidade">Oportunidade de melhoria</option>
+                </select>
+              </label>
+            )}
+
             {atual.origem === 'incidente' && (
               <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-muted)' }}>
                 {TIPO_INCIDENTE[atual.tipo_incidente || ''] || 'Incidente'}
@@ -748,6 +770,8 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                         <span className="pill warn">Menor</span>
                       ) : n.classificacao === 'observacao' ? (
                         <span className="pill flat">Observação</span>
+                      ) : n.classificacao === 'oportunidade' ? (
+                        <span className="pill flat">Oportunidade</span>
                       ) : (
                         '—'
                       )

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { use } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import { AgendaDaAuditoria, ParticipantesDaAuditoria } from '@/components/PlanoDaAuditoria'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 import '../auditoria.css'
@@ -65,6 +66,15 @@ type Alteracao = {
   created_at: string
 }
 
+/* Uma auditoria encerrada da mesma empresa, para esta apontar qual
+ * delas ela está verificando. */
+type Anterior = {
+  id: string
+  modelo_nome: string
+  norma: string | null
+  concluida_em: string | null
+}
+
 type Inspecao = {
   id: string
   empresa_id: string
@@ -106,6 +116,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [verPlano, setVerPlano] = useState(false)
   const [plano, setPlano] = useState<Record<string, string>>({})
   const [salvandoPlano, setSalvandoPlano] = useState(false)
+  const [anteriores, setAnteriores] = useState<Anterior[]>([])
 
   /* Reabrir para corrigir, e o histórico de quem reabriu. */
   const [reabrindo, setReabrindo] = useState(false)
@@ -135,6 +146,8 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           'id, empresa_id, tipo, local_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
             'objetivo, escopo, criterios, equipe, auditor_lider, plano_agenda, abertura_em, ' +
             'abertura_participantes, encerramento_em, encerramento_participantes, conclusao, ' +
+            'modalidade, pontos_fortes, recomendacoes, exclusoes, anterior_id, ' +
+            'anterior_verificacao, doc_codigo, doc_revisao, confidencialidade, amostragem, ' +
             'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, parciais, percentual'
         )
         .eq('id', id)
@@ -192,7 +205,33 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         encerramento_em: (i2.encerramento_em || '').slice(0, 16),
         encerramento_participantes: i2.encerramento_participantes || '',
         conclusao: i2.conclusao || '',
+        modalidade: i2.modalidade || '',
+        exclusoes: i2.exclusoes || '',
+        pontos_fortes: i2.pontos_fortes || '',
+        recomendacoes: i2.recomendacoes || '',
+        anterior_id: i2.anterior_id || '',
+        anterior_verificacao: i2.anterior_verificacao || '',
+        doc_codigo: i2.doc_codigo || '',
+        doc_revisao: i2.doc_revisao || '',
+        confidencialidade: i2.confidencialidade || '',
+        amostragem: i2.amostragem || '',
       })
+
+      /* As auditorias anteriores da mesma empresa, para apontar qual
+       * delas esta está verificando. Só as encerradas: apontar para uma
+       * que ainda está rodando não quer dizer nada. */
+      if (i2.tipo === 'auditoria') {
+        const { data: ant } = await supabase
+          .from('inspecoes')
+          .select('id, modelo_nome, norma, concluida_em')
+          .eq('empresa_id', i2.empresa_id)
+          .eq('tipo', 'auditoria')
+          .eq('situacao', 'concluida')
+          .neq('id', id)
+          .order('concluida_em', { ascending: false })
+          .limit(20)
+        setAnteriores((ant || []) as unknown as Anterior[])
+      }
 
       setCabecalho({
         local_id: (i as any).local_id || '',
@@ -599,6 +638,16 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         encerramento_em: plano.encerramento_em ? new Date(plano.encerramento_em).toISOString() : null,
         encerramento_participantes: plano.encerramento_participantes || null,
         conclusao: plano.conclusao || null,
+        modalidade: plano.modalidade || null,
+        exclusoes: plano.exclusoes || null,
+        pontos_fortes: plano.pontos_fortes || null,
+        recomendacoes: plano.recomendacoes || null,
+        anterior_id: plano.anterior_id || null,
+        anterior_verificacao: plano.anterior_verificacao || null,
+        doc_codigo: plano.doc_codigo || null,
+        doc_revisao: plano.doc_revisao || null,
+        confidencialidade: plano.confidencialidade || null,
+        amostragem: plano.amostragem || null,
       })
       .eq('id', id)
 
@@ -794,6 +843,23 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
           {verPlano && (
             <div className="panel-body insp-ficha">
+              <label>
+                Tipo de auditoria
+                <select
+                  value={plano.modalidade || ''}
+                  onChange={(e) => setPlano({ ...plano, modalidade: e.target.value })}
+                >
+                  <option value="">Não informado</option>
+                  <option value="interna">Interna (primeira parte)</option>
+                  <option value="fornecedor">De fornecedor (segunda parte)</option>
+                  <option value="certificacao">Certificação inicial</option>
+                  <option value="supervisao">Supervisão / manutenção</option>
+                  <option value="recertificacao">Recertificação</option>
+                  <option value="transicao">Transição de versão da norma</option>
+                  <option value="diagnostico">Diagnóstico (pré-auditoria)</option>
+                </select>
+              </label>
+
               <div className="duas">
                 <label>
                   Objetivo da auditoria
@@ -822,6 +888,15 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                 />
               </label>
 
+              <label>
+                Exclusões do escopo
+                <textarea
+                  value={plano.exclusoes || ''}
+                  onChange={(e) => setPlano({ ...plano, exclusoes: e.target.value })}
+                  placeholder="Requisitos que não se aplicam, com a justificativa. Ex.: 8.3 Projeto e desenvolvimento — a empresa executa projeto de terceiros."
+                />
+              </label>
+
               <div className="duas">
                 <label>
                   Auditor líder
@@ -843,13 +918,34 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
               </div>
 
               <label>
-                Agenda
-                <textarea
-                  value={plano.plano_agenda || ''}
-                  onChange={(e) => setPlano({ ...plano, plano_agenda: e.target.value })}
-                  placeholder="Horário por área, para o auditado saber quando é a vez dele"
-                />
+                Agenda, hora a hora
+                <span style={{ fontWeight: 400, color: 'var(--ink-faint)' }}>
+                  Cada linha é uma janela do dia: quem audita o quê, com quem, contra quais
+                  requisitos. Grava sozinho ao sair de cada campo.
+                </span>
               </label>
+              <AgendaDaAuditoria inspecaoId={inspecao.id} />
+
+              {/* A agenda antiga era um campo de texto. Quem escreveu lá
+                  não pode perdê-la, então ela continua aparecendo —
+                  mas só para quem já tem alguma coisa escrita. */}
+              {plano.plano_agenda ? (
+                <label>
+                  Agenda em texto (do jeito antigo)
+                  <textarea
+                    value={plano.plano_agenda || ''}
+                    onChange={(e) => setPlano({ ...plano, plano_agenda: e.target.value })}
+                  />
+                </label>
+              ) : null}
+
+              <label>
+                Quem participou
+                <span style={{ fontWeight: 400, color: 'var(--ink-faint)' }}>
+                  Auditores, acompanhantes e auditados, com o papel de cada um.
+                </span>
+              </label>
+              <ParticipantesDaAuditoria inspecaoId={inspecao.id} />
 
               <div className="duas">
                 <label>
@@ -897,6 +993,100 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                   value={plano.conclusao || ''}
                   onChange={(e) => setPlano({ ...plano, conclusao: e.target.value })}
                   placeholder="O parecer do auditor líder sobre o sistema, não a lista de achados"
+                />
+              </label>
+
+              {/* Relatório que só lista defeito é lido como perseguição e
+                  some na gaveta. O que está bem precisa aparecer. */}
+              <div className="duas">
+                <label>
+                  Pontos fortes
+                  <textarea
+                    value={plano.pontos_fortes || ''}
+                    onChange={(e) => setPlano({ ...plano, pontos_fortes: e.target.value })}
+                    placeholder="O que a empresa faz bem, com a evidência. É o que faz o relatório ser lido."
+                  />
+                </label>
+                <label>
+                  Recomendações
+                  <textarea
+                    value={plano.recomendacoes || ''}
+                    onChange={(e) => setPlano({ ...plano, recomendacoes: e.target.value })}
+                    placeholder="O que orientar sem obrigar. Recomendação não é constatação."
+                  />
+                </label>
+              </div>
+
+              {/* A certificadora começa por aqui: o que ficou da vez
+                  passada. Sem isso, a mesma falha volta todo ano. */}
+              <div className="duas">
+                <label>
+                  Auditoria anterior
+                  <select
+                    value={plano.anterior_id || ''}
+                    onChange={(e) => setPlano({ ...plano, anterior_id: e.target.value })}
+                  >
+                    <option value="">Nenhuma / primeira auditoria</option>
+                    {anteriores.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {[
+                          a.norma || a.modelo_nome,
+                          a.concluida_em
+                            ? new Date(a.concluida_em).toLocaleDateString('pt-BR')
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' — ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Verificação das constatações anteriores
+                  <textarea
+                    value={plano.anterior_verificacao || ''}
+                    onChange={(e) => setPlano({ ...plano, anterior_verificacao: e.target.value })}
+                    placeholder="O que foi conferido das não conformidades da vez passada e se a ação foi eficaz"
+                  />
+                </label>
+              </div>
+
+              {/* 7.5.2 — um relatório sem identificação controlada é,
+                  ele mesmo, uma constatação. */}
+              <div className="duas">
+                <label>
+                  Código do documento
+                  <input
+                    type="text"
+                    value={plano.doc_codigo || ''}
+                    onChange={(e) => setPlano({ ...plano, doc_codigo: e.target.value })}
+                    placeholder="Ex.: RA-SGI-001"
+                  />
+                </label>
+                <label>
+                  Revisão
+                  <input
+                    type="text"
+                    value={plano.doc_revisao || ''}
+                    onChange={(e) => setPlano({ ...plano, doc_revisao: e.target.value })}
+                    placeholder="Ex.: 00"
+                  />
+                </label>
+              </div>
+
+              <label>
+                Confidencialidade
+                <textarea
+                  value={plano.confidencialidade || ''}
+                  onChange={(e) => setPlano({ ...plano, confidencialidade: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Ressalva de amostragem
+                <textarea
+                  value={plano.amostragem || ''}
+                  onChange={(e) => setPlano({ ...plano, amostragem: e.target.value })}
                 />
               </label>
 
