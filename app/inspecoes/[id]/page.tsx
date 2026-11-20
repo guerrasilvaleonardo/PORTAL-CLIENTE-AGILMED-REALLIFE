@@ -8,6 +8,7 @@ import { ComModulo } from '@/components/ModuloBloqueado'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 import '../auditoria.css'
+import '../conversa.css'
 
 /*
  * Aplicar a inspeção (supabase/inspecoes.sql).
@@ -31,8 +32,19 @@ type Resposta = {
   fotos: string[]
   anexos: string[]
   anexos_estado: Record<string, 'aceita' | 'recusada'> | null
+  aprovado_em: string | null
+  aprovado_nome: string | null
   item_id: string | null
   inspecao_modelo_itens?: ItemDoModelo | ItemDoModelo[] | null
+}
+
+type Mensagem = {
+  id: number
+  resposta_id: string
+  texto: string
+  autor_nome: string | null
+  autor_papel: string
+  created_at: string
 }
 
 type ItemDoModelo = {
@@ -100,6 +112,10 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
   const [empresaNome, setEmpresaNome] = useState('')
   const [recolhidas, setRecolhidas] = useState<Record<string, boolean>>({})
+  const [interno, setInterno] = useState(false)
+  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  const [rascunhoMsg, setRascunhoMsg] = useState<Record<string, string>>({})
+  const [enviandoMsg, setEnviandoMsg] = useState('')
   const [editando, setEditando] = useState(false)
   const [cabecalho, setCabecalho] = useState<{ local_id: string; observacoes: string }>({
     local_id: '',
@@ -127,11 +143,39 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
       const { data: rs } = await supabase
         .from('inspecao_respostas')
-        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, anexos_estado, item_id, ' +
+        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, anexos_estado, ' +
+          'aprovado_em, aprovado_nome, item_id, ' +
           'inspecao_modelo_itens!item_id(requisito, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
         .eq('inspecao_id', id)
         .order('ordem')
-      setRespostas((rs || []) as unknown as Resposta[])
+      const listaR = (rs || []) as unknown as Resposta[]
+      setRespostas(listaR)
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data: perfil } = await supabase
+          .from('profiles')
+          .select('perfil')
+          .eq('id', user.id)
+          .single()
+        setInterno(['atendimento', 'gestor', 'admin'].includes(perfil?.perfil || ''))
+      }
+
+      /* A conversa de todos os itens numa consulta só: trinta consultas
+       * separadas deixariam a tela abrindo aos pedaços. */
+      if (listaR.length > 0) {
+        const { data: msgs } = await supabase
+          .from('inspecao_resposta_mensagens')
+          .select('id, resposta_id, texto, autor_nome, autor_papel, created_at')
+          .in(
+            'resposta_id',
+            listaR.map((r) => r.id)
+          )
+          .order('created_at')
+        setMensagens((msgs || []) as unknown as Mensagem[])
+      }
 
       const i2 = i as any
       setPlano({
@@ -191,6 +235,17 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const auditoria = inspecao?.tipo === 'auditoria'
 
   const respondidas = respostas.filter((r) => r.resposta).length
+
+  /* Conformidade de tudo o que já foi avaliado — a mesma conta que o
+   * banco faz no fechamento, para o número na tela não brigar com o
+   * número do relatório. */
+  const conformidade = (() => {
+    const conf = respostas.filter((r) => r.resposta === 'conforme').length
+    const parc = respostas.filter((r) => r.resposta === 'atende_parcial').length
+    const nao = respostas.filter((r) => r.resposta === 'nao_conforme').length
+    const base = conf + parc + nao
+    return base > 0 ? Math.round((100 * (conf + 0.5 * parc)) / base) : null
+  })()
 
   /* Agrupa pela seção da norma, na ordem em que as perguntas vieram do
    * modelo. Auditoria se conduz seção a seção — "agora vamos ao 9" — e
@@ -284,6 +339,67 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     }
 
     setRespostas((lista) => lista.map((x) => (x.id === rid ? { ...x, anexos_estado: atual } : x)))
+  }
+
+  /* A conversa do requisito. Mensagem entra e não se mexe mais: registro
+   * que pode ser reescrito depois não serve como evidência. */
+  async function mandarMensagem(rid: string) {
+    const texto = (rascunhoMsg[rid] || '').trim()
+    if (texto.length < 2 || enviandoMsg) return
+
+    setEnviandoMsg(rid)
+    const { data, error } = await supabase
+      .from('inspecao_resposta_mensagens')
+      .insert({ resposta_id: rid, texto })
+      .select('id, resposta_id, texto, autor_nome, autor_papel, created_at')
+      .single()
+    setEnviandoMsg('')
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setMensagens((l) => [...l, data as unknown as Mensagem])
+    setRascunhoMsg((d) => ({ ...d, [rid]: '' }))
+  }
+
+  /* Aprovar é do auditor, e é o que encerra o item. Depois de aprovar,
+   * a tela leva para o próximo requisito que ainda não foi avaliado —
+   * é assim que a auditoria anda sem ninguém procurar onde parou. */
+  async function aprovar(rid: string, desfazer = false) {
+    const { error } = await supabase
+      .from('inspecao_respostas')
+      .update({ aprovado_em: desfazer ? null : new Date().toISOString() })
+      .eq('id', rid)
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setRespostas((l) =>
+      l.map((x) =>
+        x.id === rid
+          ? { ...x, aprovado_em: desfazer ? null : new Date().toISOString(), aprovado_nome: null }
+          : x
+      )
+    )
+
+    if (desfazer) return
+
+    const i = respostas.findIndex((x) => x.id === rid)
+    const proximo = respostas.slice(i + 1).find((x) => !x.resposta || !x.aprovado_em)
+    if (proximo) {
+      const secao = proximo.categoria || 'sem-secao'
+      setRecolhidas((d) => ({ ...d, [secao]: false }))
+      setTimeout(() => {
+        document.getElementById('item-' + proximo.id)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }, 80)
+    }
   }
 
   async function tirarEvidencia(rid: string, caminho: string) {
@@ -587,6 +703,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           {respostas.length > 0 && (
             <span className="insp-contagem">
               {respondidas} de {respostas.length} respondidos
+              {conformidade !== null && ' · ' + conformidade + '% de conformidade'}
             </span>
           )}
 
@@ -624,7 +741,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         </Link>
         {!fechada && (
           <button type="button" className="btn btn-sm" onClick={() => setEditando((e) => !e)}>
-            {editando ? 'Fechar' : 'Editar local e observações'}
+            {editando ? 'Fechar' : auditoria ? 'Editar dados da auditoria' : 'Editar local e observações'}
           </button>
         )}
         <span style={{ flex: 1 }} />
@@ -635,7 +752,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         )}
         {!fechada && (
           <button type="button" className="btn btn-primary" disabled={concluindo} onClick={concluir}>
-            {concluindo ? 'Concluindo…' : 'Concluir inspeção'}
+            {concluindo ? 'Concluindo…' : auditoria ? 'Encerrar auditoria' : 'Concluir inspeção'}
           </button>
         )}
       </div>
@@ -864,6 +981,16 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
             const feitos = secao.itens.filter(({ r }) => r.resposta).length
             const completa = feitos === secao.itens.length
 
+            /* Conformidade da seção: o parcial vale meio ponto e o "não
+             * se aplica" sai da conta, igual ao que o banco faz no
+             * fechamento. Dois números diferentes para a mesma coisa é
+             * o jeito mais rápido de perder a confiança no indicador. */
+            const conf = secao.itens.filter(({ r }) => r.resposta === 'conforme').length
+            const parc = secao.itens.filter(({ r }) => r.resposta === 'atende_parcial').length
+            const naoConf = secao.itens.filter(({ r }) => r.resposta === 'nao_conforme').length
+            const base = conf + parc + naoConf
+            const pct = base > 0 ? Math.round((100 * (conf + 0.5 * parc)) / base) : null
+
             return (
             <div key={chave} className={'insp-grupo' + (recolhida ? ' recolhido' : '')}>
               {/* Agrupado como planilha: a seção recolhe, e o contador
@@ -881,6 +1008,15 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                     {recolhida ? '+' : '−'}
                   </span>
                   <span className="titulo">{secao.titulo}</span>
+                  {pct !== null && (
+                    <span
+                      className={
+                        'insp-pct ' + (pct >= 90 ? 'bom' : pct >= 70 ? 'medio' : 'ruim')
+                      }
+                    >
+                      {pct}%
+                    </span>
+                  )}
                   <span className={'conta' + (completa ? ' completa' : '')}>
                     {feitos} de {secao.itens.length}
                   </span>
@@ -889,7 +1025,15 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
               <div className="insp-grupo-corpo">
               {secao.itens.map(({ r, n }) => (
-            <div key={r.id} className={'insp-item respondido-' + (r.resposta || 'nenhum')}>
+            <div
+              key={r.id}
+              id={'item-' + r.id}
+              className={
+                'insp-item respondido-' +
+                (r.resposta || 'nenhum') +
+                (r.aprovado_em ? ' aprovado' : '')
+              }
+            >
               {/* Constatação se escreve contra um requisito, não contra
                   uma impressão: "não atende ao 9.3" é auditável; "a
                   direção não acompanha" é conversa. */}
@@ -1096,6 +1240,91 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                     </span>
                     )
                   })}
+                </div>
+              )}
+
+              {/* A conversa do requisito, como chamado: o cliente
+                  pergunta, o auditor responde, tudo datado e com autor.
+                  Antes isso acontecia por WhatsApp e sumia — e numa
+                  certificação o auditor externo pergunta exatamente
+                  como cada achado foi tratado. */}
+              {auditoria && (
+                <div className="insp-conversa">
+                  {(mensagens.filter((m) => m.resposta_id === r.id) || []).map((m) => (
+                    <div key={m.id} className={'insp-msg ' + m.autor_papel}>
+                      <div className="quem">
+                        {m.autor_nome || (m.autor_papel === 'equipe' ? 'Auditor' : 'Empresa')}
+                        <span className="quando">
+                          {new Date(m.created_at).toLocaleString('pt-BR', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </span>
+                      </div>
+                      <div className="texto">{m.texto}</div>
+                    </div>
+                  ))}
+
+                  {!fechada && !r.aprovado_em && (
+                    <div className="insp-msg-nova">
+                      <input
+                        type="text"
+                        value={rascunhoMsg[r.id] || ''}
+                        placeholder={
+                          interno
+                            ? 'Responder ao cliente ou pedir outro documento'
+                            : 'Comentar ou perguntar ao auditor'
+                        }
+                        onChange={(e) =>
+                          setRascunhoMsg((d) => ({ ...d, [r.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') mandarMensagem(r.id)
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={enviandoMsg === r.id || (rascunhoMsg[r.id] || '').trim().length < 2}
+                        onClick={() => mandarMensagem(r.id)}
+                      >
+                        {enviandoMsg === r.id ? 'Enviando…' : 'Enviar'}
+                      </button>
+                    </div>
+                  )}
+
+                  {r.aprovado_em ? (
+                    <div className="insp-aprovado">
+                      <strong>Requisito aprovado</strong>
+                      {r.aprovado_nome ? ' por ' + r.aprovado_nome : ''} em{' '}
+                      {new Date(r.aprovado_em).toLocaleString('pt-BR', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                      .
+                      {interno && !fechada && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => aprovar(r.id, true)}
+                        >
+                          Reabrir
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    interno &&
+                    !fechada &&
+                    r.resposta && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => aprovar(r.id)}
+                      >
+                        Aprovar e ir para o próximo
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </div>

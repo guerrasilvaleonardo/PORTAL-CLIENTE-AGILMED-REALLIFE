@@ -137,9 +137,12 @@ export type Bloco =
   | { tipo: 'secao'; texto: string }
   | { tipo: 'texto'; texto: string }
   | { tipo: 'nota'; texto: string }
-  /* Linha para preencher à mão ou no próprio Word. */
-  | { tipo: 'campo'; rotulo: string }
-  | { tipo: 'tabela'; colunas: string[]; linhas: number }
+  /* Faixa de aviso no alto: diz que o conteúdo é exemplo. */
+  | { tipo: 'aviso'; texto: string }
+  /* Linha para preencher. Com `exemplo`, já vem um modelo de resposta
+   * em itálico cinza, para a pessoa ver o nível de detalhe esperado. */
+  | { tipo: 'campo'; rotulo: string; exemplo?: string }
+  | { tipo: 'tabela'; colunas: string[]; exemplos?: string[][]; linhas: number }
 
 const escapar = (s: string) =>
   s
@@ -148,33 +151,62 @@ const escapar = (s: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 
+type Estilo = {
+  tam?: number
+  negrito?: boolean
+  italico?: boolean
+  cor?: string
+  espacoAntes?: number
+  fundo?: string
+}
+
+const formato = (o: Estilo) =>
+  '<w:rPr>' +
+  (o.negrito ? '<w:b/>' : '') +
+  (o.italico ? '<w:i/>' : '') +
+  `<w:sz w:val="${o.tam || 22}"/><w:szCs w:val="${o.tam || 22}"/>` +
+  (o.cor ? `<w:color w:val="${o.cor}"/>` : '') +
+  '</w:rPr>'
+
 /* meio-ponto: o Word mede fonte em half-points. 24 = 12pt. */
-function paragrafo(texto: string, o: { tam?: number; negrito?: boolean; cor?: string; espacoAntes?: number } = {}) {
-  const rpr =
-    '<w:rPr>' +
-    (o.negrito ? '<w:b/>' : '') +
-    `<w:sz w:val="${o.tam || 22}"/><w:szCs w:val="${o.tam || 22}"/>` +
-    (o.cor ? `<w:color w:val="${o.cor}"/>` : '') +
-    '</w:rPr>'
+function paragrafo(texto: string, o: Estilo = {}) {
+  const rpr = formato(o)
 
   return (
     '<w:p><w:pPr>' +
     `<w:spacing w:before="${o.espacoAntes ?? 60}" w:after="60"/>` +
-    rpr.replace('w:rPr', 'w:rPr') +
+    (o.fundo ? `<w:shd w:val="clear" w:fill="${o.fundo}"/>` : '') +
+    rpr +
     '</w:pPr>' +
     `<w:r>${rpr}<w:t xml:space="preserve">${escapar(texto)}</w:t></w:r></w:p>`
   )
 }
 
-function celula(texto: string, largura: number, negrito: boolean) {
+/* Duas corridas no mesmo parágrafo: o rótulo normal e o exemplo em
+ * itálico cinza, para a pessoa distinguir à primeira vista o que é
+ * formulário e o que é sugestão. */
+function paragrafoComExemplo(rotulo: string, exemplo: string) {
+  const base = formato({})
+  const sugestao = formato({ italico: true, cor: '888888' })
+
   return (
-    `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/></w:tcPr>` +
-    paragrafo(texto, { tam: 20, negrito }) +
+    '<w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr>' +
+    `<w:r>${base}<w:t xml:space="preserve">${escapar(rotulo)}: </w:t></w:r>` +
+    `<w:r>${sugestao}<w:t xml:space="preserve">${escapar(exemplo)}</w:t></w:r></w:p>`
+  )
+}
+
+function celula(texto: string, largura: number, o: Estilo) {
+  return (
+    `<w:tc><w:tcPr><w:tcW w:w="${largura}" w:type="dxa"/>` +
+    (o.fundo ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fundo}"/>` : '') +
+    '</w:tcPr>' +
+    paragrafo(texto, { ...o, tam: 20 }) +
     '</w:tc>'
   )
 }
 
-function tabela(colunas: string[], linhas: number) {
+function tabela(colunas: string[], exemplos: string[][], linhas: number) {
   const largura = Math.floor(9360 / colunas.length)
 
   const borda =
@@ -185,15 +217,33 @@ function tabela(colunas: string[], linhas: number) {
     '</w:tblBorders>'
 
   const cabecalho =
-    '<w:tr>' + colunas.map((c) => celula(c, largura, true)).join('') + '</w:tr>'
+    '<w:tr>' +
+    colunas.map((c) => celula(c, largura, { negrito: true, fundo: 'EFEFEF' })).join('') +
+    '</w:tr>'
+
+  /* Linha de exemplo: itálico, cinza e com fundo, para ninguém
+   * confundir sugestão com registro da própria empresa. */
+  const comExemplo = exemplos
+    .map(
+      (linha) =>
+        '<w:tr>' +
+        colunas
+          .map((_, i) =>
+            celula(linha[i] || '', largura, { italico: true, cor: '888888', fundo: 'FAFAFA' })
+          )
+          .join('') +
+        '</w:tr>'
+    )
+    .join('')
 
   const vazias = Array.from({ length: linhas })
-    .map(() => '<w:tr>' + colunas.map(() => celula('', largura, false)).join('') + '</w:tr>')
+    .map(() => '<w:tr>' + colunas.map(() => celula('', largura, {})).join('') + '</w:tr>')
     .join('')
 
   return (
     `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/>${borda}</w:tblPr>` +
     cabecalho +
+    comExemplo +
     vazias +
     '</w:tbl>' +
     paragrafo('')
@@ -214,10 +264,20 @@ function corpo(blocos: Bloco[]) {
           return paragrafo(b.texto)
         case 'nota':
           return paragrafo(b.texto, { tam: 18, cor: '777777' })
+        case 'aviso':
+          return paragrafo(b.texto, {
+            tam: 20,
+            negrito: true,
+            cor: '8A5A00',
+            fundo: 'FDF4E3',
+            espacoAntes: 120,
+          })
         case 'campo':
-          return paragrafo(b.rotulo + ': ___________________________________________')
+          return b.exemplo
+            ? paragrafoComExemplo(b.rotulo, b.exemplo)
+            : paragrafo(b.rotulo + ': ___________________________________________')
         case 'tabela':
-          return tabela(b.colunas, b.linhas)
+          return tabela(b.colunas, b.exemplos || [], b.linhas)
       }
     })
     .join('')

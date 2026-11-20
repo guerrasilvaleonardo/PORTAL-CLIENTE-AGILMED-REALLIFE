@@ -1,0 +1,156 @@
+/*
+ * Percentual por seção e a conversa do requisito.
+ */
+
+/* ---------- Percentual na barra da seção --------------------------- */
+.insp-pct {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-pct.bom {
+  background: #e7f6ec;
+  color: #1c6b38;
+}
+
+.insp-pct.medio {
+  background: #fdf4e3;
+  color: #8a5a00;
+}
+
+.insp-pct.ruim {
+  background: #fdeaea;
+  color: #8a1c1c;
+}
+
+/* ---------- Conversa do requisito ---------------------------------- */
+.insp-conversa {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  display: grid;
+  gap: 8px;
+}
+
+.insp-msg {
+  padding: 8px 11px;
+  border-radius: var(--radius-m, 10px);
+  background: var(--surface-sunken, #f4f5f7);
+  max-width: 88%;
+}
+
+/* A mensagem da equipe encosta à direita: quem lê identifica de quem é
+   antes de ler o nome. */
+.insp-msg.equipe {
+  justify-self: end;
+  background: #eef3fb;
+}
+
+.insp-msg .quem {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.insp-msg .quando {
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.insp-msg .texto {
+  margin-top: 3px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.insp-msg-nova {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.insp-msg-nova input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.insp-aprovado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 11px;
+  border-radius: var(--radius-m, 10px);
+  background: #e7f6ec;
+  color: #1c6b38;
+  font-size: 13px;
+}
+
+/* O requisito aprovado some do caminho: fica mais baixo e com a borda
+   verde, para a rolagem passar por ele sem parar. */
+.insp-auditoria .insp-item.aprovado {
+  border-color: #8fd3a8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .insp-pct.bom {
+    background: #1b3a26;
+    color: #a7e0bd;
+  }
+  :root:not([data-theme='light']) .insp-pct.medio {
+    background: #3a2f16;
+    color: #f0d08a;
+  }
+  :root:not([data-theme='light']) .insp-pct.ruim {
+    background: #3a1a1a;
+    color: #f3b7b7;
+  }
+  :root:not([data-theme='light']) .insp-msg.equipe {
+    background: #1d2636;
+  }
+  :root:not([data-theme='light']) .insp-aprovado {
+    background: #1b3a26;
+    color: #a7e0bd;
+  }
+}
+
+:root[data-theme='dark'] .insp-pct.bom {
+  background: #1b3a26;
+  color: #a7e0bd;
+}
+
+:root[data-theme='dark'] .insp-pct.medio {
+  background: #3a2f16;
+  color: #f0d08a;
+}
+
+:root[data-theme='dark'] .insp-pct.ruim {
+  background: #3a1a1a;
+  color: #f3b7b7;
+}
+
+:root[data-theme='dark'] .insp-msg.equipe {
+  background: #1d2636;
+}
+
+:root[data-theme='dark'] .insp-aprovado {
+  background: #1b3a26;
+  color: #a7e0bd;
+}
+
+@media print {
+  .insp-msg-nova,
+  .insp-conversa button {
+    display: none;
+  }
+}
