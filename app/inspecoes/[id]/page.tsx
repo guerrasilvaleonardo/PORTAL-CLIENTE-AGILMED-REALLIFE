@@ -83,6 +83,12 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   /* Nome original do arquivo enviado, para a tela não mostrar o uuid. */
   const [nomes, setNomes] = useState<Record<string, string>>({})
 
+  /* O plano e as reuniões, que a ISO 19011 pede em 6.2, 6.3, 6.4.3,
+     6.4.9 e 6.4.10. Guardados na própria auditoria. */
+  const [verPlano, setVerPlano] = useState(false)
+  const [plano, setPlano] = useState<Record<string, string>>({})
+  const [salvandoPlano, setSalvandoPlano] = useState(false)
+
   /* Reabrir para corrigir, e o histórico de quem reabriu. */
   const [reabrindo, setReabrindo] = useState(false)
   const [motivoReabrir, setMotivoReabrir] = useState('')
@@ -103,6 +109,8 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         .from('inspecoes')
         .select(
           'id, empresa_id, tipo, local_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
+            'objetivo, escopo, criterios, equipe, auditor_lider, plano_agenda, abertura_em, ' +
+            'abertura_participantes, encerramento_em, encerramento_participantes, conclusao, ' +
             'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
         )
         .eq('id', id)
@@ -118,6 +126,21 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         .eq('inspecao_id', id)
         .order('ordem')
       setRespostas((rs || []) as unknown as Resposta[])
+
+      const i2 = i as any
+      setPlano({
+        objetivo: i2.objetivo || '',
+        escopo: i2.escopo || '',
+        criterios: i2.criterios || '',
+        auditor_lider: i2.auditor_lider || '',
+        equipe: i2.equipe || '',
+        plano_agenda: i2.plano_agenda || '',
+        abertura_em: (i2.abertura_em || '').slice(0, 16),
+        abertura_participantes: i2.abertura_participantes || '',
+        encerramento_em: (i2.encerramento_em || '').slice(0, 16),
+        encerramento_participantes: i2.encerramento_participantes || '',
+        conclusao: i2.conclusao || '',
+      })
 
       setCabecalho({
         local_id: (i as any).local_id || '',
@@ -384,6 +407,38 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     await carregar()
   }
 
+  async function salvarPlano() {
+    if (salvandoPlano) return
+    setSalvandoPlano(true)
+    setErro('')
+
+    const { error } = await supabase
+      .from('inspecoes')
+      .update({
+        objetivo: plano.objetivo || null,
+        escopo: plano.escopo || null,
+        criterios: plano.criterios || null,
+        auditor_lider: plano.auditor_lider || null,
+        equipe: plano.equipe || null,
+        plano_agenda: plano.plano_agenda || null,
+        abertura_em: plano.abertura_em ? new Date(plano.abertura_em).toISOString() : null,
+        abertura_participantes: plano.abertura_participantes || null,
+        encerramento_em: plano.encerramento_em ? new Date(plano.encerramento_em).toISOString() : null,
+        encerramento_participantes: plano.encerramento_participantes || null,
+        conclusao: plano.conclusao || null,
+      })
+      .eq('id', id)
+
+    setSalvandoPlano(false)
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    await carregar()
+  }
+
   async function salvarCabecalho() {
     const local = locais.find((l) => l.id === cabecalho.local_id) || null
 
@@ -493,6 +548,143 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           </button>
         )}
       </div>
+
+      {/* O plano, as reuniões e as conclusões — os ritos que a ISO 19011
+          pede em 6.2, 6.3, 6.4.3, 6.4.9 e 6.4.10. Só em auditoria. */}
+      {auditoria && (
+        <div className="panel">
+          <div className="panel-head">
+            <div className="section-title">Plano da auditoria e reuniões</div>
+            <button type="button" className="btn btn-sm" onClick={() => setVerPlano((v) => !v)}>
+              {verPlano ? 'Fechar' : 'Abrir'}
+            </button>
+          </div>
+
+          {verPlano && (
+            <div className="panel-body insp-ficha">
+              <div className="duas">
+                <label>
+                  Objetivo da auditoria
+                  <textarea
+                    value={plano.objetivo || ''}
+                    onChange={(e) => setPlano({ ...plano, objetivo: e.target.value })}
+                    placeholder="Para que esta auditoria está sendo feita"
+                  />
+                </label>
+                <label>
+                  Escopo
+                  <textarea
+                    value={plano.escopo || ''}
+                    onChange={(e) => setPlano({ ...plano, escopo: e.target.value })}
+                    placeholder="Processos, áreas e unidades cobertos"
+                  />
+                </label>
+              </div>
+
+              <label>
+                Critérios
+                <textarea
+                  value={plano.criterios || ''}
+                  onChange={(e) => setPlano({ ...plano, criterios: e.target.value })}
+                  placeholder="Contra o que se audita: a norma, o PGR, os procedimentos da empresa"
+                />
+              </label>
+
+              <div className="duas">
+                <label>
+                  Auditor líder
+                  <input
+                    type="text"
+                    value={plano.auditor_lider || ''}
+                    onChange={(e) => setPlano({ ...plano, auditor_lider: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Equipe auditora
+                  <input
+                    type="text"
+                    value={plano.equipe || ''}
+                    onChange={(e) => setPlano({ ...plano, equipe: e.target.value })}
+                    placeholder="Quem mais participa, e em quê"
+                  />
+                </label>
+              </div>
+
+              <label>
+                Agenda
+                <textarea
+                  value={plano.plano_agenda || ''}
+                  onChange={(e) => setPlano({ ...plano, plano_agenda: e.target.value })}
+                  placeholder="Horário por área, para o auditado saber quando é a vez dele"
+                />
+              </label>
+
+              <div className="duas">
+                <label>
+                  Reunião de abertura
+                  <input
+                    type="datetime-local"
+                    value={plano.abertura_em || ''}
+                    onChange={(e) => setPlano({ ...plano, abertura_em: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Quem participou da abertura
+                  <input
+                    type="text"
+                    value={plano.abertura_participantes || ''}
+                    onChange={(e) => setPlano({ ...plano, abertura_participantes: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="duas">
+                <label>
+                  Reunião de encerramento
+                  <input
+                    type="datetime-local"
+                    value={plano.encerramento_em || ''}
+                    onChange={(e) => setPlano({ ...plano, encerramento_em: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Quem participou do encerramento
+                  <input
+                    type="text"
+                    value={plano.encerramento_participantes || ''}
+                    onChange={(e) =>
+                      setPlano({ ...plano, encerramento_participantes: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
+
+              <label>
+                Conclusões da auditoria
+                <textarea
+                  value={plano.conclusao || ''}
+                  onChange={(e) => setPlano({ ...plano, conclusao: e.target.value })}
+                  placeholder="O parecer do auditor líder sobre o sistema, não a lista de achados"
+                />
+              </label>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={salvandoPlano}
+                onClick={salvarPlano}
+              >
+                {salvandoPlano ? 'Salvando…' : 'Salvar plano'}
+              </button>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
+                Nada aqui é obrigatório para concluir: auditoria que começa e termina no mesmo dia
+                não tem plano escrito de véspera, e travar por isso só faria inventar texto. O
+                relatório mostra o que ficou em branco.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {reabrindo && (
         <div className="panel">
