@@ -97,8 +97,11 @@ export default function EstrelasDoChamado({
 
   async function acao(rpc: string, args: Record<string, unknown>) {
     if (salvando) return
-    if (motivo.trim().length < 5) {
-      setErro('Informe a justificativa (mínimo de 5 caracteres).')
+    /* O banco tem a regra completa: além do tamanho, recusa justificativa
+       que só repete quem autorizou. Aqui fica o mínimo, para não fazer a
+       pessoa esperar a ida ao servidor por um campo quase vazio. */
+    if (motivo.trim().length < 12) {
+      setErro('Escreva o motivo da decisão, com pelo menos 12 caracteres.')
       return
     }
     setSalvando(true)

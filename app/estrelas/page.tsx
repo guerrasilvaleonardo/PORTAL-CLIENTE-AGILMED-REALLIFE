@@ -1100,8 +1100,11 @@ function AbaGestao({
 
   async function decidirPrazo(id: number, autorizar: boolean, forcar = false) {
     if (decidindo !== null) return
-    if (motivoPrazo.trim().length < 5) {
-      setErroPrazo('Escreva a justificativa antes de decidir (mínimo de 5 caracteres).')
+    /* O banco tem a regra completa: além do tamanho, recusa justificativa
+       que só repete quem autorizou. Aqui fica o mínimo, para não fazer a
+       pessoa esperar a ida ao servidor por um campo quase vazio. */
+    if (motivoPrazo.trim().length < 12) {
+      setErroPrazo('Escreva o motivo da decisão, com pelo menos 12 caracteres.')
       return
     }
     setDecidindo(id)
