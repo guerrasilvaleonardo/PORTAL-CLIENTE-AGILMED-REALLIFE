@@ -1,7 +1,21 @@
+'use client'
+
+import { ComModulo } from '@/components/ModuloBloqueado'
+import { NaoConformidadesConteudo } from '../../inspecoes/nc/page'
+
 /*
- * As constatações da auditoria são não conformidades, tratadas com o
- * mesmo ciclo do item 10.2 — causa, ação corretiva e verificação. A
- * tela é a mesma das inspeções; o que o cliente enxerga é separado
- * pelo banco, que filtra por ferramenta contratada.
+ * As constatações da auditoria são não conformidades e recebem o mesmo
+ * tratamento do item 10.2 — causa, ação corretiva e verificação da
+ * eficácia. Por isso a tela é a mesma das inspeções.
+ *
+ * O que muda é o que entra na lista: só o que nasceu de auditoria. São
+ * processos diferentes, e misturar o extintor vencido no canteiro com o
+ * requisito 9.3 da norma tira o sentido das duas listas.
  */
-export { default } from '../../inspecoes/nc/page'
+export default function ConstatacoesDaAuditoria() {
+  return (
+    <ComModulo modulo="auditoria">
+      <NaoConformidadesConteudo tipo="auditoria" />
+    </ComModulo>
+  )
+}
