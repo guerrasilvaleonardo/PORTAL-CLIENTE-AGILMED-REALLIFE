@@ -1043,6 +1043,15 @@ function AbaGestao({
   const [dataFech, setDataFech] = useState(hoje.ano + '-12-20')
   const [ruins, setRuins] = useState<any[]>([])
   const [pendentes, setPendentes] = useState<any[]>([])
+  /* Decidir o prazo aqui mesmo, em vez de abrir os 57 chamados um por
+   * um. A justificativa é uma só para a fila: quem está despachando
+   * costuma ter o mesmo motivo para várias. */
+  const [motivoPrazo, setMotivoPrazo] = useState('')
+  const [erroPrazo, setErroPrazo] = useState('')
+  const [decidindo, setDecidindo] = useState<number | null>(null)
+  /* A autorização que o banco recusou por ser retroativa, esperando o
+   * segundo clique do gestor. Guarda o id da linha. */
+  const [retroativa, setRetroativa] = useState<number | null>(null)
   const [auditoria, setAuditoria] = useState<any[]>([])
   const [textoAcomp, setTextoAcomp] = useState<Record<string, string>>({})
 
@@ -1060,7 +1069,9 @@ function AbaGestao({
         .select('id, chamado_id, prazo_anterior, prazo_novo, origem, alterado_em, autorizado, chamados(numero, assunto)')
         .is('autorizado', null)
         .order('alterado_em', { ascending: false })
-        .limit(100),
+        /* O limite vira o número que a tela mostra: com 100 e 120
+           pendentes, o contador mentiria para menos. */
+        .limit(500),
       supabase
         .from('estrelas_eventos')
         .select('id, tipo, motivo, created_at, chamado_id, autor_id, chamados(numero), autor:autor_id(nome)')
@@ -1076,13 +1087,51 @@ function AbaGestao({
     }
     setFechamentos((f || []) as Fechamento[])
     setRuins(((r || []) as any[]).map((x) => ({ ...x, atendente: nomes[x.chamados?.responsavel_id] || '—' })))
-    setPendentes(((p || []) as any[]).filter((x) => new Date(x.prazo_novo) > new Date(x.prazo_anterior)))
+    /* Aqui entram TODAS as pendentes, inclusive as que encurtam o
+     * prazo. A tela do chamado só mostra as que esticam, então essas
+     * ficavam pendentes e invisíveis, sem como serem decididas. */
+    setPendentes((p || []) as any[])
     setAuditoria((a || []) as any[])
   }, [])
 
   useEffect(() => {
     carregar()
   }, [carregar, versao])
+
+  async function decidirPrazo(id: number, autorizar: boolean, forcar = false) {
+    if (decidindo !== null) return
+    if (motivoPrazo.trim().length < 5) {
+      setErroPrazo('Escreva a justificativa antes de decidir (mínimo de 5 caracteres).')
+      return
+    }
+    setDecidindo(id)
+    setErroPrazo('')
+
+    const { error } = await supabase.rpc('estrelas_decidir_prazo', {
+      p_alteracao: id,
+      p_autorizar: autorizar,
+      p_justificativa: motivoPrazo,
+      ...(forcar ? { p_forcar: true } : {}),
+    })
+    setDecidindo(null)
+
+    if (error) {
+      /* O banco recusa autorizar extensão de prazo já vencido. É a
+       * resposta certa quase sempre, então continua sendo a primeira —
+       * o gestor passa por cima num segundo clique, e a decisão fica
+       * gravada como forçada. */
+      if (/alteração retroativa/i.test(error.message || '')) {
+        setRetroativa(id)
+        return
+      }
+      setErroPrazo(error.message)
+      return
+    }
+
+    setRetroativa(null)
+    await carregar()
+    avisarAtualizacao()
+  }
 
   /* Prévia obrigatória quando a data inicial está no passado. */
   const retroativo = !!dataInicio && dataInicio < hoje.iso && !(cfg?.ativo && cfg?.data_inicio === dataInicio)
@@ -1336,20 +1385,101 @@ function AbaGestao({
       </div>
 
       <div className="panel">
-        <div className="panel-head"><div className="section-title">Extensões de prazo aguardando decisão</div></div>
+        <div className="panel-head">
+          <div className="section-title">Alterações de prazo aguardando decisão</div>
+          {pendentes.length > 0 && <span className="pill warn">{pendentes.length}</span>}
+        </div>
         <div className="panel-body">
+          {erroPrazo && <div className="banner bad">{erroPrazo}</div>}
+
           {pendentes.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>Nenhuma extensão pendente.</p>
-          ) : pendentes.map((p) => (
-            <div key={p.id} style={{ fontSize: 14 }}>
-              <Link href={'/atendimento/' + p.chamado_id}><strong>#{p.chamados?.numero}</strong></Link> — {p.chamados?.assunto}:{' '}
-              {formatarDataHora(p.prazo_anterior)} → {formatarDataHora(p.prazo_novo)}
-              {' '}({p.origem === 'prioridade' ? 'troca de prioridade' : p.origem === 'suspensao' ? 'atendimento suspenso' : 'manual'}). Decida na tela do chamado, com justificativa.
-            </div>
-          ))}
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
-            O SLA do chamado não muda. Sem autorização, a estrela usa o prazo anterior. Extensão de prazo que já
-            estava vencido não pode ser autorizada.
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>Nenhuma alteração pendente.</p>
+          ) : (
+            <>
+              <label className="campo-justificativa">
+                Justificativa do gestor (vale para a decisão que você tomar abaixo)
+                <input
+                  type="text"
+                  value={motivoPrazo}
+                  onChange={(e) => setMotivoPrazo(e.target.value)}
+                  placeholder="Ex.: prazo nasceu errado, documento estava em dia"
+                />
+              </label>
+
+              {pendentes.map((p) => {
+                const estica = new Date(p.prazo_novo) > new Date(p.prazo_anterior)
+                const jaVencido = new Date(p.prazo_anterior) < new Date(p.alterado_em)
+                return (
+                  <div key={p.id} className="linha-prazo">
+                    <div style={{ fontSize: 14 }}>
+                      <Link href={'/atendimento/' + p.chamado_id}>
+                        <strong>#{p.chamados?.numero}</strong>
+                      </Link>{' '}
+                      — {p.chamados?.assunto}: {formatarDataHora(p.prazo_anterior)} →{' '}
+                      {formatarDataHora(p.prazo_novo)} (
+                      {p.origem === 'prioridade'
+                        ? 'troca de prioridade'
+                        : p.origem === 'suspensao'
+                          ? 'atendimento suspenso'
+                          : 'manual'}
+                      , em {formatarDataHora(p.alterado_em)})
+                      {!estica && <span className="pill flat"> encurtou o prazo</span>}
+                      {estica && jaVencido && <span className="pill warn"> retroativa</span>}
+                    </div>
+
+                    <div className="acoes-prazo">
+                      {retroativa === p.id ? (
+                        <>
+                          <span style={{ fontSize: 13, color: 'var(--danger)' }}>
+                            O prazo anterior já estava vencido quando foi alterado.
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={decidindo !== null}
+                            onClick={() => decidirPrazo(p.id, true, true)}
+                          >
+                            Autorizar mesmo assim
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={decidindo !== null}
+                            onClick={() => setRetroativa(null)}
+                          >
+                            Deixar como está
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={decidindo !== null}
+                            onClick={() => decidirPrazo(p.id, true)}
+                          >
+                            {decidindo === p.id ? 'Decidindo…' : 'Autorizar'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={decidindo !== null}
+                            onClick={() => decidirPrazo(p.id, false)}
+                          >
+                            Recusar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+
+          <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
+            O SLA do chamado não muda. Sem autorização, a estrela usa o prazo anterior. Extensão de prazo
+            que já estava vencido pede um segundo clique do gestor, e fica gravada como forçada.
           </p>
         </div>
       </div>
