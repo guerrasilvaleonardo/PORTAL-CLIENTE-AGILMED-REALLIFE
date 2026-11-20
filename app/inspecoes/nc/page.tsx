@@ -58,6 +58,14 @@ type NC = {
   local_nome: string | null
   descricao: string
   gravidade: string
+  probabilidade: number | null
+  severidade: number | null
+  risco: number | null
+  porque_1: string | null
+  porque_2: string | null
+  porque_3: string | null
+  porque_4: string | null
+  porque_5: string | null
   prazo: string | null
   responsavel_nome: string | null
   acao_imediata: string | null
@@ -140,6 +148,7 @@ function NaoConformidadesConteudo() {
         .from('nao_conformidades')
         .select(
           'id, empresa_id, inspecao_id, origem, local_nome, descricao, gravidade, prazo, ' +
+            'probabilidade, severidade, risco, porque_1, porque_2, porque_3, porque_4, porque_5, ' +
             'responsavel_nome, acao_imediata, causa, acao_corretiva, situacao, eficaz, ' +
             'verificacao_obs, ocorrido_em, tipo_incidente, envolvido_nome, afastamento_dias, created_at'
         )
@@ -181,6 +190,13 @@ function NaoConformidadesConteudo() {
     setEscolhida(n.id)
     setRascunho({
       gravidade: n.gravidade,
+      probabilidade: n.probabilidade,
+      severidade: n.severidade,
+      porque_1: n.porque_1,
+      porque_2: n.porque_2,
+      porque_3: n.porque_3,
+      porque_4: n.porque_4,
+      porque_5: n.porque_5,
       prazo: n.prazo,
       acao_imediata: n.acao_imediata,
       causa: n.causa,
@@ -199,6 +215,18 @@ function NaoConformidadesConteudo() {
       return
     }
 
+    /* Mesma regra do banco, dita antes: risco alto sem nenhum porquê é
+       análise que não houve. */
+    const risco = Number(rascunho.probabilidade || 0) * Number(rascunho.severidade || 0)
+    if (
+      encerrar &&
+      risco >= 10 &&
+      ![1, 2, 3, 4, 5].some((n) => (rascunho[('porque_' + n) as 'porque_1'] || '').trim())
+    ) {
+      setErro('Risco alto: preencha ao menos o primeiro porquê antes de encerrar.')
+      return
+    }
+
     setSalvando(true)
     setErro('')
 
@@ -206,6 +234,13 @@ function NaoConformidadesConteudo() {
       .from('nao_conformidades')
       .update({
         gravidade: rascunho.gravidade,
+        probabilidade: rascunho.probabilidade || null,
+        severidade: rascunho.severidade || null,
+        porque_1: rascunho.porque_1 || null,
+        porque_2: rascunho.porque_2 || null,
+        porque_3: rascunho.porque_3 || null,
+        porque_4: rascunho.porque_4 || null,
+        porque_5: rascunho.porque_5 || null,
         prazo: rascunho.prazo || null,
         acao_imediata: rascunho.acao_imediata || null,
         causa: rascunho.causa || null,
@@ -477,29 +512,82 @@ function NaoConformidadesConteudo() {
               </p>
             )}
 
+            {/* Probabilidade x severidade no lugar de escolher "alta" no
+                olho: dá um número que ordena a fila e se defende numa
+                auditoria. A gravidade passa a sair daqui. */}
             <div className="duas">
               <label>
-                Gravidade
+                Qual a chance de acontecer?
                 <select
-                  value={rascunho.gravidade || 'media'}
-                  onChange={(e) => setRascunho({ ...rascunho, gravidade: e.target.value })}
+                  value={rascunho.probabilidade || ''}
+                  onChange={(e) =>
+                    setRascunho({ ...rascunho, probabilidade: Number(e.target.value) || null })
+                  }
                 >
-                  {Object.entries(GRAVIDADE).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
+                  <option value="">—</option>
+                  <option value={1}>1 · Muito improvável</option>
+                  <option value={2}>2 · Improvável</option>
+                  <option value={3}>3 · Possível</option>
+                  <option value={4}>4 · Provável</option>
+                  <option value={5}>5 · Quase certo</option>
                 </select>
               </label>
               <label>
-                Prazo
-                <input
-                  type="date"
-                  value={rascunho.prazo || ''}
-                  onChange={(e) => setRascunho({ ...rascunho, prazo: e.target.value })}
-                />
+                Se acontecer, quão grave é?
+                <select
+                  value={rascunho.severidade || ''}
+                  onChange={(e) =>
+                    setRascunho({ ...rascunho, severidade: Number(e.target.value) || null })
+                  }
+                >
+                  <option value="">—</option>
+                  <option value={1}>1 · Sem lesão</option>
+                  <option value={2}>2 · Primeiros socorros</option>
+                  <option value={3}>3 · Afastamento</option>
+                  <option value={4}>4 · Lesão permanente</option>
+                  <option value={5}>5 · Morte</option>
+                </select>
               </label>
             </div>
+
+            {rascunho.probabilidade && rascunho.severidade ? (
+              <p style={{ margin: 0, fontSize: 13 }}>
+                Risco{' '}
+                <strong>{Number(rascunho.probabilidade) * Number(rascunho.severidade)}</strong> —{' '}
+                <span
+                  className={
+                    'pill ' +
+                    (Number(rascunho.probabilidade) * Number(rascunho.severidade) >= 15
+                      ? 'bad'
+                      : Number(rascunho.probabilidade) * Number(rascunho.severidade) >= 10
+                        ? 'warn'
+                        : 'flat')
+                  }
+                >
+                  {
+                    GRAVIDADE[
+                      (() => {
+                        const r = Number(rascunho.probabilidade) * Number(rascunho.severidade)
+                        return r <= 4 ? 'baixa' : r <= 9 ? 'media' : r <= 14 ? 'alta' : 'critica'
+                      })()
+                    ]
+                  }
+                </span>
+              </p>
+            ) : (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
+                Sem a matriz, vale a gravidade atual: {GRAVIDADE[atual.gravidade] || atual.gravidade}.
+              </p>
+            )}
+
+            <label>
+              Prazo
+              <input
+                type="date"
+                value={rascunho.prazo || ''}
+                onChange={(e) => setRascunho({ ...rascunho, prazo: e.target.value })}
+              />
+            </label>
 
             <label>
               Ação imediata — o que foi feito na hora
@@ -510,8 +598,34 @@ function NaoConformidadesConteudo() {
               />
             </label>
 
+            {/* Cinco porquês: cada resposta tem de explicar a anterior. É
+                o que tira a análise de "falta de atenção" e leva até o
+                processo, que é onde a ação corretiva funciona. */}
+            <div>
+              <div className="section-title" style={{ marginBottom: 6 }}>
+                Por que aconteceu? (pode parar quando chegar na raiz)
+              </div>
+              {([1, 2, 3, 4, 5] as const).map((n) => {
+                const chave = ('porque_' + n) as 'porque_1'
+                const anterior = n === 1 ? null : (rascunho[('porque_' + (n - 1)) as 'porque_1'] || '')
+                /* O porquê seguinte só aparece depois do anterior: a tela
+                   não começa com cinco caixas vazias intimidando. */
+                if (n > 1 && !anterior) return null
+                return (
+                  <input
+                    key={n}
+                    type="text"
+                    style={{ width: '100%', marginBottom: 6 }}
+                    value={(rascunho[chave] as string) || ''}
+                    placeholder={n === 1 ? 'Por quê?' : 'E por que isso?'}
+                    onChange={(e) => setRascunho({ ...rascunho, [chave]: e.target.value })}
+                  />
+                )
+              })}
+            </div>
+
             <label>
-              Causa — por que aconteceu
+              Causa raiz — a conclusão dos porquês
               <textarea
                 value={rascunho.causa || ''}
                 onChange={(e) => setRascunho({ ...rascunho, causa: e.target.value })}

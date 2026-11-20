@@ -27,10 +27,12 @@ type Resposta = {
   pergunta: string
   resposta: string | null
   observacao: string | null
+  fotos: string[]
 }
 
 type Inspecao = {
   id: string
+  empresa_id: string
   modelo_nome: string
   norma: string | null
   local_nome: string | null
@@ -54,6 +56,9 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [inspecao, setInspecao] = useState<Inspecao | null>(null)
   const [respostas, setRespostas] = useState<Resposta[]>([])
   const [concluindo, setConcluindo] = useState(false)
+  /* Links assinados das fotos: o balde é privado. */
+  const [links, setLinks] = useState<Record<string, string>>({})
+  const [enviando, setEnviando] = useState('')
 
   async function carregar() {
     try {
@@ -63,7 +68,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
       const { data: i, error: erroI } = await supabase
         .from('inspecoes')
         .select(
-          'id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
+          'id, empresa_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, concluida_em, ' +
             'situacao, observacoes, itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
         )
         .eq('id', id)
@@ -74,7 +79,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
       const { data: rs } = await supabase
         .from('inspecao_respostas')
-        .select('id, ordem, categoria, pergunta, resposta, observacao')
+        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos')
         .eq('inspecao_id', id)
         .order('ordem')
       setRespostas((rs || []) as unknown as Resposta[])
@@ -91,7 +96,108 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  /* As fotos ficam num balde privado: cada uma precisa de link assinado. */
+  useEffect(() => {
+    let vivo = true
+
+    async function assinar() {
+      const caminhos = respostas.flatMap((r) => r.fotos || []).filter(Boolean)
+      const faltando = [...new Set(caminhos)].filter((c) => !links[c])
+      if (!faltando.length) return
+
+      const { data } = await supabase.storage
+        .from('inspecao-fotos')
+        .createSignedUrls(faltando, 3600)
+
+      if (!vivo || !data) return
+
+      const novos: Record<string, string> = {}
+      for (const l of data) if (l.path && l.signedUrl) novos[l.path] = l.signedUrl
+      setLinks((atual) => ({ ...atual, ...novos }))
+    }
+
+    assinar()
+    return () => {
+      vivo = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [respostas])
+
   const fechada = inspecao?.situacao !== 'em_andamento'
+
+  /*
+   * Encolhe a foto antes de subir. Celular novo tira foto de 8 MB; o
+   * balde aceita 5, e no canteiro a internet é a que der. 1600px de
+   * lado resolve qualquer coisa que se queira provar numa inspeção.
+   */
+  async function encolher(arquivo: File): Promise<Blob> {
+    const bitmap = await createImageBitmap(arquivo)
+    const maior = Math.max(bitmap.width, bitmap.height)
+    const escala = maior > 1600 ? 1600 / maior : 1
+    const tela = document.createElement('canvas')
+    tela.width = Math.round(bitmap.width * escala)
+    tela.height = Math.round(bitmap.height * escala)
+    tela.getContext('2d')?.drawImage(bitmap, 0, 0, tela.width, tela.height)
+    return new Promise((ok) => tela.toBlob((b) => ok(b as Blob), 'image/jpeg', 0.8))
+  }
+
+  async function enviarFoto(rid: string, arquivo: File | undefined) {
+    if (!arquivo || !inspecao || fechada || enviando) return
+
+    const r = respostas.find((x) => x.id === rid)
+    if (!r) return
+    if ((r.fotos || []).length >= 3) {
+      setErro('Três fotos por item já é bastante para provar o achado.')
+      return
+    }
+
+    setEnviando(rid)
+    setErro('')
+
+    try {
+      const blob = await encolher(arquivo)
+      const caminho = `${inspecao.empresa_id}/${crypto.randomUUID()}.jpg`
+
+      const { error: erroUp } = await supabase.storage
+        .from('inspecao-fotos')
+        .upload(caminho, blob, { contentType: 'image/jpeg', upsert: false })
+      if (erroUp) throw erroUp
+
+      const fotos = [...(r.fotos || []), caminho]
+      const { error } = await supabase
+        .from('inspecao_respostas')
+        .update({ fotos, foto_path: fotos[0] })
+        .eq('id', rid)
+      if (error) throw error
+
+      setRespostas((lista) => lista.map((x) => (x.id === rid ? { ...x, fotos } : x)))
+    } catch (e: any) {
+      console.error(e)
+      setErro(e?.message || 'Não foi possível enviar a foto.')
+    } finally {
+      setEnviando('')
+    }
+  }
+
+  async function tirarFoto(rid: string, caminho: string) {
+    if (fechada) return
+    const r = respostas.find((x) => x.id === rid)
+    if (!r) return
+
+    const fotos = (r.fotos || []).filter((f) => f !== caminho)
+    const { error } = await supabase
+      .from('inspecao_respostas')
+      .update({ fotos, foto_path: fotos[0] || null })
+      .eq('id', rid)
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    setRespostas((lista) => lista.map((x) => (x.id === rid ? { ...x, fotos } : x)))
+    await supabase.storage.from('inspecao-fotos').remove([caminho])
+  }
 
   async function responder(rid: string, valor: string) {
     if (fechada) return
@@ -242,6 +348,44 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                   onChange={(e) => anotar(r.id, e.target.value)}
                 />
               )}
+
+              {/* A foto é o que separa um relatório que se discute de um
+                  que não se discute: "material empilhado fora do lugar"
+                  é opinião; a foto da pilha não é. */}
+              <div className="insp-fotos">
+                {(r.fotos || []).map((f) => (
+                  <div key={f} className="insp-foto">
+                    {links[f] ? (
+                      <a href={links[f]} target="_blank" rel="noreferrer">
+                        <img src={links[f]} alt="Foto do item" />
+                      </a>
+                    ) : (
+                      <span className="carregando">…</span>
+                    )}
+                    {!fechada && (
+                      <button type="button" onClick={() => tirarFoto(r.id, f)} title="Tirar a foto">
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {!fechada && (r.fotos || []).length < 3 && (
+                  <label className="insp-add-foto">
+                    {enviando === r.id ? 'Enviando…' : '+ Foto'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      disabled={!!enviando}
+                      onChange={(e) => {
+                        enviarFoto(r.id, e.target.files?.[0])
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
           ))}
         </div>

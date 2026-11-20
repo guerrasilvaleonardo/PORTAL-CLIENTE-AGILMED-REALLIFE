@@ -50,13 +50,16 @@ type Inspecao = {
   percentual: number | null
 }
 
-type Resposta = { inspecao_id: string; pergunta: string; resposta: string | null }
+type Resposta = { id: string; inspecao_id: string; pergunta: string; resposta: string | null }
 
 type NC = {
   id: string
   empresa_id: string
   origem: string
   gravidade: string
+  resposta_id: string | null
+  local_nome: string | null
+  risco: number | null
   situacao: string
   prazo: string | null
   ocorrido_em: string | null
@@ -82,6 +85,8 @@ function PainelInspecoesConteudo() {
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
   const [respostas, setRespostas] = useState<Resposta[]>([])
   const [ncs, setNcs] = useState<NC[]>([])
+  /* Só para estimar as horas-homem das taxas. */
+  const [colaboradores, setColaboradores] = useState<{ empresa_id: string }[]>([])
 
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
@@ -139,18 +144,21 @@ function PainelInspecoesConteudo() {
       setInspecoes((insp || []) as unknown as Inspecao[])
 
       const [{ data: rs }, { data: ns }] = await Promise.all([
-        supabase.from('inspecao_respostas').select('inspecao_id, pergunta, resposta').limit(20000),
+        supabase.from('inspecao_respostas').select('id, inspecao_id, pergunta, resposta').limit(20000),
         supabase
           .from('nao_conformidades')
           .select(
-            'id, empresa_id, origem, gravidade, situacao, prazo, ocorrido_em, ' +
-              'tipo_incidente, afastamento_dias, created_at, encerrada_em'
+            'id, empresa_id, origem, gravidade, situacao, prazo, ocorrido_em, resposta_id, ' +
+              'local_nome, risco, tipo_incidente, afastamento_dias, created_at, encerrada_em'
           )
           .limit(2000),
       ])
 
       setRespostas((rs || []) as unknown as Resposta[])
       setNcs((ns || []) as unknown as NC[])
+
+      const { data: cols } = await supabase.from('colaboradores').select('empresa_id')
+      setColaboradores((cols || []) as { empresa_id: string }[])
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível montar o painel.')
@@ -258,6 +266,95 @@ function PainelInspecoesConteudo() {
     }
   }, [concluidas, ncsVisiveis])
 
+  /*
+   * EFICÁCIA — o indicador que quase ninguém mede.
+   *
+   * Encerrar uma não conformidade não prova nada: prova é ela não
+   * voltar. Aqui, para cada NC encerrada, a mesma pergunta é procurada
+   * nas inspeções concluídas no MESMO local nos 90 dias seguintes. Se
+   * reprovou de novo, a ação não funcionou.
+   *
+   * É literalmente o que a ISO 45001 e a 9001 pedem no 10.2 quando
+   * falam em verificar a eficácia da ação corretiva — a diferença é
+   * que aqui sai um número, não um campo de texto.
+   */
+  const eficacia = useMemo(() => {
+    const perguntaDaResposta = new Map(respostas.map((r) => [r.id, r.pergunta]))
+    const inspecaoDe = new Map(inspecoes.map((i) => [i.id, i]))
+
+    const encerradas = ncsVisiveis.filter(
+      (n) => n.situacao === 'encerrada' && n.encerrada_em && n.resposta_id
+    )
+
+    let reincidiu = 0
+    for (const n of encerradas) {
+      const pergunta = perguntaDaResposta.get(n.resposta_id as string)
+      if (!pergunta) continue
+
+      const fim = Date.parse(dia(n.encerrada_em) + 'T00:00:00Z')
+      const limite = fim + 90 * 86400000
+
+      const voltou = respostas.some((r) => {
+        if (r.pergunta !== pergunta || r.resposta !== 'nao_conforme') return false
+        const i = inspecaoDe.get(r.inspecao_id)
+        if (!i || i.situacao !== 'concluida' || !i.concluida_em) return false
+        if ((i.local_nome || '') !== (n.local_nome || '')) return false
+        const quando = Date.parse(dia(i.concluida_em) + 'T00:00:00Z')
+        return quando > fim && quando <= limite
+      })
+
+      if (voltou) reincidiu += 1
+    }
+
+    return {
+      encerradas: encerradas.length,
+      reincidiu,
+      taxa: encerradas.length
+        ? Math.round((1000 * (encerradas.length - reincidiu)) / encerradas.length) / 10
+        : null,
+    }
+  }, [ncsVisiveis, respostas, inspecoes])
+
+  /*
+   * TF e TG — as taxas que o dono da empresa entende.
+   *
+   * TF = acidentes com afastamento x 1.000.000 / horas-homem.
+   * TG = dias perdidos x 1.000.000 / horas-homem.
+   *
+   * AS HORAS SÃO ESTIMADAS: o portal não registra hora trabalhada, e
+   * inventar um cadastro que ninguém preenche daria um número pior que
+   * nenhum. A conta usa o nº de pessoas no cadastro x 176 h por mês, e
+   * a tela diz que é estimativa. Quando houver hora real, troca-se a
+   * origem do número sem mexer no resto.
+   */
+  const taxas = useMemo(() => {
+    const meses =
+      de && ate
+        ? Math.max(
+            1,
+            Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / 2592000000)
+          )
+        : 12
+
+    const pessoas = empresaAtual
+      ? colaboradores.filter((c) => c.empresa_id === empresaAtual).length
+      : colaboradores.length
+
+    const hht = pessoas * 176 * meses
+    const comAfastamento = ncsVisiveis.filter(
+      (n) => n.tipo_incidente === 'acidente_com_afastamento'
+    ).length
+    const diasPerdidos = ncsVisiveis.reduce((s, n) => s + (n.afastamento_dias || 0), 0)
+
+    return {
+      pessoas,
+      meses,
+      hht,
+      tf: hht ? Math.round((1000000 * comAfastamento) / hht * 100) / 100 : null,
+      tg: hht ? Math.round((1000000 * diasPerdidos) / hht * 100) / 100 : null,
+    }
+  }, [ncsVisiveis, colaboradores, empresaAtual, de, ate])
+
   /* ---------- Incidentes ---------- */
   const incidentes = useMemo(() => {
     const sos = ncsVisiveis.filter((n) => n.origem === 'incidente')
@@ -334,6 +431,66 @@ function PainelInspecoesConteudo() {
             <div className={'stat' + (totais.vencidas ? ' bad' : '')}>
               <div className="num">{totais.vencidas}</div>
               <div className="lbl">Com prazo vencido</div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">
+                Eficácia — a ação resolveu, ou o problema voltou?
+              </div>
+            </div>
+            <div className="panel-body">
+              {eficacia.encerradas === 0 ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
+                  Nenhuma não conformidade de inspeção encerrada no período.
+                </p>
+              ) : (
+                <div className="stats">
+                  <div className="stat good">
+                    <div className="num">{eficacia.taxa}%</div>
+                    <div className="lbl">Não voltaram em 90 dias</div>
+                  </div>
+                  <div className="stat">
+                    <div className="num">{eficacia.encerradas}</div>
+                    <div className="lbl">Encerradas no período</div>
+                  </div>
+                  <div className={'stat' + (eficacia.reincidiu ? ' bad' : '')}>
+                    <div className="num">{eficacia.reincidiu}</div>
+                    <div className="lbl">Voltaram a reprovar</div>
+                  </div>
+                </div>
+              )}
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
+                Encerrar não prova nada — prova é não voltar. Para cada não conformidade
+                encerrada, o portal procura a mesma pergunta reprovando de novo no mesmo local
+                nos 90 dias seguintes. É a verificação da eficácia que o item 10.2 pede,
+                virada em número.
+              </p>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Taxas de frequência e gravidade</div>
+            </div>
+            <div className="panel-body">
+              <div className="stats">
+                <div className="stat">
+                  <div className="num">{taxas.tf ?? '—'}</div>
+                  <div className="lbl">TF — acidentes com afastamento por milhão de horas</div>
+                </div>
+                <div className="stat">
+                  <div className="num">{taxas.tg ?? '—'}</div>
+                  <div className="lbl">TG — dias perdidos por milhão de horas</div>
+                </div>
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
+                Horas estimadas: {taxas.pessoas} pessoa{taxas.pessoas === 1 ? '' : 's'} no cadastro
+                × 176 h × {taxas.meses} {taxas.meses === 1 ? 'mês' : 'meses'} ={' '}
+                {taxas.hht.toLocaleString('pt-BR')} horas. O portal ainda não registra hora
+                trabalhada — quando registrar, a conta troca de origem e o número fica exato.
+              </p>
             </div>
           </div>
 
