@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { casaBusca, palavrasDaBusca } from '@/lib/busca'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
-import CadastroAbas from '@/components/CadastroAbas'
 import Icone from '@/components/Icone'
 import '../colaboradores.css'
 
@@ -330,8 +329,6 @@ export default function LocaisTrabalho() {
 
   return (
     <div className="app">
-      <CadastroAbas />
-
       <div>
         <p className="eyebrow">Cadastros</p>
         <h1 className="titulo-tela">Locais de trabalho</h1>

@@ -8,7 +8,6 @@ import { formatarCpf, soDigitosCpf, normalizarTexto } from '@/lib/historicoCerti
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import ImportarFuncoes from './ImportarFuncoes'
 import Icone from '@/components/Icone'
-import CadastroAbas from '@/components/CadastroAbas'
 import './colaboradores.css'
 
 /*
@@ -339,8 +338,6 @@ export default function Colaboradores() {
 
   return (
     <div className="app">
-      <CadastroAbas />
-
       <div>
         <p className="eyebrow">Cadastro</p>
         <h1 className="titulo-tela">Colaboradores</h1>

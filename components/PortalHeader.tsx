@@ -76,7 +76,27 @@ function useConversasNaoLidas(ativo: boolean) {
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
-export default function PortalHeader() {
+/*
+ * Seções de dentro de cada módulo. Ficam aninhadas na barra lateral, no
+ * módulo aberto, como no OnSafety: uma coluna só, em vez de duas.
+ *
+ * Tela nova de um módulo entra aqui e não monta navegação própria.
+ */
+const SECOES: Record<string, { href: string; rotulo: string }[]> = {
+  '/epi': [
+    { href: '/epi', rotulo: 'Entregas' },
+    { href: '/epi/ficha', rotulo: 'Ficha' },
+    { href: '/epi/equipamentos', rotulo: "Configuração de EPI's" },
+    { href: '/epi/funcoes', rotulo: 'EPI por função' },
+    { href: '/epi/painel', rotulo: 'Painel' },
+  ],
+  '/colaboradores': [
+    { href: '/colaboradores', rotulo: 'Pessoas' },
+    { href: '/colaboradores/locais', rotulo: 'Locais de trabalho' },
+  ],
+}
+
+export default function PortalHeader({ children }: { children?: React.ReactNode }) {
   const pathname = usePathname()
 
   const [marca, setMarca] = useState<Marca | null>(null)
@@ -206,12 +226,17 @@ export default function PortalHeader() {
     }
   }
 
+  /*
+   * O conteúdo das telas passa por dentro deste componente, porque a
+   * barra lateral é irmã dele. Nestes dois casos não há barra nenhuma —
+   * mas a tela em si continua aparecendo, como antes.
+   */
   if (pathname === '/login') {
-    return null
+    return <>{children}</>
   }
 
   if (carregando || !marca) {
-    return null
+    return <>{children}</>
   }
 
   const tema = marcas[marca]
@@ -247,6 +272,7 @@ export default function PortalHeader() {
     href === '/' ? pathname === '/' : pathname.startsWith(href)
 
   return (
+    <>
     <header
       style={{
         background: 'var(--surface)',
@@ -296,52 +322,6 @@ export default function PortalHeader() {
 
         <div className="topbar-spacer" />
 
-        <nav className="modtabs">
-          {itens.map((item) => {
-            const bloqueado =
-              !interno && !!MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
-
-            return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={(ativo(item.href) ? 'active' : '') + (bloqueado ? ' bloqueado' : '')}
-              title={bloqueado ? 'Ferramenta não contratada: clique para conhecer e solicitar' : undefined}
-            >
-              {bloqueado && <Icone nome="cadeado" tamanho={14} rotulo="não contratada" />}
-              {item.rotulo}
-              {item.href === (interno ? '/atendimento' : '/chamados') &&
-                chamadosNovos > 0 && (
-                  <span
-                    className="balao-nao-lidas"
-                    title={
-                      chamadosNovos === 1
-                        ? '1 chamado com mensagem nova'
-                        : chamadosNovos + ' chamados com mensagem nova'
-                    }
-                    aria-label={chamadosNovos + ' chamados com mensagem nova'}
-                  >
-                    {chamadosNovos > 9 ? '9+' : chamadosNovos}
-                  </span>
-                )}
-              {item.href === '/equipe' && naoLidas > 0 && (
-                <span
-                  className="balao-nao-lidas"
-                  title={
-                    naoLidas === 1
-                      ? '1 mensagem nova em Conversas'
-                      : naoLidas + ' mensagens novas em Conversas'
-                  }
-                  aria-label={naoLidas + ' mensagens não lidas'}
-                >
-                  {naoLidas > 9 ? '9+' : naoLidas}
-                </span>
-              )}
-            </Link>
-            )
-          })}
-        </nav>
-
         <ManualAjuda interno={interno} />
 
         <Link
@@ -366,5 +346,78 @@ export default function PortalHeader() {
       {interno && <AvisoRelatorioDesempenho />}
       {interno && <CelebracaoEstrelas />}
     </header>
+
+    <div className="portal-shell">
+      <aside className="portal-menu nao-imprimir">
+        <nav className="modtabs vertical" aria-label="Seções do portal">
+          {itens.map((item) => {
+            const bloqueado =
+              !interno && !!MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
+
+            const aberto = ativo(item.href)
+            const secoes = SECOES[item.href]
+
+            return (
+              <div key={item.href} className="modtab-grupo">
+                <Link
+                  href={item.href}
+                  className={(aberto ? 'active' : '') + (bloqueado ? ' bloqueado' : '')}
+                  title={bloqueado ? 'Ferramenta não contratada: clique para conhecer e solicitar' : undefined}
+                >
+                  {bloqueado && <Icone nome="cadeado" tamanho={14} rotulo="não contratada" />}
+                  {item.rotulo}
+                  {item.href === (interno ? '/atendimento' : '/chamados') &&
+                    chamadosNovos > 0 && (
+                      <span
+                        className="balao-nao-lidas"
+                        title={
+                          chamadosNovos === 1
+                            ? '1 chamado com mensagem nova'
+                            : chamadosNovos + ' chamados com mensagem nova'
+                        }
+                        aria-label={chamadosNovos + ' chamados com mensagem nova'}
+                      >
+                        {chamadosNovos > 9 ? '9+' : chamadosNovos}
+                      </span>
+                    )}
+                  {item.href === '/equipe' && naoLidas > 0 && (
+                    <span
+                      className="balao-nao-lidas"
+                      title={
+                        naoLidas === 1
+                          ? '1 mensagem nova em Conversas'
+                          : naoLidas + ' mensagens novas em Conversas'
+                      }
+                      aria-label={naoLidas + ' mensagens não lidas'}
+                    >
+                      {naoLidas > 9 ? '9+' : naoLidas}
+                    </span>
+                  )}
+                </Link>
+
+                {/* As seções só aparecem no módulo aberto: a lista
+                    inteira de uma vez vira um paredão de links. */}
+                {aberto && secoes && !bloqueado && (
+                  <div className="submenu">
+                    {secoes.map((s) => (
+                      <Link
+                        key={s.href}
+                        href={s.href}
+                        className={pathname === s.href ? 'active' : ''}
+                      >
+                        {s.rotulo}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </nav>
+      </aside>
+
+      <div className="portal-conteudo">{children}</div>
+    </div>
+    </>
   )
 }
