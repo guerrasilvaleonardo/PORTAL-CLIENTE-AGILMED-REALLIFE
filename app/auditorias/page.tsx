@@ -63,6 +63,56 @@ function AuditoriasConteudo() {
   const [modeloEscolhido, setModeloEscolhido] = useState('')
   const [programaEscolhido, setProgramaEscolhido] = useState('')
   const [abrindo, setAbrindo] = useState(false)
+  const [excluindo, setExcluindo] = useState('')
+
+  /* Apaga de verdade, e registra o que existia antes de sumir.
+   *
+   * O banco apaga as constatações ANTES da auditoria: elas apontam para
+   * ela com `set null`, e um delete direto deixaria constatação órfã na
+   * tela do cliente, sem origem e sem como encerrar. */
+  async function excluir(a: Auditoria) {
+    const resumo = [
+      a.itens_total > 0 && `${a.itens_total} requisito(s) respondido(s)`,
+      a.nao_conformes + a.parciais > 0 && `${a.nao_conformes + a.parciais} constatação(ões)`,
+    ]
+      .filter(Boolean)
+      .join(' e ')
+
+    if (
+      !confirm(
+        `Excluir a auditoria "${a.modelo_nome}" de ${dataHora(a.iniciada_em)}?\n\n` +
+          (resumo ? `Vai apagar também ${resumo}.\n\n` : '') +
+          'Isso não tem volta. Se a auditoria é real e só não deve mais valer, cancele em vez de excluir.'
+      )
+    )
+      return
+
+    const motivo = prompt('Por que está excluindo? (fica registrado)')
+    if (!motivo || !motivo.trim()) return
+
+    setExcluindo(a.id)
+    setErro('')
+
+    const { data, error } = await supabase.rpc('excluir_inspecao', {
+      p_id: a.id,
+      p_motivo: motivo.trim(),
+    })
+
+    setExcluindo('')
+
+    if (error) {
+      setErro(error.message)
+      return
+    }
+
+    const d = (data || {}) as { itens?: number; constatacoes?: number }
+    setLista((l) => l.filter((x) => x.id !== a.id))
+    setErro('')
+    alert(
+      `Auditoria excluída. Foram apagados ${d.itens ?? 0} requisito(s) e ` +
+        `${d.constatacoes ?? 0} constatação(ões). O registro da exclusão ficou guardado.`
+    )
+  }
 
   const empresaAtual = interno ? empresaFiltro : minhaEmpresa
 
@@ -322,6 +372,19 @@ function AuditoriasConteudo() {
                   <Link href={'/auditorias/' + a.id} className="btn btn-sm">
                     {a.situacao === 'em_andamento' ? 'Continuar' : 'Abrir'}
                   </Link>
+                  {/* Excluir é para teste e engano. Auditoria com
+                      história real se CANCELA — o cliente precisa ver
+                      que ela existiu. */}
+                  {interno && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={excluindo === a.id}
+                      onClick={() => excluir(a)}
+                    >
+                      {excluindo === a.id ? 'Excluindo…' : 'Excluir'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
