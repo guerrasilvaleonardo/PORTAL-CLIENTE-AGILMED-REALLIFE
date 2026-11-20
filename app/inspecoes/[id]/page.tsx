@@ -34,6 +34,7 @@ type Resposta = {
 }
 
 type ItemDoModelo = {
+  requisito: string | null
   explicacao: string | null
   orientacao: string | null
   modelo_arquivo: string | null
@@ -124,7 +125,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
       const { data: rs } = await supabase
         .from('inspecao_respostas')
         .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, item_id, ' +
-          'inspecao_modelo_itens!item_id(explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
+          'inspecao_modelo_itens!item_id(requisito, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
         .eq('inspecao_id', id)
         .order('ordem')
       setRespostas((rs || []) as unknown as Resposta[])
@@ -553,13 +554,21 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           </p>
         </div>
 
-        {/* Quem está no meio de uma auditoria de 30 requisitos precisa
-         * saber quanto falta sem contar na mão. */}
-        {respostas.length > 0 && (
-          <span className="insp-contagem">
-            {respondidas} de {respostas.length} respondidos
-          </span>
-        )}
+        <div className="insp-cabeca-acoes nao-imprimir">
+          {/* Quem está no meio de uma auditoria de 30 requisitos precisa
+           * saber quanto falta sem contar na mão. */}
+          {respostas.length > 0 && (
+            <span className="insp-contagem">
+              {respondidas} de {respostas.length} respondidos
+            </span>
+          )}
+
+          {auditoria && (
+            <Link href={'/auditorias/' + inspecao.id + '/relatorio'} className="btn btn-sm">
+              Emitir relatório
+            </Link>
+          )}
+        </div>
       </div>
 
       {respostas.length > 0 && (
@@ -827,8 +836,16 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
               {secao.titulo && <div className="insp-secao">{secao.titulo}</div>}
               {secao.itens.map(({ r, n }) => (
             <div key={r.id} className={'insp-item respondido-' + (r.resposta || 'nenhum')}>
+              {/* Constatação se escreve contra um requisito, não contra
+                  uma impressão: "não atende ao 9.3" é auditável; "a
+                  direção não acompanha" é conversa. */}
               <div className="pergunta">
-                {n}. {r.pergunta}
+                {itemDe(r)?.requisito ? (
+                  <span className="insp-requisito">{itemDe(r)!.requisito}</span>
+                ) : (
+                  <span className="insp-requisito vazio">{n}</span>
+                )}
+                {r.pergunta}
               </div>
 
               {/* Em auditoria, o que se pede para ver. É a evidência

@@ -374,3 +374,35 @@
   background: #3a2f16;
   color: #f0d08a;
 }
+
+/* Número do requisito da norma, à esquerda da pergunta. Cinza e menor:
+   é referência, não manchete. */
+.insp-requisito {
+  display: inline-block;
+  min-width: 44px;
+  margin-right: 10px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  vertical-align: baseline;
+}
+
+.insp-requisito.vazio {
+  min-width: 22px;
+}
+
+.insp-cabeca-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  flex-wrap: wrap;
+}
+
+.insp-salvando {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
