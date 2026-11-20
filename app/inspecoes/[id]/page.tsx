@@ -702,7 +702,8 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
            * saber quanto falta sem contar na mão. */}
           {respostas.length > 0 && (
             <span className="insp-contagem">
-              {respondidas} de {respostas.length} respondidos
+              {respondidas} de {respostas.length} respondidos ·{' '}
+              {Math.round((100 * respondidas) / respostas.length)}% concluído
               {conformidade !== null && ' · ' + conformidade + '% de conformidade'}
             </span>
           )}
@@ -991,6 +992,12 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
             const base = conf + parc + naoConf
             const pct = base > 0 ? Math.round((100 * (conf + 0.5 * parc)) / base) : null
 
+            /* Andamento é outra coisa de conformidade, e é a que serve
+             * para gerenciar: quanto da auditoria já foi percorrido.
+             * Aparece desde o zero — indicador que só nasce depois da
+             * primeira resposta não ajuda quem precisa planejar. */
+            const andamento = Math.round((100 * feitos) / secao.itens.length)
+
             return (
             <div key={chave} className={'insp-grupo' + (recolhida ? ' recolhido' : '')}>
               {/* Agrupado como planilha: a seção recolhe, e o contador
@@ -1008,13 +1015,20 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                     {recolhida ? '+' : '−'}
                   </span>
                   <span className="titulo">{secao.titulo}</span>
+                  {/* Barrinha de andamento da seção: dá para ler de
+                      relance quanto falta em cada capítulo da norma. */}
+                  <span className="insp-mini-barra" aria-hidden="true">
+                    <span style={{ width: andamento + '%' }} />
+                  </span>
+                  <span className="insp-pct andamento">{andamento}%</span>
                   {pct !== null && (
                     <span
                       className={
                         'insp-pct ' + (pct >= 90 ? 'bom' : pct >= 70 ? 'medio' : 'ruim')
                       }
+                      title="Conformidade do que já foi avaliado"
                     >
-                      {pct}%
+                      {pct}% conf.
                     </span>
                   )}
                   <span className={'conta' + (completa ? ' completa' : '')}>

@@ -154,3 +154,31 @@
     display: none;
   }
 }
+
+/* Andamento da seção: cinza, discreto, sempre visível desde o zero. */
+.insp-pct.andamento {
+  background: var(--surface-sunken, #f1f3f6);
+  color: var(--ink-muted);
+}
+
+.insp-mini-barra {
+  flex: none;
+  width: 56px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-sunken, #f1f3f6);
+  overflow: hidden;
+}
+
+.insp-mini-barra span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand, #2563eb);
+}
+
+@media (max-width: 620px) {
+  .insp-mini-barra {
+    display: none;
+  }
+}
