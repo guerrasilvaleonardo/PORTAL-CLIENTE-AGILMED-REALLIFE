@@ -129,6 +129,16 @@ const DESENHOS = {
       <path d="M9.5 11.5l1.8 1.8 3.4-3.4" />
     </>
   ),
+  /* Degraus subindo: a implantação é construir por etapas, uma de cada
+     vez. Nada de prancheta aqui — prancheta é conferir o que existe,
+     e aqui ainda não existe nada. */
+  implantacao: (
+    <>
+      <path d="M4 19h4v-4H4z" />
+      <path d="M10 19h4v-8h-4z" />
+      <path d="M16 19h4V5h-4z" />
+    </>
+  ),
   /* Prancheta com o visto: é o checklist aplicado em campo. */
   inspecoes: (
     <>

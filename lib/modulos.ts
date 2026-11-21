@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
  * interna vê tudo.
  */
 
-export type Modulo = 'certificados' | 'treinamentos' | 'documentos' | 'epi' | 'inspecoes' | 'auditoria'
+export type Modulo = 'certificados' | 'treinamentos' | 'documentos' | 'epi' | 'inspecoes' | 'auditoria' | 'implantacao'
 
 export const MODULOS: Record<
   Modulo,
@@ -92,6 +92,21 @@ export const MODULOS: Record<
       'Cada achado vira não conformidade maior ou menor, com prazo e dono',
     ],
   },
+  /* A auditoria verifica o sistema; esta ferramenta constrói. É o
+   * cliente que ainda não tem nada montado — que é a maioria. */
+  implantacao: {
+    rotulo: 'Implantação',
+    chamada: 'Monte o seu sistema de gestão do zero, por etapas',
+    href: '/implantacao',
+    coluna: 'modulo_implantacao',
+    resumo:
+      'Trilha guiada pela empresa inteira, área por área. Cada atividade tem a aula, os passos, o modelo para baixar e a conferência de quem entende.',
+    beneficios: [
+      'Cronograma em 16 etapas, do primeiro documento ao certificado',
+      'Modelo pronto para baixar e preencher, com os passos escritos',
+      'Nada avança sem a nossa aprovação — e a etapa seguinte só abre quando a anterior fecha',
+    ],
+  },
 }
 
 export type AcessoModulos = {
@@ -112,7 +127,7 @@ export function useModulos(): AcessoModulos {
   const [estado, setEstado] = useState<{ carregando: boolean; interno: boolean; liberados: Record<Modulo, boolean> }>({
     carregando: true,
     interno: false,
-    liberados: { certificados: true, treinamentos: true, documentos: true, epi: true, inspecoes: true, auditoria: true },
+    liberados: { certificados: true, treinamentos: true, documentos: true, epi: true, inspecoes: true, auditoria: true, implantacao: true },
   })
 
   useEffect(() => {
@@ -129,12 +144,12 @@ export function useModulos(): AcessoModulos {
         const { data: perfil } = await supabase.from('profiles').select('perfil, empresa_id').eq('id', user.id).single()
 
         const interno = PERFIS_INTERNOS.includes(perfil?.perfil || '')
-        let liberados = { certificados: true, treinamentos: true, documentos: true, epi: true, inspecoes: true, auditoria: true }
+        let liberados = { certificados: true, treinamentos: true, documentos: true, epi: true, inspecoes: true, auditoria: true, implantacao: true }
 
         if (!interno && perfil?.empresa_id) {
           const { data: emp, error } = await supabase
             .from('empresas')
-            .select('modulo_certificados, modulo_treinamentos, modulo_documentos, modulo_epi, modulo_inspecoes, modulo_auditoria')
+            .select('modulo_certificados, modulo_treinamentos, modulo_documentos, modulo_epi, modulo_inspecoes, modulo_auditoria, modulo_implantacao')
             .eq('id', perfil.empresa_id)
             .maybeSingle()
 
@@ -146,6 +161,7 @@ export function useModulos(): AcessoModulos {
               epi: emp.modulo_epi !== false,
               inspecoes: emp.modulo_inspecoes !== false,
               auditoria: emp.modulo_auditoria !== false,
+              implantacao: emp.modulo_implantacao !== false,
             }
           }
         }
