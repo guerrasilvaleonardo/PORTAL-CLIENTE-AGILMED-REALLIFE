@@ -11,6 +11,8 @@ import {
   totais as calcTotais,
   eficacia as calcEficacia,
   incidentes as calcIncidentes,
+  oportunidades as calcOportunidades,
+  ehNaoConformidade,
   dia,
   hoje,
   TIPO_INCIDENTE,
@@ -163,7 +165,7 @@ function ConsolidadoConteudo() {
         supabase
           .from('nao_conformidades')
           .select(
-            'id, empresa_id, origem, gravidade, resposta_id, local_nome, risco, situacao, ' +
+            'id, empresa_id, origem, classificacao, gravidade, resposta_id, local_nome, risco, situacao, ' +
               'prazo, ocorrido_em, tipo_incidente, afastamento_dias, created_at, encerrada_em'
           ),
       ])
@@ -226,10 +228,15 @@ function ConsolidadoConteudo() {
   const abertas = useMemo(
     () =>
       ncsVisiveis
+        .filter(ehNaoConformidade)
         .filter((n) => !['encerrada', 'cancelada'].includes(n.situacao))
         .sort((a, b) => (a.prazo || '9999').localeCompare(b.prazo || '9999')),
     [ncsVisiveis]
   )
+
+  /* Listadas à parte: nada está errado, e misturá-las com as não
+     conformidades faria a direção ler sugestão como problema. */
+  const melhorias = useMemo(() => calcOportunidades(ncsVisiveis), [ncsVisiveis])
 
   if (carregando) {
     return (
@@ -487,7 +494,38 @@ function ConsolidadoConteudo() {
       </section>
 
       <section>
-        <h2>6. Incidentes do período</h2>
+        <h2>6. Oportunidades de melhoria</h2>
+        <p className="rel-nota">
+          Aqui nada está errado: dá para ser melhor. Elas aparecem separadas das não
+          conformidades de propósito — tratar sugestão como defeito abre ação corretiva do que
+          não falhou, e ensina a equipe a parar de sugerir.
+        </p>
+        {melhorias.length === 0 ? (
+          <p className="rel-valor">Nenhuma oportunidade registrada no período.</p>
+        ) : (
+          <table className="tabela-colab rel-itens">
+            <thead>
+              <tr>
+                <th style={{ width: 110 }}>Registrada</th>
+                <th>Local</th>
+                <th style={{ width: 140 }}>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {melhorias.map((m) => (
+                <tr key={m.id}>
+                  <td className="mono">{soData(dia(m.ocorrido_em || m.created_at))}</td>
+                  <td>{m.local_nome || <span className="rel-valor falta">não registrado</span>}</td>
+                  <td>{m.situacao}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section>
+        <h2>7. Incidentes do período</h2>
         {incidentes.total === 0 ? (
           <p className="rel-valor">
             Nenhum incidente registrado. Vale uma pergunta honesta à equipe: não houve, ou não foi
@@ -527,7 +565,7 @@ function ConsolidadoConteudo() {
 
       {concluidas.length > 0 && (
         <section>
-          <h2>7. Inspeções do período</h2>
+          <h2>8. Inspeções do período</h2>
           <table className="tabela-colab rel-itens">
             <thead>
               <tr>
@@ -558,7 +596,7 @@ function ConsolidadoConteudo() {
       )}
 
       <section className="rel-rodape">
-        <h2>8. Ressalva e encerramento</h2>
+        <h2>9. Ressalva e encerramento</h2>
         <p className="rel-nota">
           Os números vêm das inspeções concluídas no período, com os totais congelados no
           encerramento de cada uma. A inspeção é verificação por amostragem: ausência de registro

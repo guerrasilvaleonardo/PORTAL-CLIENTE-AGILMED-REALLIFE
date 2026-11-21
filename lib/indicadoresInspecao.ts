@@ -42,6 +42,7 @@ export type NcIndicador = {
   id: string
   empresa_id: string
   origem: string
+  classificacao?: string | null
   gravidade: string
   resposta_id: string | null
   local_nome: string | null
@@ -108,8 +109,26 @@ export function reincidencia(
     .slice(0, limite)
 }
 
+/*
+ * OPORTUNIDADE DE MELHORIA NÃO É NÃO CONFORMIDADE.
+ *
+ * Nada está errado: dá para ser melhor. Contar as duas juntas faz a
+ * empresa tratar sugestão como defeito — abre ação corretiva do que
+ * não falhou, e infla o número que a direção lê como problema. Quem
+ * descobre isso passa a não registrar mais oportunidade, e a empresa
+ * perde a melhor fonte de melhoria que tem.
+ *
+ * Por isso toda conta de "não conformidade" neste arquivo passa por
+ * aqui primeiro.
+ */
+export const ehNaoConformidade = (n: NcIndicador) => n.classificacao !== 'oportunidade'
+
+export const oportunidades = (ncsVisiveis: NcIndicador[]) =>
+  ncsVisiveis.filter((n) => n.classificacao === 'oportunidade')
+
 /* ---------- Números do topo ---------- */
-export function totais(concluidas: InspecaoIndicador[], ncsVisiveis: NcIndicador[]) {
+export function totais(concluidas: InspecaoIndicador[], todasNcs: NcIndicador[]) {
+  const ncsVisiveis = todasNcs.filter(ehNaoConformidade)
   const abertas = ncsVisiveis.filter((n) => !['encerrada', 'cancelada'].includes(n.situacao))
   const vencidas = abertas.filter((n) => n.prazo && n.prazo < hoje())
   const encerradas = ncsVisiveis.filter((n) => n.situacao === 'encerrada' && n.encerrada_em)
@@ -129,6 +148,8 @@ export function totais(concluidas: InspecaoIndicador[], ncsVisiveis: NcIndicador
     abertas: abertas.length,
     vencidas: vencidas.length,
     encerradas: encerradas.length,
+    /* Contada à parte, para aparecer sem entrar na fila de problemas. */
+    oportunidades: oportunidades(todasNcs).length,
     mediaDias: dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null,
   }
 }
@@ -146,16 +167,17 @@ export function totais(concluidas: InspecaoIndicador[], ncsVisiveis: NcIndicador
  * não um campo de texto.
  */
 export function eficacia(
-  ncsVisiveis: NcIndicador[],
+  todasNcs: NcIndicador[],
   respostas: RespostaIndicador[],
   inspecoes: InspecaoIndicador[]
 ) {
   const perguntaDaResposta = new Map(respostas.map((r) => [r.id, r.pergunta]))
   const inspecaoDe = new Map(inspecoes.map((i) => [i.id, i]))
 
-  const encerradas = ncsVisiveis.filter(
-    (n) => n.situacao === 'encerrada' && n.encerrada_em && n.resposta_id
-  )
+  /* Oportunidade fora: eficácia é sobre o que falhou e foi corrigido. */
+  const encerradas = todasNcs
+    .filter(ehNaoConformidade)
+    .filter((n) => n.situacao === 'encerrada' && n.encerrada_em && n.resposta_id)
 
   let reincidiu = 0
   for (const n of encerradas) {

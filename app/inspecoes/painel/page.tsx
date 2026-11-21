@@ -136,7 +136,7 @@ function PainelInspecoesConteudo() {
         supabase
           .from('nao_conformidades')
           .select(
-            'id, empresa_id, origem, gravidade, situacao, prazo, ocorrido_em, resposta_id, ' +
+            'id, empresa_id, origem, classificacao, gravidade, situacao, prazo, ocorrido_em, resposta_id, ' +
               'local_nome, risco, tipo_incidente, afastamento_dias, created_at, encerrada_em'
           )
           .eq('tipo', 'inspecao')

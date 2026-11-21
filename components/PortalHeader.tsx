@@ -128,6 +128,9 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
        mesmo número com usos diferentes, e sem a entrada no menu o
        documento existia sem ninguém achar. */
     { href: '/inspecoes/relatorio', rotulo: 'Relatório do período' },
+    /* Primeiro das ações, porque é a de campo: quem está no cliente
+       abre esta e não procura mais nada. */
+    { href: '/inspecoes/campo', rotulo: 'Apontamento de campo' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
     { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
