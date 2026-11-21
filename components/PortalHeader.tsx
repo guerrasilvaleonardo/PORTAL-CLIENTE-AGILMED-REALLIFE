@@ -104,6 +104,9 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
      * Quem abre a auditoria sem a casa arrumada passa o dia procurando
      * arquivo, e o que não aparece vira constatação. */
     { href: '/auditorias/preparar', rotulo: 'Antes de começar' },
+    /* Dentro do módulo o rótulo volta a ser curto: aqui já se sabe que
+       se está auditando. O nome longo serve no menu principal, onde ele
+       precisa se distinguir de "Implantar o sistema". */
     { href: '/auditorias', rotulo: 'Auditorias' },
     { href: '/auditorias/programa', rotulo: 'Programa do ano' },
     { href: '/auditorias/nc', rotulo: 'Constatações' },
@@ -289,8 +292,8 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/inspecoes', rotulo: 'Inspeções' },
-        { href: '/implantacao', rotulo: 'Implantação' },
-        { href: '/auditorias', rotulo: 'Auditorias' },
+        { href: '/implantacao', rotulo: 'Implantar o sistema' },
+        { href: '/auditorias', rotulo: 'Auditar o sistema' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
@@ -303,8 +306,8 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/inspecoes', rotulo: 'Inspeções' },
-        { href: '/implantacao', rotulo: 'Implantação' },
-        { href: '/auditorias', rotulo: 'Auditorias' },
+        { href: '/implantacao', rotulo: 'Implantar o sistema' },
+        { href: '/auditorias', rotulo: 'Auditar o sistema' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },

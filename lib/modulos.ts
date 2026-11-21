@@ -79,32 +79,43 @@ export const MODULOS: Record<
       'Causa, ação corretiva e verificação da eficácia, como a ISO 45001 e a 9001 pedem',
     ],
   },
+  /*
+   * AUDITAR E IMPLANTAR SÃO DOIS PRODUTOS, e o cliente precisa saber em
+   * dois segundos qual é o dele. A regra que separa os textos: quem já
+   * tem o sistema montado AUDITA; quem não tem nada IMPLANTA. Por isso
+   * as duas chamadas começam declarando para quem servem, em vez de
+   * vender o benefício — benefício do produto errado não ajuda ninguém.
+   */
   auditoria: {
-    rotulo: 'Auditorias',
-    chamada: 'Chegue na auditoria de certificação sem susto',
+    rotulo: 'Auditar o sistema',
+    chamada: 'Já tem o sistema montado? Veja se ele atende antes do auditor externo',
     href: '/auditorias',
     coluna: 'modulo_auditoria',
     resumo:
-      'Auditoria interna item a item da norma, com o que pedir para ver, modelo para baixar e evidência enviada por você.',
+      'Para quem JÁ TEM o sistema de gestão funcionando. Percorre a norma requisito a requisito, '
+      + 'diz o que pedir para ver em cada um, e o que não atende vira constatação com prazo e dono.',
     beneficios: [
       'Checklist da ISO 45001 e da ISO 9001, requisito por requisito',
       'Programa anual, plano, reuniões e relatório, como a ISO 19011 pede',
       'Cada achado vira não conformidade maior ou menor, com prazo e dono',
+      'Se você ainda não tem o sistema montado, comece por Implantar o sistema',
     ],
   },
   /* A auditoria verifica o sistema; esta ferramenta constrói. É o
    * cliente que ainda não tem nada montado — que é a maioria. */
   implantacao: {
-    rotulo: 'Implantação',
-    chamada: 'Monte o seu sistema de gestão do zero, por etapas',
+    rotulo: 'Implantar o sistema',
+    chamada: 'Não tem nada montado? Monte o sistema do zero, etapa por etapa',
     href: '/implantacao',
     coluna: 'modulo_implantacao',
     resumo:
-      'Trilha guiada pela empresa inteira, área por área. Cada atividade tem a aula, os passos, o modelo para baixar e a conferência de quem entende.',
+      'Para quem NÃO TEM o sistema ainda. Trilha guiada pela empresa inteira, área por área: '
+      + 'cada atividade traz a aula, os passos, o modelo para baixar e a conferência da nossa equipe.',
     beneficios: [
       'Cronograma em 16 etapas, do primeiro documento ao certificado',
       'Modelo pronto para baixar e preencher, com os passos escritos',
       'Nada avança sem a nossa aprovação — e a etapa seguinte só abre quando a anterior fecha',
+      'No fim, a auditoria interna acontece aqui mesmo, no outro módulo',
     ],
   },
 }
