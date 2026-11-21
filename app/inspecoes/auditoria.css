@@ -198,3 +198,53 @@
   border-color: #8a4040;
   color: #f3b7b7;
 }
+
+/* ---------- Agenda e participantes: planilha, não formulário ----------
+   São dados tabulares que o auditor preenche olhando a folha inteira.
+   Campo de formulário empilhado esconderia a relação entre as linhas,
+   que é justamente o que ele está conferindo: se as janelas cobrem o
+   dia e se os requisitos não ficaram de fora. */
+.aud-grade {
+  display: grid;
+  gap: 10px;
+}
+
+.aud-tabela {
+  font-size: 13px;
+}
+
+.aud-tabela th {
+  white-space: nowrap;
+}
+
+.aud-tabela td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.aud-tabela input[type='text'],
+.aud-tabela input[type='date'],
+.aud-tabela select {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 7px;
+  font-size: 13px;
+}
+
+.aud-vazio {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* A grade rola na horizontal no celular em vez de espremer as colunas
+   até a agenda ficar ilegível. */
+@media (max-width: 760px) {
+  .aud-grade {
+    overflow-x: auto;
+  }
+  .aud-tabela {
+    min-width: 820px;
+  }
+}
