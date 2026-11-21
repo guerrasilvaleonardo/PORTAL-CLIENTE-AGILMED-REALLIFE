@@ -47,6 +47,30 @@ const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 type Local = { id: string; nome: string }
 type Pessoa = { id: string; nome: string | null; email: string | null; cargo: string | null }
+type Modelo = { id: string; nome: string; norma: string | null }
+
+/*
+ * Um checklist em andamento dentro da visita.
+ *
+ * Cada um é uma `inspecoes` de verdade, ligada à visita — e não uma
+ * lista solta na tela. Assim o checklist respondido em campo tem o
+ * mesmo tratamento do respondido pela tela de Inspeções: os totais
+ * saem do gatilho do banco, e cada item reprovado vira não
+ * conformidade com prazo sozinho.
+ */
+type Checklist = {
+  inspecaoId: string
+  nome: string
+  norma: string | null
+  itens: {
+    id: string
+    ordem: number
+    categoria: string | null
+    pergunta: string
+    resposta: string | null
+    observacao: string | null
+  }[]
+}
 
 type Apontamento = {
   id: string
@@ -87,6 +111,15 @@ function CampoConteudo() {
   /* Lido uma vez: o QR colado na parede manda ?local=…, e a pessoa já
      cai apontando, sem escolher nada. */
   const localDoQr = parametros?.get('local') || ''
+  /*
+   * Visita já aberta, vinda de outra tela ou retomada depois.
+   *
+   * Serve a dois casos: a tela de Inspeções, que cria a visita com
+   * vários checklists e manda para cá; e o celular que fechou no meio
+   * da obra — sem isto, a visita ficaria aberta para sempre e os
+   * apontamentos seguintes nasceriam soltos de novo.
+   */
+  const visitaDaUrl = parametros?.get('visita') || ''
 
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
@@ -107,6 +140,14 @@ function CampoConteudo() {
      listar como relatório realizado. */
   const [visitaId, setVisitaId] = useState('')
   const [encerrando, setEncerrando] = useState(false)
+
+  const [modelos, setModelos] = useState<Modelo[]>([])
+  const [escolhidos, setEscolhidos] = useState<string[]>([])
+  const [checklists, setChecklists] = useState<Checklist[]>([])
+  /* 'livre' é o apontamento sem roteiro; as outras abas são os
+     checklists escolhidos ao abrir a visita. */
+  const [aba, setAba] = useState('livre')
+  const [salvandoItem, setSalvandoItem] = useState('')
 
   const [posicao, setPosicao] = useState<Posicao>(null)
   const [posicaoErro, setPosicaoErro] = useState('')
@@ -183,6 +224,64 @@ function CampoConteudo() {
     carregar()
   }, [carregar])
 
+  /* Retoma a visita indicada na URL, com o que já foi apontado nela. */
+  useEffect(() => {
+    if (!visitaDaUrl || emVisita) return
+    let ativo = true
+
+    async function retomar() {
+      const { data: v } = await supabase
+        .from('inspecao_visitas')
+        .select('id, empresa_id, local_id, local_nome, situacao')
+        .eq('id', visitaDaUrl)
+        .maybeSingle()
+      if (!ativo || !v) return
+
+      if ((v as any).situacao !== 'em_andamento') {
+        window.location.href = '/inspecoes/visita/' + visitaDaUrl
+        return
+      }
+
+      const { data: aps } = await supabase
+        .from('nao_conformidades')
+        .select('id, titulo, descricao, classificacao, gravidade, prazo, responsavel_nome, fotos, created_at')
+        .eq('visita_id', visitaDaUrl)
+        .order('created_at', { ascending: false })
+
+      if (!ativo) return
+
+      setMinhaEmpresa((m) => m || (v as any).empresa_id)
+      setEmpresaFiltro((e) => e || (v as any).empresa_id)
+      setLocalId((v as any).local_id || '')
+      setVisitaId(visitaDaUrl)
+      setEmVisita(true)
+      setFeitos(
+        ((aps || []) as any[]).map((a) => ({
+          id: a.id,
+          descricao: a.descricao,
+          classificacao: a.classificacao,
+          gravidade: a.gravidade,
+          prazo: a.prazo,
+          responsavel_nome: a.responsavel_nome,
+          fotos: a.fotos || [],
+          criado: new Date(a.created_at).toLocaleString('pt-BR', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+          }),
+        }))
+      )
+      carregarChecklists(visitaDaUrl)
+      carregarTitulos((v as any).empresa_id, (v as any).local_id || '')
+      pedirPosicao()
+    }
+
+    retomar()
+    return () => {
+      ativo = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitaDaUrl, emVisita])
+
   /* Os locais seguem a empresa escolhida. */
   useEffect(() => {
     let ativo = true
@@ -191,7 +290,7 @@ function CampoConteudo() {
         setLocais([])
         return
       }
-      const [{ data }, { data: gente }] = await Promise.all([
+      const [{ data }, { data: gente }, { data: mods }] = await Promise.all([
         supabase
           .from('locais_trabalho')
           .select('id, nome')
@@ -207,11 +306,20 @@ function CampoConteudo() {
           .eq('empresa_id', empresaAtual)
           .eq('ativo', true)
           .order('nome'),
+        /* Os checklists que servem a esta empresa: os dela e os da
+           Real Life, que valem para todos (empresa_id nulo). */
+        supabase
+          .from('inspecao_modelos')
+          .select('id, nome, norma, empresa_id')
+          .eq('ativo', true)
+          .or(`empresa_id.is.null,empresa_id.eq.${empresaAtual}`)
+          .order('nome'),
       ])
       if (ativo) {
         const lista = (data || []) as Local[]
         setLocais(lista)
         setPessoas((gente || []) as Pessoa[])
+        setModelos((mods || []) as Modelo[])
 
         /* Veio de QR: entra direto na visita, sem passar pela escolha.
            Só se o local for mesmo desta empresa — QR de outro cliente
@@ -446,10 +554,128 @@ function CampoConteudo() {
       return
     }
 
-    setVisitaId((visita as any).id)
+    const idDaVisita = (visita as any).id
+    setVisitaId(idDaVisita)
+
+    /*
+     * Cada checklist escolhido vira uma inspeção de verdade, ligada à
+     * visita. As perguntas são COPIADAS agora, como na tela de
+     * Inspeções: o checklist pode ser editado amanhã, e o documento
+     * precisa continuar dizendo o que foi perguntado hoje.
+     */
+    for (const modeloId of escolhidos) {
+      const modelo = modelos.find((m) => m.id === modeloId)
+      if (!modelo) continue
+
+      const { data: insp, error: erroInsp } = await supabase
+        .from('inspecoes')
+        .insert({
+          empresa_id: empresaAtual,
+          visita_id: idDaVisita,
+          modelo_id: modelo.id,
+          modelo_nome: modelo.nome,
+          norma: modelo.norma,
+          local_id: local || null,
+          local_nome: nomeDoLocal || null,
+          inspetor_nome: meuNome || null,
+        })
+        .select('id')
+        .single()
+      if (erroInsp || !insp) {
+        setErro('A visita abriu, mas o checklist ' + modelo.nome + ' não: ' + erroInsp?.message)
+        continue
+      }
+
+      const { data: itens } = await supabase
+        .from('inspecao_modelo_itens')
+        .select('id, ordem, categoria, pergunta, peso')
+        .eq('modelo_id', modelo.id)
+        .eq('ativo', true)
+        .order('ordem')
+
+      if (itens && itens.length) {
+        await supabase.from('inspecao_respostas').insert(
+          (itens as any[]).map((i) => ({
+            inspecao_id: (insp as any).id,
+            item_id: i.id,
+            ordem: i.ordem,
+            categoria: i.categoria,
+            pergunta: i.pergunta,
+            peso: i.peso,
+          }))
+        )
+      }
+    }
+
     setEmVisita(true)
     pedirPosicao()
     carregarTitulos(empresaAtual, local || '')
+    carregarChecklists(idDaVisita)
+  }
+
+  /* Os checklists da visita, com as respostas já dadas. */
+  const carregarChecklists = useCallback(async (visita: string) => {
+    const { data: insps } = await supabase
+      .from('inspecoes')
+      .select('id, modelo_nome, norma')
+      .eq('visita_id', visita)
+      .order('iniciada_em')
+
+    const lista: Checklist[] = []
+    for (const i of (insps || []) as any[]) {
+      const { data: itens } = await supabase
+        .from('inspecao_respostas')
+        .select('id, ordem, categoria, pergunta, resposta, observacao')
+        .eq('inspecao_id', i.id)
+        .order('ordem')
+      lista.push({
+        inspecaoId: i.id,
+        nome: i.modelo_nome,
+        norma: i.norma,
+        itens: (itens || []) as any[],
+      })
+    }
+    setChecklists(lista)
+  }, [])
+
+  /* Responder é um toque: grava na hora, sem botão de salvar. Em campo
+     ninguém volta para conferir se salvou. */
+  async function responder(inspecaoId: string, itemId: string, valor: string) {
+    setSalvandoItem(itemId)
+    const atual = checklists
+      .find((c) => c.inspecaoId === inspecaoId)
+      ?.itens.find((i) => i.id === itemId)
+    /* Tocar de novo no mesmo botão desmarca: errar o alvo no celular é
+       comum, e sem como desfazer a pessoa inventa uma resposta. */
+    const novo = atual?.resposta === valor ? null : valor
+
+    const { error } = await supabase
+      .from('inspecao_respostas')
+      .update({ resposta: novo })
+      .eq('id', itemId)
+    setSalvandoItem('')
+    if (error) {
+      setErro(error.message)
+      return
+    }
+    setChecklists((lista) =>
+      lista.map((c) =>
+        c.inspecaoId === inspecaoId
+          ? { ...c, itens: c.itens.map((i) => (i.id === itemId ? { ...i, resposta: novo } : i)) }
+          : c
+      )
+    )
+  }
+
+  async function observar(inspecaoId: string, itemId: string, texto: string) {
+    await supabase.from('inspecao_respostas').update({ observacao: texto || null }).eq('id', itemId)
+    setChecklists((lista) =>
+      lista.map((c) =>
+        c.inspecaoId === inspecaoId
+          ? { ...c, itens: c.itens.map((i) => (i.id === itemId ? { ...i, observacao: texto } : i)) }
+          : c
+      )
+    )
   }
 
   /*
@@ -470,6 +696,24 @@ function CampoConteudo() {
         parciais: feitos.filter((a) => a.classificacao === 'insuficiente').length,
         oportunidades: feitos.filter((a) => a.classificacao === 'oportunidade').length,
         nao_conformidades: feitos.filter((a) => !a.classificacao).length,
+      }
+
+      /*
+       * Fecha cada checklist antes de encerrar a visita. É a conclusão
+       * que dispara o gatilho do banco: ele calcula os totais e abre
+       * uma não conformidade para cada item reprovado, com prazo.
+       */
+      for (const c of checklists) {
+        await supabase.from('inspecoes').update({ situacao: 'concluida' }).eq('id', c.inspecaoId)
+        /* As não conformidades que o gatilho acabou de criar nascem
+           sem visita — o gatilho não sabe dela. Sem isto, o item
+           reprovado no checklist não apareceria no relatório da
+           visita em que foi reprovado. */
+        await supabase
+          .from('nao_conformidades')
+          .update({ visita_id: visitaId })
+          .eq('inspecao_id', c.inspecaoId)
+          .is('visita_id', null)
       }
 
       const { error: erroFecha } = await supabase
@@ -736,8 +980,38 @@ function CampoConteudo() {
                 </label>
               )}
 
+              {modelos.length > 0 && (
+                <div className="campo-linha">
+                  <span>Checklists desta visita</span>
+                  <div className="campo-modelos">
+                    {modelos.map((m) => {
+                      const marcado = escolhidos.includes(m.id)
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={'campo-modelo' + (marcado ? ' sel' : '')}
+                          onClick={() =>
+                            setEscolhidos((e) =>
+                              marcado ? e.filter((x) => x !== m.id) : [...e, m.id]
+                            )
+                          }
+                        >
+                          <strong>{m.nome}</strong>
+                          {m.norma && <span>{m.norma}</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <span className="campo-mini">
+                    Nenhum é obrigatório. Visita só com apontamento livre continua valendo — é o
+                    caso mais comum.
+                  </span>
+                </div>
+              )}
+
               <button type="button" className="btn btn-primary" onClick={comecar}>
-                Começar a apontar
+                Começar a visita
               </button>
             </div>
           </div>
@@ -771,7 +1045,102 @@ function CampoConteudo() {
           {erro && <div className="banner bad nao-imprimir">{erro}</div>}
           {aviso && <div className="banner nao-imprimir">{aviso}</div>}
 
-          <div className="panel nao-imprimir">
+          {checklists.length > 0 && (
+            <div className="campo-abas nao-imprimir">
+              <button
+                type="button"
+                className={aba === 'livre' ? 'sel' : ''}
+                onClick={() => setAba('livre')}
+              >
+                Apontar livre
+              </button>
+              {checklists.map((c) => {
+                const respondidas = c.itens.filter((i) => i.resposta).length
+                return (
+                  <button
+                    key={c.inspecaoId}
+                    type="button"
+                    className={aba === c.inspecaoId ? 'sel' : ''}
+                    onClick={() => setAba(c.inspecaoId)}
+                  >
+                    {c.nome}
+                    <span className="campo-aba-conta">
+                      {respondidas}/{c.itens.length}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {aba !== 'livre' && (
+            <div className="panel nao-imprimir">
+              <div className="panel-body">
+                {(() => {
+                  const c = checklists.find((x) => x.inspecaoId === aba)
+                  if (!c) return null
+                  return (
+                    <div className="campo-checklist">
+                      {c.itens.length === 0 ? (
+                        <p className="campo-mini">Este checklist não tem perguntas ativas.</p>
+                      ) : (
+                        c.itens.map((i, k) => {
+                          const anterior = k > 0 ? c.itens[k - 1].categoria : null
+                          return (
+                            <div key={i.id}>
+                              {i.categoria && i.categoria !== anterior && (
+                                <p className="campo-categoria">{i.categoria}</p>
+                              )}
+                              <div className="campo-item">
+                                <p className="campo-pergunta">
+                                  <span className="campo-ordem">{i.ordem}</span>
+                                  {i.pergunta}
+                                </p>
+                                <div className="campo-respostas">
+                                  {[
+                                    ['conforme', 'Conforme', 'bom'],
+                                    ['nao_conforme', 'Não conforme', 'ruim'],
+                                    ['nao_aplicavel', 'N/A', 'neutro'],
+                                  ].map(([valor, rotulo, cor]) => (
+                                    <button
+                                      key={valor}
+                                      type="button"
+                                      disabled={salvandoItem === i.id}
+                                      className={cor + (i.resposta === valor ? ' sel' : '')}
+                                      onClick={() => responder(c.inspecaoId, i.id, valor)}
+                                    >
+                                      {rotulo}
+                                    </button>
+                                  ))}
+                                </div>
+                                {i.resposta === 'nao_conforme' && (
+                                  <input
+                                    type="text"
+                                    className="campo-obs"
+                                    defaultValue={i.observacao || ''}
+                                    placeholder="O que foi visto (vai para a não conformidade)"
+                                    onBlur={(e) =>
+                                      observar(c.inspecaoId, i.id, e.target.value.trim())
+                                    }
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                      <p className="campo-mini">
+                        Cada item reprovado vira não conformidade com prazo quando a visita for
+                        encerrada.
+                      </p>
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+
+          <div className="panel nao-imprimir" style={{ display: aba === 'livre' ? undefined : 'none' }}>
             <div className="panel-body campo-form">
               {/* Quatro conclusões, na ordem do melhor para o pior. A
                   do meio é a que faltava: em campo a verdade quase

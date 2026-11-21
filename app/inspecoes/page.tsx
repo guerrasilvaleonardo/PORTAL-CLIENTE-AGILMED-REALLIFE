@@ -59,6 +59,8 @@ function InspecoesConteudo() {
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
 
   const [modeloEscolhido, setModeloEscolhido] = useState('')
+  /* Os checklists desta inspeção. Vazio = nenhum escolhido ainda. */
+  const [extras, setExtras] = useState<string[]>([])
   const [localEscolhido, setLocalEscolhido] = useState('')
   const [abrindo, setAbrindo] = useState(false)
 
@@ -158,9 +160,14 @@ function InspecoesConteudo() {
       setErro('Escolha a empresa antes de começar.')
       return
     }
-    const modelo = modelosDisponiveis.find((m) => m.id === modeloEscolhido)
-    if (!modelo) {
-      setErro('Escolha o modelo de checklist.')
+    const escolhidos = extras.length
+      ? extras
+      : modeloEscolhido
+        ? [modeloEscolhido]
+        : []
+
+    if (!escolhidos.length) {
+      setErro('Escolha pelo menos um checklist.')
       return
     }
 
@@ -168,6 +175,85 @@ function InspecoesConteudo() {
     setErro('')
 
     const local = locaisDaEmpresa.find((l) => l.id === localEscolhido) || null
+
+    /*
+     * MAIS DE UM CHECKLIST VIRA UMA VISITA.
+     *
+     * Cada `inspecoes` guarda um modelo só — é o que permite o
+     * percentual de conformidade ser daquela norma, e não uma média
+     * sem sentido entre NR-18 e NR-35. Para juntar vários na mesma ida
+     * ao cliente, o que agrupa é a visita: um documento, um código, e
+     * dentro dele o resultado de cada checklist.
+     */
+    if (escolhidos.length > 1) {
+      const { data: visita, error: erroVisita } = await supabase
+        .from('inspecao_visitas')
+        .insert({
+          empresa_id: empresaAtual,
+          local_id: local?.id || null,
+          local_nome: local?.nome || null,
+          responsavel_nome: meuNome || null,
+        })
+        .select('id')
+        .single()
+
+      if (erroVisita || !visita) {
+        setAbrindo(false)
+        setErro(erroVisita?.message || 'Não foi possível abrir a visita.')
+        return
+      }
+
+      for (const id of escolhidos) {
+        const m = modelosDisponiveis.find((x) => x.id === id)
+        if (!m) continue
+
+        const { data: insp } = await supabase
+          .from('inspecoes')
+          .insert({
+            empresa_id: empresaAtual,
+            visita_id: (visita as any).id,
+            modelo_id: m.id,
+            modelo_nome: m.nome,
+            norma: m.norma,
+            local_id: local?.id || null,
+            local_nome: local?.nome || null,
+            inspetor_nome: meuNome || null,
+          })
+          .select('id')
+          .single()
+        if (!insp) continue
+
+        const { data: itens } = await supabase
+          .from('inspecao_modelo_itens')
+          .select('id, ordem, categoria, pergunta, peso')
+          .eq('modelo_id', m.id)
+          .eq('ativo', true)
+          .order('ordem')
+
+        if (itens && itens.length) {
+          await supabase.from('inspecao_respostas').insert(
+            (itens as any[]).map((i) => ({
+              inspecao_id: (insp as any).id,
+              item_id: i.id,
+              ordem: i.ordem,
+              categoria: i.categoria,
+              pergunta: i.pergunta,
+              peso: i.peso,
+            }))
+          )
+        }
+      }
+
+      window.location.href = '/inspecoes/campo?visita=' + (visita as any).id
+      return
+    }
+
+    const modelo = modelosDisponiveis.find((m) => m.id === escolhidos[0])
+    if (!modelo) {
+      setAbrindo(false)
+      setErro('Escolha o modelo de checklist.')
+      return
+    }
 
     const { data: nova, error } = await supabase
       .from('inspecoes')
@@ -253,14 +339,30 @@ function InspecoesConteudo() {
             opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
           />
         )}
-        <select value={modeloEscolhido} onChange={(e) => setModeloEscolhido(e.target.value)}>
-          <option value="">Modelo de checklist…</option>
-          {modelosDisponiveis.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.nome}
-              {m.norma ? ' · ' + m.norma : ''}
-            </option>
-          ))}
+        {/* Vários de uma vez: uma visita ao cliente raramente cabe num
+            checklist só, e obrigar a abrir uma inspeção por norma
+            fazia a mesma visita virar três registros sem nada ligando
+            — e três relatórios para o cliente. */}
+        <select
+          value={modeloEscolhido}
+          onChange={(e) => {
+            const id = e.target.value
+            if (!id) return
+            setExtras((x) => (x.includes(id) ? x : [...x, id]))
+            setModeloEscolhido('')
+          }}
+        >
+          <option value="">
+            {extras.length ? 'Adicionar outro checklist…' : 'Modelo de checklist…'}
+          </option>
+          {modelosDisponiveis
+            .filter((m) => !extras.includes(m.id))
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+                {m.norma ? ' · ' + m.norma : ''}
+              </option>
+            ))}
         </select>
         <select value={localEscolhido} onChange={(e) => setLocalEscolhido(e.target.value)}>
           <option value="">Local (opcional)…</option>
@@ -271,13 +373,44 @@ function InspecoesConteudo() {
           ))}
         </select>
         <button type="button" className="btn btn-primary" disabled={abrindo} onClick={comecar}>
-          {abrindo ? 'Abrindo…' : 'Nova inspeção'}
+          {abrindo
+            ? 'Abrindo…'
+            : extras.length > 1
+              ? `Nova inspeção · ${extras.length} checklists`
+              : 'Nova inspeção'}
         </button>
         <span style={{ flex: 1 }} />
         <Link href="/inspecoes/modelos" className="btn btn-sm">
           Modelos
         </Link>
       </div>
+
+      {extras.length > 0 && (
+        <div className="panel" style={{ marginBottom: 14 }}>
+          <div className="panel-body">
+            <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--ink-muted)' }}>
+              {extras.length === 1
+                ? 'Um checklist nesta inspeção.'
+                : `${extras.length} checklists nesta visita — um documento só, com o resultado de cada um.`}
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {extras.map((id) => {
+                const m = modelosDisponiveis.find((x) => x.id === id)
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setExtras((x) => x.filter((v) => v !== id))}
+                  >
+                    {m?.nome || 'checklist'} ✕
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {carregando ? (
         <p className="empty-state">Carregando…</p>
