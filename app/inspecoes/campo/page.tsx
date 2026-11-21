@@ -103,6 +103,10 @@ function CampoConteudo() {
   const [localId, setLocalId] = useState('')
   const [localNovo, setLocalNovo] = useState('')
   const [emVisita, setEmVisita] = useState(false)
+  /* A visita agora é registro: sem ela não há o que numerar nem o que
+     listar como relatório realizado. */
+  const [visitaId, setVisitaId] = useState('')
+  const [encerrando, setEncerrando] = useState(false)
 
   const [posicao, setPosicao] = useState<Posicao>(null)
   const [posicaoErro, setPosicaoErro] = useState('')
@@ -401,6 +405,8 @@ function CampoConteudo() {
 
     /* Local novo vira cadastro de verdade: o próximo apontamento, e a
        próxima visita, acham o mesmo nome na lista. */
+    let local = localId
+    let nomeDoLocal = locais.find((l) => l.id === localId)?.nome || ''
     if (!localId && localNovo.trim()) {
       const { data, error } = await supabase
         .from('locais_trabalho')
@@ -413,11 +419,89 @@ function CampoConteudo() {
       }
       setLocais((l) => [...l, data as Local])
       setLocalId((data as Local).id)
+      local = (data as Local).id
+      nomeDoLocal = (data as Local).nome
     }
 
+    /*
+     * A visita nasce aqui, antes do primeiro apontamento. Se nascesse
+     * só no encerramento, um celular que desligasse no meio da obra
+     * deixaria os apontamentos órfãos — e órfão não entra em relatório
+     * nenhum.
+     */
+    const { data: visita, error: erroVisita } = await supabase
+      .from('inspecao_visitas')
+      .insert({
+        empresa_id: empresaAtual,
+        local_id: local || null,
+        local_nome: nomeDoLocal || null,
+        responsavel_id: usuario || null,
+        responsavel_nome: meuNome || null,
+      })
+      .select('id')
+      .single()
+
+    if (erroVisita) {
+      setErro(erroVisita.message)
+      return
+    }
+
+    setVisitaId((visita as any).id)
     setEmVisita(true)
     pedirPosicao()
-    carregarTitulos(empresaAtual, localId || '')
+    carregarTitulos(empresaAtual, local || '')
+  }
+
+  /*
+   * Encerra a visita e reserva o código do relatório.
+   *
+   * O CÓDIGO SAI AQUI, não na impressão. Reservado na impressão, duas
+   * pessoas imprimindo ao mesmo tempo pegariam o mesmo número; aqui o
+   * código é do evento, e reimprimir não inventa documento novo.
+   */
+  async function encerrar() {
+    if (encerrando || !visitaId) return
+    setEncerrando(true)
+    setErro('')
+    try {
+      const resumo = {
+        apontamentos: feitos.length,
+        conformes: feitos.filter((a) => a.classificacao === 'conforme').length,
+        parciais: feitos.filter((a) => a.classificacao === 'insuficiente').length,
+        oportunidades: feitos.filter((a) => a.classificacao === 'oportunidade').length,
+        nao_conformidades: feitos.filter((a) => !a.classificacao).length,
+      }
+
+      const { error: erroFecha } = await supabase
+        .from('inspecao_visitas')
+        .update({
+          situacao: 'encerrada',
+          encerrada_em: new Date().toISOString(),
+          latitude: posicao?.lat ?? null,
+          longitude: posicao?.lon ?? null,
+          precisao_m: posicao?.precisao ?? null,
+        })
+        .eq('id', visitaId)
+      if (erroFecha) throw erroFecha
+
+      const { error: erroCodigo } = await supabase.rpc('emitir_relatorio', {
+        p_empresa: empresaAtual,
+        p_tipo: 'visita',
+        p_prefixo: 'RIC',
+        p_visita: visitaId,
+        p_resumo: resumo,
+      })
+      if (erroCodigo) throw erroCodigo
+
+      window.location.href = '/inspecoes/visita/' + visitaId
+    } catch (e: any) {
+      console.error(e)
+      setErro(
+        (e?.message || 'Não foi possível encerrar.') +
+          ' A visita e os apontamentos estão salvos — tente encerrar de novo com sinal.'
+      )
+      setEncerrando(false)
+    }
   }
 
   async function encolher(arquivo: File): Promise<Blob> {
@@ -496,6 +580,8 @@ function CampoConteudo() {
         .from('nao_conformidades')
         .insert({
           empresa_id: empresaAtual,
+          /* É o que liga o apontamento ao relatório daquela visita. */
+          visita_id: visitaId || null,
           origem: 'avulsa',
           tipo: 'inspecao',
           local_id: localId || null,
@@ -895,12 +981,17 @@ function CampoConteudo() {
             <div className="campo-visita">
               <div className="campo-visita-cabeca">
                 <h2>Nesta visita · {feitos.length}</h2>
+                {/* Encerrar reserva o código e leva ao relatório. A
+                    impressão mudou de lugar de propósito: imprimir a
+                    tela produzia uma folha sem código, que não cumpre
+                    o requisito de documento da ISO. */}
                 <button
                   type="button"
-                  className="btn btn-sm nao-imprimir"
-                  onClick={() => window.print()}
+                  className="btn btn-sm btn-primary nao-imprimir"
+                  disabled={encerrando}
+                  onClick={encerrar}
                 >
-                  Imprimir o RCN desta visita
+                  {encerrando ? 'Encerrando…' : 'Encerrar e emitir o relatório'}
                 </button>
               </div>
 
