@@ -446,7 +446,7 @@ function PainelInspecoesConteudo() {
             <div className="stat">
               <div className="num">{totais.aplicadas}</div>
               <div className="lbl">Inspeções no período</div>
-              <div className="dica">
+              <div className="stat-ressalva">
                 {emCampo === 0
                   ? 'nenhuma em campo agora'
                   : emCampo === 1
@@ -457,7 +457,7 @@ function PainelInspecoesConteudo() {
             <div className={'stat' + (totais.abertas ? ' warn' : '')}>
               <div className="num">{totais.abertas}</div>
               <div className="lbl">Não conformidades abertas</div>
-              <div className="dica">
+              <div className="stat-ressalva">
                 {totais.vencidas > 0
                   ? `${totais.vencidas} já com prazo vencido`
                   : vencemNaSemana > 0
@@ -468,7 +468,7 @@ function PainelInspecoesConteudo() {
             <div className={'stat' + (planosAtrasados ? ' bad' : '')}>
               <div className="num">{planosAtrasados}</div>
               <div className="lbl">Planos atrasados</div>
-              <div className="dica">
+              <div className="stat-ressalva">
                 {atrasoMaisVelho === null
                   ? 'nenhum plano vencido'
                   : `o mais antigo há ${atrasoMaisVelho} dias`}
@@ -480,7 +480,7 @@ function PainelInspecoesConteudo() {
                 {prazoMedio === null ? '' : <span className="unidade"> dias</span>}
               </div>
               <div className="lbl">Prazo médio de tratamento</div>
-              <div className="dica">
+              <div className="stat-ressalva">
                 {prazoMedio === null ? 'nenhuma encerrada ainda' : 'da abertura até encerrar'}
               </div>
             </div>
@@ -490,7 +490,7 @@ function PainelInspecoesConteudo() {
                 {eficacia.encerradas === 0 ? '' : <span className="unidade">%</span>}
               </div>
               <div className="lbl">Eficácia verificada</div>
-              <div className="dica">
+              <div className="stat-ressalva">
                 {/* Encerrar não prova nada — prova é não voltar. A
                     conta procura a mesma pergunta reprovando de novo
                     no mesmo local nos 90 dias seguintes. */}
@@ -577,38 +577,47 @@ function PainelInspecoesConteudo() {
               <div className="section-title">Causas-raiz mais frequentes</div>
             </div>
             <div className="panel-body">
+              {pareto.total > 0 && (
+                <p className="insp-sub">
+                  {pareto.total === 1
+                    ? 'De 1 não conformidade investigada no período.'
+                    : `De ${pareto.total} não conformidades investigadas no período.`}
+                </p>
+              )}
               {pareto.linhas.length === 0 ? (
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
                   Nenhuma não conformidade com causa classificada no período. A classificação é
                   feita na ficha da NC, na aba de investigação — é ela que monta este gráfico.
                 </p>
               ) : (
-                <table className="tabela-colab">
-                  <thead>
-                    <tr>
-                      <th>Causa</th>
-                      <th style={{ width: '38%' }}>Peso</th>
-                      <th>Quantas</th>
-                      <th>Acumulado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pareto.linhas.map((l) => (
-                      <tr key={l.causa}>
-                        <td className="nome">{rotuloCausa(l.causa) || l.causa}</td>
-                        <td>
-                          <span className="pareto-trilho">
-                            <span className="pareto-barra" style={{ width: l.percentual + '%' }} />
-                          </span>
-                        </td>
-                        <td>
-                          {l.quantas} <span style={{ color: 'var(--ink-faint)' }}>({l.percentual}%)</span>
-                        </td>
-                        <td>{l.acumulado}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                /*
+                 * Lista com barra, não tabela.
+                 *
+                 * A tabela do portal pede 720 px e não cabe nesta
+                 * coluna — era ela que estourava por cima do bloco
+                 * vizinho. E o Pareto não precisa de tabela: o que o
+                 * olho compara aqui é o comprimento da barra, não
+                 * números alinhados em colunas.
+                 */
+                <ul className="pareto">
+                  {pareto.linhas.map((l) => (
+                    <li key={l.causa}>
+                      <span className="pareto-rotulo">
+                        <span>{rotuloCausa(l.causa) || l.causa}</span>
+                        <b>{l.percentual}%</b>
+                      </span>
+                      <span className="pareto-trilho">
+                        <span className="pareto-barra" style={{ width: l.percentual + '%' }} />
+                      </span>
+                      <span className="pareto-conta">
+                        {l.quantas}
+                        {l.quantas === 1 ? ' não conformidade' : ' não conformidades'}
+                        {' · acumulado '}
+                        {l.acumulado}%
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               )}
               {pareto.semCausa > 0 && (
                 <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
