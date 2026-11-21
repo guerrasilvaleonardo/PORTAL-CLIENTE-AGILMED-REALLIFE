@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
@@ -45,6 +46,7 @@ const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 type Local = { id: string; nome: string }
+type Pessoa = { id: string; nome: string | null; email: string | null; cargo: string | null }
 
 type Apontamento = {
   id: string
@@ -63,6 +65,11 @@ const agoraBr = () =>
   new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 
 function CampoConteudo() {
+  const parametros = useSearchParams()
+  /* Lido uma vez: o QR colado na parede manda ?local=…, e a pessoa já
+     cai apontando, sem escolher nada. */
+  const localDoQr = parametros?.get('local') || ''
+
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
@@ -87,6 +94,11 @@ function CampoConteudo() {
   const [gravidade, setGravidade] = useState('media')
   const [prazo, setPrazo] = useState('')
   const [responsavel, setResponsavel] = useState('')
+  const [responsavelId, setResponsavelId] = useState('')
+  const [pessoas, setPessoas] = useState<Pessoa[]>([])
+  const [ditando, setDitando] = useState(false)
+  const [vozIndisponivel, setVozIndisponivel] = useState(false)
+  const reconhecimento = useRef<any>(null)
   const [fotos, setFotos] = useState<string[]>([])
   const [previas, setPrevias] = useState<Record<string, string>>({})
   const [enviandoFoto, setEnviandoFoto] = useState(false)
@@ -146,19 +158,109 @@ function CampoConteudo() {
         setLocais([])
         return
       }
-      const { data } = await supabase
-        .from('locais_trabalho')
-        .select('id, nome')
-        .eq('empresa_id', empresaAtual)
-        .eq('ativo', true)
-        .order('nome')
-      if (ativo) setLocais((data || []) as Local[])
+      const [{ data }, { data: gente }] = await Promise.all([
+        supabase
+          .from('locais_trabalho')
+          .select('id, nome')
+          .eq('empresa_id', empresaAtual)
+          .eq('ativo', true)
+          .order('nome'),
+        /* Quem pode receber uma não conformidade. Escolher da lista em
+           vez de digitar o nome é o que permite avisar por e-mail: nome
+           digitado não tem para onde mandar. */
+        supabase
+          .from('profiles')
+          .select('id, nome, email, cargo')
+          .eq('empresa_id', empresaAtual)
+          .eq('ativo', true)
+          .order('nome'),
+      ])
+      if (ativo) {
+        const lista = (data || []) as Local[]
+        setLocais(lista)
+        setPessoas((gente || []) as Pessoa[])
+
+        /* Veio de QR: entra direto na visita, sem passar pela escolha.
+           Só se o local for mesmo desta empresa — QR de outro cliente
+           não abre visita aqui. */
+        if (localDoQr && lista.some((l) => l.id === localDoQr)) {
+          setLocalId(localDoQr)
+          setEmVisita(true)
+          pedirPosicao()
+        }
+      }
     }
     buscar()
     return () => {
       ativo = false
     }
-  }, [empresaAtual])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaAtual, localDoQr])
+
+  /*
+   * DITAR É O QUE FAZ ESTA TELA SER USADA. De capacete e luva, digitar
+   * três linhas num celular é o atrito que faz o técnico decidir
+   * "anoto depois" — que quer dizer nunca.
+   *
+   * Usa o reconhecimento de fala do próprio navegador: não manda áudio
+   * para serviço nenhum, não tem custo por minuto e funciona no
+   * Chrome do Android, que é o aparelho do campo. Onde não existe, o
+   * botão some e o teclado continua lá — nunca o contrário.
+   *
+   * O texto ditado é ACRESCENTADO ao que já está escrito. Substituir
+   * faria a segunda frase apagar a primeira, e quem está falando não
+   * olha a tela para perceber.
+   */
+  function ditar() {
+    if (ditando) {
+      reconhecimento.current?.stop()
+      return
+    }
+
+    const Motor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!Motor) {
+      setVozIndisponivel(true)
+      setErro('Este navegador não reconhece fala. Use o teclado — ou o Chrome no Android.')
+      return
+    }
+
+    const r = new Motor()
+    r.lang = 'pt-BR'
+    r.continuous = true
+    r.interimResults = false
+
+    r.onresult = (evento: any) => {
+      let novo = ''
+      for (let i = evento.resultIndex; i < evento.results.length; i++) {
+        if (evento.results[i].isFinal) novo += evento.results[i][0].transcript
+      }
+      if (novo.trim()) {
+        setDescricao((atual) => (atual ? atual.trim() + ' ' : '') + novo.trim())
+      }
+    }
+    r.onerror = (e: any) => {
+      setDitando(false)
+      if (e.error === 'not-allowed') setErro('O microfone está bloqueado neste aparelho.')
+    }
+    r.onend = () => setDitando(false)
+
+    reconhecimento.current = r
+    setErro('')
+    setDitando(true)
+    r.start()
+  }
+
+  /* Reconhecimento que fica aberto em tela trocada continua ouvindo. */
+  useEffect(() => {
+    return () => {
+      try {
+        reconhecimento.current?.stop()
+      } catch {
+        /* já parado */
+      }
+    }
+  }, [])
 
   function pedirPosicao() {
     setPosicaoErro('')
@@ -282,6 +384,8 @@ function CampoConteudo() {
              gravidade alta; a tela nem mostra o campo. */
           gravidade: oportunidade ? 'baixa' : gravidade,
           prazo: oportunidade || !prazo ? null : prazo,
+          responsavel_id:
+            oportunidade || !responsavelId || responsavelId === 'outro' ? null : responsavelId,
           responsavel_nome: oportunidade ? null : responsavel.trim() || null,
           fotos,
           foto_path: fotos[0] || null,
@@ -311,13 +415,41 @@ function CampoConteudo() {
 
       /* Limpa o apontamento, mantém a visita: o local, a empresa e a
          posição seguem valendo para o próximo. */
+      /*
+       * O aviso é disparado DEPOIS de o registro estar salvo, e uma
+       * falha no e-mail não desfaz nada: a não conformidade existe, e
+       * o responsável a vê no portal de qualquer jeito. Travar o
+       * salvamento por causa do servidor de e-mail seria perder o
+       * apontamento que a pessoa acabou de fazer em campo.
+       */
+      const destinatario = pessoas.find((p) => p.id === responsavelId)
+      if (!oportunidade && destinatario?.email) {
+        try {
+          const { data: sessao } = await supabase.auth.getSession()
+          const resposta = await fetch('/api/inspecoes/aviso-nc', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + (sessao.session?.access_token || ''),
+            },
+            body: JSON.stringify({ id: (data as any).id }),
+          })
+          if (!resposta.ok) throw new Error(String(resposta.status))
+          setAviso(`Apontamento salvo. ${destinatario.nome || 'O responsável'} foi avisado.`)
+        } catch {
+          setAviso('Apontamento salvo, mas o aviso por e-mail não saiu. Ele vê no portal.')
+        }
+      } else {
+        setAviso('Apontamento salvo. Pode seguir para o próximo.')
+      }
+
       setDescricao('')
       setFotos([])
       setPrevias({})
       setPrazo('')
       setResponsavel('')
-      setAviso('Apontamento salvo. Pode seguir para o próximo.')
-      setTimeout(() => setAviso(''), 3000)
+      setResponsavelId('')
+      setTimeout(() => setAviso(''), 4000)
     } catch (e: any) {
       setErro(e?.message || 'Não foi possível salvar.')
     } finally {
@@ -446,15 +578,26 @@ function CampoConteudo() {
                 </button>
               </div>
 
-              <label className="campo-linha">
-                <span>O que você viu</span>
+              <div className="campo-linha">
+                <div className="campo-rotulo-voz">
+                  <span>O que você viu</span>
+                  {!vozIndisponivel && (
+                    <button
+                      type="button"
+                      className={'campo-voz' + (ditando ? ' ouvindo' : '')}
+                      onClick={ditar}
+                    >
+                      {ditando ? 'ouvindo… toque para parar' : 'ditar'}
+                    </button>
+                  )}
+                </div>
                 <textarea
                   rows={3}
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
                   placeholder="Corrimão da rampa pode receber faixa antiderrapante"
                 />
-              </label>
+              </div>
 
               <div className="campo-fotos">
                 {fotos.map((f) => (
@@ -497,13 +640,47 @@ function CampoConteudo() {
                   </label>
                   <label className="campo-linha">
                     <span>Responsável</span>
-                    <input
-                      type="text"
-                      value={responsavel}
-                      onChange={(e) => setResponsavel(e.target.value)}
-                      placeholder="Quem vai resolver"
-                    />
+                    <select
+                      value={responsavelId}
+                      onChange={(e) => {
+                        setResponsavelId(e.target.value)
+                        const p = pessoas.find((x) => x.id === e.target.value)
+                        setResponsavel(p?.nome || '')
+                      }}
+                    >
+                      <option value="">
+                        {pessoas.length ? 'Escolha quem vai resolver…' : 'Ninguém com acesso ainda'}
+                      </option>
+                      {pessoas.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome || p.email}
+                          {p.cargo ? ` — ${p.cargo}` : ''}
+                          {p.email ? '' : ' (sem e-mail)'}
+                        </option>
+                      ))}
+                      <option value="outro">Outra pessoa, fora do portal</option>
+                    </select>
                   </label>
+
+                  {responsavelId === 'outro' && (
+                    <label className="campo-linha">
+                      <span>Nome de quem vai resolver</span>
+                      <input
+                        type="text"
+                        value={responsavel}
+                        onChange={(e) => setResponsavel(e.target.value)}
+                        placeholder="Quem vai resolver"
+                      />
+                    </label>
+                  )}
+
+                  {responsavelId && responsavelId !== 'outro' && (
+                    <p className="campo-dica">
+                      {pessoas.find((p) => p.id === responsavelId)?.email
+                        ? 'Ao salvar, essa pessoa recebe um e-mail com o apontamento, o prazo e o link.'
+                        : 'Essa pessoa não tem e-mail no cadastro, então não há como avisar. Ela verá no portal.'}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="campo-dica">
@@ -587,7 +764,11 @@ function CampoConteudo() {
 export default function ApontamentoDeCampo() {
   return (
     <ComModulo modulo="inspecoes">
-      <CampoConteudo />
+      {/* useSearchParams precisa de fronteira de suspensão: sem ela a
+          página inteira vira renderização de cliente no build. */}
+      <Suspense fallback={<div className="app"><p className="empty-state">Carregando…</p></div>}>
+        <CampoConteudo />
+      </Suspense>
     </ComModulo>
   )
 }

@@ -222,3 +222,30 @@
     page-break-inside: avoid;
   }
 }
+
+/* Botão de ditar, ao lado do rótulo: perto do campo que ele preenche,
+   e grande o bastante para o polegar com luva. */
+.campo-rotulo-voz {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.campo-voz {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.campo-voz.ouvindo {
+  border-color: var(--success);
+  color: inherit;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}

@@ -132,6 +132,9 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
        abre esta e não procura mais nada. */
     { href: '/inspecoes/campo', rotulo: 'Apontamento de campo' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
+    /* Perto dos modelos, porque é preparação: imprime-se uma vez e
+       cola-se no cliente. */
+    { href: '/inspecoes/locais', rotulo: 'Locais e etiquetas' },
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
     { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
   ],
