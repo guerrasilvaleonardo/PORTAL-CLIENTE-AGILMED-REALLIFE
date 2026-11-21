@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import Ajuda from '@/components/Ajuda'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
@@ -185,7 +186,13 @@ function RelatoriosConteudo() {
         <table className="tabela-colab">
           <thead>
             <tr>
-              <th>Código</th>
+              <th>
+                Código{' '}
+                <Ajuda
+                  titulo="Código do relatório"
+                  texto="RIC é o relatório de uma visita de campo; RIP é o consolidado de um período. A numeração é por empresa e por ano, então um salto na sequência (0007 para 0009) é um relatório que sumiu — e uma pergunta que a auditoria vai fazer."
+                />
+              </th>
               <th>Tipo</th>
               {interno && <th>Empresa</th>}
               <th>Referência</th>

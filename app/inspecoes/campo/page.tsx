@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import Ajuda from '@/components/Ajuda'
 import {
   temFila,
   guardar,
@@ -1280,7 +1281,13 @@ function CampoConteudo() {
               )}
 
               <label className="campo-linha">
-                <span>Local</span>
+                <span>
+                  Local{' '}
+                  <Ajuda
+                    titulo="Local"
+                    texto="Escolhido uma vez, vale para toda a visita. Se ainda não existe, digite abaixo e ele é criado na hora. É o que agrupa os apontamentos por lugar no relatório — por isso o nome precisa ser sempre o mesmo."
+                  />
+                </span>
                 <select value={localId} onChange={(e) => setLocalId(e.target.value)}>
                   <option value="">
                     {locais.length ? 'Escolha o local…' : 'Nenhum local cadastrado ainda'}
@@ -1307,7 +1314,13 @@ function CampoConteudo() {
 
               {modelos.length > 0 && (
                 <div className="campo-linha">
-                  <span>Checklists desta visita</span>
+                  <span>
+                    Checklists desta visita{' '}
+                    <Ajuda
+                      titulo="Checklists"
+                      texto="Escolha quantos quiser: cada um vira uma aba durante a visita, com as perguntas para responder. Nenhum é obrigatório — visita só com apontamento livre continua valendo, e é o caso mais comum."
+                    />
+                  </span>
                   <div className="campo-modelos">
                     {modelos.map((m) => {
                       const marcado = escolhidos.includes(m.id)
@@ -1488,6 +1501,13 @@ function CampoConteudo() {
                   sempre é "está pela metade", e obrigar a escolher
                   entre certo e errado produz relatório que o cliente
                   não reconhece. */}
+              <div className="campo-tipo-rotulo">
+                <span>Conclusão</span>
+                <Ajuda
+                  titulo="As quatro conclusões"
+                  texto="Conforme: está certo e fica registrado — exige foto, porque é ela que prova. Atende em parte: começou e não terminou; tem prazo e dono, como a não conformidade. Oportunidade: nada está errado, dá para melhorar — sem prazo, para ninguém abrir ação do que não falhou. Não conformidade: está errado."
+                />
+              </div>
               <div className="campo-tipo quatro">
                 <button
                   type="button"
@@ -1520,7 +1540,13 @@ function CampoConteudo() {
               </div>
 
               <label className="campo-linha">
-                <span>Título curto</span>
+                <span>
+                  Título curto{' '}
+                  <Ajuda
+                    titulo="Título curto"
+                    texto="É por ele que o portal reconhece o mesmo problema na próxima visita e mostra a foto do antes. Escolha da lista quando o nome já existir: 'extintor obstruído' e 'extintor bloqueado por palete' viram dois problemas diferentes."
+                  />
+                </span>
                 <input
                   type="text"
                   list="titulos-do-local"
@@ -1566,7 +1592,13 @@ function CampoConteudo() {
 
               <div className="campo-linha">
                 <div className="campo-rotulo-voz">
-                  <span>O que você viu</span>
+                  <span>
+                    O que você viu{' '}
+                    <Ajuda
+                      titulo="Ditar em vez de digitar"
+                      texto="O botão 'ditar' usa o reconhecimento de fala do próprio celular: fale e o texto aparece, acrescentado ao que já estava escrito. Não manda áudio para lugar nenhum. Em aparelho que não reconhece fala, o botão some."
+                    />
+                  </span>
                   {!vozIndisponivel && (
                     <button
                       type="button"
@@ -1585,6 +1617,13 @@ function CampoConteudo() {
                 />
               </div>
 
+              <p className="campo-rotulo-foto">
+                Fotos{' '}
+                <Ajuda
+                  titulo="Fotos"
+                  texto="Até três por apontamento: costuma bastar uma geral, mostrando onde é, e uma de perto, mostrando o quê. Sem sinal a foto fica guardada no aparelho, marcada como 'no aparelho', e sobe sozinha quando a conexão voltar."
+                />
+              </p>
               <div className="campo-fotos">
                 {fotos.map((f) => (
                   <div key={f.id} className="campo-foto">
@@ -1628,7 +1667,13 @@ function CampoConteudo() {
                     <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
                   </label>
                   <label className="campo-linha">
-                    <span>Responsável</span>
+                    <span>
+                      Responsável{' '}
+                      <Ajuda
+                        titulo="Responsável"
+                        texto="Escolha entre as pessoas da empresa: só assim há um e-mail para avisar. Quem não tem acesso ao portal entra como 'outra pessoa' — nesse caso ninguém é notificado, e a tela avisa antes de salvar."
+                      />
+                    </span>
                     <select
                       value={responsavelId}
                       onChange={(e) => {
@@ -1705,7 +1750,11 @@ function CampoConteudo() {
                   onClick={encerrar}
                 >
                   {encerrando ? 'Encerrando…' : 'Encerrar e emitir o relatório'}
-                </button>
+                </button>{' '}
+                <Ajuda
+                  titulo="Encerrar e emitir"
+                  texto="Fecha a visita, conclui os checklists respondidos e reserva o código do relatório (RIC). A partir daí reimprimir não gera número novo — o que muda é a revisão. Não encerra com apontamento guardado no aparelho: o relatório não sai incompleto."
+                />
               </div>
 
               {/* Cabeçalho que só aparece no papel: quem recebe a folha
@@ -1788,8 +1837,11 @@ function CampoConteudo() {
                 </label>
 
                 <p className="campo-mini">
-                  Quem recebeu a visita. Fica registrado com data e hora no relatório, no lugar
-                  da linha em branco para assinar.
+                  Quem recebeu a visita{' '}
+                  <Ajuda
+                    titulo="Ciência"
+                    texto="Quem acompanhou a visita pela empresa. Fica no relatório com data e hora, no lugar da linha em branco para assinar — é o que prova que os apontamentos e os prazos foram comunicados na hora."
+                  />
                 </p>
                 <div className="campo-ciente">
                   <input

@@ -1,0 +1,91 @@
+/*
+ * O "?" e o balão que ele abre.
+ *
+ * O balão é posicionado em relação ao "?", mas nunca estoura a tela:
+ * em celular ele ocupa a largura disponível e se alinha à direita do
+ * botão, porque balão cortado pela borda é balão ilegível.
+ */
+
+.ajuda {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.ajuda-botao {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  /* Alvo de toque confortável sem ocupar espaço no desenho. */
+  position: relative;
+}
+
+.ajuda-botao::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+
+.ajuda-botao:hover,
+.ajuda-botao.aberto {
+  border-color: var(--ink-faint);
+  color: inherit;
+  background: var(--surface-sunken);
+}
+
+.ajuda-balao {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 48px));
+  display: block;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.12);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  text-align: left;
+  white-space: normal;
+  /* O balão herda do rótulo, que às vezes é maiúsculo ou negrito. */
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.ajuda-balao strong {
+  display: block;
+  margin-bottom: 4px;
+  color: inherit;
+  font-size: 12.5px;
+}
+
+/* Perto da borda direita, abre para a esquerda. */
+@media (max-width: 520px) {
+  .ajuda-balao {
+    left: auto;
+    right: 0;
+  }
+}
+
+@media print {
+  .ajuda {
+    display: none;
+  }
+}
