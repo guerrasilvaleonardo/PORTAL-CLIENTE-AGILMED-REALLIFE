@@ -125,6 +125,11 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
   const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
   const [empresaNome, setEmpresaNome] = useState('')
   const [recolhidas, setRecolhidas] = useState<Record<string, boolean>>({})
+  /* Auditoria: qual capítulo está aberto no painel, e se o cronograma
+   * da esquerda está recolhido. Vazio = ainda não escolheu, e aí a
+   * tela abre no primeiro que tem pergunta sem resposta. */
+  const [capitulo, setCapitulo] = useState('')
+  const [cronogramaFechado, setCronogramaFechado] = useState(false)
   const [interno, setInterno] = useState(false)
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [rascunhoMsg, setRascunhoMsg] = useState<Record<string, string>>({})
@@ -302,6 +307,38 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
     },
     []
   )
+
+  /* O estado de cada capítulo, para o cronograma da esquerda.
+   *
+   * SEM CADEADO, de propósito. No cronograma de implantação do
+   * concorrente a etapa seguinte fica travada, e lá faz sentido: quem
+   * monta o sistema fora de ordem refaz. Auditoria é outra coisa — o
+   * auditor segue o plano dele, e é comum começar pelo 8 porque a
+   * produção só tem gente de manhã. Travar aqui atrapalharia o
+   * trabalho em nome de uma regra que a norma não faz. */
+  const estadoDoCapitulo = (secao: { itens: { r: Resposta }[] }) => {
+    const feitos = secao.itens.filter(({ r }) => r.resposta).length
+    const aprovados = secao.itens.filter(({ r }) => r.aprovado_em).length
+    if (feitos === 0) return 'nao_comecou'
+    if (feitos < secao.itens.length) return 'andando'
+    if (aprovados === secao.itens.length) return 'fechado'
+    return 'aguardando'
+  }
+
+  /* Capítulo em foco: o escolhido, ou o primeiro que ainda tem o que
+   * responder. Abrir sempre no 4 faria quem está no 9 rolar todo dia. */
+  const capituloAtual =
+    capitulo ||
+    (secoes.find((s) => s.itens.some(({ r }) => !r.resposta)) || secoes[0])?.titulo ||
+    ''
+
+  /* Na auditoria mostra um capítulo por vez, como o painel do
+   * concorrente. Na inspeção de campo continua tudo numa lista: são
+   * poucos itens e quem está no celular não quer navegar. */
+  const visiveis =
+    auditoria && secoes.length > 1
+      ? secoes.filter((s) => (s.titulo || 'sem-secao') === (capituloAtual || 'sem-secao'))
+      : secoes
 
   /* O PostgREST devolve a relação ora como objeto, ora como lista de um. */
   function itemDe(r: Resposta) {
@@ -1195,8 +1232,69 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           Este modelo não tinha pergunta nenhuma quando a inspeção foi aberta.
         </p>
       ) : (
-        <div className={auditoria ? 'insp-auditoria' : undefined}>
-          {secoes.map((secao) => {
+        <div
+          className={
+            (auditoria ? 'insp-auditoria' : '') +
+            (auditoria && secoes.length > 1 ? ' insp-grade' : '') +
+            (cronogramaFechado ? ' cron-fechado' : '')
+          }
+        >
+          {/* O cronograma não rola junto com o conteúdo: é ele que
+              responde "onde a gente parou?" sem obrigar a procurar. */}
+          {auditoria && secoes.length > 1 && (
+            <aside className="insp-cronograma">
+              <div className="insp-cronograma-topo">
+                <span>CAPÍTULOS DA NORMA</span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setCronogramaFechado((v) => !v)}
+                  aria-label={cronogramaFechado ? 'Abrir o cronograma' : 'Recolher o cronograma'}
+                >
+                  {cronogramaFechado ? '›' : '‹'}
+                </button>
+              </div>
+              <ul>
+                {secoes.map((s) => {
+                  const chave = s.titulo || 'sem-secao'
+                  const estado = estadoDoCapitulo(s)
+                  const feitos = s.itens.filter(({ r }) => r.resposta).length
+                  const faltam = s.itens.length - feitos
+                  return (
+                    <li key={chave}>
+                      <button
+                        type="button"
+                        className={
+                          'insp-cap ' +
+                          estado +
+                          (chave === (capituloAtual || 'sem-secao') ? ' aberto' : '')
+                        }
+                        onClick={() => setCapitulo(s.titulo)}
+                      >
+                        <span className="nome">{s.titulo || 'Sem capítulo'}</span>
+                        <span className="sinal">
+                          {faltam > 0 && estado !== 'nao_comecou' && (
+                            <span className="bolha">{faltam}</span>
+                          )}
+                          {estado === 'fechado' && '✓'}
+                          {estado === 'aguardando' && '⏳'}
+                          {estado === 'andando' && '▶'}
+                          {estado === 'nao_comecou' && '○'}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+              <p className="insp-cronograma-nota">
+                Sem cadeado: a ordem é sua. O auditor segue o plano dele, e a norma não exige
+                sequência.
+              </p>
+            </aside>
+          )}
+
+          <div className="insp-painel">
+          {visiveis.map((secao) => {
             const chave = secao.titulo || 'sem-secao'
             const recolhida = !!recolhidas[chave]
             const feitos = secao.itens.filter(({ r }) => r.resposta).length
@@ -1578,6 +1676,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
             </div>
             )
           })}
+          </div>
         </div>
       )}
     </div>
