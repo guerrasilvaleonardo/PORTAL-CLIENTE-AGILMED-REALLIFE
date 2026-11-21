@@ -1,0 +1,158 @@
+/*
+ * RIC — o documento que fica com o cliente.
+ *
+ * A IMPRESSÃO É O PRODUTO, não um efeito colateral. Por isso as regras
+ * de papel aqui são mais duras que as da tela: rodapé com código e
+ * número de página em todas as folhas, cabeçalho que se repete, e
+ * apontamento que não se parte no meio.
+ */
+
+.ric-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ric-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ric-item:last-of-type {
+  border-bottom: 0;
+}
+
+.ric-item-cabeca {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/* Número do apontamento: é por ele que o cliente liga pedindo "o item
+   07", e é o que permite responder sem procurar pelo texto. */
+.ric-num {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ric-titulo {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ric-desc {
+  margin: 10px 0 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.ric-tratamento {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+}
+
+.ric-fotos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ric-fotos img {
+  width: 190px;
+  height: 142px;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+}
+
+/* Só no papel. */
+.ric-cabeca-impressa {
+  display: none;
+}
+
+@media print {
+  /* O cabeçalho se repete no topo de cada folha: folha solta que
+     circula na obra precisa dizer de quem é sem a capa junto. */
+  .ric-cabeca-impressa {
+    display: block;
+    position: running(cabeca);
+    font-size: 9.5px;
+    color: #555;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+  }
+
+  /*
+   * Rodapé com código, revisão e número de página em todas as folhas.
+   * `@page` com `content: counter(page)` é o único jeito de numerar
+   * página em impressão pelo navegador — JavaScript não enxerga onde
+   * a quebra caiu.
+   */
+  @page {
+    margin: 14mm 12mm 16mm;
+    size: A4 portrait;
+
+    @bottom-left {
+      content: attr(data-rodape);
+      font-size: 9pt;
+      color: #555;
+    }
+
+    @bottom-right {
+      content: 'Pág. ' counter(page) ' de ' counter(pages);
+      font-size: 9pt;
+      color: #555;
+    }
+  }
+
+  /* Navegador que ignora as margens nomeadas do @page ainda imprime
+     isto: o rodapé repetido no fim de cada apontamento seria ruído, e
+     por isso vai só uma vez, no fim do documento. */
+  .ric::after {
+    content: attr(data-rodape);
+    display: block;
+    margin-top: 14px;
+    padding-top: 8px;
+    border-top: 1px solid #ddd;
+    font-size: 9pt;
+    color: #555;
+  }
+
+  .ric-item,
+  .ric-fotos img,
+  .rel-assinaturas {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ric-fotos img {
+    width: 62mm;
+    height: 46mm;
+  }
+
+  .rel section {
+    break-inside: auto;
+  }
+
+  .rel section h2 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}
