@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import AcoesDaNC from './AcoesDaNC'
+import Ajuda from '@/components/Ajuda'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 
@@ -814,7 +815,13 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             <tr>
               {/* O código vem primeiro: é por ele que a NC é citada em
                   ata, e-mail e auditoria. */}
-              <th style={{ width: 118 }}>Número</th>
+              <th style={{ width: 118 }}>
+                Número{' '}
+                <Ajuda
+                  titulo="Para que serve o número"
+                  texto="É por ele que a não conformidade é citada em ata, e-mail e auditoria, sem reler a descrição inteira. A sequência é por empresa e por ano, não repete e não pula."
+                />
+              </th>
               <th>O que foi encontrado</th>
               {/* Em auditoria a pergunta não é "de onde veio" — veio da
                   auditoria, todas vieram. O que importa é se é maior ou

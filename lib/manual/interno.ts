@@ -6,7 +6,7 @@ import type { Bloco, Manual } from './tipos'
  * (time interno) e, se o cliente vê ou é afetado, em cliente.ts.
  */
 
-const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Colaboradores', 'EPI', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
+const MENU = ['Painel', 'Atendimento', 'Estrelas', 'Chamados', 'Colaboradores', 'EPI', 'Inspeções', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualInterno: Manual = {
@@ -1079,6 +1079,161 @@ const manualInterno: Manual = {
             'É só para visualização: não pode ser baixado nem impresso, e mostra o e-mail de quem está vendo.',
             'Encontrou algo diferente no sistema? Avise a gestão para corrigir o manual.',
           ],
+        },
+      ],
+    },
+
+    {
+      id: 'inspecoes',
+      titulo: 'Inspeções · o ciclo inteiro',
+      rotas: ['/inspecoes', '/inspecoes/*'],
+      slides: [
+        {
+          titulo: 'Por onde começa, e onde termina',
+          texto:
+            'O módulo tem três entradas e sempre as mesmas três, na ordem em que o trabalho acontece: Inspeções (eu vejo), Não conformidades (eu investigo) e Planos de ação (eu trato). Painel e Relatórios ficam no grupo de acompanhar; Modelos e Locais, no de preparar. "Apontamento de campo" não é entrada de menu: é o que se faz dentro de uma inspeção.',
+          tela: {
+            url: '/inspecoes',
+            blocos: [
+              menu('Inspeções'),
+              { t: 'topo', sobre: 'Inspeções', titulo: 'Inspeções' },
+              {
+                t: 'campos',
+                n: 1,
+                itens: [
+                  { rotulo: '1. Escolha o checklist', valor: 'Segurança do trabalho — geral' },
+                  { rotulo: '2. Local (opcional)', valor: 'Galpão 03' },
+                ],
+              },
+              { t: 'botoes', itens: [{ rotulo: '3. Começar a inspeção', primario: true }] },
+              {
+                t: 'cartoes',
+                n: 2,
+                itens: [
+                  { titulo: '1. Em campo', texto: 'Estou apontando. Pode fechar o celular e voltar.' },
+                  { titulo: '2. Concluída', texto: 'Checklist respondido. Ainda dá para rever.' },
+                  { titulo: '3. Relatório emitido', texto: 'Tem código, data e hora. Mudança vira revisão.' },
+                ],
+              },
+              {
+                t: 'tabela',
+                n: 3,
+                colunas: ['Checklist', 'Local', 'Quando', 'Situação'],
+                linhas: [
+                  ['Segurança — geral', 'Galpão 03', '21/11 14:20', 'Em campo'],
+                  ['Combate a incêndio', 'Oficina', '14/11 16:20', 'Relatório emitido'],
+                ],
+                pilulas: 3,
+              },
+            ],
+          },
+          passos: [
+            'O quadro de começar fica acima da lista e tem três passos numerados. Pode somar quantos checklists quiser: viram uma visita só, com um documento e um código só.',
+            'Os três cartões dizem o caminho inteiro. Eles aparecem mesmo com a lista vazia — quem ainda não fez a primeira inspeção é justamente quem precisa deles.',
+            'A coluna Situação vai até o fim: "Concluída · falta emitir" é inspeção que acabou e cujo relatório nunca saiu. Esse caso era invisível antes.',
+          ],
+          dica: 'Começar abre a tela de campo já com a visita criada. Ninguém aponta sem visita aberta — era por ali que se entrava numa tela sem começo nem fim.',
+          link: { href: '/inspecoes', rotulo: 'Abrir Inspeções' },
+        },
+
+        {
+          titulo: 'Campo: apontar, e a conferência de saída',
+          texto:
+            'A tela de campo é de celular, de pé, no cliente. Aponta-se com foto, voz e GPS, dentro ou fora do checklist. Sem sinal, o apontamento fica guardado no aparelho (IndexedDB) e sobe sozinho quando a rede volta.',
+          tela: {
+            url: '/inspecoes/campo',
+            blocos: [
+              { t: 'topo', sobre: 'Inspeções', titulo: 'Apontamento de campo', botoes: ['Encerrar e emitir'] },
+              {
+                t: 'checklist',
+                n: 1,
+                itens: [
+                  { texto: 'Tudo enviado', feito: true },
+                  { texto: '2 itens de checklist sem resposta' },
+                  { texto: 'Ciência do cliente em branco' },
+                ],
+              },
+              { t: 'aviso', texto: 'Encerrar reserva o código do relatório. Depois disso, mudança vira revisão nova.', tom: 'alerta' },
+            ],
+          },
+          passos: [
+            'A conferência de saída aparece ANTES do clique: o que está preso no aparelho, o que ficou sem resposta e se falta a ciência de quem recebeu a visita.',
+            'O sinal não é só cor — o × e o ✓ dizem a mesma coisa para quem não distingue vermelho de verde.',
+            'Encerrar conclui os checklists, e é o gatilho do banco que abre uma não conformidade para cada item reprovado, já com a visita, a foto e o local.',
+          ],
+          atencao:
+            'A visita não encerra com apontamento pendente no aparelho. Emitir um relatório COM CÓDIGO que afirma menos do que foi visto é pior do que não ter relatório: tem número de série e ar de completo.',
+        },
+
+        {
+          titulo: 'A não conformidade, em quatro abas',
+          texto:
+            'A ficha é o item 10.2 desenhado: Ocorrência, Investigação, Plano de ação e Verificação. A bolinha na aba diz qual ainda está em branco. Salvar e Encerrar ficam fora das abas, sempre à vista.',
+          tela: {
+            url: '/inspecoes/nc',
+            blocos: [
+              menu('Inspeções'),
+              { t: 'topo', sobre: 'Inspeções', titulo: 'Não conformidades' },
+              {
+                t: 'tabela',
+                n: 1,
+                colunas: ['Número', 'O que foi encontrado', 'Prazo', 'Situação'],
+                linhas: [
+                  ['NC-2026-0003', 'Trabalho em altura sem talabarte', '28/11', 'Aberta'],
+                  ['NC-2026-0002', 'Corredor obstruído no Galpão 03', '24/11', 'Em ação'],
+                ],
+                pilulas: 3,
+              },
+              {
+                t: 'opcoes',
+                n: 2,
+                itens: [
+                  { rotulo: 'Ocorrência', desc: 'o que foi visto, e o que se fez na hora' },
+                  { rotulo: 'Investigação', desc: 'os cinco porquês e a causa-raiz', ativo: true },
+                  { rotulo: 'Plano de ação', desc: 'as ações, com dono e prazo' },
+                  { rotulo: 'Verificação', desc: 'se funcionou mesmo' },
+                ],
+              },
+            ],
+          },
+          passos: [
+            'Toda NC tem número: NC-AAAA-NNNN por empresa e ano (CA, em auditoria). A sequência usa trava de transação — duas pessoas apontando ao mesmo tempo não recebem o mesmo número.',
+            'O botão Ficha abre a RNC em oito seções, para imprimir ou salvar em PDF. Cabeçalho e rodapé em toda folha, "pág. 2 de 9", fotos do campo e assinaturas no fim.',
+            'Encerrar exige causa e ação corretiva preenchidas. É o que a ISO 45001 e a 9001 pedem no 10.2 — fechar sem isso é só arquivar o problema.',
+          ],
+          dica: 'A ficha diz de qual visita o desvio saiu, com link. Em sistema concorrente esse campo existe e vive vazio, porque lá a NC é digitada de novo, à mão.',
+          link: { href: '/inspecoes/nc', rotulo: 'Abrir Não conformidades' },
+        },
+
+        {
+          titulo: 'Planos de ação e os relatórios',
+          texto:
+            'Uma não conformidade pode ter várias ações, de tipos diferentes. A ação nasce dentro da NC, junto da causa que a justifica; esta tela é para acompanhar o que está parado onde.',
+          tela: {
+            url: '/inspecoes/planos',
+            blocos: [
+              menu('Inspeções'),
+              { t: 'topo', sobre: 'Inspeções', titulo: 'Planos de ação' },
+              {
+                t: 'kanban',
+                n: 1,
+                colunas: [
+                  { titulo: 'A fazer', cartoes: [{ texto: 'Correção · linha de vida provisória', tom: 'ruim' }] },
+                  { titulo: 'Em execução', cartoes: [{ texto: 'Corretiva · revisar a permissão de trabalho' }] },
+                  { titulo: 'Em verificação', cartoes: [{ texto: 'Verificação · conferir uso do bloqueio', tom: 'alerta' }] },
+                  { titulo: 'Encerrada', cartoes: [{ texto: 'Demarcação refeita · eficácia confirmada', tom: 'bom' }] },
+                ],
+              },
+            ],
+          },
+          passos: [
+            'Os quatro tipos são os que o auditor procura: correção resolve o que está na frente; corretiva ataca a causa; preventiva estende a lição; verificação confere depois.',
+            'A ação só sai da fila respondendo "funcionou" ou "não resolveu". É isso que alimenta o índice de eficácia — sem essa pergunta, o ciclo não fecha.',
+            'Relatórios tem duas abas: Emitidos (o arquivo, por código, onde a sequência mostra se faltou mês) e Do período (o consolidado da reunião mensal).',
+          ],
+          atencao:
+            'Antes de usar, a migração supabase/planos-de-acao.sql precisa ter rodado. Sem ela as telas avisam o que falta em vez de dar erro de banco.',
+          link: { href: '/inspecoes/planos', rotulo: 'Abrir Planos de ação' },
         },
       ],
     },

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import Ajuda from '@/components/Ajuda'
 import '../colaboradores/colaboradores.css'
 import './inspecoes.css'
 
@@ -374,7 +375,29 @@ function InspecoesConteudo() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
-      <div className="filters">
+      {/*
+       * ONDE COMEÇA.
+       *
+       * Isto era uma barra de filtros com um botão no meio, e botão no
+       * meio de filtro ninguém vê: a pergunta "por onde eu começo?"
+       * veio de quem já tinha a tela aberta na frente. O começo agora
+       * tem título, número em cada passo e fica acima da lista, que é
+       * o resultado do trabalho — não a porta de entrada dele.
+       */}
+      <section className="insp-comecar">
+        <h2>
+          Começar uma inspeção{' '}
+          <Ajuda
+            titulo="O que é uma inspeção aqui"
+            texto="É uma visita ao cliente. Pode levar um checklist ou vários: tudo o que for apontado entra num documento só, com um código só. Quem vai a campo começa por aqui."
+          />
+        </h2>
+        <p className="insp-comecar-ajuda">
+          Escolha o que vai conferir e abra a visita. O apontamento de campo abre em seguida, já
+          com a visita aberta — e é lá que entram fotos, voz e os itens fora do checklist.
+        </p>
+
+        <div className="filters" style={{ margin: 0 }}>
         {interno && (
           <FiltroEmpresa
             valor={empresaFiltro}
@@ -400,7 +423,7 @@ function InspecoesConteudo() {
           }}
         >
           <option value="">
-            {extras.length ? 'Adicionar outro checklist…' : 'Modelo de checklist…'}
+            {extras.length ? '2. Juntar outro checklist…' : '1. Escolha o checklist…'}
           </option>
           {modelosDisponiveis
             .filter((m) => !extras.includes(m.id))
@@ -412,7 +435,7 @@ function InspecoesConteudo() {
             ))}
         </select>
         <select value={localEscolhido} onChange={(e) => setLocalEscolhido(e.target.value)}>
-          <option value="">Local (opcional)…</option>
+          <option value="">2. Local (opcional)…</option>
           {locaisDaEmpresa.map((l) => (
             <option key={l.id} value={l.id}>
               {l.nome}
@@ -423,14 +446,15 @@ function InspecoesConteudo() {
           {abrindo
             ? 'Abrindo…'
             : extras.length > 1
-              ? `Nova inspeção · ${extras.length} checklists`
-              : 'Nova inspeção'}
+              ? `3. Começar · ${extras.length} checklists`
+              : '3. Começar a inspeção'}
         </button>
         <span style={{ flex: 1 }} />
         <Link href="/inspecoes/modelos" className="btn btn-sm">
           Modelos
         </Link>
-      </div>
+        </div>
+      </section>
 
       {extras.length > 0 && (
         <div className="panel" style={{ marginBottom: 14 }}>
@@ -459,25 +483,27 @@ function InspecoesConteudo() {
         </div>
       )}
 
+      {/* O caminho fica à vista mesmo sem nenhuma inspeção: é
+          justamente quem ainda não fez a primeira que precisa dele. */}
+      <ol className="insp-caminho nao-imprimir">
+        {CAMINHO.map((passo) => (
+          <li key={passo.titulo}>
+            <strong>{passo.titulo}</strong>
+            <span>{passo.texto}</span>
+          </li>
+        ))}
+      </ol>
+
       {carregando ? (
         <p className="empty-state">Carregando…</p>
       ) : visiveis.length === 0 ? (
         <p className="empty-state">
           {interno && !empresaFiltro
             ? 'Escolha a empresa para ver as inspeções.'
-            : 'Nenhuma inspeção ainda.'}
+            : 'Nenhuma inspeção ainda. A primeira começa no quadro acima.'}
         </p>
       ) : (
         <>
-        <ol className="insp-caminho nao-imprimir">
-          {CAMINHO.map((passo) => (
-            <li key={passo.titulo}>
-              <strong>{passo.titulo}</strong>
-              <span>{passo.texto}</span>
-            </li>
-          ))}
-        </ol>
-
         <table className="tabela-colab">
           <thead>
             <tr>
@@ -485,7 +511,13 @@ function InspecoesConteudo() {
               <th>Local</th>
               <th>Inspetor</th>
               <th>Quando</th>
-              <th>Situação</th>
+              <th>
+                Situação{' '}
+                <Ajuda
+                  titulo="Até onde foi"
+                  texto="Em campo: ainda apontando. Concluída · falta emitir: o checklist acabou e o relatório nunca saiu. Relatório emitido: o cliente tem o documento, com código e revisão."
+                />
+              </th>
               <th>Conformidade</th>
               <th className="acoes" />
             </tr>

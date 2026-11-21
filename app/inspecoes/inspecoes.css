@@ -514,3 +514,26 @@
   color: var(--ink-muted);
   line-height: 1.4;
 }
+
+/* O quadro de começar uma inspeção. Fica acima da lista e não se
+   parece com filtro: tem título, e os passos são numerados. */
+.insp-comecar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.insp-comecar > h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.insp-comecar-ajuda {
+  margin: 5px 0 12px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+  max-width: 62ch;
+}

@@ -1820,6 +1820,10 @@ function CampoConteudo() {
                 */}
               <div className="campo-falta nao-imprimir">
                 <p className="campo-falta-titulo">
+                  <Ajuda
+                    titulo="Por que esta lista existe"
+                    texto="Encerrar reserva um código e produz documento. Se faltar algo, o relatório sairia afirmando menos do que foi visto — e com número de série. A lista mostra o que falta antes, não depois do clique."
+                  />{' '}
                   {faltas.length === 0
                     ? 'Pronto para encerrar'
                     : faltas.length === 1

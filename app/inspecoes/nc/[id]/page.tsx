@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import Ajuda from '@/components/Ajuda'
 import '../../inspecoes.css'
 import './rnc.css'
 
@@ -231,6 +232,10 @@ function RncConteudo() {
         <button type="button" className="btn btn-sm btn-primary" onClick={() => window.print()}>
           Imprimir ou salvar em PDF
         </button>
+        <Ajuda
+          titulo="O que é esta folha"
+          texto="A não conformidade inteira em oito seções, na ordem do item 10.2, para entregar ao cliente ou mostrar ao auditor. Reimprimir não muda o conteúdo: o rodapé diz a hora da última alteração, não a da impressão."
+        />
       </div>
 
       <div className="rnc-cabeca-impressa">{rodape}</div>
