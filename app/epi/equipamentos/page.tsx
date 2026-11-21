@@ -303,35 +303,40 @@ export default function PainelEpi() {
         return
       }
 
+      /* A cópia da base pode estar atrasada em relação ao CAEPI: um CA
+       * renovado depois da importação aparece aqui com a validade antiga.
+       * Aconteceu com o CA 43377: a cópia dizia 29/08/2024 e o CAEPI ao
+       * vivo, 20/09/2028 — o arquivo publicado em gov.br estava parado
+       * desde 2020. Por isso, quando a cópia diz "vencido", a validade
+       * NÃO é preenchida com a data velha: fica o que a pessoa digitou,
+       * e a tela manda conferir no CAEPI. Datas comparadas como texto
+       * aaaa-mm-dd, que ordena certo e não passa pelo fuso. */
+      const hoje = new Date()
+      const hojeTexto = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+      const vencidoNaCopia = !!data.validade && data.validade < hojeTexto
+
       setForm((atual) => ({
         ...atual,
         ca: numero,
         nome: atual.nome.trim() || data.nome_equipamento || '',
         fabricante: atual.fabricante.trim() || data.razao_social || '',
-        validade_ca: data.validade || atual.validade_ca,
+        validade_ca: vencidoNaCopia ? atual.validade_ca : data.validade || atual.validade_ca,
         observacoes: data.descricao || atual.observacoes,
       }))
-      /* Duas coisas diferentes podem estar erradas, e uma não implica a
-       * outra: o CA 43377 está VÁLIDO na base do MTE e mesmo assim tem
-       * validade de 29/08/2024, já vencida. Por isso os dois avisos são
-       * checados separadamente. Datas comparadas como texto aaaa-mm-dd,
-       * que ordena certo e não passa pelo fuso. */
-      const hoje = new Date()
-      const hojeTexto = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
 
       const avisos: string[] = []
       if (data.situacao && data.situacao.toUpperCase() !== 'VÁLIDO') {
-        avisos.push(`na base do MTE este CA está ${data.situacao.toLowerCase()}`)
+        avisos.push(`a base importada mostra este CA como ${data.situacao.toLowerCase()}`)
       }
-      if (data.validade && data.validade < hojeTexto) {
-        const [a, m, d] = data.validade.split('-')
-        avisos.push(`o CA venceu em ${d}/${m}/${a}`)
+      if (vencidoNaCopia) {
+        const [a, m, d] = data.validade!.split('-')
+        avisos.push(`a base importada mostra validade até ${d}/${m}/${a}`)
       }
 
       setCaComAviso(avisos.length > 0)
       setAchadoCa(
         avisos.length
-          ? `Atenção: ${avisos.join('; ')}. Preenchi assim mesmo, confira antes de salvar.`
+          ? `Atenção: ${avisos.join('; ')}. Essa base pode estar desatualizada: confira a validade no CAEPI e digite a data certa antes de salvar.`
           : 'Preenchido com os dados do certificado.'
       )
     } finally {
@@ -772,7 +777,23 @@ export default function PainelEpi() {
                       {buscandoCa ? 'Buscando…' : 'Buscar no CAEPI'}
                     </button>
                   </div>
-                  {achadoCa && <p className={caComAviso ? 'dica bad' : 'dica'}>{achadoCa}</p>}
+                  {achadoCa && (
+                    <p className={caComAviso ? 'dica bad' : 'dica'}>
+                      {achadoCa}
+                      {caComAviso && (
+                        <>
+                          {' '}
+                          <a
+                            href="https://caepi.trabalho.gov.br/internet/ConsultaCAinternet.aspx"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Abrir o CAEPI
+                          </a>
+                        </>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="field">
                   <label htmlFor="epi-validade">Validade do CA</label>
