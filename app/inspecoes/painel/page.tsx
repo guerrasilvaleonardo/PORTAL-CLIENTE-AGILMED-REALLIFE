@@ -40,6 +40,14 @@ import { rotuloCausa } from '@/lib/vocabularioNC'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 
+/* O banco guarda 'media'; quem lê o painel espera "Média". */
+const GRAVIDADE: Record<string, string> = {
+  baixa: 'baixa',
+  media: 'média',
+  alta: 'alta',
+  critica: 'crítica',
+}
+
 const TIPO_INCIDENTE: Record<string, string> = {
   acidente_com_afastamento: 'Acidente com afastamento',
   acidente_sem_afastamento: 'Acidente sem afastamento',
@@ -546,7 +554,7 @@ function PainelInspecoesConteudo() {
                         <p className="insp-fatal-pe">
                           {n.local_nome || 'local não informado'}
                           {' · gravidade '}
-                          {n.gravidade}
+                          {GRAVIDADE[n.gravidade] || n.gravidade}
                           {' · '}
                           {n.prazo ? (
                             <b className={vencido ? 'vencido' : undefined}>
