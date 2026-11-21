@@ -66,6 +66,19 @@
   gap: 8px;
 }
 
+/* Três conclusões: conforme, oportunidade, não conformidade. No
+   celular viram coluna única abaixo de 420px — três alvos lado a lado
+   são três alvos que o polegar erra. */
+.campo-tipo.tres {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 420px) {
+  .campo-tipo.tres {
+    grid-template-columns: 1fr;
+  }
+}
+
 .campo-tipo button {
   font: inherit;
   font-size: 13px;
@@ -85,9 +98,19 @@
   font-weight: 600;
 }
 
-.campo-tipo button:nth-child(2).sel {
+.campo-tipo button.bom.sel {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.campo-tipo button.melhoria.sel {
+  border-color: var(--amber, #b7791f);
+  background: color-mix(in srgb, var(--amber, #b7791f) 12%, transparent);
+}
+
+.campo-tipo button.ruim.sel {
   border-color: var(--bad, #c0392b);
-  background: color-mix(in srgb, var(--bad, #c0392b) 10%, transparent);
+  background: color-mix(in srgb, var(--bad, #c0392b) 12%, transparent);
 }
 
 .campo-fotos {

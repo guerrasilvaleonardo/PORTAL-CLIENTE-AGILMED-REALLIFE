@@ -89,7 +89,13 @@ function CampoConteudo() {
   const [posicao, setPosicao] = useState<Posicao>(null)
   const [posicaoErro, setPosicaoErro] = useState('')
 
-  const [tipo, setTipo] = useState<'oportunidade' | 'nao_conformidade'>('oportunidade')
+  /*
+   * Três conclusões possíveis para o mesmo olhar: está certo, dá para
+   * melhorar, está errado. A inspetora pediu a primeira — relatório só
+   * de defeito descreve a empresa pior do que ela é, e não diz quantos
+   * itens foram olhados para achar os dois problemas.
+   */
+  const [tipo, setTipo] = useState<'conforme' | 'oportunidade' | 'nao_conformidade'>('conforme')
   const [descricao, setDescricao] = useState('')
   const [gravidade, setGravidade] = useState('media')
   const [prazo, setPrazo] = useState('')
@@ -368,7 +374,11 @@ function CampoConteudo() {
     setSalvando(true)
     try {
       const local = locais.find((l) => l.id === localId)
-      const oportunidade = tipo === 'oportunidade'
+      /* Conforme e oportunidade compartilham o mesmo tratamento: não
+         têm prazo, dono, gravidade nem aviso. O que muda é a conclusão
+         que fica registrada. */
+      const semAcao = tipo !== 'nao_conformidade'
+      const oportunidade = semAcao
 
       const { data, error } = await supabase
         .from('nao_conformidades')
@@ -379,7 +389,7 @@ function CampoConteudo() {
           local_id: localId || null,
           local_nome: local?.nome || null,
           descricao: descricao.trim(),
-          classificacao: oportunidade ? 'oportunidade' : null,
+          classificacao: tipo === 'nao_conformidade' ? null : tipo,
           /* Oportunidade entra como baixa para não inflar a fila de
              gravidade alta; a tela nem mostra o campo. */
           gravidade: oportunidade ? 'baixa' : gravidade,
@@ -403,7 +413,7 @@ function CampoConteudo() {
         {
           id: (data as any).id,
           descricao: descricao.trim(),
-          classificacao: oportunidade ? 'oportunidade' : null,
+          classificacao: tipo === 'nao_conformidade' ? null : tipo,
           gravidade: oportunidade ? 'baixa' : gravidade,
           prazo: oportunidade || !prazo ? null : prazo,
           responsavel_nome: oportunidade ? null : responsavel.trim() || null,
@@ -561,17 +571,24 @@ function CampoConteudo() {
 
           <div className="panel nao-imprimir">
             <div className="panel-body campo-form">
-              <div className="campo-tipo">
+              <div className="campo-tipo tres">
                 <button
                   type="button"
-                  className={tipo === 'oportunidade' ? 'sel' : ''}
-                  onClick={() => setTipo('oportunidade')}
+                  className={'bom' + (tipo === 'conforme' ? ' sel' : '')}
+                  onClick={() => setTipo('conforme')}
                 >
-                  Oportunidade de melhoria
+                  Conforme
                 </button>
                 <button
                   type="button"
-                  className={tipo === 'nao_conformidade' ? 'sel' : ''}
+                  className={'melhoria' + (tipo === 'oportunidade' ? ' sel' : '')}
+                  onClick={() => setTipo('oportunidade')}
+                >
+                  Oportunidade
+                </button>
+                <button
+                  type="button"
+                  className={'ruim' + (tipo === 'nao_conformidade' ? ' sel' : '')}
                   onClick={() => setTipo('nao_conformidade')}
                 >
                   Não conformidade
@@ -684,8 +701,9 @@ function CampoConteudo() {
                 </div>
               ) : (
                 <p className="campo-dica">
-                  Oportunidade não pede prazo nem responsável: nada está errado. Abrir ação
-                  corretiva do que não falhou ensina a equipe a parar de sugerir.
+                  {tipo === 'conforme'
+                    ? 'Conforme não pede prazo nem responsável: está certo e fica registrado. É o que mostra quantos itens foram olhados para achar os problemas — e sustenta o controle que deu certo.'
+                    : 'Oportunidade não pede prazo nem responsável: nada está errado. Abrir ação corretiva do que não falhou ensina a equipe a parar de sugerir.'}
                 </p>
               )}
 
@@ -733,10 +751,19 @@ function CampoConteudo() {
                   <li key={a.id}>
                     <span
                       className={
-                        'pill ' + (a.classificacao === 'oportunidade' ? 'good' : 'bad')
+                        'pill ' +
+                        (a.classificacao === 'conforme'
+                          ? 'good'
+                          : a.classificacao === 'oportunidade'
+                            ? 'warn'
+                            : 'bad')
                       }
                     >
-                      {a.classificacao === 'oportunidade' ? 'Melhoria' : 'Não conformidade'}
+                      {a.classificacao === 'conforme'
+                        ? 'Conforme'
+                        : a.classificacao === 'oportunidade'
+                          ? 'Melhoria'
+                          : 'Não conformidade'}
                     </span>
                     <p>{a.descricao}</p>
                     <p className="campo-mini">
