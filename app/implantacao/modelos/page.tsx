@@ -180,6 +180,7 @@ function ModelosConteudo() {
       <table className="tabela-colab">
         <thead>
           <tr>
+            <th>Norma</th>
             <th>Etapa</th>
             <th>Modelo</th>
             <th>Arquivo</th>
@@ -190,6 +191,12 @@ function ModelosConteudo() {
         <tbody>
           {MODELOS.map((m) => (
             <tr key={m.arquivo}>
+              <td>
+                {/* Etapa 3.5 da 9001 e 3.5 da 45001 são atividades
+                    diferentes: sem a norma ao lado, a coluna seguinte
+                    engana quem está publicando. */}
+                <span className="pill flat">{m.norma === '45001' ? 'ISO 45001' : 'ISO 9001'}</span>
+              </td>
               <td>
                 {m.etapa}.{m.atividade}
               </td>

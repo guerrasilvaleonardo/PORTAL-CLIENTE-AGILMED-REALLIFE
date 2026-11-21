@@ -100,10 +100,6 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/atendimento/relatorio-mensal', rotulo: 'Relatório mensal' },
   ],
   '/auditorias': [
-    /* Primeiro da lista de propósito: organizar vem antes de responder.
-     * Quem abre a auditoria sem a casa arrumada passa o dia procurando
-     * arquivo, e o que não aparece vira constatação. */
-    { href: '/auditorias/preparar', rotulo: 'Antes de começar' },
     /* Dentro do módulo o rótulo volta a ser curto: aqui já se sabe que
        se está auditando. O nome longo serve no menu principal, onde ele
        precisa se distinguir de "Implantar o sistema". */
@@ -115,6 +111,13 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/auditorias/modelos', rotulo: 'Modelos e explicações' },
   ],
   '/implantacao': [
+    /* Primeiro da lista de propósito: ter onde guardar vem antes de
+     * produzir o primeiro documento. Esta tela já esteve em Auditorias,
+     * e estava no módulo errado: quem precisa montar a estrutura é quem
+     * ainda não tem nada — quem audita já tem os documentos em algum
+     * lugar. A trilha chamava por ela na etapa 1 obrigando o cliente a
+     * trocar de módulo na terceira atividade. */
+    { href: '/implantacao/preparar', rotulo: 'Antes de começar' },
     { href: '/implantacao', rotulo: 'Minha trilha' },
     /* Bancada da equipe: o cliente que entrar vê um aviso, não um erro. */
     { href: '/implantacao/modelos', rotulo: 'Modelos de documento' },

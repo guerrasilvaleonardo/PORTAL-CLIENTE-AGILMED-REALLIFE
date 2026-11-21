@@ -180,7 +180,7 @@ function PrepararConteudo() {
   return (
     <div className="app">
       <div>
-        <p className="eyebrow">AUDITORIAS</p>
+        <p className="eyebrow">IMPLANTAÇÃO</p>
         <h1 className="titulo-tela">Antes de começar</h1>
         <p className="subtitulo-tela">
           Uma pasta por requisito da norma, na ordem da norma. Quando o auditor pedir o 8.5.4, é um
@@ -288,7 +288,14 @@ function PrepararConteudo() {
               <p style={{ margin: '6px 0 12px', color: 'var(--ink-muted)', fontSize: 14 }}>
                 As pastas que ficaram vazias já são a sua lista do que falta.
               </p>
-              <Link href="/auditorias" className="btn btn-primary">
+              {/* Os dois destinos, porque a tela serve aos dois casos:
+                  quem está montando o sistema volta para a trilha, e
+                  quem só está arrumando a casa antes de ser auditado
+                  segue para a auditoria. */}
+              <Link href="/implantacao" className="btn btn-primary">
+                Ir para a minha trilha
+              </Link>{' '}
+              <Link href="/auditorias" className="btn">
                 Ir para as auditorias
               </Link>
             </div>
@@ -301,7 +308,7 @@ function PrepararConteudo() {
 
 export default function PrepararAuditoria() {
   return (
-    <ComModulo modulo="auditoria">
+    <ComModulo modulo="implantacao" ou="auditoria">
       <PrepararConteudo />
     </ComModulo>
   )
