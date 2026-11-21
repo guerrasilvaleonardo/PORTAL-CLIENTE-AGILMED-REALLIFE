@@ -491,48 +491,23 @@ function PainelInspecoesConteudo() {
               </div>
               <div className="lbl">Eficácia verificada</div>
               <div className="dica">
+                {/* Encerrar não prova nada — prova é não voltar. A
+                    conta procura a mesma pergunta reprovando de novo
+                    no mesmo local nos 90 dias seguintes. */}
                 {eficacia.encerradas === 0
                   ? 'nenhuma encerrada no período'
-                  : `de ${eficacia.encerradas} encerradas`}
+                  : `de ${eficacia.encerradas} encerradas, sem voltar em 90 dias`}
               </div>
             </div>
           </div>
 
-          <div className="panel">
-            <div className="panel-head">
-              <div className="section-title">
-                Eficácia — a ação resolveu, ou o problema voltou?
-              </div>
-            </div>
-            <div className="panel-body">
-              {eficacia.encerradas === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
-                  Nenhuma não conformidade de inspeção encerrada no período.
-                </p>
-              ) : (
-                <div className="stats">
-                  <div className="stat good">
-                    <div className="num">{eficacia.taxa}%</div>
-                    <div className="lbl">Não voltaram em 90 dias</div>
-                  </div>
-                  <div className="stat">
-                    <div className="num">{eficacia.encerradas}</div>
-                    <div className="lbl">Encerradas no período</div>
-                  </div>
-                  <div className={'stat' + (eficacia.reincidiu ? ' bad' : '')}>
-                    <div className="num">{eficacia.reincidiu}</div>
-                    <div className="lbl">Voltaram a reprovar</div>
-                  </div>
-                </div>
-              )}
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
-                Encerrar não prova nada — prova é não voltar. Para cada não conformidade
-                encerrada, o portal procura a mesma pergunta reprovando de novo no mesmo local
-                nos 90 dias seguintes. É a verificação da eficácia que o item 10.2 pede,
-                virada em número.
-              </p>
-            </div>
-          </div>
+          {/*
+            * A GRADE DO MEIO, como no desenho: à esquerda o gráfico
+            * que explica o passado, à direita as duas listas que
+            * cobram o presente. Quem entra no painel lê a coluna da
+            * direita primeiro — é a que tem nome e prazo.
+            */}
+          <div className="insp-painel-grade">
 
           {/*
             * PRIMEIRO O QUE AINDA PODE MATAR.
@@ -590,12 +565,6 @@ function PainelInspecoesConteudo() {
             </div>
           </div>
 
-          {/* Os dois lados da mesma pergunta, lado a lado: o que mais
-              produz não conformidade e o que volta a falhar no mesmo
-              lugar. Separados por uma tela de rolagem, ninguém os lia
-              junto. */}
-          <div className="insp-duas">
-
           {/*
             * O Pareto das causas.
             *
@@ -605,7 +574,7 @@ function PainelInspecoesConteudo() {
             */}
           <div className="panel">
             <div className="panel-head">
-              <div className="section-title">Causas-raiz — o que mais produz não conformidade</div>
+              <div className="section-title">Causas-raiz mais frequentes</div>
             </div>
             <div className="panel-body">
               {pareto.linhas.length === 0 ? (
@@ -656,7 +625,7 @@ function PainelInspecoesConteudo() {
 
           <div className="panel">
             <div className="panel-head">
-              <div className="section-title">Reincidência — a pergunta que falha de novo</div>
+              <div className="section-title">Volta a acontecer no mesmo lugar</div>
             </div>
             <div className="panel-body">
               {reincidencia.length === 0 ? (
@@ -694,6 +663,75 @@ function PainelInspecoesConteudo() {
             </div>
           </div>
 
+          </div>
+
+          {/*
+            * AS ÚLTIMAS VISITAS, uma linha cada.
+            *
+            * Fecha o painel com o trabalho concreto por trás dos
+            * números de cima: quem foi, onde, o que achou e se o
+            * documento já saiu. É também o atalho mais usado — de
+            * olhar um número e querer ver a visita que o produziu.
+            */}
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Últimas inspeções</div>
+              <Link href="/inspecoes" className="btn btn-sm">
+                Ver todas
+              </Link>
+            </div>
+            <div className="panel-body">
+              {ultimas.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
+                  Nenhuma inspeção no período.
+                </p>
+              ) : (
+                <table className="tabela-colab">
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Local</th>
+                      <th>Achados</th>
+                      <th>Inspetor</th>
+                      <th>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ultimas.map((u) => (
+                      <tr key={u.chave}>
+                        <td className="mono">
+                          <Link href={'/inspecoes/' + u.inspecaoId}>
+                            {u.codigo || 'sem código'}
+                          </Link>
+                        </td>
+                        <td>{u.local}</td>
+                        <td>
+                          {u.naoConformes > 0 ? (
+                            <b style={{ color: 'var(--danger)' }}>{u.naoConformes} NC</b>
+                          ) : (
+                            <span style={{ color: 'var(--ink-faint)' }}>sem NC</span>
+                          )}
+                          <span style={{ color: 'var(--ink-muted)' }}>
+                            {' · '}
+                            {u.conformes} conformes
+                          </span>
+                        </td>
+                        <td>{u.inspetor}</td>
+                        <td>
+                          {u.emAndamento ? (
+                            <span className="pill warn">Em campo</span>
+                          ) : u.codigo ? (
+                            <span className="pill good">Relatório emitido</span>
+                          ) : (
+                            <span className="pill flat">Concluída · falta emitir</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           <div className="panel">
