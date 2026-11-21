@@ -246,3 +246,113 @@
   gap: 7px;
   min-width: 0;
 }
+
+/* ---------------------------------------------------------------
+ * A COLUNA ESCURA — a moldura do desenho aprovado.
+ *
+ * POR QUE ESCURA. O menu não é conteúdo: é o lugar onde se está. Em
+ * branco sobre branco, ele disputa atenção com a tabela, com os
+ * cartões e com os botões da tela — e a pessoa lê tudo como uma coisa
+ * só. Escuro, ele vira moldura: some quando você está trabalhando e
+ * aparece inteiro quando você procura para onde ir.
+ *
+ * VALE PARA O PORTAL TODO, de propósito. Um módulo com menu diferente
+ * dos outros obrigaria o cliente a aprender duas navegações no mesmo
+ * sistema.
+ *
+ * A COR NÃO É DA MARCA. Grafite quase preto convive com o azul da
+ * ÁgilMed e com o verde da Real Life sem brigar com nenhum dos dois —
+ * a marca continua mandando no cabeçalho e nos botões, que é onde ela
+ * deve aparecer.
+ * --------------------------------------------------------------- */
+
+.modtabs.vertical {
+  background: #14181f;
+  border: none;
+  padding: 18px 10px;
+  gap: 1px;
+}
+
+/* O nome do módulo. Fechado é discreto; aberto fica claro e com fundo,
+   para a pessoa achar onde está sem procurar. */
+.modtabs.vertical a,
+.modtabs.vertical .modtab-botao {
+  color: #c7cdd8;
+  font-weight: 500;
+  font-size: 13.5px;
+  padding: 8px 11px;
+  border-radius: 9px;
+}
+
+.modtabs.vertical a:hover,
+.modtabs.vertical .modtab-botao:hover {
+  background: #1c2430;
+  color: #ffffff;
+}
+
+.modtabs.vertical a.active,
+.modtabs.vertical .modtab-botao.active {
+  background: #1f2a36;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* A seta da sanfona é desenhada com borda: no escuro ela precisa da
+   cor clara, senão vira um buraco. */
+.modtabs.vertical .modtab-seta {
+  border-color: #96a0b1;
+}
+
+/* As seções do módulo aberto. O risco da esquerda sai: no escuro ele
+   vira uma cicatriz, e o recuo já diz que são filhas. */
+.modtabs.vertical .submenu {
+  border-left: none;
+  margin-left: 10px;
+  padding-left: 10px;
+}
+
+.modtabs.vertical .submenu a {
+  color: #c7cdd8;
+  font-weight: 500;
+}
+
+.modtabs.vertical .submenu a:hover {
+  background: #1c2430;
+  color: #ffffff;
+}
+
+.modtabs.vertical .submenu a.active {
+  background: #1f2a36;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Os três níveis continuam se separando: módulo claro e forte, grupo
+   em caixa alta miúda, item leve. */
+.modtabs.vertical .submenu-grupo {
+  color: #96a0b1;
+}
+
+/* Contadores e avisos dentro da coluna escura. */
+.modtabs.vertical .balao-nao-lidas {
+  box-shadow: none;
+}
+
+/* Ferramenta não contratada: apagada, mas ainda legível e clicável. */
+.modtabs.vertical a.bloqueado {
+  color: #7e8798;
+}
+
+.portal-menu {
+  /* A coluna escura encosta no alto da área de conteúdo em vez de
+     flutuar no meio do branco. */
+  padding-top: 14px;
+}
+
+@media (max-width: 860px) {
+  /* Celular: a coluna vira faixa. Continua escura, para o conteúdo
+     branco embaixo começar com uma borda clara de separação. */
+  .modtabs.vertical {
+    padding: 12px 10px;
+  }
+}
