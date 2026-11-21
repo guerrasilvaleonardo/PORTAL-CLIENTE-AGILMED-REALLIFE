@@ -122,23 +122,35 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     /* Bancada da equipe: o cliente que entrar vê um aviso, não um erro. */
     { href: '/implantacao/modelos', rotulo: 'Modelos de documento' },
   ],
+  /*
+   * A ordem segue o dia de quem usa, não a ordem em que as telas
+   * foram feitas: ONDE ESTOU → O QUE FAÇO → O QUE SAIU DISSO → O QUE
+   * ENTREGO → O QUE PREPARO ANTES. É a mesma lógica do menu de EPI, e
+   * manter as duas iguais faz o cliente aprender uma vez só.
+   *
+   * O que estava errado antes: os relatórios vinham antes das telas
+   * que os produzem, e quem abria o módulo encontrava primeiro o
+   * documento de um trabalho que ainda não tinha feito.
+   */
   '/inspecoes': [
     { href: '/inspecoes/painel', rotulo: 'Visão geral' },
-    /* "Visão geral" é para olhar; "Relatório" é para entregar. São o
-       mesmo número com usos diferentes, e sem a entrada no menu o
-       documento existia sem ninguém achar. */
-    { href: '/inspecoes/relatorio', rotulo: 'Relatório do período' },
-    /* O arquivo: é o que a auditoria pede ver, e é onde a sequência
-       dos códigos mostra se faltou mês. */
-    { href: '/inspecoes/relatorios', rotulo: 'Relatórios emitidos' },
-    /* Primeiro das ações, porque é a de campo: quem está no cliente
-       abre esta e não procura mais nada. */
+
+    /* O que faço. Campo primeiro: é a tela diária, aberta de pé no
+       cliente, e a que mais vezes se procura. */
     { href: '/inspecoes/campo', rotulo: 'Apontamento de campo' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
-    /* Perto dos modelos, porque é preparação: imprime-se uma vez e
-       cola-se no cliente. */
-    { href: '/inspecoes/locais', rotulo: 'Locais e etiquetas' },
+
+    /* O que saiu disso, e precisa de alguém. */
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
+
+    /* O que entrego. O arquivo vem antes do consolidado porque é o
+       que a auditoria pede ver — e é nele que a sequência dos códigos
+       mostra se faltou mês. */
+    { href: '/inspecoes/relatorios', rotulo: 'Relatórios emitidos' },
+    { href: '/inspecoes/relatorio', rotulo: 'Relatório do período' },
+
+    /* O que preparo antes, e quase nunca mexo depois. */
+    { href: '/inspecoes/locais', rotulo: 'Locais e etiquetas' },
     { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
   ],
   '/epi': [
@@ -158,6 +170,14 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
   const pathname = usePathname()
 
   const [marca, setMarca] = useState<Marca | null>(null)
+  /*
+   * O que o usuário abriu ou fechou à mão. Sem entrada aqui, o módulo
+   * segue a rota: quem chega numa tela de Inspeções encontra a lista
+   * dela aberta, sem precisar clicar. A escolha dele vale enquanto a
+   * página viver — guardar no navegador faria o menu lembrar de um
+   * módulo fechado semanas depois, e a pessoa acharia que sumiu.
+   */
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({})
   const [interno, setInterno] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [saindo, setSaindo] = useState(false)
@@ -431,6 +451,70 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
             const naSecao = (href: string) =>
               pathname === href || (href !== item.href && pathname.startsWith(href + '/'))
 
+            /*
+             * Sanfona: o módulo com seções abre e fecha no clique, em
+             * vez de só acender quando a rota cai dentro dele.
+             *
+             * POR QUE O NOME DO MÓDULO DEIXA DE SER LINK quando há
+             * seções. A primeira seção de todo módulo é a tela
+             * principal dele ("Visão geral", "Auditorias", "Minha
+             * trilha"), então nada fica inalcançável — e um elemento
+             * que às vezes navega e às vezes abre uma lista é o tipo
+             * de botão que ninguém aprende.
+             *
+             * Módulo sem seções continua link direto: ali não há o que
+             * abrir.
+             */
+            const temSecoes = !!secoes && secoes.length > 0 && !bloqueado
+            const expandido = temSecoes && (abertos[item.href] ?? aberto)
+
+            if (temSecoes) {
+              return (
+                <div key={item.href} className="modtab-grupo">
+                  <button
+                    type="button"
+                    className={'modtab-botao' + (aberto ? ' active' : '')}
+                    aria-expanded={expandido}
+                    onClick={() =>
+                      setAbertos((a) => ({ ...a, [item.href]: !(a[item.href] ?? aberto) }))
+                    }
+                  >
+                    <span className="modtab-nome">
+                      {item.rotulo}
+                      {/* O balão mora no módulo, e Atendimento tem
+                          seções: sem repeti-lo aqui, o aviso de
+                          mensagem nova sumiria para a equipe. */}
+                      {item.href === (interno ? '/atendimento' : '/chamados') &&
+                        chamadosNovos > 0 && (
+                          <span
+                            className="balao-nao-lidas"
+                            title={
+                              chamadosNovos === 1
+                                ? '1 chamado com mensagem nova'
+                                : chamadosNovos + ' chamados com mensagem nova'
+                            }
+                            aria-label={chamadosNovos + ' chamados com mensagem nova'}
+                          >
+                            {chamadosNovos > 9 ? '9+' : chamadosNovos}
+                          </span>
+                        )}
+                    </span>
+                    <span className={'modtab-seta' + (expandido ? ' aberta' : '')} aria-hidden="true" />
+                  </button>
+
+                  {expandido && (
+                    <div className="submenu">
+                      {secoes.map((s) => (
+                        <Link key={s.href} href={s.href} className={naSecao(s.href) ? 'active' : ''}>
+                          {s.rotulo}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+
             return (
               <div key={item.href} className="modtab-grupo">
                 <Link
@@ -469,21 +553,6 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
                   )}
                 </Link>
 
-                {/* As seções só aparecem no módulo aberto: a lista
-                    inteira de uma vez vira um paredão de links. */}
-                {aberto && secoes && !bloqueado && (
-                  <div className="submenu">
-                    {secoes.map((s) => (
-                      <Link
-                        key={s.href}
-                        href={s.href}
-                        className={naSecao(s.href) ? 'active' : ''}
-                      >
-                        {s.rotulo}
-                      </Link>
-                    ))}
-                  </div>
-                )}
               </div>
             )
           })}
