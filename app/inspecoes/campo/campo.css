@@ -651,3 +651,68 @@
   color: var(--ink-muted);
   line-height: 1.45;
 }
+
+/* ----------------------------------------------------------------
+ * A mesma tela num monitor.
+ *
+ * Ela nasceu para o celular, e isso estava certo: quem aponta está de
+ * pé, de capacete, às vezes de luva. O que estava errado era tratar o
+ * monitor como um celular grande — 640 px de conteúdo e metade da tela
+ * em branco, com as abas dos checklists escondidas atrás de uma seta
+ * de rolagem que ninguém procura.
+ *
+ * Aqui a largura vira espaço útil: as abas aparecem todas de uma vez,
+ * a pergunta fica ao lado das respostas em vez de empilhada, e o que
+ * já foi apontado acompanha ao lado, sem precisar rolar até o fim para
+ * lembrar o que já se viu.
+ *
+ * Nada disso vale abaixo de 900 px, que é onde a tela de verdade é
+ * usada.
+ * ---------------------------------------------------------------- */
+
+@media (min-width: 900px) {
+  .campo {
+    max-width: 1180px;
+  }
+
+  /* Caber é melhor que rolar: com espaço, todos os checklists da
+     visita ficam à vista. */
+  .campo-abas {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  /* Pergunta à esquerda, resposta à direita, na mesma linha. No
+     celular isso empilha, porque ali a largura é o que falta. */
+  .campo-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px 20px;
+    padding: 10px 0;
+  }
+
+  .campo-item > .campo-pergunta {
+    flex: 1 1 auto;
+    margin: 0;
+    padding-top: 7px;
+  }
+
+  .campo-item > .campo-respostas {
+    flex: 0 0 340px;
+  }
+
+  /* A observação do item continua embaixo, ocupando a linha inteira. */
+  .campo-item > .campo-obs {
+    flex: 1 0 100%;
+  }
+}
+
+@media (min-width: 1180px) {
+  /* O que já foi apontado acompanha a coluna da direita e fica
+     parado na tela enquanto a lista de perguntas rola. */
+  .campo-visita {
+    position: sticky;
+    top: 16px;
+  }
+}
