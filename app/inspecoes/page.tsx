@@ -197,6 +197,88 @@ function InspecoesConteudo() {
     [inspecoes, empresaAtual]
   )
 
+  /*
+   * UMA LINHA POR VISITA, não por checklist.
+   *
+   * Sete checklists escolhidos na mesma ida ao cliente viravam sete
+   * linhas iguais na lista — mesmo local, mesmo inspetor, mesma hora —
+   * como se fossem sete inspeções. Não são: são uma visita só, que
+   * termina num documento só, com um código só. A tela estava
+   * contando a história do banco (onde cada checklist é mesmo uma
+   * linha, para o percentual sair por norma) em vez da história do
+   * trabalho.
+   *
+   * Inspeção antiga, sem visita, continua uma linha por si: ali o
+   * checklist é a visita inteira.
+   */
+  const linhas = useMemo(() => {
+    const grupos = new Map<string, Inspecao[]>()
+
+    for (const i of visiveis) {
+      const chave = i.visita_id || 'avulsa:' + i.id
+      const atual = grupos.get(chave)
+      if (atual) atual.push(i)
+      else grupos.set(chave, [i])
+    }
+
+    return [...grupos.entries()]
+      .map(([chave, itens]) => {
+        const primeira = itens[0]
+        const visitaId = primeira.visita_id
+        const emitido = visitaId ? relatorioDaVisita[visitaId] || null : null
+
+        /* A visita só está concluída quando nenhum checklist dela
+           continua aberto: um respondido e três em branco é visita em
+           campo, não visita pronta. */
+        const emCampo = itens.some((i) => i.situacao === 'em_andamento')
+        const todasCanceladas = itens.every((i) => i.situacao === 'cancelada')
+        const situacao = todasCanceladas ? 'cancelada' : emCampo ? 'em_andamento' : 'concluida'
+
+        /* Conformidade da visita: média ponderada pelos itens de cada
+           checklist. Média simples faria um checklist de 3 perguntas
+           pesar igual a um de 40. */
+        const comNota = itens.filter((i) => i.percentual !== null && i.itens_total > 0)
+        const pesoTotal = comNota.reduce((s, i) => s + i.itens_total, 0)
+        const percentual = pesoTotal
+          ? Math.round(
+              (comNota.reduce((s, i) => s + Number(i.percentual) * i.itens_total, 0) / pesoTotal) *
+                100
+            ) / 100
+          : null
+
+        const quando = itens
+          .map((i) => i.concluida_em || i.iniciada_em)
+          .sort()
+          .slice(-1)[0]
+
+        return {
+          chave,
+          visitaId,
+          titulo:
+            itens.length === 1
+              ? primeira.modelo_nome + (primeira.norma ? ' · ' + primeira.norma : '')
+              : itens.length + ' checklists nesta visita',
+          detalhe:
+            itens.length === 1
+              ? null
+              : itens
+                  .map((i) => i.norma || i.modelo_nome)
+                  .filter((v, k, a) => a.indexOf(v) === k)
+                  .join(' · '),
+          local: primeira.local_nome || '—',
+          inspetor: primeira.inspetor_nome || '—',
+          quando,
+          situacao,
+          emitido,
+          naoConformes: itens.reduce((s, i) => s + (i.nao_conformes || 0), 0),
+          percentual,
+          /* Uma só: é por ela que se abre quando não há visita. */
+          inspecaoId: primeira.id,
+        }
+      })
+      .sort((a, b) => (b.quando || '').localeCompare(a.quando || ''))
+  }, [visiveis, relatorioDaVisita])
+
   const modelosDisponiveis = modelos.filter(
     (m) => m.ativo && (m.empresa_id === null || m.empresa_id === empresaAtual)
   )
@@ -507,7 +589,7 @@ function InspecoesConteudo() {
         <table className="tabela-colab">
           <thead>
             <tr>
-              <th>Checklist</th>
+              <th>Visita</th>
               <th>Local</th>
               <th>Inspetor</th>
               <th>Quando</th>
@@ -523,63 +605,67 @@ function InspecoesConteudo() {
             </tr>
           </thead>
           <tbody>
-            {visiveis.map((i) => (
-              <tr key={i.id}>
+            {linhas.map((l) => (
+              <tr key={l.chave}>
                 <td className="nome">
-                  {i.modelo_nome}
-                  {i.norma ? ' · ' + i.norma : ''}
+                  {l.titulo}
+                  {l.detalhe && (
+                    <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--ink-muted)', marginTop: 2 }}>
+                      {l.detalhe}
+                    </div>
+                  )}
                 </td>
-                <td>{i.local_nome || '—'}</td>
-                <td>{i.inspetor_nome || '—'}</td>
-                <td>{dataHora(i.concluida_em || i.iniciada_em)}</td>
+                <td>{l.local}</td>
+                <td>{l.inspetor}</td>
+                <td>{dataHora(l.quando)}</td>
                 <td>
-                  {(() => {
-                    const emitido = i.visita_id ? relatorioDaVisita[i.visita_id] : null
-
-                    /* O documento emitido vence a situação do checklist:
-                       uma inspeção concluída cujo relatório já saiu não
-                       está "esperando" mais nada. */
-                    if (emitido && i.situacao !== 'cancelada') {
-                      return (
-                        <>
-                          <span className="pill good">Relatório emitido</span>
-                          <div className="mono" style={{ fontSize: 11.5, marginTop: 3 }}>
-                            {emitido.codigo}
-                            {emitido.revisao > 1 ? ' · rev. ' + emitido.revisao : ''}
-                          </div>
-                        </>
-                      )
-                    }
-
-                    if (i.situacao === 'em_andamento') return <span className="pill warn">Em campo</span>
-                    if (i.situacao === 'concluida')
-                      return (
-                        <>
-                          <span className="pill flat">Concluída</span>
-                          <div style={{ fontSize: 11.5, marginTop: 3, color: 'var(--ink-faint)' }}>
-                            falta emitir
-                          </div>
-                        </>
-                      )
-                    if (i.situacao === 'cancelada') return <span className="pill flat">Cancelada</span>
-                    return null
-                  })()}
+                  {l.emitido && l.situacao !== 'cancelada' ? (
+                    <>
+                      <span className="pill good">Relatório emitido</span>
+                      <div className="mono" style={{ fontSize: 11.5, marginTop: 3 }}>
+                        {l.emitido.codigo}
+                        {l.emitido.revisao > 1 ? ' · rev. ' + l.emitido.revisao : ''}
+                      </div>
+                    </>
+                  ) : l.situacao === 'em_andamento' ? (
+                    <span className="pill warn">Em campo</span>
+                  ) : l.situacao === 'concluida' ? (
+                    <>
+                      <span className="pill flat">Concluída</span>
+                      <div style={{ fontSize: 11.5, marginTop: 3, color: 'var(--ink-faint)' }}>
+                        falta emitir
+                      </div>
+                    </>
+                  ) : (
+                    <span className="pill flat">Cancelada</span>
+                  )}
                 </td>
                 <td>
-                  {i.percentual === null ? (
+                  {l.percentual === null ? (
                     '—'
                   ) : (
                     <>
-                      {i.percentual}%
-                      {i.nao_conformes > 0 && (
-                        <span className="pill bad"> {i.nao_conformes} NC</span>
-                      )}
+                      {l.percentual}%
+                      {l.naoConformes > 0 && <span className="pill bad"> {l.naoConformes} NC</span>}
                     </>
                   )}
                 </td>
                 <td className="acoes">
-                  <Link href={'/inspecoes/' + i.id} className="btn btn-sm">
-                    {i.situacao === 'em_andamento' ? 'Continuar' : 'Abrir'}
+                  {/* Continuar leva de volta ao campo com a visita
+                      aberta — não a um checklist solto dela. */}
+                  <Link
+                    href={
+                      l.situacao === 'em_andamento'
+                        ? l.visitaId
+                          ? '/inspecoes/campo?visita=' + l.visitaId
+                          : '/inspecoes/' + l.inspecaoId
+                        : l.visitaId
+                          ? '/inspecoes/visita/' + l.visitaId
+                          : '/inspecoes/' + l.inspecaoId
+                    }
+                    className="btn btn-sm"
+                  >
+                    {l.situacao === 'em_andamento' ? 'Continuar' : 'Abrir'}
                   </Link>
                 </td>
               </tr>
