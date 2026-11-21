@@ -340,41 +340,39 @@ function PainelInspecoesConteudo() {
                   acontecido — não pela gravidade do que aconteceu.
                 </p>
               ) : (
-                <table className="tabela-colab">
-                  <thead>
-                    <tr>
-                      <th>O que foi visto</th>
-                      <th>Local</th>
-                      <th>Gravidade</th>
-                      <th>Prazo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fatais.map((n) => {
-                      const vencido =
-                        n.prazo && n.prazo < new Date().toISOString().slice(0, 10)
-                      return (
-                        <tr key={n.id}>
-                          <td className="nome">{n.titulo || '—'}</td>
-                          <td>{n.local_nome || '—'}</td>
-                          {/* A gravidade fica à vista justamente para
-                              mostrar quantas são "baixa" e mesmo assim
-                              estão aqui. */}
-                          <td>{n.gravidade}</td>
-                          <td>
-                            {n.prazo ? (
-                              <span className={'pill ' + (vencido ? 'bad' : 'warn')}>
-                                {n.prazo.split('-').reverse().join('/')}
-                              </span>
-                            ) : (
-                              <span className="pill flat">sem prazo</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                /*
+                 * Cartão, e não linha de tabela.
+                 *
+                 * Tabela é para comparar muitas coisas parecidas. Aqui
+                 * são poucas e nenhuma é parecida com outra: cada uma é
+                 * um acidente que não aconteceu. O cartão tinto de
+                 * vermelho é lido de longe, de pé, na reunião — que é
+                 * onde esta lista costuma ser aberta.
+                 */
+                <ul className="insp-fatais">
+                  {fatais.map((n) => {
+                    const vencido = n.prazo && n.prazo < new Date().toISOString().slice(0, 10)
+                    return (
+                      <li key={n.id}>
+                        <p className="insp-fatal-tit">{n.titulo || 'Sem título'}</p>
+                        <p className="insp-fatal-pe">
+                          {n.local_nome || 'local não informado'}
+                          {' · gravidade '}
+                          {n.gravidade}
+                          {' · '}
+                          {n.prazo ? (
+                            <b className={vencido ? 'vencido' : undefined}>
+                              {vencido ? 'prazo vencido em ' : 'vence em '}
+                              {n.prazo.split('-').reverse().join('/')}
+                            </b>
+                          ) : (
+                            <b className="vencido">sem prazo definido</b>
+                          )}
+                        </p>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
             </div>
           </div>
