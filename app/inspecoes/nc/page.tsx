@@ -4,6 +4,8 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import AcoesDaNC from './AcoesDaNC'
+import Ajuda from '@/components/Ajuda'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 
@@ -40,6 +42,29 @@ const SITUACAO: Record<string, string> = {
   cancelada: 'Cancelada',
 }
 
+/*
+ * As quatro etapas do tratamento, nas abas da ficha.
+ *
+ * POR QUE ABAS E NÃO UMA COLUNA SÓ. Tudo empilhado, a ficha é uma
+ * página de vinte campos onde não se vê o que já foi feito nem o que
+ * falta: quem abre no meio do tratamento rola para cima e para baixo
+ * procurando onde parou. As abas são o ciclo do item 10.2 desenhado —
+ * o que aconteceu, por que aconteceu, o que vamos fazer, se adiantou —
+ * e a bolinha na aba diz qual delas ainda está vazia.
+ *
+ * Os botões de salvar e encerrar ficam FORA das abas, sempre à vista:
+ * o rascunho é um só, e esconder o botão de salvar atrás da aba certa
+ * seria a forma mais rápida de perder o que alguém acabou de digitar.
+ */
+const ABAS = [
+  { chave: 'ocorrencia', rotulo: 'Ocorrência' },
+  { chave: 'investigacao', rotulo: 'Investigação' },
+  { chave: 'plano', rotulo: 'Plano de ação' },
+  { chave: 'verificacao', rotulo: 'Verificação' },
+] as const
+
+type AbaFicha = (typeof ABAS)[number]['chave']
+
 const TIPO_INCIDENTE: Record<string, string> = {
   acidente_com_afastamento: 'Acidente com afastamento',
   acidente_sem_afastamento: 'Acidente sem afastamento',
@@ -54,6 +79,7 @@ type NC = {
   id: string
   empresa_id: string
   inspecao_id: string | null
+  codigo: string | null
   origem: string
   local_nome: string | null
   descricao: string
@@ -110,6 +136,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
   const [salvando, setSalvando] = useState(false)
   /* Encerrar é o fim da linha: a tela pergunta de novo antes. */
   const [confirmandoFim, setConfirmandoFim] = useState(false)
+  const [aba, setAba] = useState<AbaFicha>('ocorrencia')
 
   /* Lançar incidente. */
   const [abrindoIncidente, setAbrindoIncidente] = useState(false)
@@ -158,7 +185,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
       const { data, error } = await supabase
         .from('nao_conformidades')
         .select(
-          'id, empresa_id, inspecao_id, origem, local_nome, descricao, gravidade, classificacao, prazo, ' +
+          'id, empresa_id, inspecao_id, codigo, origem, local_nome, descricao, gravidade, classificacao, prazo, ' +
             'probabilidade, severidade, risco, porque_1, porque_2, porque_3, porque_4, porque_5, ' +
             'responsavel_nome, acao_imediata, causa, acao_corretiva, situacao, eficaz, ' +
             'verificacao_obs, ocorrido_em, tipo_incidente, envolvido_nome, afastamento_dias, created_at'
@@ -201,6 +228,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
   function abrir(n: NC) {
     setEscolhida(n.id)
     setConfirmandoFim(false)
+    setAba('ocorrencia')
     setRascunho({
       classificacao: n.classificacao,
       gravidade: n.gravidade,
@@ -329,6 +357,16 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     )
   }
 
+  /* A bolinha na aba: o que ainda está em branco. É a resposta à
+     pergunta que todo mundo faz na frente desta ficha — "falta o quê?"
+     — sem precisar abrir as quatro abas para descobrir. */
+  const faltando: Record<AbaFicha, boolean> = {
+    ocorrencia: false,
+    investigacao: !(rascunho.causa || '').trim(),
+    plano: !(rascunho.acao_corretiva || '').trim(),
+    verificacao: !(rascunho.verificacao_obs || '').trim(),
+  }
+
   /* A ficha de tratamento abre DENTRO da linha, não no fim da página.
    * Com trinta constatações, clicar em "Tratar" e ser jogado para o
    * rodapé faz perder de vista qual item estava sendo tratado — e na
@@ -343,6 +381,25 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             </button>
           </div>
           <div className="panel-body insp-ficha">
+            <nav className="ficha-abas nao-imprimir" aria-label="Etapas do tratamento">
+              {ABAS.map((a) => (
+                <button
+                  key={a.chave}
+                  type="button"
+                  className={'ficha-aba' + (aba === a.chave ? ' ativa' : '')}
+                  aria-current={aba === a.chave ? 'step' : undefined}
+                  onClick={() => setAba(a.chave)}
+                >
+                  {a.rotulo}
+                  {faltando[a.chave] && (
+                    <span className="ficha-aba-falta" aria-label="ainda em branco" title="ainda em branco" />
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            {aba === 'ocorrencia' && (
+            <>
             {/* Numa auditoria, o nível do achado é a primeira decisão e
                 muda tudo o que vem depois: a maior trava a certificação,
                 a oportunidade de melhoria não pede ação corretiva
@@ -459,6 +516,11 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
+            </>
+            )}
+
+            {aba === 'investigacao' && (
+            <>
             {/* Cinco porquês: cada resposta tem de explicar a anterior. É
                 o que tira a análise de "falta de atenção" e leva até o
                 processo, que é onde a ação corretiva funciona. */}
@@ -494,6 +556,11 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
+            </>
+            )}
+
+            {aba === 'plano' && (
+            <>
             <label>
               Ação corretiva — o que impede de acontecer de novo
               <textarea
@@ -502,6 +569,12 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
+            <AcoesDaNC ncId={atual.id} empresaId={atual.empresa_id} />
+            </>
+            )}
+
+            {aba === 'verificacao' && (
+            <>
             <label>
               Verificação da eficácia
               <textarea
@@ -553,6 +626,8 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                 </div>
               </div>
             ) : null}
+            </>
+            )}
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="btn" disabled={salvando} onClick={() => salvar(false)}>
@@ -738,6 +813,15 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
         <table className="tabela-colab">
           <thead>
             <tr>
+              {/* O código vem primeiro: é por ele que a NC é citada em
+                  ata, e-mail e auditoria. */}
+              <th style={{ width: 118 }}>
+                Número{' '}
+                <Ajuda
+                  titulo="Para que serve o número"
+                  texto="É por ele que a não conformidade é citada em ata, e-mail e auditoria, sem reler a descrição inteira. A sequência é por empresa e por ano, não repete e não pula."
+                />
+              </th>
               <th>O que foi encontrado</th>
               {/* Em auditoria a pergunta não é "de onde veio" — veio da
                   auditoria, todas vieram. O que importa é se é maior ou
@@ -756,6 +840,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               return (
                 <Fragment key={n.id}>
                 <tr>
+                  <td className="mono">{n.codigo || '—'}</td>
                   <td className="nome">
                     {n.descricao}
                     {n.envolvido_nome && (
@@ -802,12 +887,18 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                       onClick={() => (escolhida === n.id ? setEscolhida('') : abrir(n))}
                     >
                       {escolhida === n.id ? 'Fechar' : 'Tratar'}
-                    </button>
+                    </button>{' '}
+                    {/* A folha para entregar e arquivar. Separada de
+                        "Tratar" porque são dois momentos: um é
+                        preencher, o outro é mostrar a alguém. */}
+                    <a href={'/inspecoes/nc/' + n.id} className="btn btn-sm">
+                      Ficha
+                    </a>
                   </td>
                 </tr>
                 {escolhida === n.id && (
                   <tr className="linha-ficha">
-                    <td colSpan={auditoria ? 5 : 7}>{ficha}</td>
+                    <td colSpan={auditoria ? 6 : 8}>{ficha}</td>
                   </tr>
                 )}
                 </Fragment>

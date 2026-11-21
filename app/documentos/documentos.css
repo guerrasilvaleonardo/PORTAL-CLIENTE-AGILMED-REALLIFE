@@ -43,3 +43,64 @@
 /* Arquivo assinado e, para o cliente, o pedido de renovação à vista. */
 .doc-arquivo { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .cert-mais svg { display: block; }
+
+/* ----------------------------------------------------------------
+ * O acervo por tipo de documento.
+ *
+ * Cartão menor que o dos prazos de propósito: a pergunta aqui é de
+ * panorama, não de urgência, e com dez ou quinze tipos a faixa
+ * precisa caber sem empurrar a lista para fora da primeira tela.
+ * ---------------------------------------------------------------- */
+
+.doc-tipos-faixa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.doc-tipo-cartao {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 9px 13px;
+  min-width: 116px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.doc-tipo-cartao:hover {
+  border-color: var(--ink-faint);
+}
+
+.doc-tipo-cartao.ativo {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+}
+
+.doc-tipo-num {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-tipo-nome {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.doc-tipo-cartao.ativo .doc-tipo-nome {
+  color: var(--primary-strong);
+}
+
+.doc-tipo-vencidos {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--danger);
+}

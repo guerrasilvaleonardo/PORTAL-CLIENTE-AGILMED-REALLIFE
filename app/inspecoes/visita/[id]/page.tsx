@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import Ajuda from '@/components/Ajuda'
 import '../../../colaboradores/colaboradores.css'
 import '../../inspecoes.css'
 import '../../../auditorias/[id]/relatorio/relatorio.css'
@@ -266,7 +267,11 @@ function VisitaConteudo() {
 
       <div className={'rel-controle' + (relatorio ? '' : ' falta')}>
         <span>
-          <strong>Código:</strong> {relatorio?.codigo || 'não emitido'}
+          <strong>Código:</strong> {relatorio?.codigo || 'não emitido'}{' '}
+          <Ajuda
+            titulo="Código e revisão"
+            texto="O código identifica esta visita para sempre; reimprimir não gera número novo. Se algo mudar depois de emitido — um prazo repactuado, um texto corrigido —, use 'Registrar revisão': é o que a ISO 7.5.2 espera de um documento controlado."
+          />
         </span>
         <span>
           <strong>Revisão:</strong>{' '}

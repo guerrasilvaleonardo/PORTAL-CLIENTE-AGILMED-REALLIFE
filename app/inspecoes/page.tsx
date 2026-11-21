@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import Ajuda from '@/components/Ajuda'
 import '../colaboradores/colaboradores.css'
 import './inspecoes.css'
 
@@ -38,7 +39,24 @@ type Inspecao = {
   itens_total: number
   nao_conformes: number
   percentual: number | null
+  visita_id: string | null
 }
+
+/*
+ * O caminho de uma inspeção, escrito na tela.
+ *
+ * POR QUE ISTO EXISTE. A lista dizia "em andamento" ou "concluída" e
+ * parava aí. Só que concluir o checklist não é o fim: o fim é o
+ * relatório com código na mão do cliente — e entre uma coisa e outra
+ * cabem três dias e um telefonema perguntando "já posso mandar?".
+ * Quem abre esta tela precisa ver o caminho inteiro de uma vez, e em
+ * que degrau cada visita parou.
+ */
+const CAMINHO = [
+  { titulo: '1. Em campo', texto: 'Estou apontando. Pode fechar o celular e voltar.' },
+  { titulo: '2. Concluída', texto: 'Checklist respondido. Ainda dá para rever.' },
+  { titulo: '3. Relatório emitido', texto: 'Tem código, data e hora. Mudança vira revisão.' },
+]
 
 const dataHora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'
@@ -57,6 +75,9 @@ function InspecoesConteudo() {
   const [modelos, setModelos] = useState<Modelo[]>([])
   const [locais, setLocais] = useState<Local[]>([])
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
+  const [relatorioDaVisita, setRelatorioDaVisita] = useState<
+    Record<string, { codigo: string; revisao: number }>
+  >({})
 
   const [modeloEscolhido, setModeloEscolhido] = useState('')
   /* Os checklists desta inspeção. Vazio = nenhum escolhido ainda. */
@@ -102,7 +123,7 @@ function InspecoesConteudo() {
         .from('inspecoes')
         .select(
           'id, empresa_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, ' +
-            'concluida_em, situacao, itens_total, nao_conformes, percentual'
+            'concluida_em, situacao, itens_total, nao_conformes, percentual, visita_id'
         )
         /* Auditoria de sistema de gestão é outro processo e tem tela
          * própria. Misturar as duas aqui faria o canteiro e o requisito
@@ -120,6 +141,33 @@ function InspecoesConteudo() {
       }
 
       setInspecoes((lista || []) as unknown as Inspecao[])
+
+      /*
+       * Quais visitas já viraram documento. É isto que separa "o
+       * checklist acabou" de "o cliente tem o relatório": sem esta
+       * consulta a lista pararia na conclusão, que é justamente onde
+       * a dúvida começa.
+       *
+       * A tabela pode não existir ainda (migração não rodada): aqui o
+       * silêncio é a resposta certa — a coluna mostra a situação de
+       * antes em vez de quebrar a tela inteira.
+       */
+      const { data: emitidos } = await supabase
+        .from('relatorios_emitidos')
+        .select('visita_id, codigo, revisao')
+        .eq('tipo', 'inspecao')
+        .not('visita_id', 'is', null)
+        .limit(1000)
+
+      const porVisita: Record<string, { codigo: string; revisao: number }> = {}
+      for (const r of (emitidos || []) as any[]) {
+        /* Várias revisões do mesmo código: fica a mais alta. */
+        const atual = porVisita[r.visita_id]
+        if (!atual || r.revisao > atual.revisao) {
+          porVisita[r.visita_id] = { codigo: r.codigo, revisao: r.revisao }
+        }
+      }
+      setRelatorioDaVisita(porVisita)
 
       const [{ data: ms }, { data: ls }] = await Promise.all([
         /* Os checklists de auditoria ficam na tela de Auditorias. */
@@ -327,7 +375,29 @@ function InspecoesConteudo() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
-      <div className="filters">
+      {/*
+       * ONDE COMEÇA.
+       *
+       * Isto era uma barra de filtros com um botão no meio, e botão no
+       * meio de filtro ninguém vê: a pergunta "por onde eu começo?"
+       * veio de quem já tinha a tela aberta na frente. O começo agora
+       * tem título, número em cada passo e fica acima da lista, que é
+       * o resultado do trabalho — não a porta de entrada dele.
+       */}
+      <section className="insp-comecar">
+        <h2>
+          Começar uma inspeção{' '}
+          <Ajuda
+            titulo="O que é uma inspeção aqui"
+            texto="É uma visita ao cliente. Pode levar um checklist ou vários: tudo o que for apontado entra num documento só, com um código só. Quem vai a campo começa por aqui."
+          />
+        </h2>
+        <p className="insp-comecar-ajuda">
+          Escolha o que vai conferir e abra a visita. O apontamento de campo abre em seguida, já
+          com a visita aberta — e é lá que entram fotos, voz e os itens fora do checklist.
+        </p>
+
+        <div className="filters" style={{ margin: 0 }}>
         {interno && (
           <FiltroEmpresa
             valor={empresaFiltro}
@@ -353,7 +423,7 @@ function InspecoesConteudo() {
           }}
         >
           <option value="">
-            {extras.length ? 'Adicionar outro checklist…' : 'Modelo de checklist…'}
+            {extras.length ? '2. Juntar outro checklist…' : '1. Escolha o checklist…'}
           </option>
           {modelosDisponiveis
             .filter((m) => !extras.includes(m.id))
@@ -365,7 +435,7 @@ function InspecoesConteudo() {
             ))}
         </select>
         <select value={localEscolhido} onChange={(e) => setLocalEscolhido(e.target.value)}>
-          <option value="">Local (opcional)…</option>
+          <option value="">2. Local (opcional)…</option>
           {locaisDaEmpresa.map((l) => (
             <option key={l.id} value={l.id}>
               {l.nome}
@@ -376,14 +446,15 @@ function InspecoesConteudo() {
           {abrindo
             ? 'Abrindo…'
             : extras.length > 1
-              ? `Nova inspeção · ${extras.length} checklists`
-              : 'Nova inspeção'}
+              ? `3. Começar · ${extras.length} checklists`
+              : '3. Começar a inspeção'}
         </button>
         <span style={{ flex: 1 }} />
         <Link href="/inspecoes/modelos" className="btn btn-sm">
           Modelos
         </Link>
-      </div>
+        </div>
+      </section>
 
       {extras.length > 0 && (
         <div className="panel" style={{ marginBottom: 14 }}>
@@ -412,15 +483,27 @@ function InspecoesConteudo() {
         </div>
       )}
 
+      {/* O caminho fica à vista mesmo sem nenhuma inspeção: é
+          justamente quem ainda não fez a primeira que precisa dele. */}
+      <ol className="insp-caminho nao-imprimir">
+        {CAMINHO.map((passo) => (
+          <li key={passo.titulo}>
+            <strong>{passo.titulo}</strong>
+            <span>{passo.texto}</span>
+          </li>
+        ))}
+      </ol>
+
       {carregando ? (
         <p className="empty-state">Carregando…</p>
       ) : visiveis.length === 0 ? (
         <p className="empty-state">
           {interno && !empresaFiltro
             ? 'Escolha a empresa para ver as inspeções.'
-            : 'Nenhuma inspeção ainda.'}
+            : 'Nenhuma inspeção ainda. A primeira começa no quadro acima.'}
         </p>
       ) : (
+        <>
         <table className="tabela-colab">
           <thead>
             <tr>
@@ -428,7 +511,13 @@ function InspecoesConteudo() {
               <th>Local</th>
               <th>Inspetor</th>
               <th>Quando</th>
-              <th>Situação</th>
+              <th>
+                Situação{' '}
+                <Ajuda
+                  titulo="Até onde foi"
+                  texto="Em campo: ainda apontando. Concluída · falta emitir: o checklist acabou e o relatório nunca saiu. Relatório emitido: o cliente tem o documento, com código e revisão."
+                />
+              </th>
               <th>Conformidade</th>
               <th className="acoes" />
             </tr>
@@ -444,9 +533,37 @@ function InspecoesConteudo() {
                 <td>{i.inspetor_nome || '—'}</td>
                 <td>{dataHora(i.concluida_em || i.iniciada_em)}</td>
                 <td>
-                  {i.situacao === 'em_andamento' && <span className="pill warn">Em andamento</span>}
-                  {i.situacao === 'concluida' && <span className="pill good">Concluída</span>}
-                  {i.situacao === 'cancelada' && <span className="pill flat">Cancelada</span>}
+                  {(() => {
+                    const emitido = i.visita_id ? relatorioDaVisita[i.visita_id] : null
+
+                    /* O documento emitido vence a situação do checklist:
+                       uma inspeção concluída cujo relatório já saiu não
+                       está "esperando" mais nada. */
+                    if (emitido && i.situacao !== 'cancelada') {
+                      return (
+                        <>
+                          <span className="pill good">Relatório emitido</span>
+                          <div className="mono" style={{ fontSize: 11.5, marginTop: 3 }}>
+                            {emitido.codigo}
+                            {emitido.revisao > 1 ? ' · rev. ' + emitido.revisao : ''}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    if (i.situacao === 'em_andamento') return <span className="pill warn">Em campo</span>
+                    if (i.situacao === 'concluida')
+                      return (
+                        <>
+                          <span className="pill flat">Concluída</span>
+                          <div style={{ fontSize: 11.5, marginTop: 3, color: 'var(--ink-faint)' }}>
+                            falta emitir
+                          </div>
+                        </>
+                      )
+                    if (i.situacao === 'cancelada') return <span className="pill flat">Cancelada</span>
+                    return null
+                  })()}
                 </td>
                 <td>
                   {i.percentual === null ? (
@@ -469,6 +586,7 @@ function InspecoesConteudo() {
             ))}
           </tbody>
         </table>
+        </>
       )}
     </div>
   )

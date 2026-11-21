@@ -5,6 +5,7 @@ import Link from 'next/link'
 import QRCode from 'qrcode'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import Ajuda from '@/components/Ajuda'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
@@ -169,7 +170,13 @@ function LocaisConteudo() {
     <div className="app">
       <div className="nao-imprimir">
         <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">Locais e etiquetas</h1>
+        <h1 className="titulo-tela">
+          Locais e etiquetas{' '}
+          <Ajuda
+            titulo="Etiquetas de QR"
+            texto="Imprima e cole no local. Quem apontar a câmera do celular cai direto no apontamento daquele ponto, com o nome sempre escrito igual. A etiqueta não dá acesso a nada: leva a uma tela que continua pedindo login."
+          />
+        </h1>
         <p className="subtitulo-tela">
           Cole a etiqueta no local. Quem apontar a câmera do celular cai direto no apontamento
           daquele ponto — sem escolher nada e sem errar o nome.
