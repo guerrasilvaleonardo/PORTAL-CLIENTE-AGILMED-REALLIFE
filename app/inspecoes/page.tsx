@@ -327,6 +327,18 @@ function InspecoesConteudo() {
     setPagina(0)
   }, [busca, localFiltro, situacaoFiltro, empresaAtual])
 
+  /*
+   * O aviso some quando o problema é resolvido.
+   *
+   * "Escolha a empresa antes de começar" continuava na tela depois de
+   * a empresa ser escolhida, e a pessoa ficava procurando o que mais
+   * estaria errado. Aviso que não some vira ruído, e ruído faz o
+   * próximo aviso de verdade ser ignorado.
+   */
+  useEffect(() => {
+    setErro('')
+  }, [empresaAtual, modeloEscolhido, extras.length])
+
   /* Os locais que realmente aparecem na lista, não o cadastro inteiro:
      filtro que oferece opção sem resultado é filtro que frustra. */
   const locaisNaLista = useMemo(
@@ -534,14 +546,38 @@ function InspecoesConteudo() {
               </option>
             ))}
         </select>
-        <select value={localEscolhido} onChange={(e) => setLocalEscolhido(e.target.value)}>
-          <option value="">2. Local (opcional)…</option>
+        {/*
+          * O SELETOR DE LOCAL DIZ POR QUE ESTÁ VAZIO.
+          *
+          * Antes ele aparecia com uma opção só e nenhuma explicação:
+          * quem abria a tela achava que era defeito. São dois motivos
+          * diferentes, e cada um pede uma frase — ainda não escolheu a
+          * empresa, ou a empresa não tem local cadastrado. O segundo
+          * leva direto ao cadastro, porque é lá que se resolve.
+          */}
+        <select
+          value={localEscolhido}
+          onChange={(e) => setLocalEscolhido(e.target.value)}
+          disabled={!empresaAtual || locaisDaEmpresa.length === 0}
+        >
+          <option value="">
+            {!empresaAtual
+              ? 'Escolha a empresa primeiro'
+              : locaisDaEmpresa.length === 0
+                ? 'Esta empresa não tem local cadastrado'
+                : '2. Local (opcional)…'}
+          </option>
           {locaisDaEmpresa.map((l) => (
             <option key={l.id} value={l.id}>
               {l.nome}
             </option>
           ))}
         </select>
+        {empresaAtual && locaisDaEmpresa.length === 0 && (
+          <Link href="/inspecoes/locais" className="btn btn-sm">
+            Cadastrar local
+          </Link>
+        )}
         <button type="button" className="btn btn-primary" disabled={abrindo} onClick={comecar}>
           {abrindo
             ? 'Abrindo…'
