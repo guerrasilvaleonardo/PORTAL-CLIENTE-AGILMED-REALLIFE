@@ -50,6 +50,8 @@ const TIPO_INCIDENTE: Record<string, string> = {
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 
+type Acao = { id: string; empresa_id: string; prazo: string | null; situacao: string }
+
 type Inspecao = InspecaoIndicador
 type Resposta = RespostaIndicador
 type NC = NcIndicador
@@ -75,6 +77,9 @@ function PainelInspecoesConteudo() {
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
   const [respostas, setRespostas] = useState<Resposta[]>([])
   const [ncs, setNcs] = useState<NC[]>([])
+  /* Só o que o painel precisa saber de um plano: de quem é, para
+     quando, e se ainda está vivo. */
+  const [acoes, setAcoes] = useState<Acao[]>([])
 
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
@@ -135,7 +140,13 @@ function PainelInspecoesConteudo() {
 
       setInspecoes((insp || []) as unknown as Inspecao[])
 
-      const [{ data: rs }, { data: ns }] = await Promise.all([
+      /*
+       * Os planos entram no painel por um motivo só: plano atrasado é
+       * o indicador que o cliente cobra na reunião. Conformidade alta
+       * com plano vencido é tratamento que parou no meio, e só este
+       * número mostra isso.
+       */
+      const [{ data: rs }, { data: ns }, { data: as }] = await Promise.all([
         supabase.from('inspecao_respostas').select('id, inspecao_id, pergunta, resposta').limit(20000),
         supabase
           .from('nao_conformidades')
@@ -146,10 +157,15 @@ function PainelInspecoesConteudo() {
           )
           .eq('tipo', 'inspecao')
           .limit(2000),
+        supabase
+          .from('nc_acoes')
+          .select('id, empresa_id, prazo, situacao')
+          .limit(4000),
       ])
 
       setRespostas((rs || []) as unknown as Resposta[])
       setNcs((ns || []) as unknown as NC[])
+      setAcoes((as || []) as unknown as Acao[])
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível montar o painel.')
@@ -200,6 +216,42 @@ function PainelInspecoesConteudo() {
 
   const pareto = useMemo(() => calcPareto(ncsVisiveis), [ncsVisiveis])
   const fatais = useMemo(() => potencialFatalEmAberto(ncsVisiveis), [ncsVisiveis])
+
+  /*
+   * Plano atrasado é o número que o cliente cobra na reunião:
+   * conformidade alta com plano vencido é tratamento que parou no
+   * meio. O filtro de período não vale aqui de propósito — atraso não
+   * tem data de validade, e esconder o antigo seria o mesmo que
+   * perdoá-lo.
+   */
+  const planosAtrasados = useMemo(() => {
+    const limite = new Date().toISOString().slice(0, 10)
+    return acoes.filter(
+      (a) =>
+        (!empresaAtual || a.empresa_id === empresaAtual) &&
+        !!a.prazo &&
+        a.prazo < limite &&
+        !['encerrada', 'cancelada'].includes(a.situacao)
+    ).length
+  }, [acoes, empresaAtual])
+
+  /*
+   * Quantos dias a empresa leva para encerrar uma não conformidade.
+   *
+   * Conta só as encerradas, porque as abertas ainda não têm fim para
+   * medir — incluí-las com a data de hoje faria o número melhorar
+   * sozinho a cada dia de atraso, que é o oposto do que ele serve.
+   */
+  const prazoMedio = useMemo(() => {
+    const fechadas = ncsVisiveis.filter((n) => n.situacao === 'encerrada' && n.encerrada_em)
+    if (fechadas.length === 0) return null
+    const dias = fechadas.map((n) => {
+      const inicio = new Date(n.created_at).getTime()
+      const fim = new Date(n.encerrada_em as string).getTime()
+      return Math.max(0, Math.round((fim - inicio) / 86400000))
+    })
+    return Math.round(dias.reduce((s, d) => s + d, 0) / dias.length)
+  }, [ncsVisiveis])
 
   const reincidencia = useMemo(
     () => calcReincidencia(concluidas, respostas),
@@ -282,6 +334,26 @@ function PainelInspecoesConteudo() {
             <div className={'stat' + (totais.vencidas ? ' bad' : '')}>
               <div className="num">{totais.vencidas}</div>
               <div className="lbl">Com prazo vencido</div>
+            </div>
+            {/* Os dois que faltavam para o painel responder a reunião
+                inteira: o que parou no meio, e quanto tempo leva para
+                terminar o que não para. */}
+            <div className={'stat' + (planosAtrasados ? ' bad' : '')}>
+              <div className="num">{planosAtrasados}</div>
+              <div className="lbl">Planos de ação atrasados</div>
+              <div className="dica">de todo o histórico, não só do período</div>
+            </div>
+            <div className="stat">
+              <div className="num">
+                {prazoMedio === null ? '—' : prazoMedio}
+                {prazoMedio === null ? '' : <span className="unidade"> dias</span>}
+              </div>
+              <div className="lbl">Prazo médio de tratamento</div>
+              <div className="dica">
+                {prazoMedio === null
+                  ? 'nenhuma encerrada ainda'
+                  : 'da abertura até encerrar, só as encerradas'}
+              </div>
             </div>
           </div>
 
@@ -451,32 +523,28 @@ function PainelInspecoesConteudo() {
                   Nenhum item reprovado no período.
                 </p>
               ) : (
-                <table className="tabela-colab">
-                  <thead>
-                    <tr>
-                      <th>Pergunta</th>
-                      <th>Avaliada</th>
-                      <th>Reprovada</th>
-                      <th>Taxa</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reincidencia.map((r) => (
-                      <tr key={r.pergunta}>
-                        <td className="nome">{r.pergunta}</td>
-                        <td>{r.avaliada}</td>
-                        <td>{r.reprovada}</td>
-                        <td>
-                          {r.reprovada > 1 ? (
-                            <span className="pill warn">{r.taxa}%</span>
-                          ) : (
-                            r.taxa + '%'
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                /*
+                 * Lista, e não tabela de quatro colunas.
+                 *
+                 * A pergunta aqui é uma só — "o que falha de novo?" —,
+                 * e a resposta cabe em duas informações: qual item e
+                 * quantas vezes. Avaliada e taxa viraram a letra miúda
+                 * da mesma linha: continuam disponíveis para quem
+                 * precisa conferir, sem ocupar uma coluna cada.
+                 */
+                <ul className="insp-repete">
+                  {reincidencia.map((r) => (
+                    <li key={r.pergunta}>
+                      <span className="insp-repete-item">{r.pergunta}</span>
+                      <span className="insp-repete-conta">
+                        <b className={r.reprovada > 1 ? 'muitas' : undefined}>{r.reprovada}×</b>
+                        <em>
+                          em {r.avaliada} · {r.taxa}%
+                        </em>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               )}
               <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
                 Item que reprova mais de uma vez não é achado: é controle que não existe. O

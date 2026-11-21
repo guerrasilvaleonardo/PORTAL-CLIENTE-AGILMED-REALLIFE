@@ -434,13 +434,69 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
    * volta ninguém sabe onde parou. */
   const ficha =
     atual ? (
-        <div className="panel" style={{ marginTop: 16 }}>
-          <div className="panel-head">
-            <div className="section-title">{atual.descricao}</div>
+        <div className="panel nc-ficha-aberta" style={{ marginTop: 16 }}>
+          {/*
+            * O cabeçalho da ficha, como no desenho: o código primeiro,
+            * as marcas ao lado, e os quatro números que respondem
+            * "em que pé está" antes de qualquer aba ser aberta.
+            *
+            * POR QUE O CÓDIGO VEM ANTES DO TEXTO. É por ele que esta
+            * não conformidade é citada em reunião, em e-mail e no
+            * relatório de auditoria. O texto da ocorrência muda com as
+            * revisões; o número, não.
+            *
+            * A ficha continua abrindo DENTRO da linha, e não como
+            * página separada: com trinta constatações, ser jogado para
+            * outra tela faz perder de vista qual item estava sendo
+            * tratado. O cabeçalho dá a identidade sem tirar o contexto.
+            */}
+          <div className="panel-head nc-ficha-topo">
+            <div>
+              <div className="nc-ficha-marcas">
+                <span className="nc-ficha-codigo">{atual.codigo || 'sem número'}</span>
+                {atual.potencial_fatal && <span className="pill bad">Potencial fatal</span>}
+                {atual.tipologia && (
+                  <span className="pill flat">{rotuloTipologia(atual.tipologia)}</span>
+                )}
+                {atual.impacto_legal && <span className="pill flat">Impacto legal</span>}
+                {atual.impacto_ambiental && <span className="pill flat">Impacto ambiental</span>}
+                {atual.impacto_financeiro && <span className="pill flat">Impacto financeiro</span>}
+              </div>
+              <h3 className="nc-ficha-titulo">{atual.descricao}</h3>
+            </div>
             <button type="button" className="btn btn-sm" onClick={() => setEscolhida('')}>
               Fechar
             </button>
           </div>
+
+          <dl className="nc-ficha-numeros">
+            <div>
+              <dt>Situação</dt>
+              <dd>{SITUACAO[atual.situacao] || atual.situacao}</dd>
+            </div>
+            <div>
+              <dt>Prazo</dt>
+              <dd className={atual.prazo && atual.prazo < hoje() && atual.situacao !== 'encerrada' ? 'vencido' : undefined}>
+                {atual.prazo ? dataBr(atual.prazo) : 'sem prazo'}
+              </dd>
+            </div>
+            <div>
+              <dt>Gravidade</dt>
+              <dd>{GRAVIDADE[atual.gravidade] || atual.gravidade}</dd>
+            </div>
+            <div>
+              <dt>Veio de</dt>
+              <dd>
+                {atual.inspecao_id ? (
+                  <a href={'/inspecoes/' + atual.inspecao_id}>Inspeção</a>
+                ) : atual.origem === 'incidente' ? (
+                  'Incidente'
+                ) : (
+                  'Apontamento avulso'
+                )}
+              </dd>
+            </div>
+          </dl>
           <div className="panel-body insp-ficha">
             <nav className="ficha-abas nao-imprimir" aria-label="Etapas do tratamento">
               {ABAS.map((a) => (

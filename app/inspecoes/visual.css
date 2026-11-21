@@ -205,3 +205,141 @@
 .insp-v2 .insp-fatal-pe b.vencido {
   color: var(--danger);
 }
+
+/* ---------- O cabeçalho da ficha da NC ----------------------------- */
+
+/*
+ * O código vem antes do texto porque é por ele que a não conformidade
+ * é citada em reunião, em e-mail e no relatório de auditoria. O texto
+ * da ocorrência muda com as revisões; o número, não.
+ */
+.insp-v2 .nc-ficha-topo {
+  align-items: flex-start;
+}
+
+.insp-v2 .nc-ficha-marcas {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.insp-v2 .nc-ficha-codigo {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-v2 .nc-ficha-titulo {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/*
+ * Os quatro números respondem "em que pé está" antes de qualquer aba
+ * ser aberta. Ficam fora do corpo, logo abaixo do título, porque são
+ * do item inteiro — não de uma etapa dele.
+ */
+.insp-v2 .nc-ficha-numeros {
+  margin: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.insp-v2 .nc-ficha-numeros dt {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+.insp-v2 .nc-ficha-numeros dd {
+  margin: 3px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.insp-v2 .nc-ficha-numeros dd.vencido {
+  color: var(--danger);
+}
+
+/*
+ * A terceira linha do cartão: a ressalva que evita a pergunta
+ * seguinte. "Planos atrasados: 4" sem dizer de quando faz a pessoa
+ * conferir o filtro de período antes de acreditar no número.
+ */
+.insp-v2 .stat .dica {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink-muted);
+  line-height: 1.35;
+}
+
+.insp-v2 .stat .unidade {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+/* ---------- O que falha de novo ------------------------------------ */
+
+/*
+ * Duas informações por linha: qual item e quantas vezes. O resto
+ * (quantas avaliações, a taxa) é letra miúda na mesma linha — fica
+ * disponível para conferir sem roubar uma coluna inteira.
+ */
+.insp-v2 .insp-repete {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.insp-v2 .insp-repete li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.insp-v2 .insp-repete li:first-child {
+  border-top: none;
+}
+
+.insp-v2 .insp-repete-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.insp-v2 .insp-repete-conta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.insp-v2 .insp-repete-conta b {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reprovar uma vez é achado; duas é controle que não existe. */
+.insp-v2 .insp-repete-conta b.muitas {
+  color: var(--amber);
+}
+
+.insp-v2 .insp-repete-conta em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
