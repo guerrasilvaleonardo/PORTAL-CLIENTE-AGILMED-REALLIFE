@@ -1,0 +1,176 @@
+/*
+ * A trilha: uma coluna de etapas com a linha ligando uma na outra.
+ *
+ * A linha não é enfeite. Ela é o que diz, sem texto, que isto é um
+ * caminho com ordem — e não sete cartões soltos que a pessoa pode
+ * atacar em qualquer sequência.
+ */
+
+.trilha {
+  max-width: 880px;
+}
+
+.trilha-barra {
+  height: 8px;
+  margin: 14px 0 22px;
+  border-radius: 999px;
+  background: var(--surface-sunken, #F0F1F5);
+  overflow: hidden;
+}
+
+.trilha-barra > div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success, #1C8556);
+  transition: width 0.3s ease;
+}
+
+.trilha-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.trilha-etapa {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  padding: 0 0 20px;
+}
+
+/* A linha que liga uma bolinha na outra. A última não tem. */
+.trilha-etapa::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 30px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border, #E4E5EC);
+}
+
+.trilha-etapa:last-child::before {
+  display: none;
+}
+
+.trilha-bolinha {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 2px solid var(--border, #E4E5EC);
+  background: var(--surface, #FFFFFF);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.trilha-etapa.feito .trilha-bolinha {
+  border-color: var(--success, #1C8556);
+  background: var(--success, #1C8556);
+  color: #fff;
+}
+
+.trilha-etapa.fazendo .trilha-bolinha {
+  border-color: #b8860b;
+  color: #8a5a00;
+  box-shadow: 0 0 0 4px rgba(184, 134, 11, 0.14);
+}
+
+.trilha-corpo {
+  padding-top: 4px;
+}
+
+.trilha-corpo h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.trilha-etapa.espera .trilha-corpo h3 {
+  color: var(--ink-muted);
+}
+
+/* O "por que" é o que diferencia a trilha de uma lista de tarefas:
+   explica a razão da etapa, não só o nome dela. */
+.trilha-porque {
+  margin: 0 0 6px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.trilha-situacao {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.trilha-etapa.feito .trilha-situacao {
+  color: var(--success, #1C8556);
+}
+
+.trilha-etapa.fazendo .trilha-situacao {
+  color: #8a5a00;
+}
+
+.trilha-etapa.espera .trilha-situacao {
+  color: var(--ink-faint, #8b949e);
+  font-weight: 500;
+}
+
+.trilha-areas {
+  margin-top: 26px;
+}
+
+.trilha-areas h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.trilha-mini {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-sunken, #F0F1F5);
+  overflow: hidden;
+}
+
+.trilha-mini > div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success, #1C8556);
+}
+
+.trilha-pct {
+  display: inline-block;
+  margin-top: 3px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .trilha-etapa.fazendo .trilha-bolinha {
+    color: #f0d08a;
+    border-color: #b8860b;
+  }
+  :root:not([data-theme='light']) .trilha-etapa.fazendo .trilha-situacao {
+    color: #f0d08a;
+  }
+}
+
+:root[data-theme='dark'] .trilha-etapa.fazendo .trilha-bolinha {
+  color: #f0d08a;
+  border-color: #b8860b;
+}
+
+:root[data-theme='dark'] .trilha-etapa.fazendo .trilha-situacao {
+  color: #f0d08a;
+}

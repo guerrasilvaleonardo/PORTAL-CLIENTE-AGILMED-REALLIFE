@@ -319,6 +319,11 @@ function AuditoriasConteudo() {
                   )}
                 </td>
                 <td className="acoes">
+                  {/* A trilha vem antes do checklist: quem está no meio
+                      de uma auditoria precisa primeiro saber onde parou. */}
+                  <Link href={'/auditorias/' + a.id + '/trilha'} className="btn btn-sm">
+                    Trilha
+                  </Link>{' '}
                   <Link href={'/auditorias/' + a.id} className="btn btn-sm">
                     {a.situacao === 'em_andamento' ? 'Continuar' : 'Abrir'}
                   </Link>

@@ -760,9 +760,16 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
           )}
 
           {auditoria && (
-            <Link href={'/auditorias/' + inspecao.id + '/relatorio'} className="btn btn-sm">
-              Emitir relatório
-            </Link>
+            <>
+              {/* Quem abre o checklist direto não sabe em que ponto da
+                  auditoria está. A trilha é o mapa. */}
+              <Link href={'/auditorias/' + inspecao.id + '/trilha'} className="btn btn-sm">
+                Ver a trilha
+              </Link>
+              <Link href={'/auditorias/' + inspecao.id + '/relatorio'} className="btn btn-sm">
+                Emitir relatório
+              </Link>
+            </>
           )}
         </div>
       </div>
