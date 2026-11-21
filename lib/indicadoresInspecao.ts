@@ -21,6 +21,11 @@ export type InspecaoIndicador = {
   empresa_id: string
   modelo_nome: string
   local_nome: string | null
+  /* Quem foi a campo e em que visita. Opcionais porque nem toda tela
+     que usa estes cálculos precisa deles — o painel precisa, para a
+     lista de últimas inspeções. */
+  inspetor_nome?: string | null
+  visita_id?: string | null
   iniciada_em: string
   concluida_em: string | null
   situacao: string

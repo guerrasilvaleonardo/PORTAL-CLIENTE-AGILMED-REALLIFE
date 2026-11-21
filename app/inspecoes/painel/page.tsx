@@ -80,6 +80,8 @@ function PainelInspecoesConteudo() {
   /* Só o que o painel precisa saber de um plano: de quem é, para
      quando, e se ainda está vivo. */
   const [acoes, setAcoes] = useState<Acao[]>([])
+  /* visita → código do relatório emitido, para a lista de últimas. */
+  const [codigoDaVisita, setCodigoDaVisita] = useState<Record<string, string>>({})
 
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
@@ -120,8 +122,9 @@ function PainelInspecoesConteudo() {
       const { data: insp, error } = await supabase
         .from('inspecoes')
         .select(
-          'id, empresa_id, modelo_nome, local_nome, iniciada_em, concluida_em, situacao, ' +
-            'itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
+          'id, empresa_id, modelo_nome, local_nome, inspetor_nome, visita_id, iniciada_em, ' +
+            'concluida_em, situacao, itens_total, conformes, nao_conformes, nao_aplicaveis, ' +
+            'percentual'
         )
         /* Indicador de inspeção de campo não soma auditoria de sistema
          * de gestão: a conta de "conformidade" quer dizer coisas
@@ -146,7 +149,7 @@ function PainelInspecoesConteudo() {
        * com plano vencido é tratamento que parou no meio, e só este
        * número mostra isso.
        */
-      const [{ data: rs }, { data: ns }, { data: as }] = await Promise.all([
+      const [{ data: rs }, { data: ns }, { data: as }, { data: es }] = await Promise.all([
         supabase.from('inspecao_respostas').select('id, inspecao_id, pergunta, resposta').limit(20000),
         supabase
           .from('nao_conformidades')
@@ -161,11 +164,32 @@ function PainelInspecoesConteudo() {
           .from('nc_acoes')
           .select('id, empresa_id, prazo, situacao')
           .limit(4000),
+        /* O código do relatório é o nome pelo qual a visita é citada
+           fora do portal. Sem ele, a lista de últimas inspeções diria
+           "Galpão 03" três vezes e ninguém saberia qual é qual. */
+        supabase
+          .from('relatorios_emitidos')
+          .select('visita_id, codigo, revisao')
+          .eq('tipo', 'inspecao')
+          .not('visita_id', 'is', null)
+          .limit(1000),
       ])
 
       setRespostas((rs || []) as unknown as Resposta[])
       setNcs((ns || []) as unknown as NC[])
       setAcoes((as || []) as unknown as Acao[])
+
+      /* Várias revisões do mesmo código: fica a mais alta. */
+      const porVisita: Record<string, { codigo: string; revisao: number }> = {}
+      for (const r of (es || []) as any[]) {
+        const atual = porVisita[r.visita_id]
+        if (!atual || r.revisao > atual.revisao) {
+          porVisita[r.visita_id] = { codigo: r.codigo, revisao: r.revisao }
+        }
+      }
+      setCodigoDaVisita(
+        Object.fromEntries(Object.entries(porVisita).map(([k, v]) => [k, v.codigo]))
+      )
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível montar o painel.')
@@ -187,6 +211,19 @@ function PainelInspecoesConteudo() {
   }
 
   /* Só inspeção concluída entra na conta: rascunho não é resultado. */
+  /* Todas as do período, inclusive as que ainda estão em campo: daqui
+     saem "ainda em campo" e a lista das últimas visitas. Os
+     indicadores de resultado continuam usando só as concluídas. */
+  const visiveis = useMemo(
+    () =>
+      inspecoes
+        .filter((i) => !empresaAtual || i.empresa_id === empresaAtual)
+        .filter((i) => i.situacao !== 'cancelada')
+        .filter((i) => noPeriodo(i.concluida_em || i.iniciada_em)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inspecoes, empresaAtual, de, ate]
+  )
+
   const concluidas = useMemo(
     () =>
       inspecoes
@@ -267,6 +304,83 @@ function PainelInspecoesConteudo() {
 
   const incidentes = useMemo(() => calcIncidentes(ncsVisiveis), [ncsVisiveis])
 
+  /* Quantas visitas ainda estão em campo: a ressalva do primeiro
+     número, porque inspeção em campo ainda não virou resultado. */
+  const emCampo = useMemo(
+    () => visiveis.filter((i) => i.situacao === 'em_andamento').length,
+    [visiveis]
+  )
+
+  /* Quantas vencem nos próximos sete dias — a pergunta que vem logo
+     depois de "quantas estão abertas". */
+  const vencemNaSemana = useMemo(() => {
+    const agora = new Date().toISOString().slice(0, 10)
+    const semana = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+    return ncsVisiveis.filter(
+      (n) =>
+        !['encerrada', 'cancelada'].includes(n.situacao) &&
+        !!n.prazo &&
+        (n.prazo as string) >= agora &&
+        (n.prazo as string) <= semana
+    ).length
+  }, [ncsVisiveis])
+
+  /* Há quantos dias está parado o plano mais antigo. "O mais antigo
+     há 23 dias" cobra sozinho; "4 atrasados" não. */
+  const atrasoMaisVelho = useMemo(() => {
+    const agora = new Date().toISOString().slice(0, 10)
+    const vencidos = acoes
+      .filter(
+        (a) =>
+          (!empresaAtual || a.empresa_id === empresaAtual) &&
+          !!a.prazo &&
+          (a.prazo as string) < agora &&
+          !['encerrada', 'cancelada'].includes(a.situacao)
+      )
+      .map((a) => a.prazo as string)
+      .sort()
+    if (vencidos.length === 0) return null
+    return Math.round((Date.now() - new Date(vencidos[0]).getTime()) / 86400000)
+  }, [acoes, empresaAtual])
+
+  /*
+   * As últimas visitas, uma linha cada.
+   *
+   * O painel lista VISITA, não checklist: uma visita com quatro
+   * checklists é um documento só, com um código só, e mostrá-la
+   * quatro vezes faria o painel mentir sobre quantas vezes a equipe
+   * foi a campo.
+   */
+  const ultimas = useMemo(() => {
+    const grupos = new Map<string, Inspecao[]>()
+    for (const i of visiveis) {
+      const chave = i.visita_id || i.id
+      grupos.set(chave, [...(grupos.get(chave) || []), i])
+    }
+
+    return [...grupos.entries()]
+      .map(([chave, itens]) => {
+        const primeira = itens[0]
+        const quando = itens
+          .map((i) => i.concluida_em || i.iniciada_em)
+          .sort()
+          .slice(-1)[0]
+        return {
+          chave,
+          codigo: (primeira.visita_id && codigoDaVisita[primeira.visita_id]) || null,
+          local: primeira.local_nome || '—',
+          inspetor: primeira.inspetor_nome || '—',
+          quando,
+          emAndamento: itens.some((i) => i.situacao === 'em_andamento'),
+          naoConformes: itens.reduce((s, i) => s + (i.nao_conformes || 0), 0),
+          conformes: itens.reduce((s, i) => s + (i.conformes || 0), 0),
+          inspecaoId: primeira.id,
+        }
+      })
+      .sort((a, b) => (b.quando || '').localeCompare(a.quando || ''))
+      .slice(0, 5)
+  }, [visiveis, codigoDaVisita])
+
   if (semTabela) {
     return (
       <div className="app insp-v2">
@@ -283,8 +397,8 @@ function PainelInspecoesConteudo() {
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">Painel</h1>
         <p className="subtitulo-tela">
-          O resultado por local, a pergunta que falha de novo e o que ainda falta tratar. Só
-          inspeção concluída entra na conta — rascunho não é resultado.
+          O que está aberto, o que está atrasado e por que volta a acontecer. Só inspeção
+          concluída entra na conta de resultado — rascunho não é resultado.
         </p>
       </div>
 
@@ -319,29 +433,46 @@ function PainelInspecoesConteudo() {
       ) : (
         <>
           <div className="stats">
+            {/*
+              * OS CINCO NÚMEROS, na ordem da pergunta que a reunião
+              * faz: quanto se andou, quanto está aberto, quanto parou,
+              * quanto tempo leva e se resolveu. Cada um carrega a
+              * ressalva que evitaria a pergunta seguinte.
+              *
+              * Conformidade saiu daqui de propósito: percentual alto
+              * com plano atrasado é o número que engana. Ele continua
+              * no relatório do período, onde há espaço para explicá-lo.
+              */}
             <div className="stat">
               <div className="num">{totais.aplicadas}</div>
-              <div className="lbl">Inspeções concluídas</div>
-            </div>
-            <div className="stat">
-              <div className="num">{totais.conformidade === null ? '—' : totais.conformidade + '%'}</div>
-              <div className="lbl">Conformidade</div>
+              <div className="lbl">Inspeções no período</div>
+              <div className="dica">
+                {emCampo === 0
+                  ? 'nenhuma em campo agora'
+                  : emCampo === 1
+                    ? '1 ainda em campo'
+                    : `${emCampo} ainda em campo`}
+              </div>
             </div>
             <div className={'stat' + (totais.abertas ? ' warn' : '')}>
               <div className="num">{totais.abertas}</div>
               <div className="lbl">Não conformidades abertas</div>
+              <div className="dica">
+                {totais.vencidas > 0
+                  ? `${totais.vencidas} já com prazo vencido`
+                  : vencemNaSemana > 0
+                    ? `${vencemNaSemana} vencem esta semana`
+                    : 'nenhuma vencida'}
+              </div>
             </div>
-            <div className={'stat' + (totais.vencidas ? ' bad' : '')}>
-              <div className="num">{totais.vencidas}</div>
-              <div className="lbl">Com prazo vencido</div>
-            </div>
-            {/* Os dois que faltavam para o painel responder a reunião
-                inteira: o que parou no meio, e quanto tempo leva para
-                terminar o que não para. */}
             <div className={'stat' + (planosAtrasados ? ' bad' : '')}>
               <div className="num">{planosAtrasados}</div>
-              <div className="lbl">Planos de ação atrasados</div>
-              <div className="dica">de todo o histórico, não só do período</div>
+              <div className="lbl">Planos atrasados</div>
+              <div className="dica">
+                {atrasoMaisVelho === null
+                  ? 'nenhum plano vencido'
+                  : `o mais antigo há ${atrasoMaisVelho} dias`}
+              </div>
             </div>
             <div className="stat">
               <div className="num">
@@ -350,9 +481,19 @@ function PainelInspecoesConteudo() {
               </div>
               <div className="lbl">Prazo médio de tratamento</div>
               <div className="dica">
-                {prazoMedio === null
-                  ? 'nenhuma encerrada ainda'
-                  : 'da abertura até encerrar, só as encerradas'}
+                {prazoMedio === null ? 'nenhuma encerrada ainda' : 'da abertura até encerrar'}
+              </div>
+            </div>
+            <div className={'stat' + (eficacia.encerradas ? ' good' : '')}>
+              <div className="num">
+                {eficacia.encerradas === 0 ? '—' : eficacia.taxa}
+                {eficacia.encerradas === 0 ? '' : <span className="unidade">%</span>}
+              </div>
+              <div className="lbl">Eficácia verificada</div>
+              <div className="dica">
+                {eficacia.encerradas === 0
+                  ? 'nenhuma encerrada no período'
+                  : `de ${eficacia.encerradas} encerradas`}
               </div>
             </div>
           </div>
