@@ -121,10 +121,29 @@ export function reincidencia(
  * Por isso toda conta de "não conformidade" neste arquivo passa por
  * aqui primeiro.
  */
-export const ehNaoConformidade = (n: NcIndicador) => n.classificacao !== 'oportunidade'
+/*
+ * Nem tudo que a tabela guarda é problema. Ela já carregava observação
+ * e oportunidade; agora carrega também o apontamento CONFORME, que a
+ * inspetora registra para mostrar o que está certo. Nenhum dos dois
+ * entra em fila, prazo ou eficácia.
+ */
+const NAO_SAO_PROBLEMA = ['oportunidade', 'conforme']
+
+export const ehNaoConformidade = (n: NcIndicador) =>
+  !NAO_SAO_PROBLEMA.includes(n.classificacao || '')
 
 export const oportunidades = (ncsVisiveis: NcIndicador[]) =>
   ncsVisiveis.filter((n) => n.classificacao === 'oportunidade')
+
+/*
+ * O que foi olhado e estava certo.
+ *
+ * Serve de denominador: visita que aponta duas não conformidades não
+ * diz se foram olhados dois itens ou duzentos. Sem o conforme, o
+ * relatório de campo não tem amostra.
+ */
+export const conformidades = (ncsVisiveis: NcIndicador[]) =>
+  ncsVisiveis.filter((n) => n.classificacao === 'conforme')
 
 /* ---------- Números do topo ---------- */
 export function totais(concluidas: InspecaoIndicador[], todasNcs: NcIndicador[]) {
@@ -148,8 +167,10 @@ export function totais(concluidas: InspecaoIndicador[], todasNcs: NcIndicador[])
     abertas: abertas.length,
     vencidas: vencidas.length,
     encerradas: encerradas.length,
-    /* Contada à parte, para aparecer sem entrar na fila de problemas. */
+    /* Contados à parte, para aparecerem sem entrar na fila de
+       problemas. */
     oportunidades: oportunidades(todasNcs).length,
+    conformes: conformidades(todasNcs).length,
     mediaDias: dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null,
   }
 }
