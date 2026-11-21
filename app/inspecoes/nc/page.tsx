@@ -164,6 +164,16 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
   /* Encerrar é o fim da linha: a tela pergunta de novo antes. */
   const [confirmandoFim, setConfirmandoFim] = useState(false)
   const [aba, setAba] = useState<AbaFicha>('ocorrencia')
+  /*
+   * Quantas ações com dono e prazo esta não conformidade tem.
+   *
+   * Vive aqui, e não dentro do componente de ações, porque é a ficha
+   * que precisa do número: para escrevê-lo na aba e para dizer que o
+   * plano ainda está em branco. Começa em -1, que quer dizer "ainda
+   * não sei" — zero é uma afirmação, e afirmar antes de carregar
+   * acenderia o aviso de pendência em NC que tem plano.
+   */
+  const [quantasAcoes, setQuantasAcoes] = useState(-1)
 
   /* Lançar incidente. */
   const [abrindoIncidente, setAbrindoIncidente] = useState(false)
@@ -296,6 +306,9 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     setEscolhida(n.id)
     setConfirmandoFim(false)
     setAba('ocorrencia')
+    /* Volta para "ainda não sei" até o componente de ações carregar as
+       desta NC: sem isto, a contagem da anterior apareceria na aba. */
+    setQuantasAcoes(-1)
     setRascunho({
       classificacao: n.classificacao,
       gravidade: n.gravidade,
@@ -449,7 +462,9 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
   const faltando: Record<AbaFicha, boolean> = {
     ocorrencia: false,
     investigacao: !(rascunho.causa || '').trim(),
-    plano: !(rascunho.acao_corretiva || '').trim(),
+    /* A bolinha de pendência olha as AÇÕES, não a frase. Uma NC com
+       resumo escrito e nenhuma ação não tem plano: tem intenção. */
+    plano: quantasAcoes === 0,
     verificacao: !(rascunho.verificacao_obs || '').trim(),
   }
 
@@ -533,6 +548,11 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                   onClick={() => setAba(a.chave)}
                 >
                   {a.rotulo}
+                  {/* O número de ações na própria aba: de fora dá para
+                      ver se existe plano, sem precisar entrar. */}
+                  {a.chave === 'plano' && quantasAcoes > 0 && (
+                    <span className="ficha-aba-conta">{quantasAcoes}</span>
+                  )}
                   {faltando[a.chave] && (
                     <span className="ficha-aba-falta" aria-label="ainda em branco" title="ainda em branco" />
                   )}
@@ -873,15 +893,34 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
 
             {aba === 'plano' && (
             <>
+            {/*
+              * O PLANO DE VERDADE VEM PRIMEIRO.
+              *
+              * Estava ao contrário: o campo de texto em cima e as ações
+              * embaixo. Quem abria a aba preenchia a primeira coisa que
+              * via, salvava e ia embora achando que tinha feito o
+              * plano — e a tela de Planos de ação continuava vazia,
+              * porque frase não tem dono nem prazo.
+              */}
+            <AcoesDaNC
+              ncId={atual.id}
+              empresaId={atual.empresa_id}
+              aoContar={setQuantasAcoes}
+              textoParaAproveitar={rascunho.acao_corretiva || ''}
+            />
+
             <label>
-              Ação corretiva — o que impede de acontecer de novo
+              Resumo para o relatório{' '}
+              <Ajuda
+                titulo="Resumo, não plano"
+                texto="Uma linha dizendo o que foi decidido, que o relatório imprime junto da causa. Não substitui as ações acima: é a frase que o cliente lê, enquanto as ações são o que tem dono, prazo e cobrança."
+              />
               <textarea
                 value={rascunho.acao_corretiva || ''}
                 onChange={(e) => setRascunho({ ...rascunho, acao_corretiva: e.target.value })}
+                placeholder="Em uma linha: o que foi decidido para isto não voltar"
               />
             </label>
-
-            <AcoesDaNC ncId={atual.id} empresaId={atual.empresa_id} />
             </>
             )}
 
@@ -934,6 +973,17 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                     foi <em>{(rascunho.acao_corretiva || '').trim() || '(em branco)'}</em>, e que a
                     ação {rascunho.eficaz ?? true ? 'resolveu' : 'não resolveu'}.
                     {atual.prazo && atual.prazo < hoje() && ' O prazo já estava vencido.'}
+                    {/* Encerrar sem nenhuma ação com dono é o caminho
+                        mais curto para a mesma NC voltar. A tela não
+                        impede — impedir travaria as antigas, que só
+                        têm a frase —, mas diz na cara o que está
+                        sendo fechado. */}
+                    {quantasAcoes === 0 && (
+                      <div style={{ marginTop: 6, fontWeight: 600 }}>
+                        Nenhuma ação com dono e prazo foi criada nesta não conformidade. Ela vai
+                        encerrar com o resumo escrito e mais nada.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

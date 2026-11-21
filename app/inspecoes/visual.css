@@ -716,3 +716,16 @@
   font-size: 12.5px;
   color: var(--ink-muted);
 }
+
+/* O número de ações na aba "Plano de ação": de fora dá para ver se
+   existe plano, sem precisar entrar na aba. */
+.insp-v2 .ficha-aba-conta {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
