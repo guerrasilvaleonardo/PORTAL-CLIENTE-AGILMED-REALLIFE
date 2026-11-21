@@ -153,3 +153,66 @@
     display: none;
   }
 }
+
+/* ---------- Sanfona do menu ---------- */
+
+/* O nome do módulo que tem seções vira botão: abre e fecha a lista em
+   vez de navegar. Precisa parecer idêntico ao link dos módulos sem
+   seções, senão o menu fica com dois tipos de item. */
+.modtabs.vertical .modtab-botao {
+  font: inherit;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-m);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.modtabs.vertical .modtab-botao:hover {
+  background: var(--surface-sunken);
+}
+
+.modtabs.vertical .modtab-botao.active {
+  background: var(--primary-tint);
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+/* Seta desenhada com borda: um caractere de texto mudaria de forma a
+   cada sistema, e um ícone seria mais um arquivo para carregar no
+   menu que abre em toda tela. */
+.modtab-seta {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transform-origin: 65% 65%;
+  opacity: 0.55;
+  transition: transform 0.15s ease;
+}
+
+.modtab-seta.aberta {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modtab-seta {
+    transition: none;
+  }
+}
+
+.modtab-nome {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
