@@ -362,15 +362,25 @@ function InspecoesConteudo() {
     const local = locaisDaEmpresa.find((l) => l.id === localEscolhido) || null
 
     /*
-     * MAIS DE UM CHECKLIST VIRA UMA VISITA.
+     * TODA INSPEÇÃO NASCE DENTRO DE UMA VISITA — inclusive a de um
+     * checklist só.
      *
-     * Cada `inspecoes` guarda um modelo só — é o que permite o
-     * percentual de conformidade ser daquela norma, e não uma média
-     * sem sentido entre NR-18 e NR-35. Para juntar vários na mesma ida
-     * ao cliente, o que agrupa é a visita: um documento, um código, e
-     * dentro dele o resultado de cada checklist.
+     * Antes havia dois caminhos: vários checklists abriam visita e
+     * caíam na tela de campo; um checklist só criava a inspeção solta
+     * e caía na tela de aplicar checklist. Quem escolhia um perdia a
+     * régua das etapas, o apontamento livre, a foto com GPS, o
+     * potencial fatal e o "o que falta para encerrar" — e, pior, não
+     * tinha como emitir o relatório, porque o código é da visita. A
+     * tela que a pessoa via dependia de um detalhe que, para ela, não
+     * quer dizer nada.
+     *
+     * Cada `inspecoes` continua guardando um modelo só: é o que
+     * permite o percentual de conformidade ser daquela norma, e não
+     * uma média sem sentido entre NR-18 e NR-35. O que agrupa é a
+     * visita: um documento, um código, e dentro dele o resultado de
+     * cada checklist.
      */
-    if (escolhidos.length > 1) {
+    {
       const { data: visita, error: erroVisita } = await supabase
         .from('inspecao_visitas')
         .insert({
@@ -432,61 +442,6 @@ function InspecoesConteudo() {
       window.location.href = '/inspecoes/campo?visita=' + (visita as any).id
       return
     }
-
-    const modelo = modelosDisponiveis.find((m) => m.id === escolhidos[0])
-    if (!modelo) {
-      setAbrindo(false)
-      setErro('Escolha o modelo de checklist.')
-      return
-    }
-
-    const { data: nova, error } = await supabase
-      .from('inspecoes')
-      .insert({
-        empresa_id: empresaAtual,
-        modelo_id: modelo.id,
-        modelo_nome: modelo.nome,
-        norma: modelo.norma,
-        local_id: local?.id || null,
-        local_nome: local?.nome || null,
-        inspetor_nome: meuNome || null,
-      })
-      .select('id')
-      .single()
-
-    if (error || !nova) {
-      setAbrindo(false)
-      setErro(error?.message || 'Não foi possível começar a inspeção.')
-      return
-    }
-
-    /* As perguntas são copiadas agora: a inspeção é documento do dia. */
-    const { data: itens } = await supabase
-      .from('inspecao_modelo_itens')
-      .select('id, ordem, categoria, pergunta, peso')
-      .eq('modelo_id', modelo.id)
-      .eq('ativo', true)
-      .order('ordem')
-
-    if (itens && itens.length) {
-      const { error: erroResp } = await supabase.from('inspecao_respostas').insert(
-        (itens as any[]).map((i) => ({
-          inspecao_id: (nova as any).id,
-          item_id: i.id,
-          ordem: i.ordem,
-          categoria: i.categoria,
-          pergunta: i.pergunta,
-          peso: i.peso,
-        }))
-      )
-      if (erroResp) {
-        setAbrindo(false)
-        setErro('A inspeção foi aberta, mas as perguntas não entraram: ' + erroResp.message)
-        return
-      }
-    }
-
-    window.location.href = '/inspecoes/' + (nova as any).id
   }
 
   if (semTabela) {
