@@ -906,3 +906,32 @@
   font-weight: 500;
   color: var(--ink-muted);
 }
+
+/* Assunto e potencial do item reprovado, lado a lado quando cabe. */
+.campo-item-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.campo-item-marcas > label:first-child {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.campo-item-marcas select {
+  width: 100%;
+}
+
+.campo-item-marcas > .campo-fatal {
+  flex: 1 1 240px;
+  padding: 8px 11px;
+}
+
+.campo-item-marcas > .campo-fatal strong {
+  font-size: 13px;
+}
