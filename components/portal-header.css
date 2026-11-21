@@ -107,9 +107,12 @@
   border-left: 2px solid var(--border);
 }
 
+/* O item é o nível mais fundo dos três (módulo › grupo › item), então
+   é o mais leve. Com 600 aqui, o item pesava mais que o rótulo do
+   grupo logo acima e os três níveis viravam um só. */
 .modtabs.vertical .submenu a {
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 4px 10px;
 }
 
@@ -120,14 +123,17 @@
 
 /* O rótulo do grupo. Não é link e não deve parecer um: letra miúda,
    maiúscula e apagada, só o suficiente para dividir a lista. */
+/* O rótulo do grupo é um título, e precisa pesar como título: escuro
+   e em negrito. Apagado e miúdo, ele lia como a linha mais fraca da
+   lista — e os três níveis (módulo › grupo › item) viravam um só. */
 .modtabs.vertical .submenu-grupo {
-  margin: 9px 0 2px;
+  margin: 11px 0 3px;
   padding: 0 10px;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--ink);
 }
 
 .modtabs.vertical .submenu-grupo:first-child {
