@@ -104,12 +104,20 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
      * Quem abre a auditoria sem a casa arrumada passa o dia procurando
      * arquivo, e o que não aparece vira constatação. */
     { href: '/auditorias/preparar', rotulo: 'Antes de começar' },
+    /* Dentro do módulo o rótulo volta a ser curto: aqui já se sabe que
+       se está auditando. O nome longo serve no menu principal, onde ele
+       precisa se distinguir de "Implantar o sistema". */
     { href: '/auditorias', rotulo: 'Auditorias' },
     { href: '/auditorias/programa', rotulo: 'Programa do ano' },
     { href: '/auditorias/nc', rotulo: 'Constatações' },
     /* Bancada da equipe: o cliente que entrar vê um aviso, não um erro. */
     { href: '/auditorias/checklists', rotulo: 'Checklists da norma' },
     { href: '/auditorias/modelos', rotulo: 'Modelos e explicações' },
+  ],
+  '/implantacao': [
+    { href: '/implantacao', rotulo: 'Minha trilha' },
+    /* Bancada da equipe: o cliente que entrar vê um aviso, não um erro. */
+    { href: '/implantacao/modelos', rotulo: 'Modelos de documento' },
   ],
   '/inspecoes': [
     { href: '/inspecoes/painel', rotulo: 'Visão geral' },
@@ -141,7 +149,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
   const chamadosNovos = Object.keys(useChamadosNaoLidos(!carregando && !!marca)).length
   /* Ferramentas cobradas à parte: cadeado no menu do cliente sem contratação. */
   const modulos = useModulos()
-  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi', '/inspecoes': 'inspecoes', '/auditorias': 'auditoria' }
+  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi', '/inspecoes': 'inspecoes', '/auditorias': 'auditoria', '/implantacao': 'implantacao' }
 
   useEffect(() => {
     let ativo = true
@@ -284,7 +292,8 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/inspecoes', rotulo: 'Inspeções' },
-        { href: '/auditorias', rotulo: 'Auditorias' },
+        { href: '/implantacao', rotulo: 'Implantar o sistema' },
+        { href: '/auditorias', rotulo: 'Auditar o sistema' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
@@ -297,7 +306,8 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/inspecoes', rotulo: 'Inspeções' },
-        { href: '/auditorias', rotulo: 'Auditorias' },
+        { href: '/implantacao', rotulo: 'Implantar o sistema' },
+        { href: '/auditorias', rotulo: 'Auditar o sistema' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
         { href: '/treinamentos', rotulo: 'Treinamentos' },
