@@ -1,11 +1,22 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import {
+  porLocal as calcPorLocal,
+  reincidencia as calcReincidencia,
+  totais as calcTotais,
+  eficacia as calcEficacia,
+  incidentes as calcIncidentes,
+  type InspecaoIndicador,
+  type RespostaIndicador,
+  type NcIndicador,
+} from '@/lib/indicadoresInspecao'
 
 /*
  * Painel das inspeções.
@@ -35,41 +46,16 @@ const TIPO_INCIDENTE: Record<string, string> = {
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 
-type Inspecao = {
-  id: string
-  empresa_id: string
-  modelo_nome: string
-  local_nome: string | null
-  iniciada_em: string
-  concluida_em: string | null
-  situacao: string
-  itens_total: number
-  conformes: number
-  nao_conformes: number
-  nao_aplicaveis: number
-  percentual: number | null
-}
+type Inspecao = InspecaoIndicador
+type Resposta = RespostaIndicador
+type NC = NcIndicador
 
-type Resposta = { id: string; inspecao_id: string; pergunta: string; resposta: string | null }
+/* Os tipos da tela são os da biblioteca de indicadores: um campo que
+   mudar de um lado quebra o outro na compilação, em vez de divergir
+   calado.
 
-type NC = {
-  id: string
-  empresa_id: string
-  origem: string
-  gravidade: string
-  resposta_id: string | null
-  local_nome: string | null
-  risco: number | null
-  situacao: string
-  prazo: string | null
-  ocorrido_em: string | null
-  tipo_incidente: string | null
-  afastamento_dias: number | null
-  created_at: string
-  encerrada_em: string | null
-}
-
-const hoje = () => new Date().toISOString().slice(0, 10)
+   A função de data fica aqui porque o filtro de período é da tela; a
+   de "hoje" saiu junto com os cálculos, que agora a trazem de lá. */
 const dia = (iso: string | null) => (iso ? iso.slice(0, 10) : '')
 
 function PainelInspecoesConteudo() {
@@ -199,136 +185,27 @@ function PainelInspecoesConteudo() {
     [ncs, empresaAtual, de, ate]
   )
 
-  /* ---------- Indicadores por local ---------- */
-  const porLocal = useMemo(() => {
-    const mapa = new Map<string, { aplicadas: number; itens: number; conf: number; nc: number }>()
-    for (const i of concluidas) {
-      const chave = i.local_nome || 'Sem local'
-      const atual = mapa.get(chave) || { aplicadas: 0, itens: 0, conf: 0, nc: 0 }
-      atual.aplicadas += 1
-      atual.itens += i.itens_total
-      atual.conf += i.conformes
-      atual.nc += i.nao_conformes
-      mapa.set(chave, atual)
-    }
-    return [...mapa.entries()]
-      .map(([local, v]) => ({
-        local,
-        ...v,
-        percentual: v.conf + v.nc > 0 ? Math.round((1000 * v.conf) / (v.conf + v.nc)) / 10 : null,
-      }))
-      .sort((a, b) => (a.percentual ?? 101) - (b.percentual ?? 101))
-  }, [concluidas])
-
-  /* ---------- Reincidência: a mesma pergunta falhando de novo ---------- */
-  const reincidencia = useMemo(() => {
-    const ids = new Set(concluidas.map((i) => i.id))
-    const mapa = new Map<string, { avaliada: number; reprovada: number }>()
-    for (const r of respostas) {
-      if (!ids.has(r.inspecao_id) || !r.resposta || r.resposta === 'nao_aplicavel') continue
-      const atual = mapa.get(r.pergunta) || { avaliada: 0, reprovada: 0 }
-      atual.avaliada += 1
-      if (r.resposta === 'nao_conforme') atual.reprovada += 1
-      mapa.set(r.pergunta, atual)
-    }
-    return [...mapa.entries()]
-      .map(([pergunta, v]) => ({
-        pergunta,
-        ...v,
-        taxa: Math.round((1000 * v.reprovada) / v.avaliada) / 10,
-      }))
-      .filter((r) => r.reprovada > 0)
-      .sort((a, b) => b.reprovada - a.reprovada || b.taxa - a.taxa)
-      .slice(0, 15)
-  }, [concluidas, respostas])
-
-  /* ---------- Números do topo ---------- */
-  const totais = useMemo(() => {
-    const abertas = ncsVisiveis.filter((n) => !['encerrada', 'cancelada'].includes(n.situacao))
-    const vencidas = abertas.filter((n) => n.prazo && n.prazo < hoje())
-    const encerradas = ncsVisiveis.filter((n) => n.situacao === 'encerrada' && n.encerrada_em)
-
-    const dias = encerradas.map((n) => {
-      const a = Date.parse(dia(n.created_at) + 'T00:00:00Z')
-      const b = Date.parse(dia(n.encerrada_em) + 'T00:00:00Z')
-      return Math.max(0, Math.round((b - a) / 86400000))
-    })
-
-    const conf = concluidas.reduce((s, i) => s + i.conformes, 0)
-    const nc = concluidas.reduce((s, i) => s + i.nao_conformes, 0)
-
-    return {
-      aplicadas: concluidas.length,
-      conformidade: conf + nc > 0 ? Math.round((1000 * conf) / (conf + nc)) / 10 : null,
-      abertas: abertas.length,
-      vencidas: vencidas.length,
-      mediaDias: dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null,
-    }
-  }, [concluidas, ncsVisiveis])
-
   /*
-   * EFICÁCIA — o indicador que quase ninguém mede.
-   *
-   * Encerrar uma não conformidade não prova nada: prova é ela não
-   * voltar. Aqui, para cada NC encerrada, a mesma pergunta é procurada
-   * nas inspeções concluídas no MESMO local nos 90 dias seguintes. Se
-   * reprovou de novo, a ação não funcionou.
-   *
-   * É literalmente o que a ISO 45001 e a 9001 pedem no 10.2 quando
-   * falam em verificar a eficácia da ação corretiva — a diferença é
-   * que aqui sai um número, não um campo de texto.
+   * Os cálculos moram em lib/indicadoresInspecao.ts, porque o
+   * relatório consolidado mostra os mesmos números. Duas cópias da
+   * conta divergem no primeiro ajuste, e tela e documento discordando
+   * destrói a confiança no portal inteiro.
    */
-  const eficacia = useMemo(() => {
-    const perguntaDaResposta = new Map(respostas.map((r) => [r.id, r.pergunta]))
-    const inspecaoDe = new Map(inspecoes.map((i) => [i.id, i]))
+  const porLocal = useMemo(() => calcPorLocal(concluidas), [concluidas])
 
-    const encerradas = ncsVisiveis.filter(
-      (n) => n.situacao === 'encerrada' && n.encerrada_em && n.resposta_id
-    )
+  const reincidencia = useMemo(
+    () => calcReincidencia(concluidas, respostas),
+    [concluidas, respostas]
+  )
 
-    let reincidiu = 0
-    for (const n of encerradas) {
-      const pergunta = perguntaDaResposta.get(n.resposta_id as string)
-      if (!pergunta) continue
+  const totais = useMemo(() => calcTotais(concluidas, ncsVisiveis), [concluidas, ncsVisiveis])
 
-      const fim = Date.parse(dia(n.encerrada_em) + 'T00:00:00Z')
-      const limite = fim + 90 * 86400000
+  const eficacia = useMemo(
+    () => calcEficacia(ncsVisiveis, respostas, inspecoes),
+    [ncsVisiveis, respostas, inspecoes]
+  )
 
-      const voltou = respostas.some((r) => {
-        if (r.pergunta !== pergunta || r.resposta !== 'nao_conforme') return false
-        const i = inspecaoDe.get(r.inspecao_id)
-        if (!i || i.situacao !== 'concluida' || !i.concluida_em) return false
-        if ((i.local_nome || '') !== (n.local_nome || '')) return false
-        const quando = Date.parse(dia(i.concluida_em) + 'T00:00:00Z')
-        return quando > fim && quando <= limite
-      })
-
-      if (voltou) reincidiu += 1
-    }
-
-    return {
-      encerradas: encerradas.length,
-      reincidiu,
-      taxa: encerradas.length
-        ? Math.round((1000 * (encerradas.length - reincidiu)) / encerradas.length) / 10
-        : null,
-    }
-  }, [ncsVisiveis, respostas, inspecoes])
-
-  /* ---------- Incidentes ---------- */
-  const incidentes = useMemo(() => {
-    const sos = ncsVisiveis.filter((n) => n.origem === 'incidente')
-    const mapa = new Map<string, number>()
-    for (const i of sos) {
-      const k = i.tipo_incidente || 'sem tipo'
-      mapa.set(k, (mapa.get(k) || 0) + 1)
-    }
-    return {
-      total: sos.length,
-      afastamento: sos.reduce((s, i) => s + (i.afastamento_dias || 0), 0),
-      porTipo: [...mapa.entries()].sort((a, b) => b[1] - a[1]),
-    }
-  }, [ncsVisiveis])
+  const incidentes = useMemo(() => calcIncidentes(ncsVisiveis), [ncsVisiveis])
 
   if (semTabela) {
     return (
@@ -369,6 +246,12 @@ function PainelInspecoesConteudo() {
           até
           <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} />
         </label>
+        {/* Quem está olhando os números é quem precisa entregá-los. O
+            relatório usa exatamente estes cálculos, de lib/indicadores
+            Inspecao.ts, e congela o período num documento. */}
+        <Link href="/inspecoes/relatorio" className="btn btn-sm">
+          Emitir relatório do período
+        </Link>
       </div>
 
       {carregando ? (

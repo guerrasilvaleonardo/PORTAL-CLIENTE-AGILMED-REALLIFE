@@ -124,6 +124,10 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
   ],
   '/inspecoes': [
     { href: '/inspecoes/painel', rotulo: 'Visão geral' },
+    /* "Visão geral" é para olhar; "Relatório" é para entregar. São o
+       mesmo número com usos diferentes, e sem a entrada no menu o
+       documento existia sem ninguém achar. */
+    { href: '/inspecoes/relatorio', rotulo: 'Relatório do período' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
     { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },

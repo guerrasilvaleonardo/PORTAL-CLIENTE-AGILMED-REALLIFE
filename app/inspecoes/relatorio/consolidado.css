@@ -1,0 +1,62 @@
+/*
+ * Só o que é do relatório consolidado. Capa, seções, lacuna declarada,
+ * assinaturas e impressão vêm das folhas dos outros dois relatórios.
+ */
+
+.cons-controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cons-data {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-muted, #5a6472);
+}
+
+.cons-data input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border, #e3e6ea);
+  border-radius: var(--radius-s, 6px);
+  background: var(--surface, #fff);
+  color: inherit;
+}
+
+/* Linha de fechamento da tabela por local: é o número que vai para a
+   reunião, e precisa se separar das linhas que o compõem. */
+.cons-total td {
+  border-top: 2px solid var(--border, #e3e6ea);
+  background: var(--surface-sunken, #f6f7f9);
+}
+
+@media print {
+  .cons-total td {
+    background: transparent;
+  }
+
+  /* Tabela quebrada ao meio entre duas páginas perde o cabeçalho e
+     deixa o leitor sem saber de que coluna é cada número. */
+  .rel-itens {
+    break-inside: auto;
+  }
+
+  .rel-itens thead {
+    display: table-header-group;
+  }
+
+  .rel-itens tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .stats {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
