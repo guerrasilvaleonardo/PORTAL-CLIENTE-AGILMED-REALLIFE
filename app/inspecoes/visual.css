@@ -570,6 +570,15 @@
   border-color: var(--primary);
 }
 
+/* As duas linhas de texto ficam na MESMA coluna, ao lado da bolinha.
+   Sem dizer isto, a segunda caía na coluna de 14 px e saía uma
+   palavra por linha. */
+.insp-v2 .nc-tempo b,
+.insp-v2 .nc-tempo span {
+  grid-column: 2;
+  min-width: 0;
+}
+
 .insp-v2 .nc-tempo b {
   font-size: 13px;
   font-weight: 500;
