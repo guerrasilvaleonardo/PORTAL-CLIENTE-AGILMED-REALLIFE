@@ -496,3 +496,70 @@
   background: var(--surface);
   color: inherit;
 }
+
+/* ---------- Correção, fecho e fila ---------- */
+
+.campo-acoes {
+  margin: 8px 0 0;
+  display: flex;
+  gap: 8px;
+}
+
+/* Marca a foto que ainda não saiu do aparelho. Sem isto a pessoa não
+   sabe o que está pendente e acha que já subiu. */
+.campo-foto-local {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 10px;
+  padding: 2px 0;
+  background: color-mix(in srgb, var(--amber, #b7791f) 85%, transparent);
+  color: #fff;
+  border-radius: 0 0 var(--radius-s) var(--radius-s);
+}
+
+.campo-fecho {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.campo-fecho textarea {
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: inherit;
+  width: 100%;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.campo-ciente {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .campo-ciente {
+    grid-template-columns: 1fr;
+  }
+}
+
+.campo-ciente input {
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: inherit;
+  width: 100%;
+}

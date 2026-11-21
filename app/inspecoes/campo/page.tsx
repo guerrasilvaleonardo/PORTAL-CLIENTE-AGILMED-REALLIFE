@@ -5,6 +5,12 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
+import {
+  temFila,
+  guardar,
+  listar as listarFila,
+  sincronizar as sincronizarFila,
+} from '@/lib/filaDeCampo'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
@@ -84,6 +90,12 @@ type Apontamento = {
 }
 
 type Posicao = { lat: number; lon: number; precisao: number } | null
+
+/*
+ * Uma foto do apontamento em edição. Tem `caminho` quando já subiu ao
+ * balde e `blob` quando ainda está só no aparelho — nunca os dois.
+ */
+type FotoLocal = { id: string; previa: string; caminho?: string; blob?: Blob }
 
 /*
  * O mesmo problema, apontado antes neste mesmo local.
@@ -173,8 +185,15 @@ function CampoConteudo() {
   const [ditando, setDitando] = useState(false)
   const [vozIndisponivel, setVozIndisponivel] = useState(false)
   const reconhecimento = useRef<any>(null)
-  const [fotos, setFotos] = useState<string[]>([])
-  const [previas, setPrevias] = useState<Record<string, string>>({})
+  const [fotos, setFotos] = useState<FotoLocal[]>([])
+  /* Apontamentos guardados no aparelho, esperando sinal. */
+  const [pendentes, setPendentes] = useState(0)
+  const [sincronizando, setSincronizando] = useState(false)
+  /* Qual apontamento salvo está sendo corrigido. */
+  const [editando, setEditando] = useState('')
+  const [observacoes, setObservacoes] = useState('')
+  const [cienteNome, setCienteNome] = useState('')
+  const [cienteCargo, setCienteCargo] = useState('')
   const [enviandoFoto, setEnviandoFoto] = useState(false)
   const [salvando, setSalvando] = useState(false)
 
@@ -232,7 +251,10 @@ function CampoConteudo() {
     async function retomar() {
       const { data: v } = await supabase
         .from('inspecao_visitas')
-        .select('id, empresa_id, local_id, local_nome, situacao')
+        /* Observações e ciência entram aqui porque a tela grava os dois
+           ao sair do campo: se viessem vazios na retomada, o primeiro
+           clique fora apagaria o que já estava escrito. */
+        .select('id, empresa_id, local_id, local_nome, situacao, observacoes, ciente_nome, ciente_cargo')
         .eq('id', visitaDaUrl)
         .maybeSingle()
       if (!ativo || !v) return
@@ -254,6 +276,9 @@ function CampoConteudo() {
       setEmpresaFiltro((e) => e || (v as any).empresa_id)
       setLocalId((v as any).local_id || '')
       setVisitaId(visitaDaUrl)
+      setObservacoes((v as any).observacoes || '')
+      setCienteNome((v as any).ciente_nome || '')
+      setCienteCargo((v as any).ciente_cargo || '')
       setEmVisita(true)
       setFeitos(
         ((aps || []) as any[]).map((a) => ({
@@ -477,6 +502,35 @@ function CampoConteudo() {
     [empresaAtual, localId]
   )
 
+  /*
+   * A posição DESTE apontamento, pedida na hora de salvar.
+   *
+   * Antes, todos herdavam a coordenada do início da visita: num
+   * canteiro de duzentos metros o relatório afirmava que o extintor
+   * obstruído estava no portão. Coordenada errada é pior que nenhuma,
+   * porque quem recebe acredita.
+   *
+   * Espera no máximo seis segundos e aceita leitura de até um minuto:
+   * em campo ninguém segura o celular parado esperando satélite, e o
+   * apontamento sem coordenada continua valendo mais que apontamento
+   * nenhum.
+   */
+  function posicaoAgora(): Promise<Posicao> {
+    return new Promise((ok) => {
+      if (!('geolocation' in navigator)) return ok(null)
+      navigator.geolocation.getCurrentPosition(
+        (p) =>
+          ok({
+            lat: p.coords.latitude,
+            lon: p.coords.longitude,
+            precisao: Math.round(p.coords.accuracy),
+          }),
+        () => ok(null),
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
+      )
+    })
+  }
+
   function pedirPosicao() {
     setPosicaoErro('')
     if (!('geolocation' in navigator)) {
@@ -687,6 +741,27 @@ function CampoConteudo() {
    */
   async function encerrar() {
     if (encerrando || !visitaId) return
+
+    /*
+     * Não encerra com apontamento ainda no aparelho.
+     *
+     * Emitir o relatório agora produziria um documento COM CÓDIGO que
+     * afirma menos do que foi visto — pior que documento nenhum,
+     * porque tem número de série e ar de completo. Tenta subir; se não
+     * conseguir, avisa e para.
+     */
+    if (pendentes > 0) {
+      await subirPendentes()
+      const ainda = temFila() ? (await listarFila()).length : 0
+      if (ainda > 0) {
+        setErro(
+          `${ainda} apontamento${ainda === 1 ? '' : 's'} ainda no aparelho, sem sinal. O ` +
+            'relatório não sai incompleto — procure um ponto com sinal e encerre de novo.'
+        )
+        return
+      }
+    }
+
     setEncerrando(true)
     setErro('')
     try {
@@ -724,6 +799,13 @@ function CampoConteudo() {
           latitude: posicao?.lat ?? null,
           longitude: posicao?.lon ?? null,
           precisao_m: posicao?.precisao ?? null,
+          observacoes: observacoes.trim() || null,
+          ciente_nome: cienteNome.trim() || null,
+          ciente_cargo: cienteCargo.trim() || null,
+          /* A hora da ciência é a do encerramento, que é quando a
+             pessoa de fato ficou sabendo — e não a de agora, se o
+             relatório for reaberto amanhã. */
+          ciente_em: cienteNome.trim() ? new Date().toISOString() : null,
         })
         .eq('id', visitaId)
       if (erroFecha) throw erroFecha
@@ -759,6 +841,13 @@ function CampoConteudo() {
     return new Promise((ok) => tela.toBlob((b) => ok(b as Blob), 'image/jpeg', 0.8))
   }
 
+  /*
+   * A foto tenta subir na hora; se não conseguir, fica no aparelho.
+   *
+   * Antes, a falha de upload apagava a foto e devolvia um erro — no
+   * fundo do galpão, onde não pega sinal, isso significava perder
+   * justamente a evidência do problema que se foi ver lá.
+   */
   async function anexar(arquivo: File | undefined) {
     if (!arquivo || enviandoFoto) return
     if (fotos.length >= 3) {
@@ -769,24 +858,182 @@ function CampoConteudo() {
     setErro('')
     try {
       const blob = await encolher(arquivo)
-      const caminho = `${empresaAtual}/${crypto.randomUUID()}.jpg`
-      const { error } = await supabase.storage
-        .from('inspecao-fotos')
-        .upload(caminho, blob, { contentType: 'image/jpeg', upsert: false })
-      if (error) throw error
-      setFotos((f) => [...f, caminho])
-      setPrevias((p) => ({ ...p, [caminho]: URL.createObjectURL(blob) }))
+      const nova: FotoLocal = { id: crypto.randomUUID(), previa: URL.createObjectURL(blob), blob }
+
+      try {
+        const caminho = `${empresaAtual}/${crypto.randomUUID()}.jpg`
+        const { error } = await supabase.storage
+          .from('inspecao-fotos')
+          .upload(caminho, blob, { contentType: 'image/jpeg', upsert: false })
+        if (error) throw error
+        nova.caminho = caminho
+        nova.blob = undefined
+      } catch {
+        /* Sem sinal: a foto segue no aparelho e sobe junto com o
+           apontamento quando a conexão voltar. */
+      }
+
+      setFotos((f) => [...f, nova])
     } catch (e: any) {
-      setErro(e?.message || 'Não foi possível enviar a foto.')
+      setErro(e?.message || 'Não foi possível preparar a foto.')
     } finally {
       setEnviandoFoto(false)
       if (inputFoto.current) inputFoto.current.value = ''
     }
   }
 
-  function tirar(caminho: string) {
-    setFotos((f) => f.filter((x) => x !== caminho))
-    supabase.storage.from('inspecao-fotos').remove([caminho])
+  function tirar(id: string) {
+    const foto = fotos.find((f) => f.id === id)
+    setFotos((f) => f.filter((x) => x.id !== id))
+    if (foto?.previa) URL.revokeObjectURL(foto.previa)
+    /* Só apaga do balde a que chegou lá. */
+    if (foto?.caminho) supabase.storage.from('inspecao-fotos').remove([foto.caminho])
+  }
+
+  /* Deixa o formulário pronto para o próximo, mantendo a visita. */
+  function limparApontamento() {
+    fotos.forEach((f) => URL.revokeObjectURL(f.previa))
+    setDescricao('')
+    setTitulo('')
+    setAnterior(null)
+    setFotos([])
+    setPrazo('')
+    setResponsavel('')
+    setResponsavelId('')
+    setEditando('')
+  }
+
+  const contarPendentes = useCallback(async () => {
+    if (!temFila()) return
+    try {
+      setPendentes((await listarFila()).length)
+    } catch {
+      /* Sem IndexedDB: a tela segue, só não guarda offline. */
+    }
+  }, [])
+
+  /*
+   * Sobe o que ficou guardado. Roda ao abrir a tela e quando o
+   * navegador avisa que a conexão voltou — não por botão: quem está em
+   * campo não vai lembrar de apertar.
+   */
+  const subirPendentes = useCallback(async () => {
+    if (!temFila() || sincronizando) return
+    setSincronizando(true)
+    try {
+      const r = await sincronizarFila(
+        async (foto) => {
+          const caminho = `${empresaAtual}/${crypto.randomUUID()}.jpg`
+          const { error } = await supabase.storage
+            .from('inspecao-fotos')
+            .upload(caminho, foto, { contentType: 'image/jpeg', upsert: false })
+          if (error) throw error
+          return caminho
+        },
+        async (dados) => {
+          const { error } = await supabase.from('nao_conformidades').insert(dados as any)
+          if (error) throw error
+        }
+      )
+      await contarPendentes()
+      if (r.enviados > 0) {
+        setAviso(
+          r.enviados === 1
+            ? '1 apontamento guardado foi enviado.'
+            : `${r.enviados} apontamentos guardados foram enviados.`
+        )
+        setTimeout(() => setAviso(''), 4000)
+        if (visitaId) recarregarFeitos(visitaId)
+      }
+    } finally {
+      setSincronizando(false)
+    }
+  }, [empresaAtual, sincronizando, visitaId, contarPendentes])
+
+  useEffect(() => {
+    contarPendentes()
+    const aoVoltar = () => subirPendentes()
+    window.addEventListener('online', aoVoltar)
+    return () => window.removeEventListener('online', aoVoltar)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contarPendentes])
+
+  /* Relê os apontamentos da visita direto do banco. */
+  const recarregarFeitos = useCallback(async (visita: string) => {
+    const { data } = await supabase
+      .from('nao_conformidades')
+      .select('id, titulo, descricao, classificacao, gravidade, prazo, responsavel_nome, fotos, created_at')
+      .eq('visita_id', visita)
+      .order('created_at', { ascending: false })
+    setFeitos(
+      ((data || []) as any[]).map((a) => ({
+        id: a.id,
+        descricao: a.descricao,
+        classificacao: a.classificacao,
+        gravidade: a.gravidade,
+        prazo: a.prazo,
+        responsavel_nome: a.responsavel_nome,
+        fotos: a.fotos || [],
+        criado: new Date(a.created_at).toLocaleString('pt-BR', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        }),
+      }))
+    )
+  }, [])
+
+  /*
+   * Traz um apontamento salvo de volta ao formulário.
+   *
+   * Em campo se erra muito — o botão chama "salvar e apontar o
+   * próximo" justamente para ser rápido. Sem isto, corrigir um texto
+   * exigia abrir outra tela, com outra lógica, e quase ninguém faria.
+   */
+  async function corrigir(id: string) {
+    const { data } = await supabase
+      .from('nao_conformidades')
+      .select('titulo, descricao, classificacao, gravidade, prazo, responsavel_id, responsavel_nome, fotos')
+      .eq('id', id)
+      .single()
+    if (!data) return
+
+    const a = data as any
+    setEditando(id)
+    setTitulo(a.titulo || '')
+    setDescricao(a.descricao || '')
+    setTipo(a.classificacao || 'nao_conformidade')
+    setGravidade(a.gravidade || 'media')
+    setPrazo(a.prazo || '')
+    setResponsavelId(a.responsavel_id || '')
+    setResponsavel(a.responsavel_nome || '')
+
+    const caminhos = (a.fotos || []) as string[]
+    const assinadas = caminhos.length
+      ? (await supabase.storage.from('inspecao-fotos').createSignedUrls(caminhos, 3600)).data || []
+      : []
+    setFotos(
+      caminhos.map((c, k) => ({
+        id: c,
+        caminho: c,
+        previa: (assinadas[k] as any)?.signedUrl || '',
+      }))
+    )
+    setAba('livre')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function excluir(id: string) {
+    const segue = window.confirm(
+      'Excluir este apontamento? Ele sai da visita e do relatório. Não dá para desfazer.'
+    )
+    if (!segue) return
+    const { error } = await supabase.from('nao_conformidades').delete().eq('id', id)
+    if (error) {
+      setErro(error.message)
+      return
+    }
+    setFeitos((lista) => lista.filter((a) => a.id !== id))
+    if (editando === id) limparApontamento()
   }
 
   async function salvar() {
@@ -809,9 +1056,22 @@ function CampoConteudo() {
       return
     }
 
+    /* O título é opcional, mas é ele que liga o apontamento ao da
+       visita passada. Quem deixa em branco descobre meses depois que
+       o histórico nunca aparece — então a tela pergunta uma vez. */
+    if (!titulo.trim()) {
+      const segue = window.confirm(
+        'Sem título, este apontamento não será reconhecido como o mesmo problema na próxima ' +
+          'visita — o histórico com a foto do antes não vai aparecer. Salvar assim mesmo?'
+      )
+      if (!segue) return
+    }
+
     setSalvando(true)
     try {
       const local = locais.find((l) => l.id === localId)
+      /* Onde a pessoa está AGORA, não onde a visita começou. */
+      const ondeEstou = await posicaoAgora()
       /*
        * Conforme e oportunidade não têm prazo, dono nem aviso: nada
        * está errado. "Atende em parte" tem tudo isso, como a não
@@ -820,37 +1080,109 @@ function CampoConteudo() {
        */
       const oportunidade = tipo === 'conforme' || tipo === 'oportunidade'
 
-      const { data, error } = await supabase
-        .from('nao_conformidades')
-        .insert({
-          empresa_id: empresaAtual,
-          /* É o que liga o apontamento ao relatório daquela visita. */
-          visita_id: visitaId || null,
-          origem: 'avulsa',
-          tipo: 'inspecao',
-          local_id: localId || null,
-          local_nome: local?.nome || null,
-          descricao: descricao.trim(),
-          titulo: titulo.trim() || null,
-          classificacao: tipo === 'nao_conformidade' ? null : tipo,
-          /* Oportunidade entra como baixa para não inflar a fila de
-             gravidade alta; a tela nem mostra o campo. */
-          gravidade: oportunidade ? 'baixa' : gravidade,
-          prazo: oportunidade || !prazo ? null : prazo,
-          responsavel_id:
-            oportunidade || !responsavelId || responsavelId === 'outro' ? null : responsavelId,
-          responsavel_nome: oportunidade ? null : responsavel.trim() || null,
-          fotos,
-          foto_path: fotos[0] || null,
-          latitude: posicao?.lat ?? null,
-          longitude: posicao?.lon ?? null,
-          precisao_m: posicao?.precisao ?? null,
-          ocorrido_em: new Date().toISOString(),
-          aberta_por: usuario || null,
+      const base = {
+        empresa_id: empresaAtual,
+        /* É o que liga o apontamento ao relatório daquela visita. */
+        visita_id: visitaId || null,
+        origem: 'avulsa',
+        tipo: 'inspecao',
+        local_id: localId || null,
+        local_nome: local?.nome || null,
+        descricao: descricao.trim(),
+        titulo: titulo.trim() || null,
+        classificacao: tipo === 'nao_conformidade' ? null : tipo,
+        /* Oportunidade entra como baixa para não inflar a fila de
+           gravidade alta; a tela nem mostra o campo. */
+        gravidade: oportunidade ? 'baixa' : gravidade,
+        prazo: oportunidade || !prazo ? null : prazo,
+        responsavel_id:
+          oportunidade || !responsavelId || responsavelId === 'outro' ? null : responsavelId,
+        responsavel_nome: oportunidade ? null : responsavel.trim() || null,
+        latitude: ondeEstou?.lat ?? null,
+        longitude: ondeEstou?.lon ?? null,
+        precisao_m: ondeEstou?.precisao ?? null,
+        ocorrido_em: new Date().toISOString(),
+        aberta_por: usuario || null,
+      }
+
+      /*
+       * Corrigindo um salvo: atualiza e sai. A correção só existe
+       * online — e tudo bem, porque corrigir é coisa que se faz
+       * parado, relendo, não andando pelo galpão.
+       */
+      if (editando) {
+        const { error } = await supabase
+          .from('nao_conformidades')
+          .update({
+            ...base,
+            fotos: fotos.map((f) => f.caminho).filter(Boolean) as string[],
+            foto_path: fotos.find((f) => f.caminho)?.caminho || null,
+          })
+          .eq('id', editando)
+        if (error) throw error
+
+        setFeitos((lista) =>
+          lista.map((a) =>
+            a.id === editando
+              ? {
+                  ...a,
+                  descricao: descricao.trim(),
+                  classificacao: tipo === 'nao_conformidade' ? null : tipo,
+                  gravidade: oportunidade ? 'baixa' : gravidade,
+                  prazo: oportunidade || !prazo ? null : prazo,
+                  responsavel_nome: oportunidade ? null : responsavel.trim() || null,
+                  fotos: fotos.map((f) => f.caminho).filter(Boolean) as string[],
+                }
+              : a
+          )
+        )
+        limparApontamento()
+        setAviso('Apontamento corrigido.')
+        setTimeout(() => setAviso(''), 3000)
+        setSalvando(false)
+        return
+      }
+
+      /* Foto que não subiu obriga a fila: gravar a linha agora
+         deixaria o apontamento no portal sem a evidência. */
+      const faltaFoto = fotos.some((f) => !f.caminho)
+      let id = ''
+
+      if (!faltaFoto) {
+        const { data, error } = await supabase
+          .from('nao_conformidades')
+          .insert({
+            ...base,
+            fotos: fotos.map((f) => f.caminho) as string[],
+            foto_path: fotos[0]?.caminho || null,
+          })
+          .select('id')
+          .single()
+        if (error) throw error
+        id = (data as any).id
+      } else {
+        if (!temFila()) {
+          throw new Error(
+            'A foto não subiu e este navegador não guarda apontamento offline. Tente com sinal.'
+          )
+        }
+        await guardar({
+          id: crypto.randomUUID(),
+          visitaId: visitaId,
+          empresaId: empresaAtual,
+          criadoEm: Date.now(),
+          dados: base,
+          fotos: fotos.filter((f) => f.blob).map((f) => f.blob as Blob),
         })
-        .select('id')
-        .single()
-      if (error) throw error
+        await contarPendentes()
+        limparApontamento()
+        setAviso('Sem sinal: guardado no aparelho. Sobe sozinho quando a conexão voltar.')
+        setTimeout(() => setAviso(''), 5000)
+        setSalvando(false)
+        return
+      }
+
+      const data = { id }
 
       setFeitos((lista) => [
         {
@@ -860,7 +1192,7 @@ function CampoConteudo() {
           gravidade: oportunidade ? 'baixa' : gravidade,
           prazo: oportunidade || !prazo ? null : prazo,
           responsavel_nome: oportunidade ? null : responsavel.trim() || null,
-          fotos,
+          fotos: fotos.map((f) => f.caminho).filter(Boolean) as string[],
           criado: agoraBr(),
         },
         ...lista,
@@ -896,14 +1228,7 @@ function CampoConteudo() {
         setAviso('Apontamento salvo. Pode seguir para o próximo.')
       }
 
-      setDescricao('')
-      setTitulo('')
-      setAnterior(null)
-      setFotos([])
-      setPrevias({})
-      setPrazo('')
-      setResponsavel('')
-      setResponsavelId('')
+      limparApontamento()
       carregarTitulos(empresaAtual, localId)
       setTimeout(() => setAviso(''), 4000)
     } catch (e: any) {
@@ -1044,6 +1369,22 @@ function CampoConteudo() {
 
           {erro && <div className="banner bad nao-imprimir">{erro}</div>}
           {aviso && <div className="banner nao-imprimir">{aviso}</div>}
+
+          {pendentes > 0 && (
+            <div className="banner nao-imprimir">
+              {pendentes === 1
+                ? '1 apontamento está guardado no aparelho, esperando sinal.'
+                : `${pendentes} apontamentos estão guardados no aparelho, esperando sinal.`}{' '}
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={sincronizando}
+                onClick={subirPendentes}
+              >
+                {sincronizando ? 'Enviando…' : 'Tentar enviar agora'}
+              </button>
+            </div>
+          )}
 
           {checklists.length > 0 && (
             <div className="campo-abas nao-imprimir">
@@ -1246,10 +1587,13 @@ function CampoConteudo() {
 
               <div className="campo-fotos">
                 {fotos.map((f) => (
-                  <div key={f} className="campo-foto">
+                  <div key={f.id} className="campo-foto">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={previas[f]} alt="" />
-                    <button type="button" onClick={() => tirar(f)} aria-label="Remover foto">
+                    <img src={f.previa} alt="" />
+                    {/* Marca a foto que ainda não saiu do aparelho: sem
+                        isto a pessoa não sabe o que está pendente. */}
+                    {!f.caminho && <span className="campo-foto-local">no aparelho</span>}
+                    <button type="button" onClick={() => tirar(f.id)} aria-label="Remover foto">
                       ×
                     </button>
                   </div>
@@ -1408,9 +1752,60 @@ function CampoConteudo() {
                       {a.responsavel_nome ? ` · ${a.responsavel_nome}` : ''}
                       {a.fotos.length ? ` · ${a.fotos.length} foto(s)` : ' · sem foto'}
                     </p>
+                    {/* Corrigir e excluir aqui mesmo: em campo se erra
+                        muito, e mandar a pessoa para outra tela faz com
+                        que o erro simplesmente fique. */}
+                    <p className="campo-acoes nao-imprimir">
+                      <button type="button" className="btn btn-sm" onClick={() => corrigir(a.id)}>
+                        Corrigir
+                      </button>{' '}
+                      <button type="button" className="btn btn-sm" onClick={() => excluir(a.id)}>
+                        Excluir
+                      </button>
+                    </p>
                   </li>
                 ))}
               </ol>
+
+              {/* Fecho da visita: o que o relatório vai imprimir e
+                  ninguém tinha onde escrever. */}
+              <div className="campo-fecho nao-imprimir">
+                <label className="campo-linha">
+                  <span>Observações da visita</span>
+                  <textarea
+                    rows={2}
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    onBlur={() =>
+                      visitaId &&
+                      supabase
+                        .from('inspecao_visitas')
+                        .update({ observacoes: observacoes.trim() || null })
+                        .eq('id', visitaId)
+                    }
+                    placeholder="O que o cliente precisa saber além dos apontamentos"
+                  />
+                </label>
+
+                <p className="campo-mini">
+                  Quem recebeu a visita. Fica registrado com data e hora no relatório, no lugar
+                  da linha em branco para assinar.
+                </p>
+                <div className="campo-ciente">
+                  <input
+                    type="text"
+                    value={cienteNome}
+                    onChange={(e) => setCienteNome(e.target.value)}
+                    placeholder="Nome de quem acompanhou"
+                  />
+                  <input
+                    type="text"
+                    value={cienteCargo}
+                    onChange={(e) => setCienteCargo(e.target.value)}
+                    placeholder="Cargo"
+                  />
+                </div>
+              </div>
 
               <p className="campo-mini nao-imprimir">
                 Tudo isto já está salvo e aparece em{' '}
