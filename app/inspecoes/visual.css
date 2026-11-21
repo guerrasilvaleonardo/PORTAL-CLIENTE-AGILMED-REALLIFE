@@ -383,3 +383,80 @@
     grid-row: 2;
   }
 }
+
+/* ---------- Cabeçalho com ação à direita --------------------------- */
+
+.insp-v2 .insp-cabeca {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.insp-v2 .insp-cabeca > .btn {
+  margin-left: auto;
+}
+
+/* ---------- A barra de filtros da lista ---------------------------- */
+
+/*
+ * Busca larga, seletores estreitos: a busca é o que mais se usa, e
+ * campo de busca curto é campo que esconde o que foi digitado.
+ */
+.insp-v2 .insp-filtros {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.insp-v2 .insp-filtros label {
+  margin: 0;
+}
+
+.insp-v2 .insp-busca {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.insp-v2 .insp-filtros input[type='search'],
+.insp-v2 .insp-filtros select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Rótulo que existe para o leitor de tela e não ocupa espaço: sem
+   ele, o campo de busca não tem nome nenhum para quem não enxerga. */
+.insp-v2 .insp-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Rodapé da lista ---------------------------------------- */
+
+.insp-v2 .insp-rodape {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+.insp-v2 .insp-rodape-botoes {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
