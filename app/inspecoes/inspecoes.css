@@ -669,3 +669,93 @@
   border-radius: 999px;
   background: #0f5e78;
 }
+
+/* ----------------------------------------------------------------
+ * Relatórios em duas colunas, como no desenho: o arquivo à esquerda,
+ * e à direita o que a tabela não responde — como o código é formado e
+ * o que sai na folha. Abaixo de 1100px vira uma coluna só, e a lateral
+ * desce para o fim, que é onde ela incomoda menos.
+ * ---------------------------------------------------------------- */
+
+.rel-duas-colunas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.rel-coluna-lista {
+  flex: 999 1 540px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rel-coluna-lado {
+  flex: 1 1 290px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rel-codigo-exemplo {
+  margin: 0 0 12px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rel-codigo-partes {
+  margin: 0;
+}
+
+.rel-codigo-partes > div {
+  display: flex;
+  gap: 9px;
+  margin-bottom: 6px;
+}
+
+.rel-codigo-partes dt {
+  flex: 0 0 46px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rel-codigo-partes dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.rel-folha {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rel-folha li {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+  padding-left: 14px;
+  position: relative;
+}
+
+.rel-folha li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}

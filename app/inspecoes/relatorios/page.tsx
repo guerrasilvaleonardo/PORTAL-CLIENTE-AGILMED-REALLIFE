@@ -158,6 +158,9 @@ function RelatoriosConteudo() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
+      <div className="rel-duas-colunas">
+      <div className="rel-coluna-lista">
+
       <div className="filters">
         {interno && (
           <FiltroEmpresa
@@ -236,6 +239,80 @@ function RelatoriosConteudo() {
           </tbody>
         </table>
       )}
+
+      </div>
+
+      {/*
+       * A coluna da direita: o que o arquivo não responde sozinho.
+       *
+       * Quem abre esta tela com uma auditoria marcada precisa saber
+       * duas coisas que não estão na tabela — como o código é formado
+       * (para explicar um salto de sequência) e o que sai na folha
+       * impressa. Estavam só na minha cabeça e no código; agora estão
+       * onde a pergunta acontece.
+       */}
+      <aside className="rel-coluna-lado nao-imprimir">
+        <div className="panel">
+          <div className="panel-body">
+            <div className="section-title" style={{ marginBottom: 10 }}>
+              Gerar o relatório do período
+            </div>
+            <p className="ajuda-linha" style={{ marginBottom: 12 }}>
+              Junta várias visitas num documento só, com indicadores. É o que vai para a reunião
+              mensal — e o número já fica reservado na emissão.
+            </p>
+            <Link href="/inspecoes/relatorio" className="btn btn-sm btn-primary">
+              Abrir o do período
+            </Link>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-body">
+            <div className="section-title" style={{ marginBottom: 10 }}>
+              Como o código funciona
+            </div>
+
+            <p className="rel-codigo-exemplo mono">RIC-2026-0041</p>
+
+            <dl className="rel-codigo-partes">
+              <div>
+                <dt>RIC</dt>
+                <dd>relatório de inspeção de campo (RIP é o do período)</dd>
+              </div>
+              <div>
+                <dt>2026</dt>
+                <dd>ano da emissão</dd>
+              </div>
+              <div>
+                <dt>0041</dt>
+                <dd>sequência da empresa naquele ano, sem buraco e sem repetir</dd>
+              </div>
+            </dl>
+
+            <p className="ajuda-linha" style={{ marginTop: 12 }}>
+              Mudou algo depois de emitido? O código fica o mesmo e a revisão sobe, com o motivo
+              escrito. O documento anterior continua guardado.
+            </p>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-body">
+            <div className="section-title" style={{ marginBottom: 10 }}>
+              Na folha impressa
+            </div>
+            <ul className="rel-folha">
+              <li>Cabeçalho com cliente, local e o código em todas as páginas</li>
+              <li>Rodapé com “página 2 de 9” e a data e hora da emissão</li>
+              <li>Foto nunca corta entre duas páginas</li>
+              <li>Assinatura de quem inspecionou e de quem deu ciência</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+
+      </div>
     </div>
   )
 }

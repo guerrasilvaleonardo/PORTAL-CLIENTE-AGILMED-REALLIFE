@@ -1572,6 +1572,55 @@ function CampoConteudo() {
             </button>
           </div>
 
+          {/*
+           * A RÉGUA DOS QUATRO PASSOS.
+           *
+           * Dentro da tela de campo é fácil perder de vista que apontar
+           * é o meio do caminho, não o fim: falta encerrar com o cliente
+           * e falta o relatório sair com código. A régua responde "onde
+           * estou e o que vem depois" sem precisar sair da tela — e o
+           * passo 2 é sempre o atual, porque é a própria tela.
+           */}
+          <ol className="campo-regua nao-imprimir">
+            <li className="feito">
+              <span className="campo-regua-marca" aria-hidden="true">✓</span>
+              <span>
+                <strong>1. Preparada</strong>
+                <em>
+                  {checklists.length === 0
+                    ? 'sem checklist, só apontamento livre'
+                    : checklists.length === 1
+                      ? '1 checklist escolhido'
+                      : `${checklists.length} checklists escolhidos`}
+                </em>
+              </span>
+            </li>
+            <li className="atual">
+              <span className="campo-regua-marca" aria-hidden="true">2</span>
+              <span>
+                <strong>2. Em campo</strong>
+                <em>
+                  você está aqui ·{' '}
+                  {feitos.length === 1 ? '1 apontamento' : `${feitos.length} apontamentos`}
+                </em>
+              </span>
+            </li>
+            <li>
+              <span className="campo-regua-marca" aria-hidden="true">3</span>
+              <span>
+                <strong>3. Encerrar</strong>
+                <em>ciência do cliente</em>
+              </span>
+            </li>
+            <li>
+              <span className="campo-regua-marca" aria-hidden="true">4</span>
+              <span>
+                <strong>4. Relatório emitido</strong>
+                <em>código, data e hora</em>
+              </span>
+            </li>
+          </ol>
+
           {erro && <div className="banner bad nao-imprimir">{erro}</div>}
           {aviso && <div className="banner nao-imprimir">{aviso}</div>}
 

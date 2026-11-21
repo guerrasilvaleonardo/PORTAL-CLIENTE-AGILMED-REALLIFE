@@ -773,3 +773,79 @@
 .campo-fatal.marcado strong {
   color: #a52017;
 }
+
+/* ----------------------------------------------------------------
+ * A régua dos quatro passos da visita.
+ *
+ * Linha fina embaixo de cada passo, como no desenho: o passo cumprido
+ * e o atual acendem na cor da marca, os de frente ficam apagados. No
+ * celular ela rola na horizontal em vez de quebrar em duas linhas
+ * desalinhadas — e some na impressão, porque no papel não existe
+ * "onde estou".
+ * ---------------------------------------------------------------- */
+
+.campo-regua {
+  display: flex;
+  gap: 0;
+  margin: 4px 0 14px;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.campo-regua li {
+  flex: 1 1 148px;
+  min-width: 132px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0 10px 10px 0;
+  border-bottom: 3px solid var(--border);
+}
+
+.campo-regua li.feito,
+.campo-regua li.atual {
+  border-bottom-color: var(--primary);
+}
+
+.campo-regua-marca {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-faint);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.campo-regua li.feito .campo-regua-marca,
+.campo-regua li.atual .campo-regua-marca {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.campo-regua strong {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.campo-regua li.feito strong,
+.campo-regua li.atual strong {
+  color: var(--primary);
+}
+
+.campo-regua em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.35;
+}
