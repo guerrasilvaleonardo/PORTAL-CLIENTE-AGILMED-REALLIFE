@@ -64,7 +64,25 @@ type Acao = {
 const dataBr = (iso: string | null) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—')
 const hoje = () => new Date().toISOString().slice(0, 10)
 
-export default function AcoesDaNC({ ncId, empresaId }: { ncId: string; empresaId: string }) {
+export default function AcoesDaNC({
+  ncId,
+  empresaId,
+  aoContar,
+  textoParaAproveitar,
+  aoAproveitarTexto,
+}: {
+  ncId: string
+  empresaId: string
+  /* A ficha precisa saber quantas ações existem para escrever o número
+     na aba e para cobrar plano antes de encerrar. Sem isto, a contagem
+     ficaria trancada aqui dentro. */
+  aoContar?: (quantas: number) => void
+  /* O resumo de uma linha que já estava escrito. Serve para a ponte:
+     virar uma ação de verdade com um toque, em vez de ser digitado de
+     novo. */
+  textoParaAproveitar?: string
+  aoAproveitarTexto?: () => void
+}) {
   const [lista, setLista] = useState<Acao[]>([])
   const [carregando, setCarregando] = useState(true)
   const [semTabela, setSemTabela] = useState(false)
@@ -99,7 +117,9 @@ export default function AcoesDaNC({ ncId, empresaId }: { ncId: string; empresaId
       return
     }
 
-    setLista((data || []) as Acao[])
+    const linhas = (data || []) as Acao[]
+    setLista(linhas)
+    aoContar?.(linhas.length)
   }
 
   useEffect(() => {
@@ -141,7 +161,11 @@ export default function AcoesDaNC({ ncId, empresaId }: { ncId: string; empresaId
       return
     }
 
-    setLista((l) => [...l, data as Acao])
+    setLista((l) => {
+      const comANova = [...l, data as Acao]
+      aoContar?.(comANova.length)
+      return comANova
+    })
     setNova({ tipo: 'corretiva', descricao: '', responsavel_nome: '', prazo: '' })
   }
 
@@ -158,7 +182,11 @@ export default function AcoesDaNC({ ncId, empresaId }: { ncId: string; empresaId
       return
     }
 
-    setLista((l) => l.filter((x) => x.id !== a.id))
+    setLista((l) => {
+      const sobrou = l.filter((x) => x.id !== a.id)
+      aoContar?.(sobrou.length)
+      return sobrou
+    })
   }
 
   if (semTabela) {
@@ -172,6 +200,41 @@ export default function AcoesDaNC({ ncId, empresaId }: { ncId: string; empresaId
 
   return (
     <div className="nc-acoes">
+      {/*
+        * O AVISO QUE FALTAVA.
+        *
+        * Sem ele, quem escrevia a frase da ação corretiva e salvava ia
+        * embora achando que tinha feito um plano. O texto entra no
+        * relatório, mas não tem dono, não tem prazo, não aparece em
+        * Planos de ação e ninguém é cobrado por ele. O aviso diz isso
+        * com todas as letras — e oferece o atalho de transformar a
+        * frase numa ação de verdade, em vez de mandar digitar de novo.
+        */}
+      {!carregando && lista.length === 0 && (
+        <div className="banner" style={{ marginBottom: 12 }}>
+          <div>
+            <strong>Esta não conformidade ainda não tem plano.</strong>
+            <div style={{ fontWeight: 500, marginTop: 4 }}>
+              O resumo escrito abaixo entra no relatório, mas não tem dono nem prazo: não aparece
+              em Planos de ação e ninguém é cobrado por ele.
+            </div>
+          </div>
+          {textoParaAproveitar?.trim() && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={salvando}
+              onClick={async () => {
+                setNova((n) => ({ ...n, descricao: textoParaAproveitar.trim() }))
+                aoAproveitarTexto?.()
+              }}
+            >
+              Usar o resumo como primeira ação
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="section-title" style={{ marginBottom: 6 }}>
         Ações desta não conformidade
         <Ajuda
