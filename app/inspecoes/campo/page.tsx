@@ -109,6 +109,12 @@ type Checklist = {
     pergunta: string
     resposta: string | null
     observacao: string | null
+    /* Caminhos no balde. A prova do item reprovado mora aqui, e é
+       daqui que o gatilho do banco leva a foto para a não
+       conformidade que ele abre ao concluir o checklist. */
+    fotos: string[] | null
+    /* Links assinados das fotos acima, para mostrar na tela. */
+    previas?: string[]
   }[]
 }
 
@@ -186,6 +192,7 @@ function CampoConteudo() {
      listar como relatório realizado. */
   const [visitaId, setVisitaId] = useState('')
   const [encerrando, setEncerrando] = useState(false)
+  const [enviandoFotoItem, setEnviandoFotoItem] = useState('')
 
   const [modelos, setModelos] = useState<Modelo[]>([])
   const [escolhidos, setEscolhidos] = useState<string[]>([])
@@ -713,14 +720,33 @@ function CampoConteudo() {
     for (const i of (insps || []) as any[]) {
       const { data: itens } = await supabase
         .from('inspecao_respostas')
-        .select('id, ordem, categoria, pergunta, resposta, observacao')
+        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos')
         .eq('inspecao_id', i.id)
         .order('ordem')
+
+      /* As fotos já anexadas voltam como link assinado — em um pedido
+         só para o checklist inteiro, e não um por item. */
+      const comFoto = ((itens || []) as any[]).filter((x) => (x.fotos || []).length)
+      const caminhos = comFoto.flatMap((x) => x.fotos as string[])
+      const assinadas: Record<string, string> = {}
+
+      if (caminhos.length) {
+        const { data: urls } = await supabase.storage
+          .from('inspecao-fotos')
+          .createSignedUrls(caminhos, 3600)
+        for (const u of (urls || []) as any[]) {
+          if (u.path && u.signedUrl) assinadas[u.path] = u.signedUrl
+        }
+      }
+
       lista.push({
         inspecaoId: i.id,
         nome: i.modelo_nome,
         norma: i.norma,
-        itens: (itens || []) as any[],
+        itens: ((itens || []) as any[]).map((x) => ({
+          ...x,
+          previas: ((x.fotos || []) as string[]).map((c) => assinadas[c]).filter(Boolean),
+        })),
       })
     }
     setChecklists(lista)
@@ -913,6 +939,78 @@ function CampoConteudo() {
     } finally {
       setEnviandoFoto(false)
       if (inputFoto.current) inputFoto.current.value = ''
+    }
+  }
+
+  /*
+   * Foto do item reprovado do checklist.
+   *
+   * POR QUE AQUI TAMBÉM. "O que foi visto" sem foto é meia prova: na
+   * reunião com o cliente, a frase vira discussão e a foto encerra o
+   * assunto. A não conformidade que o gatilho abre ao concluir o
+   * checklist já procura a foto nesta coluna — o que faltava era a
+   * tela deixar anexar.
+   *
+   * SOBE NA HORA, ao contrário do apontamento livre. Responder o
+   * checklist já exige sinal (a resposta grava direto no banco), então
+   * guardar a foto no aparelho aqui criaria uma fila que a tela não
+   * tem como mostrar item a item. Sem sinal, avisa e não finge.
+   */
+  async function anexarAoItem(inspecaoId: string, itemId: string, arquivo: File | undefined) {
+    if (!arquivo || enviandoFotoItem) return
+
+    const item = checklists
+      .find((c) => c.inspecaoId === inspecaoId)
+      ?.itens.find((i) => i.id === itemId)
+
+    if ((item?.fotos || []).length >= 3) {
+      setErro('Três fotos por item já é bastante para provar o achado.')
+      return
+    }
+
+    setEnviandoFotoItem(itemId)
+    setErro('')
+
+    try {
+      const blob = await encolher(arquivo)
+      const caminho = `${empresaAtual}/${crypto.randomUUID()}.jpg`
+
+      const { error: erroUp } = await supabase.storage
+        .from('inspecao-fotos')
+        .upload(caminho, blob, { contentType: 'image/jpeg', upsert: false })
+      if (erroUp) throw erroUp
+
+      const novas = [...(item?.fotos || []), caminho]
+
+      const { error } = await supabase
+        .from('inspecao_respostas')
+        .update({ fotos: novas, foto_path: novas[0] })
+        .eq('id', itemId)
+      if (error) throw error
+
+      const previa = URL.createObjectURL(blob)
+      setChecklists((cs) =>
+        cs.map((c) =>
+          c.inspecaoId === inspecaoId
+            ? {
+                ...c,
+                itens: c.itens.map((i) =>
+                  i.id === itemId
+                    ? { ...i, fotos: novas, previas: [...(i.previas || []), previa] }
+                    : i
+                ),
+              }
+            : c
+        )
+      )
+    } catch (e: any) {
+      setErro(
+        e?.message?.includes('fetch')
+          ? 'Sem sinal para enviar a foto. Tente de novo onde pegar.'
+          : e?.message || 'Não foi possível anexar a foto.'
+      )
+    } finally {
+      setEnviandoFotoItem('')
     }
   }
 
@@ -1520,15 +1618,46 @@ function CampoConteudo() {
                                   ))}
                                 </div>
                                 {i.resposta === 'nao_conforme' && (
-                                  <input
-                                    type="text"
-                                    className="campo-obs"
-                                    defaultValue={i.observacao || ''}
-                                    placeholder="O que foi visto (vai para a não conformidade)"
-                                    onBlur={(e) =>
-                                      observar(c.inspecaoId, i.id, e.target.value.trim())
-                                    }
-                                  />
+                                  <div className="campo-item-nc">
+                                    <input
+                                      type="text"
+                                      className="campo-obs"
+                                      defaultValue={i.observacao || ''}
+                                      placeholder="O que foi visto (vai para a não conformidade)"
+                                      onBlur={(e) =>
+                                        observar(c.inspecaoId, i.id, e.target.value.trim())
+                                      }
+                                    />
+
+                                    {/* A prova do que foi visto. Vai junto
+                                        para a não conformidade. */}
+                                    <div className="campo-fotos">
+                                      {(i.previas || []).map((src, k) => (
+                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                        <div key={k} className="campo-foto">
+                                          <img src={src} alt={'Foto ' + (k + 1) + ' do item'} />
+                                        </div>
+                                      ))}
+
+                                      {(i.fotos || []).length < 3 && (
+                                        <label className="campo-add-foto">
+                                          {enviandoFotoItem === i.id ? 'enviando…' : 'foto'}
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            onChange={(e) =>
+                                              anexarAoItem(
+                                                c.inspecaoId,
+                                                i.id,
+                                                e.target.files?.[0]
+                                              )
+                                            }
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             </div>

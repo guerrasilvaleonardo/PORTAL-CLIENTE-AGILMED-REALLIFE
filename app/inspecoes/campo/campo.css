@@ -716,3 +716,13 @@
     top: 16px;
   }
 }
+
+/* O bloco que abre embaixo do item reprovado: o que foi visto, e a
+   foto que prova. Ocupa a linha inteira mesmo no monitor, onde a
+   pergunta e as respostas dividem a linha de cima. */
+.campo-item-nc {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
