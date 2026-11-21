@@ -270,7 +270,7 @@ function TrilhaConteudo() {
           titulo="Organizar os documentos antes de começar"
           porque="Quem começa a responder sem ter onde guardar a evidência responde duas vezes: uma para o checklist e outra para achar o arquivo depois."
           situacao="A estrutura de pastas sai pronta, uma pasta por requisito da norma."
-          acao={{ rotulo: 'Ver o passo a passo', href: '/auditorias/preparar' }}
+          acao={{ rotulo: 'Ver o passo a passo', href: '/implantacao/preparar' }}
         />
 
         <Etapa
