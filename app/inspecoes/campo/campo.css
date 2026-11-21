@@ -726,3 +726,50 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/*
+ * "Podia ter matado alguém".
+ *
+ * Fica numa caixa própria, e não no meio dos outros campos, porque é
+ * a única pergunta da tela que não descreve o que aconteceu — ela
+ * pergunta o que quase aconteceu. Marcada, a caixa muda de cor: é um
+ * aviso para quem está preenchendo, não um enfeite.
+ */
+.campo-fatal {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  cursor: pointer;
+}
+
+.campo-fatal.marcado {
+  border-color: #e8a9a2;
+  background: #fdf4f3;
+}
+
+.campo-fatal input {
+  /* Alvo de toque de dedo com luva, não de mouse. */
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+}
+
+.campo-fatal > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.campo-fatal strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.campo-fatal.marcado strong {
+  color: #a52017;
+}

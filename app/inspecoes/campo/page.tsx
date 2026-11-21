@@ -12,6 +12,7 @@ import {
   listar as listarFila,
   sincronizar as sincronizarFila,
 } from '@/lib/filaDeCampo'
+import { TIPOLOGIAS, rotuloTipologia } from '@/lib/vocabularioNC'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
@@ -122,6 +123,8 @@ type Apontamento = {
   id: string
   descricao: string
   classificacao: string | null
+  tipologia: string | null
+  potencial_fatal: boolean
   gravidade: string
   prazo: string | null
   responsavel_nome: string | null
@@ -215,6 +218,21 @@ function CampoConteudo() {
     'conforme' | 'insuficiente' | 'oportunidade' | 'nao_conformidade'
   >('conforme')
   const [titulo, setTitulo] = useState('')
+  /*
+   * O assunto do desvio, em lista fechada. Escolhido aqui e não na
+   * mesa depois: quem estava na frente da cena sabe se aquilo é
+   * altura ou é elétrica, e quem lê o relatório semanas depois já
+   * não sabe. É esta escolha que agrupa o histórico e que decide
+   * quais sugestões a espinha de peixe vai oferecer na investigação.
+   */
+  const [tipologia, setTipologia] = useState('')
+  /*
+   * O que PODERIA ter acontecido, separado da gravidade do que
+   * aconteceu. Um quase-acidente de gravidade baixa pode ter
+   * potencial fatal — e é justamente esse que não pode se perder no
+   * meio dos outros quarenta apontamentos do mês.
+   */
+  const [potencialFatal, setPotencialFatal] = useState(false)
   const [titulosConhecidos, setTitulosConhecidos] = useState<string[]>([])
   const [anterior, setAnterior] = useState<Anterior>(null)
   const [descricao, setDescricao] = useState('')
@@ -307,7 +325,9 @@ function CampoConteudo() {
 
       const { data: aps } = await supabase
         .from('nao_conformidades')
-        .select('id, titulo, descricao, classificacao, gravidade, prazo, responsavel_nome, fotos, created_at')
+        .select(
+          'id, titulo, descricao, classificacao, tipologia, potencial_fatal, gravidade, prazo, responsavel_nome, fotos, created_at'
+        )
         .eq('visita_id', visitaDaUrl)
         .order('created_at', { ascending: false })
 
@@ -326,6 +346,8 @@ function CampoConteudo() {
           id: a.id,
           descricao: a.descricao,
           classificacao: a.classificacao,
+          tipologia: a.tipologia,
+          potencial_fatal: !!a.potencial_fatal,
           gravidade: a.gravidade,
           prazo: a.prazo,
           responsavel_nome: a.responsavel_nome,
@@ -1027,6 +1049,10 @@ function CampoConteudo() {
     fotos.forEach((f) => URL.revokeObjectURL(f.previa))
     setDescricao('')
     setTitulo('')
+    /* A tipologia fica: quem está inspecionando a área elétrica
+       costuma apontar três coisas elétricas seguidas. O potencial
+       fatal não fica — esse é julgamento de cada caso. */
+    setPotencialFatal(false)
     setAnterior(null)
     setFotos([])
     setPrazo('')
@@ -1094,7 +1120,9 @@ function CampoConteudo() {
   const recarregarFeitos = useCallback(async (visita: string) => {
     const { data } = await supabase
       .from('nao_conformidades')
-      .select('id, titulo, descricao, classificacao, gravidade, prazo, responsavel_nome, fotos, created_at')
+      .select(
+          'id, titulo, descricao, classificacao, tipologia, potencial_fatal, gravidade, prazo, responsavel_nome, fotos, created_at'
+        )
       .eq('visita_id', visita)
       .order('created_at', { ascending: false })
     setFeitos(
@@ -1102,6 +1130,8 @@ function CampoConteudo() {
         id: a.id,
         descricao: a.descricao,
         classificacao: a.classificacao,
+        tipologia: a.tipologia,
+        potencial_fatal: !!a.potencial_fatal,
         gravidade: a.gravidade,
         prazo: a.prazo,
         responsavel_nome: a.responsavel_nome,
@@ -1124,7 +1154,9 @@ function CampoConteudo() {
   async function corrigir(id: string) {
     const { data } = await supabase
       .from('nao_conformidades')
-      .select('titulo, descricao, classificacao, gravidade, prazo, responsavel_id, responsavel_nome, fotos')
+      .select(
+        'titulo, descricao, classificacao, gravidade, prazo, responsavel_id, responsavel_nome, fotos, tipologia, potencial_fatal'
+      )
       .eq('id', id)
       .single()
     if (!data) return
@@ -1132,6 +1164,8 @@ function CampoConteudo() {
     const a = data as any
     setEditando(id)
     setTitulo(a.titulo || '')
+    setTipologia(a.tipologia || '')
+    setPotencialFatal(!!a.potencial_fatal)
     setDescricao(a.descricao || '')
     setTipo(a.classificacao || 'nao_conformidade')
     setGravidade(a.gravidade || 'media')
@@ -1222,6 +1256,10 @@ function CampoConteudo() {
         local_nome: local?.nome || null,
         descricao: descricao.trim(),
         titulo: titulo.trim() || null,
+        tipologia: tipologia || null,
+        /* Conforme e oportunidade não carregam potencial: não houve
+           desvio para ter potencial nenhum. */
+        potencial_fatal: oportunidade ? false : potencialFatal,
         classificacao: tipo === 'nao_conformidade' ? null : tipo,
         /* Oportunidade entra como baixa para não inflar a fila de
            gravidade alta; a tela nem mostra o campo. */
@@ -1260,6 +1298,8 @@ function CampoConteudo() {
                   ...a,
                   descricao: descricao.trim(),
                   classificacao: tipo === 'nao_conformidade' ? null : tipo,
+                  tipologia: tipologia || null,
+                  potencial_fatal: oportunidade ? false : potencialFatal,
                   gravidade: oportunidade ? 'baixa' : gravidade,
                   prazo: oportunidade || !prazo ? null : prazo,
                   responsavel_nome: oportunidade ? null : responsavel.trim() || null,
@@ -1321,6 +1361,8 @@ function CampoConteudo() {
           id: (data as any).id,
           descricao: descricao.trim(),
           classificacao: tipo === 'nao_conformidade' ? null : tipo,
+          tipologia: tipologia || null,
+          potencial_fatal: oportunidade ? false : potencialFatal,
           gravidade: oportunidade ? 'baixa' : gravidade,
           prazo: oportunidade || !prazo ? null : prazo,
           responsavel_nome: oportunidade ? null : responsavel.trim() || null,
@@ -1748,6 +1790,48 @@ function CampoConteudo() {
                 </datalist>
               </label>
 
+              <label className="campo-linha">
+                <span>
+                  Assunto{' '}
+                  <Ajuda
+                    titulo="Assunto do apontamento"
+                    texto="É o que agrupa o histórico: no fim do mês dá para dizer 'metade dos nossos desvios é altura'. Também é o que escolhe as sugestões certas da espinha de peixe, lá na investigação. Escolha agora: quem está na frente da cena sabe; quem lê o relatório semanas depois, não."
+                  />
+                </span>
+                <select value={tipologia} onChange={(e) => setTipologia(e.target.value)}>
+                  <option value="">Sem assunto definido</option>
+                  {TIPOLOGIAS.map((t) => (
+                    <option key={t.valor} value={t.valor}>
+                      {t.rotulo}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {/* Só faz sentido onde houve desvio. Em conforme e
+                  oportunidade a pergunta não aparece. */}
+              {(tipo === 'nao_conformidade' || tipo === 'insuficiente') && (
+                <label className={'campo-fatal' + (potencialFatal ? ' marcado' : '')}>
+                  <input
+                    type="checkbox"
+                    checked={potencialFatal}
+                    onChange={(e) => setPotencialFatal(e.target.checked)}
+                  />
+                  <span>
+                    <strong>
+                      Podia ter matado alguém{' '}
+                      <Ajuda
+                        titulo="Potencial fatal"
+                        texto="Marque pensando no que PODERIA ter acontecido, não no que aconteceu. Ninguém se machucou e a gravidade é baixa? Pode ser potencial fatal do mesmo jeito — talabarte solto, painel sem bloqueio, carga passando sobre gente. O painel abre mostrando estes, separados de todo o resto."
+                      />
+                    </strong>
+                    <span className="campo-mini">
+                      Vale pelo que poderia ter acontecido, não pelo que aconteceu.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {anterior && (
                 <div className="campo-anterior">
                   <p className="campo-anterior-tit">
@@ -2018,8 +2102,14 @@ function CampoConteudo() {
                             ? 'Melhoria'
                             : 'Não conformidade'}
                     </span>
+                    {/* Fica ao lado da classificação, não dentro dela:
+                        gravidade e potencial são duas perguntas, e um
+                        apontamento de gravidade baixa pode ter esta
+                        marca. */}
+                    {a.potencial_fatal && <span className="pill bad">Potencial fatal</span>}
                     <p>{a.descricao}</p>
                     <p className="campo-mini">
+                      {a.tipologia ? `${rotuloTipologia(a.tipologia)} · ` : ''}
                       {a.criado}
                       {a.prazo ? ` · prazo ${a.prazo.split('-').reverse().join('/')}` : ''}
                       {a.responsavel_nome ? ` · ${a.responsavel_nome}` : ''}

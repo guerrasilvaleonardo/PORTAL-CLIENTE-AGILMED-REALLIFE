@@ -47,6 +47,15 @@ export type NcIndicador = {
      reconhecido entre visitas. Só o apontamento de campo preenche. */
   titulo?: string | null
   gravidade: string
+  /* O assunto e a causa-raiz, ambos em lista fechada
+     (lib/vocabularioNC.ts). A causa é o que vira o Pareto: texto
+     livre não soma, e sem soma não há Pareto. */
+  tipologia?: string | null
+  causa_classe?: string | null
+  /* O que poderia ter acontecido, separado da gravidade do que
+     aconteceu. Gravidade baixa com potencial fatal existe, e é o
+     aviso que vem antes do acidente. */
+  potencial_fatal?: boolean | null
   resposta_id: string | null
   local_nome: string | null
   risco: number | null
@@ -309,3 +318,57 @@ export const TIPO_INCIDENTE: Record<string, string> = {
   doenca_ocupacional: 'Doença ocupacional',
   primeiros_socorros: 'Primeiros socorros',
 }
+
+/*
+ * O Pareto das causas-raiz.
+ *
+ * POR QUE ACUMULADO E NÃO SÓ CONTAGEM. A pergunta que o Pareto
+ * responde não é "qual é a maior" — é "quantas eu preciso atacar para
+ * resolver a maior parte". Com o acumulado na tela, dá para apontar o
+ * dedo e dizer: estas três são 70% do que acontece aqui.
+ *
+ * Só entram as que foram classificadas. NC sem causa classificada não
+ * vira "outros": ela simplesmente ainda não foi investigada, e contá-la
+ * como categoria mentiria sobre o tamanho das outras. O painel diz
+ * quantas ficaram de fora, que é o número que cobra a investigação.
+ */
+export function pareto(ncsVisiveis: NcIndicador[]) {
+  const problemas = ncsVisiveis.filter(ehNaoConformidade)
+  const comCausa = problemas.filter((n) => n.causa_classe)
+
+  const contagem = new Map<string, number>()
+  for (const n of comCausa) {
+    const c = n.causa_classe as string
+    contagem.set(c, (contagem.get(c) || 0) + 1)
+  }
+
+  const total = comCausa.length
+  let somado = 0
+
+  const linhas = [...contagem.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([causa, quantas]) => {
+      somado += quantas
+      return {
+        causa,
+        quantas,
+        percentual: total ? Math.round((quantas / total) * 100) : 0,
+        acumulado: total ? Math.round((somado / total) * 100) : 0,
+      }
+    })
+
+  return { linhas, total, semCausa: problemas.length - total }
+}
+
+/*
+ * As de potencial fatal ainda em aberto.
+ *
+ * Lista curta e em primeiro lugar de propósito: é a única do painel
+ * que fala do acidente que ainda não aconteceu. Ordena por prazo, com
+ * as vencidas na frente — quem tem três dessas na mão não precisa de
+ * gráfico, precisa de nome e data.
+ */
+export const potencialFatalEmAberto = (ncsVisiveis: NcIndicador[]) =>
+  ncsVisiveis
+    .filter((n) => n.potencial_fatal && !['encerrada', 'cancelada'].includes(n.situacao))
+    .sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31'))

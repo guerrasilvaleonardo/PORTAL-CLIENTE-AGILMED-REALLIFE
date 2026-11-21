@@ -6,6 +6,15 @@ import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import AcoesDaNC from './AcoesDaNC'
 import Ajuda from '@/components/Ajuda'
+import {
+  TIPOLOGIAS,
+  CAUSAS,
+  ESPINHAS,
+  sugestoesIshikawa,
+  rotuloTipologia,
+  type Espinha,
+  type Ishikawa,
+} from '@/lib/vocabularioNC'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 
@@ -96,6 +105,18 @@ type NC = {
   prazo: string | null
   responsavel_nome: string | null
   acao_imediata: string | null
+  /* O assunto, em lista fechada: vem do campo e agrupa o histórico. */
+  tipologia: string | null
+  /* A causa-raiz em lista fechada. É esta que vira o Pareto; a `causa`
+     logo abaixo continua existindo para a frase explicando o caso. */
+  causa_classe: string | null
+  /* O que poderia ter acontecido, independente do que aconteceu. */
+  potencial_fatal: boolean
+  impacto_legal: boolean
+  impacto_ambiental: boolean
+  impacto_financeiro: boolean
+  /* As espinhas marcadas na investigação. Rascunho, não indicador. */
+  ishikawa: Ishikawa | null
   causa: string | null
   acao_corretiva: string | null
   situacao: string
@@ -188,6 +209,8 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
           'id, empresa_id, inspecao_id, codigo, origem, local_nome, descricao, gravidade, classificacao, prazo, ' +
             'probabilidade, severidade, risco, porque_1, porque_2, porque_3, porque_4, porque_5, ' +
             'responsavel_nome, acao_imediata, causa, acao_corretiva, situacao, eficaz, ' +
+            'tipologia, causa_classe, potencial_fatal, impacto_legal, impacto_ambiental, ' +
+            'impacto_financeiro, ishikawa, ' +
             'verificacao_obs, ocorrido_em, tipo_incidente, envolvido_nome, afastamento_dias, created_at'
         )
         .eq('tipo', tipo)
@@ -225,6 +248,24 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
 
   const atual = lista.find((n) => n.id === escolhida) || null
 
+  /*
+   * As sugestões da espinha de peixe mudam com o assunto da NC. Numa
+   * de altura não faz sentido oferecer "ventilação do espaço
+   * confinado" — e lista grande demais ninguém lê.
+   */
+  const sugestoes = useMemo(
+    () => sugestoesIshikawa(rascunho.tipologia || null),
+    [rascunho.tipologia]
+  )
+
+  /* Toca de novo e desmarca: é rascunho de investigação, não formulário. */
+  function marcarEspinha(chave: Espinha, texto: string) {
+    const antes = rascunho.ishikawa?.[chave] || []
+    const depois = antes.includes(texto) ? antes.filter((t) => t !== texto) : [...antes, texto]
+    const espinhas: Ishikawa = { ...(rascunho.ishikawa || {}), [chave]: depois }
+    setRascunho({ ...rascunho, ishikawa: espinhas })
+  }
+
   function abrir(n: NC) {
     setEscolhida(n.id)
     setConfirmandoFim(false)
@@ -241,6 +282,13 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
       porque_5: n.porque_5,
       prazo: n.prazo,
       acao_imediata: n.acao_imediata,
+      tipologia: n.tipologia,
+      causa_classe: n.causa_classe,
+      potencial_fatal: n.potencial_fatal,
+      impacto_legal: n.impacto_legal,
+      impacto_ambiental: n.impacto_ambiental,
+      impacto_financeiro: n.impacto_financeiro,
+      ishikawa: n.ishikawa,
       causa: n.causa,
       acao_corretiva: n.acao_corretiva,
       situacao: n.situacao,
@@ -286,6 +334,18 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
         porque_5: rascunho.porque_5 || null,
         prazo: rascunho.prazo || null,
         acao_imediata: rascunho.acao_imediata || null,
+        tipologia: rascunho.tipologia || null,
+        causa_classe: rascunho.causa_classe || null,
+        potencial_fatal: !!rascunho.potencial_fatal,
+        impacto_legal: !!rascunho.impacto_legal,
+        impacto_ambiental: !!rascunho.impacto_ambiental,
+        impacto_financeiro: !!rascunho.impacto_financeiro,
+        /* Espinha vazia grava null, não `{}`: consulta de histórico
+           fica mais simples quando "não investigou" é uma coisa só. */
+        ishikawa:
+          rascunho.ishikawa && Object.values(rascunho.ishikawa).some((v) => (v || []).length)
+            ? rascunho.ishikawa
+            : null,
         causa: rascunho.causa || null,
         acao_corretiva: rascunho.acao_corretiva || null,
         verificacao_obs: rascunho.verificacao_obs || null,
@@ -400,6 +460,84 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
 
             {aba === 'ocorrencia' && (
             <>
+            {/* O assunto costuma vir do campo já preenchido. Fica aqui
+                para quem abriu a NC pela mesa, e para corrigir quem
+                escolheu errado com o capacete na cabeça. */}
+            <label>
+              Assunto{' '}
+              <Ajuda
+                titulo="Assunto do desvio"
+                texto="Agrupa o histórico — é o que permite dizer 'metade dos nossos desvios é altura' — e escolhe as sugestões da espinha de peixe na aba de investigação."
+              />
+              <select
+                value={rascunho.tipologia || ''}
+                onChange={(e) => setRascunho({ ...rascunho, tipologia: e.target.value })}
+              >
+                <option value="">Sem assunto definido</option>
+                {TIPOLOGIAS.map((t) => (
+                  <option key={t.valor} value={t.valor}>
+                    {t.rotulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/*
+              * O POTENCIAL, separado da gravidade.
+              *
+              * Gravidade descreve o que aconteceu; potencial, o que
+              * poderia ter acontecido. Um quase-acidente de gravidade
+              * baixa pode ter potencial fatal, e misturar os dois é
+              * como se perde o aviso que vinha antes do acidente. Os
+              * outros três dizem quem mais se interessa pelo caso:
+              * jurídico, ambiental e dinheiro.
+              */}
+            <fieldset className="nc-potencial">
+              <legend>
+                Se tivesse dado errado{' '}
+                <Ajuda
+                  titulo="Potencial, não gravidade"
+                  texto="Responda pelo que PODERIA ter acontecido. Ninguém se machucou e a gravidade é baixa? Pode ter potencial fatal do mesmo jeito. O painel abre mostrando estes separados de todo o resto, porque são eles que avisam antes."
+                />
+              </legend>
+              <label className={rascunho.potencial_fatal ? ' marcado' : ''}>
+                <input
+                  type="checkbox"
+                  checked={!!rascunho.potencial_fatal}
+                  onChange={(e) => setRascunho({ ...rascunho, potencial_fatal: e.target.checked })}
+                />
+                Podia ter matado alguém
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!rascunho.impacto_legal}
+                  onChange={(e) => setRascunho({ ...rascunho, impacto_legal: e.target.checked })}
+                />
+                Impacto legal
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!rascunho.impacto_ambiental}
+                  onChange={(e) =>
+                    setRascunho({ ...rascunho, impacto_ambiental: e.target.checked })
+                  }
+                />
+                Impacto ambiental
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!rascunho.impacto_financeiro}
+                  onChange={(e) =>
+                    setRascunho({ ...rascunho, impacto_financeiro: e.target.checked })
+                  }
+                />
+                Impacto financeiro
+              </label>
+            </fieldset>
+
             {/* Numa auditoria, o nível do achado é a primeira decisão e
                 muda tudo o que vem depois: a maior trava a certificação,
                 a oportunidade de melhoria não pede ação corretiva
@@ -546,6 +684,92 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                 )
               })}
             </div>
+
+            {/*
+              * A espinha de peixe, com sugestão em vez de caixa vazia.
+              *
+              * Seis caixas em branco na frente de quem acabou de sair do
+              * campo produzem seis caixas em branco. A sugestão não
+              * decide nada: lembra o que costuma estar por trás daquele
+              * tipo de desvio. Quem investiga toca no que serve, ignora
+              * o resto e escreve o que falta.
+              */}
+            <div>
+              <div className="section-title" style={{ marginBottom: 4 }}>
+                Espinha de peixe — os 6 M{' '}
+                <Ajuda
+                  titulo="Para que serve a espinha"
+                  texto="Os cinco porquês seguem uma linha só. A espinha abre o caso em seis famílias — método, mão de obra, máquina, material, medição e meio ambiente — para não escapar o lado que ninguém pensou. Toque nas sugestões que servem; o que não estiver na lista, escreva."
+                />
+              </div>
+              <p className="aviso-mini" style={{ marginBottom: 10 }}>
+                {rascunho.tipologia
+                  ? `Sugestões de ${rotuloTipologia(rascunho.tipologia).toLowerCase()}, mais as que valem para qualquer assunto.`
+                  : 'Escolha o assunto na aba Ocorrência para receber sugestões mais próximas do caso.'}
+              </p>
+
+              <div className="nc-espinhas">
+                {ESPINHAS.map(({ chave, rotulo }) => {
+                  const marcadas = rascunho.ishikawa?.[chave] || []
+                  /* O que a pessoa escreveu à mão aparece junto das
+                     sugestões, senão sumia da tela ao recarregar. */
+                  const proprias = marcadas.filter((m) => !sugestoes[chave].includes(m))
+                  return (
+                    <div key={chave} className="nc-espinha">
+                      <h4>{rotulo}</h4>
+                      <div className="nc-sugestoes">
+                        {[...sugestoes[chave], ...proprias].map((texto) => (
+                          <button
+                            key={texto}
+                            type="button"
+                            className={'nc-sug' + (marcadas.includes(texto) ? ' marcada' : '')}
+                            aria-pressed={marcadas.includes(texto)}
+                            onClick={() => marcarEspinha(chave, texto)}
+                          >
+                            {texto}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          className="nc-sug nc-sug-outra"
+                          onClick={() => {
+                            const texto = window.prompt(`Outra causa em ${rotulo.toLowerCase()}:`)
+                            if (texto && texto.trim()) marcarEspinha(chave, texto.trim())
+                          }}
+                        >
+                          + outra
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/*
+              * A causa-raiz em dois campos, e são dois de propósito: a
+              * lista fechada é o que vira o Pareto do painel — sem ela
+              * não há Pareto nenhum —, e a frase é o que o leitor do
+              * relatório entende. Uma não substitui a outra.
+              */}
+            <label>
+              Causa raiz — em qual família ela cai{' '}
+              <Ajuda
+                titulo="Por que lista e não texto"
+                texto="Dez pessoas escrevem a mesma causa de dez jeitos, e no fim do ano ninguém consegue dizer qual problema mais repete — que é justamente o que o auditor pergunta. A lista é o que transforma registro em indicador. A frase logo abaixo continua sendo sua."
+              />
+              <select
+                value={rascunho.causa_classe || ''}
+                onChange={(e) => setRascunho({ ...rascunho, causa_classe: e.target.value })}
+              >
+                <option value="">Ainda não classificada</option>
+                {CAUSAS.map((c) => (
+                  <option key={c.valor} value={c.valor}>
+                    {c.rotulo}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label>
               Causa raiz — a conclusão dos porquês
@@ -845,6 +1069,16 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                     {n.descricao}
                     {n.envolvido_nome && (
                       <span style={{ fontWeight: 500 }}> · {n.envolvido_nome}</span>
+                    )}
+                    {/* Aqui e não na coluna de gravidade: a marca vale
+                        justamente quando a gravidade é baixa. */}
+                    {n.potencial_fatal && (
+                      <span className="pill bad" style={{ marginLeft: 6 }}>
+                        Potencial fatal
+                      </span>
+                    )}
+                    {n.tipologia && (
+                      <span className="nc-assunto">{rotuloTipologia(n.tipologia)}</span>
                     )}
                   </td>
                   <td>
