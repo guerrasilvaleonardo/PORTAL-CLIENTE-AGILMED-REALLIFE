@@ -106,6 +106,11 @@ type NC = {
   prazo: string | null
   responsavel_nome: string | null
   acao_imediata: string | null
+  /* Curto e reaproveitado: é por ele que o mesmo problema é
+     reconhecido entre visitas, e é o que monta "já aconteceu antes". */
+  titulo: string | null
+  verificada_em: string | null
+  encerrada_em: string | null
   /* O assunto, em lista fechada: vem do campo e agrupa o histórico. */
   tipologia: string | null
   /* A causa-raiz em lista fechada. É esta que vira o Pareto; a `causa`
@@ -212,6 +217,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             'responsavel_nome, acao_imediata, causa, acao_corretiva, situacao, eficaz, ' +
             'tipologia, causa_classe, potencial_fatal, impacto_legal, impacto_ambiental, ' +
             'impacto_financeiro, ishikawa, ' +
+            'titulo, verificada_em, encerrada_em, ' +
             'verificacao_obs, ocorrido_em, tipo_incidente, envolvido_nome, afastamento_dias, created_at'
         )
         .eq('tipo', tipo)
@@ -258,6 +264,25 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     () => sugestoesIshikawa(rascunho.tipologia || null),
     [rascunho.tipologia]
   )
+
+  /*
+   * As outras vezes em que este mesmo problema apareceu no mesmo
+   * local. Sai da lista já carregada — não custa consulta nenhuma —,
+   * e só vale com título preenchido: sem título, "o mesmo problema"
+   * não tem como ser reconhecido.
+   */
+  const anteriores = useMemo(() => {
+    const atualNc = lista.find((n) => n.id === escolhida)
+    if (!atualNc || !atualNc.titulo?.trim()) return []
+    return lista
+      .filter(
+        (n) =>
+          n.id !== atualNc.id &&
+          n.titulo?.trim() === atualNc.titulo?.trim() &&
+          (n.local_nome || '') === (atualNc.local_nome || '')
+      )
+      .slice(0, 4)
+  }, [lista, escolhida])
 
   /* Toca de novo e desmarca: é rascunho de investigação, não formulário. */
   function marcarEspinha(chave: Espinha, texto: string) {
@@ -515,6 +540,16 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               ))}
             </nav>
 
+            {/*
+              * DUAS COLUNAS, como no desenho: à esquerda a etapa que
+              * está sendo preenchida, à direita o que vale para o caso
+              * inteiro — a contenção, a linha do tempo e o histórico.
+              * Esses três não pertencem a nenhuma aba: pertencem à não
+              * conformidade.
+              */}
+            <div className="nc-colunas">
+            <div className="nc-principal">
+
             {aba === 'ocorrencia' && (
             <>
             {/* O assunto costuma vir do campo já preenchido. Fica aqui
@@ -702,14 +737,10 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
-            <label>
-              Ação imediata — o que foi feito na hora
-              <textarea
-                value={rascunho.acao_imediata || ''}
-                onChange={(e) => setRascunho({ ...rascunho, acao_imediata: e.target.value })}
-                placeholder="Ex.: área isolada e trabalho interrompido"
-              />
-            </label>
+            {/* A ação imediata saiu daqui: foi para a coluna da
+                direita, onde fica à vista em todas as abas. Contenção
+                é o que segura o risco enquanto se investiga, e ler a
+                investigação sem ela na frente é investigar no escuro. */}
 
             </>
             )}
@@ -909,6 +940,123 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             ) : null}
             </>
             )}
+
+            </div>
+
+            <aside className="nc-lado">
+              {/*
+                * CONTENÇÃO: o que segurou o risco na hora, antes de
+                * investigar. Fica à vista em todas as abas porque é a
+                * primeira pergunta de quem lê a ficha — e porque
+                * investigar sem saber se a área foi isolada é
+                * investigar no escuro.
+                */}
+              <div className="nc-lado-bloco perigo">
+                <h4>Ação imediata (contenção)</h4>
+                <p className="nc-lado-nota">O que foi feito na hora, antes de investigar.</p>
+                <textarea
+                  rows={3}
+                  value={rascunho.acao_imediata || ''}
+                  onChange={(e) => setRascunho({ ...rascunho, acao_imediata: e.target.value })}
+                  placeholder="Ex.: área isolada e trabalho interrompido"
+                />
+              </div>
+
+              {/*
+                * LINHA DO TEMPO só com o que o banco realmente sabe:
+                * quando foi aberta, para quando é o prazo, quando foi
+                * verificada e quando encerrou. Inventar etapas que não
+                * têm data gravada seria desenhar um histórico falso.
+                */}
+              <div className="nc-lado-bloco">
+                <h4>Linha do tempo</h4>
+                <ol className="nc-tempo">
+                  <li className="feito">
+                    <b>Aberta</b>
+                    <span>
+                      {dataBr(atual.created_at)}
+                      {atual.inspecao_id ? ' · veio de uma inspeção' : ' · apontamento avulso'}
+                    </span>
+                  </li>
+                  <li className={atual.acao_imediata?.trim() ? 'feito' : ''}>
+                    <b>Contenção registrada</b>
+                    <span>
+                      {atual.acao_imediata?.trim()
+                        ? 'o risco foi segurado na hora'
+                        : 'nada foi registrado como contenção'}
+                    </span>
+                  </li>
+                  <li className={atual.causa?.trim() ? 'feito' : 'agora'}>
+                    <b>Investigação</b>
+                    <span>
+                      {atual.causa?.trim() ? 'causa-raiz definida' : 'ainda sem causa-raiz'}
+                    </span>
+                  </li>
+                  <li className={atual.acao_corretiva?.trim() ? 'feito' : ''}>
+                    <b>Plano de ação</b>
+                    <span>
+                      {atual.acao_corretiva?.trim()
+                        ? atual.prazo
+                          ? 'prazo em ' + dataBr(atual.prazo)
+                          : 'sem prazo definido'
+                        : 'ainda sem ação corretiva'}
+                    </span>
+                  </li>
+                  <li className={atual.verificada_em ? 'feito' : ''}>
+                    <b>Verificação de eficácia</b>
+                    <span>
+                      {atual.verificada_em
+                        ? dataBr(atual.verificada_em) +
+                          (atual.eficaz === false ? ' · não resolveu' : ' · resolveu')
+                        : 'depois do plano encerrar'}
+                    </span>
+                  </li>
+                  <li className={atual.encerrada_em ? 'feito' : ''}>
+                    <b>Encerrada</b>
+                    <span>
+                      {atual.encerrada_em ? dataBr(atual.encerrada_em) : 'ainda em aberto'}
+                    </span>
+                  </li>
+                </ol>
+              </div>
+
+              {/*
+                * JÁ ACONTECEU ANTES: mesmo título, mesmo local.
+                *
+                * Encerrada e voltou é o caso mais importante do módulo
+                * inteiro — quer dizer que a ação anterior não resolveu,
+                * e que a eficácia daquela merece revisão. A lista já
+                * está carregada; não custa consulta nenhuma.
+                */}
+              {anteriores.length > 0 && (
+                <div className="nc-lado-bloco">
+                  <h4>Já aconteceu antes</h4>
+                  <p className="nc-lado-nota">Mesmo título, mesmo local.</p>
+                  <ul className="nc-antes">
+                    {anteriores.map((a) => (
+                      <li key={a.id}>
+                        <button type="button" onClick={() => abrir(a)}>
+                          {a.codigo || 'sem número'}
+                        </button>
+                        <span>
+                          {' · '}
+                          {dataBr(a.created_at)}
+                          {' · '}
+                          {SITUACAO[a.situacao] || a.situacao}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {anteriores.some((a) => a.situacao === 'encerrada') && (
+                    <p className="nc-lado-alerta">
+                      Já foi encerrada antes e voltou. A eficácia daquela merece revisão.
+                    </p>
+                  )}
+                </div>
+              )}
+            </aside>
+
+            </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="btn" disabled={salvando} onClick={() => salvar(false)}>
