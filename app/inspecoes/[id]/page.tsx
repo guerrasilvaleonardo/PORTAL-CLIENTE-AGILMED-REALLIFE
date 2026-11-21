@@ -759,7 +759,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
             </span>
           )}
 
-          {auditoria && (
+          {auditoria ? (
             <>
               {/* Quem abre o checklist direto não sabe em que ponto da
                   auditoria está. A trilha é o mapa. */}
@@ -770,6 +770,13 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                 Emitir relatório
               </Link>
             </>
+          ) : (
+            /* A inspeção produzia resposta, foto e não conformidade — e
+               nenhum documento. Sem isto, o cliente terminava a visita
+               sem nada para entregar ao gestor da área ou arquivar. */
+            <Link href={'/inspecoes/' + inspecao.id + '/relatorio'} className="btn btn-sm">
+              Emitir relatório
+            </Link>
           )}
         </div>
       </div>
@@ -809,6 +816,9 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
               {inspecao.percentual !== null ? ` — ${inspecao.percentual}% de conformidade` : ''}.{' '}
               <Link href="/inspecoes/nc" className="btn btn-sm">
                 Ver as não conformidades
+              </Link>{' '}
+              <Link href={'/inspecoes/' + inspecao.id + '/relatorio'} className="btn btn-sm">
+                Emitir relatório
               </Link>
             </>
           )}
