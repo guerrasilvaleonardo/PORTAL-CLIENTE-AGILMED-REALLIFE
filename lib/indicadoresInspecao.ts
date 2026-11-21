@@ -43,6 +43,9 @@ export type NcIndicador = {
   empresa_id: string
   origem: string
   classificacao?: string | null
+  /* Curto e reaproveitado: é por ele que o mesmo problema é
+     reconhecido entre visitas. Só o apontamento de campo preenche. */
+  titulo?: string | null
   gravidade: string
   resposta_id: string | null
   local_nome: string | null
@@ -142,6 +145,48 @@ export const ehNaoConformidade = (n: NcIndicador) =>
 
 export const parciais = (ncsVisiveis: NcIndicador[]) =>
   ncsVisiveis.filter((n) => n.classificacao === 'insuficiente')
+
+/*
+ * O que se repete entre os apontamentos de campo.
+ *
+ * A reincidência do checklist agrupa por pergunta, que é um texto
+ * fixo. O apontamento de campo não tem pergunta — tem título, curto e
+ * escolhido de uma lista do que já existe naquele local. Mesmo título
+ * no mesmo local, em datas diferentes, é o mesmo problema voltando.
+ *
+ * Só conta a partir da segunda vez: o que aconteceu uma vez é um
+ * achado, não um padrão.
+ */
+export function repeticoesPorTitulo(ncsVisiveis: NcIndicador[]) {
+  const mapa = new Map<
+    string,
+    { titulo: string; local: string; vezes: number; primeira: string; ultima: string; aberto: number }
+  >()
+
+  for (const n of ncsVisiveis) {
+    if (!n.titulo) continue
+    const local = n.local_nome || 'Sem local'
+    const chave = n.titulo + ' :: ' + local
+    const quando = dia(n.ocorrido_em || n.created_at)
+    const atual = mapa.get(chave) || {
+      titulo: n.titulo,
+      local,
+      vezes: 0,
+      primeira: quando,
+      ultima: quando,
+      aberto: 0,
+    }
+    atual.vezes += 1
+    if (quando < atual.primeira) atual.primeira = quando
+    if (quando > atual.ultima) atual.ultima = quando
+    if (!['encerrada', 'cancelada'].includes(n.situacao)) atual.aberto += 1
+    mapa.set(chave, atual)
+  }
+
+  return [...mapa.values()]
+    .filter((r) => r.vezes > 1)
+    .sort((a, b) => b.vezes - a.vezes || b.aberto - a.aberto)
+}
 
 export const oportunidades = (ncsVisiveis: NcIndicador[]) =>
   ncsVisiveis.filter((n) => n.classificacao === 'oportunidade')

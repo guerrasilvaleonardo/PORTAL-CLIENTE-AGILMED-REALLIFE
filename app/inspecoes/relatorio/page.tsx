@@ -13,6 +13,7 @@ import {
   incidentes as calcIncidentes,
   oportunidades as calcOportunidades,
   conformidades as calcConformidades,
+  repeticoesPorTitulo,
   ehNaoConformidade,
   dia,
   hoje,
@@ -166,7 +167,7 @@ function ConsolidadoConteudo() {
         supabase
           .from('nao_conformidades')
           .select(
-            'id, empresa_id, origem, classificacao, gravidade, resposta_id, local_nome, risco, situacao, ' +
+            'id, empresa_id, origem, classificacao, titulo, gravidade, resposta_id, local_nome, risco, situacao, ' +
               'prazo, ocorrido_em, tipo_incidente, afastamento_dias, created_at, encerrada_em'
           ),
       ])
@@ -243,6 +244,10 @@ function ConsolidadoConteudo() {
      "duas não conformidades" não diz se foram olhados dois itens ou
      duzentos. */
   const conformes = useMemo(() => calcConformidades(ncsVisiveis), [ncsVisiveis])
+
+  /* O mesmo título voltando no mesmo local: é a reincidência dos
+     apontamentos de campo, equivalente à da pergunta do checklist. */
+  const repetidos = useMemo(() => repeticoesPorTitulo(ncsVisiveis), [ncsVisiveis])
 
   if (carregando) {
     return (
@@ -337,12 +342,51 @@ function ConsolidadoConteudo() {
               Esta seção vem antes do percentual de propósito. Conformidade alta com o mesmo item
               reprovando mês após mês não é bom resultado: é controle que não existe.
             </p>
-            {reincidencia.length === 0 ? (
+            {repetidos.length > 0 && (
+              <>
+                <p className="rel-sub-h">Apontamentos de campo que voltaram no mesmo local</p>
+                <table className="tabela-colab rel-itens">
+                  <thead>
+                    <tr>
+                      <th>Apontamento</th>
+                      <th>Local</th>
+                      <th style={{ width: 90 }}>Vezes</th>
+                      <th style={{ width: 150 }}>Da primeira à última</th>
+                      <th style={{ width: 100 }}>Em aberto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {repetidos.map((r, i) => (
+                      <tr key={i}>
+                        <td className="nome">{r.titulo}</td>
+                        <td>{r.local}</td>
+                        <td>
+                          <span className={'pill ' + (r.vezes >= 3 ? 'bad' : 'warn')}>
+                            {r.vezes}×
+                          </span>
+                        </td>
+                        <td className="mono">
+                          {soData(r.primeira)} a {soData(r.ultima)}
+                        </td>
+                        <td className="mono">{r.aberto}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="rel-nota">
+                  O mesmo apontamento voltando no mesmo local não é um achado novo: é o controle
+                  anterior que não pegou. Três vezes ou mais é sinal de que a ação tratou o
+                  sintoma.
+                </p>
+              </>
+            )}
+
+            {reincidencia.length === 0 && repetidos.length === 0 ? (
               <p className="rel-valor">
                 Nenhum item reprovou no período. Se houve inspeção, é resultado; se foram poucas,
                 é amostra pequena.
               </p>
-            ) : (
+            ) : reincidencia.length === 0 ? null : (
               <table className="tabela-colab rel-itens">
                 <thead>
                   <tr>

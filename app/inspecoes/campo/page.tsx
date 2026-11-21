@@ -61,6 +61,24 @@ type Apontamento = {
 
 type Posicao = { lat: number; lon: number; precisao: number } | null
 
+/*
+ * O mesmo problema, apontado antes neste mesmo local.
+ *
+ * É o que o relatório do concorrente mostra como "situação anterior" e
+ * "situação atual". Aqui aparece ANTES de salvar, enquanto a pessoa
+ * ainda está na frente do problema: saber que já foi apontado em
+ * agosto muda o que ela escreve e com quem ela fala.
+ */
+type Anterior = {
+  id: string
+  descricao: string
+  classificacao: string | null
+  situacao: string
+  quando: string
+  foto: string | null
+  quantas: number
+} | null
+
 const agoraBr = () =>
   new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 
@@ -98,6 +116,9 @@ function CampoConteudo() {
   const [tipo, setTipo] = useState<
     'conforme' | 'insuficiente' | 'oportunidade' | 'nao_conformidade'
   >('conforme')
+  const [titulo, setTitulo] = useState('')
+  const [titulosConhecidos, setTitulosConhecidos] = useState<string[]>([])
+  const [anterior, setAnterior] = useState<Anterior>(null)
   const [descricao, setDescricao] = useState('')
   const [gravidade, setGravidade] = useState('media')
   const [prazo, setPrazo] = useState('')
@@ -195,6 +216,7 @@ function CampoConteudo() {
           setLocalId(localDoQr)
           setEmVisita(true)
           pedirPosicao()
+          carregarTitulos(empresaAtual, localDoQr)
         }
       }
     }
@@ -270,6 +292,79 @@ function CampoConteudo() {
     }
   }, [])
 
+  /*
+   * Os títulos já usados neste local, para a lista de sugestão. É a
+   * peça que faz o histórico funcionar: título escolhido da lista casa
+   * com o anterior; título digitado de novo, a cada visita, nunca casa.
+   */
+  const carregarTitulos = useCallback(async (empresa: string, local: string) => {
+    if (!empresa || !local) return
+    const { data } = await supabase
+      .from('nao_conformidades')
+      .select('titulo')
+      .eq('empresa_id', empresa)
+      .eq('local_id', local)
+      .not('titulo', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    const vistos: string[] = []
+    for (const r of (data || []) as any[]) {
+      if (r.titulo && !vistos.includes(r.titulo)) vistos.push(r.titulo)
+    }
+    setTitulosConhecidos(vistos)
+  }, [])
+
+  /*
+   * Procura o mesmo título, no mesmo local, apontado antes. A regra é
+   * a do concorrente, menos um critério: eles exigem que a inspeção
+   * anterior já tenha sido exportada. Aqui não — o apontamento de
+   * campo não tem exportação, e esperar por ela esconderia o histórico
+   * justamente de quem está em campo agora.
+   */
+  const buscarAnterior = useCallback(
+    async (texto: string) => {
+      const t = texto.trim()
+      if (!t || !empresaAtual || !localId) {
+        setAnterior(null)
+        return
+      }
+      const { data } = await supabase
+        .from('nao_conformidades')
+        .select('id, descricao, classificacao, situacao, created_at, foto_path')
+        .eq('empresa_id', empresaAtual)
+        .eq('local_id', localId)
+        .eq('titulo', t)
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      const lista = (data || []) as any[]
+      if (!lista.length) {
+        setAnterior(null)
+        return
+      }
+
+      const ultimo = lista[0]
+      let foto: string | null = null
+      if (ultimo.foto_path) {
+        const { data: url } = await supabase.storage
+          .from('inspecao-fotos')
+          .createSignedUrl(ultimo.foto_path, 3600)
+        foto = url?.signedUrl || null
+      }
+
+      setAnterior({
+        id: ultimo.id,
+        descricao: ultimo.descricao,
+        classificacao: ultimo.classificacao,
+        situacao: ultimo.situacao,
+        quando: new Date(ultimo.created_at).toLocaleDateString('pt-BR'),
+        foto,
+        quantas: lista.length,
+      })
+    },
+    [empresaAtual, localId]
+  )
+
   function pedirPosicao() {
     setPosicaoErro('')
     if (!('geolocation' in navigator)) {
@@ -322,6 +417,7 @@ function CampoConteudo() {
 
     setEmVisita(true)
     pedirPosicao()
+    carregarTitulos(empresaAtual, localId || '')
   }
 
   async function encolher(arquivo: File): Promise<Blob> {
@@ -405,6 +501,7 @@ function CampoConteudo() {
           local_id: localId || null,
           local_nome: local?.nome || null,
           descricao: descricao.trim(),
+          titulo: titulo.trim() || null,
           classificacao: tipo === 'nao_conformidade' ? null : tipo,
           /* Oportunidade entra como baixa para não inflar a fila de
              gravidade alta; a tela nem mostra o campo. */
@@ -470,11 +567,14 @@ function CampoConteudo() {
       }
 
       setDescricao('')
+      setTitulo('')
+      setAnterior(null)
       setFotos([])
       setPrevias({})
       setPrazo('')
       setResponsavel('')
       setResponsavelId('')
+      carregarTitulos(empresaAtual, localId)
       setTimeout(() => setAviso(''), 4000)
     } catch (e: any) {
       setErro(e?.message || 'Não foi possível salvar.')
@@ -622,6 +722,51 @@ function CampoConteudo() {
                   Não conformidade
                 </button>
               </div>
+
+              <label className="campo-linha">
+                <span>Título curto</span>
+                <input
+                  type="text"
+                  list="titulos-do-local"
+                  value={titulo}
+                  maxLength={80}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  onBlur={(e) => buscarAnterior(e.target.value)}
+                  placeholder="Extintor obstruído"
+                />
+                <span className="campo-mini">
+                  É por ele que o portal reconhece o mesmo problema na próxima visita. Escolha da
+                  lista quando já existir.
+                </span>
+                <datalist id="titulos-do-local">
+                  {titulosConhecidos.map((t) => (
+                    <option key={t} value={t} />
+                  ))}
+                </datalist>
+              </label>
+
+              {anterior && (
+                <div className="campo-anterior">
+                  <p className="campo-anterior-tit">
+                    Já apontado aqui em {anterior.quando}
+                    {anterior.quantas > 1 ? ` — ${anterior.quantas} vezes no total` : ''}
+                  </p>
+                  <div className="campo-anterior-corpo">
+                    {anterior.foto && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={anterior.foto} alt="Situação anterior" />
+                    )}
+                    <div>
+                      <p>{anterior.descricao}</p>
+                      <p className="campo-mini">
+                        {anterior.situacao === 'encerrada'
+                          ? 'Aquele foi encerrado. Se voltou, a ação não funcionou — vale dizer isso na descrição.'
+                          : 'Aquele continua em aberto. Em vez de abrir outro, considere atualizar o que já existe.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="campo-linha">
                 <div className="campo-rotulo-voz">
