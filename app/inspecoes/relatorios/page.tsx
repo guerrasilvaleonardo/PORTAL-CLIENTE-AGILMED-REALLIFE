@@ -70,6 +70,12 @@ function RelatoriosConteudo() {
   const [empresaFiltro, setEmpresaFiltro] = useState('')
   const [lista, setLista] = useState<Relatorio[]>([])
   const [tipo, setTipo] = useState('')
+  /* Buscar por código é o caso de uso número um: o cliente liga
+     citando "RIC-2026-0041" e alguém precisa achar em segundos. O ano
+     existe porque a numeração reinicia a cada ano — sem ele, duas
+     linhas podem terminar com 0041. */
+  const [busca, setBusca] = useState('')
+  const [ano, setAno] = useState('')
 
   const empresaAtual = interno ? empresaFiltro : minhaEmpresa
 
@@ -128,9 +134,25 @@ function RelatoriosConteudo() {
     )
   }
 
+  /* O ano sai do próprio código (RIC-2026-0041): é lá que ele vive, e
+     é por ele que a sequência reinicia. */
+  const anoDoCodigo = (codigo: string) => codigo.split('-')[1] || ''
+  const anosNaLista = [...new Set(lista.map((r) => anoDoCodigo(r.codigo)))]
+    .filter(Boolean)
+    .sort()
+    .reverse()
+
   const visiveis = lista
     .filter((r) => !empresaAtual || r.empresa_id === empresaAtual)
     .filter((r) => !tipo || r.tipo === tipo)
+    .filter((r) => !ano || anoDoCodigo(r.codigo) === ano)
+    .filter((r) => {
+      const termo = busca.trim().toLowerCase()
+      if (!termo) return true
+      return [r.codigo, r.emitido_por_nome]
+        .filter(Boolean)
+        .some((campo) => String(campo).toLowerCase().includes(termo))
+    })
 
   const nomeDaEmpresa = (id: string) => {
     const e = empresas.find((x) => x.id === id)
@@ -162,7 +184,16 @@ function RelatoriosConteudo() {
       <div className="rel-duas-colunas">
       <div className="rel-coluna-lista">
 
-      <div className="filters">
+      <div className="insp-filtros nao-imprimir">
+        <label className="insp-busca">
+          <span className="insp-oculto">Buscar relatório</span>
+          <input
+            type="search"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por código ou quem emitiu"
+          />
+        </label>
         {interno && (
           <FiltroEmpresa
             valor={empresaFiltro}
@@ -170,14 +201,30 @@ function RelatoriosConteudo() {
             opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
           />
         )}
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
-          <option value="">Todos os tipos</option>
-          {Object.entries(TIPOS).map(([v, r]) => (
-            <option key={v} value={v}>
-              {r}
-            </option>
-          ))}
-        </select>
+        <label>
+          <span className="insp-oculto">Tipo</span>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            <option value="">Todos os tipos</option>
+            {Object.entries(TIPOS).map(([v, r]) => (
+              <option key={v} value={v}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </label>
+        {anosNaLista.length > 1 && (
+          <label>
+            <span className="insp-oculto">Ano</span>
+            <select value={ano} onChange={(e) => setAno(e.target.value)}>
+              <option value="">Todos os anos</option>
+              {anosNaLista.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {visiveis.length === 0 ? (
@@ -239,6 +286,19 @@ function RelatoriosConteudo() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {visiveis.length > 0 && (
+        /* Quantos estão à vista de quantos existem. Numa lista
+           filtrada, sem isto não dá para saber se o relatório que
+           falta sumiu ou só está fora do filtro. */
+        <p className="insp-rodape nao-imprimir">
+          <span>
+            {visiveis.length}
+            {visiveis.length === 1 ? ' relatório' : ' relatórios'}
+            {visiveis.length !== lista.length ? ` de ${lista.length} emitidos` : ''}
+          </span>
+        </p>
       )}
 
       </div>

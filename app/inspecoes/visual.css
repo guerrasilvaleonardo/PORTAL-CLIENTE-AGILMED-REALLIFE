@@ -619,3 +619,23 @@
   font-size: 12px;
   color: var(--amber);
 }
+
+/* Os controles que vivem no cabeçalho da tela, à direita do título. */
+.insp-v2 .insp-cabeca-acoes {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/*
+ * O botão de atraso ligado fica vermelho, não azul: ligar um filtro
+ * de "o que está atrasado" e ver o botão na cor da marca não diz
+ * nada; na cor do problema, diz.
+ */
+.insp-v2 .btn-perigo {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
