@@ -267,7 +267,7 @@
  * --------------------------------------------------------------- */
 
 .modtabs.vertical {
-  background: #14181f;
+  background: var(--primary-strong);
   border: none;
   padding: 18px 10px;
   gap: 1px;
@@ -277,7 +277,7 @@
    para a pessoa achar onde está sem procurar. */
 .modtabs.vertical a,
 .modtabs.vertical .modtab-botao {
-  color: #c7cdd8;
+  color: #C9CEE6;
   font-weight: 500;
   font-size: 13.5px;
   padding: 8px 11px;
@@ -286,13 +286,13 @@
 
 .modtabs.vertical a:hover,
 .modtabs.vertical .modtab-botao:hover {
-  background: #1c2430;
+  background: var(--primary);
   color: #ffffff;
 }
 
 .modtabs.vertical a.active,
 .modtabs.vertical .modtab-botao.active {
-  background: #1f2a36;
+  background: var(--primary);
   color: #ffffff;
   font-weight: 700;
 }
@@ -300,7 +300,7 @@
 /* A seta da sanfona é desenhada com borda: no escuro ela precisa da
    cor clara, senão vira um buraco. */
 .modtabs.vertical .modtab-seta {
-  border-color: #96a0b1;
+  border-color: #9AA1C4;
 }
 
 /* As seções do módulo aberto. O risco da esquerda sai: no escuro ele
@@ -312,17 +312,17 @@
 }
 
 .modtabs.vertical .submenu a {
-  color: #c7cdd8;
+  color: #C9CEE6;
   font-weight: 500;
 }
 
 .modtabs.vertical .submenu a:hover {
-  background: #1c2430;
+  background: var(--primary);
   color: #ffffff;
 }
 
 .modtabs.vertical .submenu a.active {
-  background: #1f2a36;
+  background: var(--primary);
   color: #ffffff;
   font-weight: 700;
 }
@@ -330,7 +330,7 @@
 /* Os três níveis continuam se separando: módulo claro e forte, grupo
    em caixa alta miúda, item leve. */
 .modtabs.vertical .submenu-grupo {
-  color: #96a0b1;
+  color: #9AA1C4;
 }
 
 /* Contadores e avisos dentro da coluna escura. */
@@ -340,7 +340,7 @@
 
 /* Ferramenta não contratada: apagada, mas ainda legível e clicável. */
 .modtabs.vertical a.bloqueado {
-  color: #7e8798;
+  color: #8E95BC;
 }
 
 .portal-menu {
