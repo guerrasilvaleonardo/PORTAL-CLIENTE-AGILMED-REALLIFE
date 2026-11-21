@@ -10,6 +10,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 import './locais.css'
+import '../visual.css'
 
 /*
  * Locais do cliente, e a etiqueta de QR de cada um.
@@ -157,7 +158,7 @@ function LocaisConteudo() {
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
@@ -167,7 +168,7 @@ function LocaisConteudo() {
   const nomeEmpresa = empresa ? empresa.nome_fantasia || empresa.razao_social : ''
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div className="nao-imprimir">
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">

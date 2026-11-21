@@ -7,6 +7,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import Ajuda from '@/components/Ajuda'
 import '../inspecoes.css'
 import './planos.css'
+import '../visual.css'
 
 /*
  * Planos de ação (supabase/planos-de-acao.sql).
@@ -38,7 +39,11 @@ const TIPOS: Record<string, string> = {
 const COLUNAS: { chave: string; titulo: string; explica: string }[] = [
   { chave: 'aberta', titulo: 'A fazer', explica: 'Combinada, ainda não começou.' },
   { chave: 'execucao', titulo: 'Em execução', explica: 'Alguém está tocando agora.' },
-  { chave: 'verificacao', titulo: 'Em verificação', explica: 'Feita; falta conferir se funcionou.' },
+  {
+    chave: 'verificacao',
+    titulo: 'Em verificação de eficácia',
+    explica: 'Feita; falta conferir se funcionou.',
+  },
   { chave: 'encerrada', titulo: 'Encerrada', explica: 'Conferida e fechada.' },
 ]
 
@@ -228,11 +233,11 @@ function PlanosConteudo() {
     setLista((l) => l.map((x) => (x.id === a.id ? { ...x, situacao: 'encerrada', eficaz } : x)))
   }
 
-  if (carregando) return <div className="app">Carregando…</div>
+  if (carregando) return <div className="app insp-v2">Carregando…</div>
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div>
           <p className="eyebrow">INSPEÇÕES</p>
           <h1 className="titulo-tela">Planos de ação</h1>
@@ -246,35 +251,40 @@ function PlanosConteudo() {
   }
 
   return (
-    <div className="app">
-      <div>
-        <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">Planos de ação</h1>
-        <p className="subtitulo-tela">
-          Uma não conformidade pode ter várias ações, de tipos diferentes. Ação nova se cria dentro
-          da não conformidade, junto da causa que a justifica; aqui se acompanha.
-        </p>
+    <div className="app insp-v2">
+      {/* Título à esquerda, o que se filtra à direita — como no
+          desenho. O atraso vem primeiro e em vermelho: é o número que
+          o cliente cobra na reunião. */}
+      <div className="insp-cabeca">
+        <div>
+          <p className="eyebrow">INSPEÇÕES</p>
+          <h1 className="titulo-tela">Planos de ação</h1>
+          <p className="subtitulo-tela">
+            Uma não conformidade pode ter várias ações, de tipos diferentes. Ação nova se cria
+            dentro da não conformidade, junto da causa que a justifica; aqui se acompanha.
+          </p>
+        </div>
+
+        <div className="insp-cabeca-acoes nao-imprimir">
+          {interno && (
+            <FiltroEmpresa
+              valor={empresaFiltro}
+              aoMudar={setEmpresaFiltro}
+              opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
+            />
+          )}
+
+          <button
+            type="button"
+            className={'btn btn-sm' + (soAtrasadas ? ' btn-perigo' : '')}
+            onClick={() => setSoAtrasadas((v) => !v)}
+          >
+            {atrasadas} {atrasadas === 1 ? 'atrasada' : 'atrasadas'}
+          </button>
+        </div>
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
-
-      <div className="filters nao-imprimir">
-        {interno && (
-          <FiltroEmpresa
-            valor={empresaFiltro}
-            aoMudar={setEmpresaFiltro}
-            opcoes={empresas.map((e) => ({ id: e.id, nome: e.nome_fantasia || e.razao_social }))}
-          />
-        )}
-
-        <button
-          type="button"
-          className={'btn btn-sm' + (soAtrasadas ? ' btn-primary' : '')}
-          onClick={() => setSoAtrasadas((v) => !v)}
-        >
-          {atrasadas} {atrasadas === 1 ? 'atrasada' : 'atrasadas'}
-        </button>
-      </div>
 
       <div className="planos-tipos">
         <div>

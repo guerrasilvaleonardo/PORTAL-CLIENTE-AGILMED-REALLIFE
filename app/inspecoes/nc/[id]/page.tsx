@@ -14,6 +14,7 @@ import {
 } from '@/lib/vocabularioNC'
 import '../../inspecoes.css'
 import './rnc.css'
+import '../../visual.css'
 
 /*
  * RNC — a não conformidade em uma folha, para imprimir e entregar.
@@ -209,11 +210,11 @@ function RncConteudo() {
     carregar()
   }, [carregar])
 
-  if (carregando) return <div className="app"><p className="empty-state">Carregando…</p></div>
+  if (carregando) return <div className="app insp-v2"><p className="empty-state">Carregando…</p></div>
 
   if (erro || !nc) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">{erro || 'Não conformidade não encontrada.'}</div>
         <Link href="/inspecoes/nc" className="btn btn-sm">
           Voltar

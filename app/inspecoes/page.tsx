@@ -8,6 +8,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import Ajuda from '@/components/Ajuda'
 import '../colaboradores/colaboradores.css'
 import './inspecoes.css'
+import './visual.css'
 
 /*
  * Inspeções aplicadas (supabase/inspecoes.sql).
@@ -37,6 +38,7 @@ type Inspecao = {
   concluida_em: string | null
   situacao: string
   itens_total: number
+  conformes: number
   nao_conformes: number
   percentual: number | null
   visita_id: string | null
@@ -123,7 +125,7 @@ function InspecoesConteudo() {
         .from('inspecoes')
         .select(
           'id, empresa_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, ' +
-            'concluida_em, situacao, itens_total, nao_conformes, percentual, visita_id'
+            'concluida_em, situacao, itens_total, conformes, nao_conformes, percentual, visita_id'
         )
         /* Auditoria de sistema de gestão é outro processo e tem tela
          * própria. Misturar as duas aqui faria o canteiro e o requisito
@@ -196,6 +198,21 @@ function InspecoesConteudo() {
     () => inspecoes.filter((i) => !empresaAtual || i.empresa_id === empresaAtual),
     [inspecoes, empresaAtual]
   )
+
+  /*
+   * Os filtros da lista.
+   *
+   * Busca por código é o caso mais comum de todos: o cliente liga
+   * citando "RIC-2026-0041" e alguém precisa achar aquilo em
+   * segundos. Local e situação são os dois cortes que a equipe faz
+   * sozinha o tempo todo — "o que está em campo agora", "o que ficou
+   * pendente no Galpão 03".
+   */
+  const [busca, setBusca] = useState('')
+  const [localFiltro, setLocalFiltro] = useState('')
+  const [situacaoFiltro, setSituacaoFiltro] = useState('')
+  const [pagina, setPagina] = useState(0)
+  const POR_PAGINA = 15
 
   /*
    * UMA LINHA POR VISITA, não por checklist.
@@ -271,6 +288,12 @@ function InspecoesConteudo() {
           situacao,
           emitido,
           naoConformes: itens.reduce((s, i) => s + (i.nao_conformes || 0), 0),
+          conformes: itens.reduce((s, i) => s + (i.conformes || 0), 0),
+          /* Quantos checklists foram levados nesta visita. "2
+             aplicados" e "3 escolhidos" são coisas diferentes: o
+             primeiro já tem resposta, o segundo ainda não. */
+          checklists: itens.length,
+          respondidos: itens.filter((i) => (i.itens_total || 0) > 0).length,
           percentual,
           /* Uma só: é por ela que se abre quando não há visita. */
           inspecaoId: primeira.id,
@@ -278,6 +301,38 @@ function InspecoesConteudo() {
       })
       .sort((a, b) => (b.quando || '').localeCompare(a.quando || ''))
   }, [visiveis, relatorioDaVisita])
+
+  /* O que sobra depois dos filtros, antes de cortar em páginas. */
+  const filtradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    return linhas.filter((l) => {
+      if (localFiltro && l.local !== localFiltro) return false
+      if (situacaoFiltro) {
+        const situacaoVisivel = l.emitido && l.situacao !== 'cancelada' ? 'emitido' : l.situacao
+        if (situacaoVisivel !== situacaoFiltro) return false
+      }
+      if (!termo) return true
+      return [l.emitido?.codigo, l.local, l.inspetor, l.titulo, l.detalhe]
+        .filter(Boolean)
+        .some((campo) => (campo as string).toLowerCase().includes(termo))
+    })
+  }, [linhas, busca, localFiltro, situacaoFiltro])
+
+  const paginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
+  const naPagina = filtradas.slice(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA)
+
+  /* Mudou o filtro, volta para a primeira página: continuar na página
+     3 de uma lista que agora tem uma página só mostra tela vazia. */
+  useEffect(() => {
+    setPagina(0)
+  }, [busca, localFiltro, situacaoFiltro, empresaAtual])
+
+  /* Os locais que realmente aparecem na lista, não o cadastro inteiro:
+     filtro que oferece opção sem resultado é filtro que frustra. */
+  const locaisNaLista = useMemo(
+    () => [...new Set(linhas.map((l) => l.local).filter((l) => l && l !== '—'))].sort(),
+    [linhas]
+  )
 
   const modelosDisponiveis = modelos.filter(
     (m) => m.ativo && (m.empresa_id === null || m.empresa_id === empresaAtual)
@@ -436,7 +491,7 @@ function InspecoesConteudo() {
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">
           As inspeções ainda não foram criadas no banco. Rode <code>supabase/inspecoes.sql</code>.
         </div>
@@ -445,14 +500,22 @@ function InspecoesConteudo() {
   }
 
   return (
-    <div className="app">
-      <div>
-        <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">Inspeções</h1>
-        <p className="subtitulo-tela">
-          O que foi a campo, o que estava conforme e o que virou não conformidade. Cada item
-          reprovado abre uma não conformidade quando a inspeção é concluída.
-        </p>
+    <div className="app insp-v2">
+      <div className="insp-cabeca">
+        <div>
+          <p className="eyebrow">INSPEÇÕES</p>
+          <h1 className="titulo-tela">Inspeções</h1>
+          <p className="subtitulo-tela">
+            Cada visita de campo, do rascunho ao relatório emitido. Item reprovado abre uma não
+            conformidade quando a inspeção é concluída.
+          </p>
+        </div>
+        {/* O botão leva ao quadro de começar, logo abaixo: a visita
+            nasce escolhendo local e checklists, e não existe tela
+            separada para isso. */}
+        <a href="#comecar" className="btn btn-primary">
+          Nova inspeção
+        </a>
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
@@ -466,7 +529,7 @@ function InspecoesConteudo() {
        * tem título, número em cada passo e fica acima da lista, que é
        * o resultado do trabalho — não a porta de entrada dele.
        */}
-      <section className="insp-comecar">
+      <section className="insp-comecar" id="comecar">
         <h2>
           Começar uma inspeção{' '}
           <Ajuda
@@ -586,13 +649,54 @@ function InspecoesConteudo() {
         </p>
       ) : (
         <>
+        {/*
+          * A BARRA DE FILTROS, dentro do mesmo quadro da lista.
+          *
+          * Busca por código primeiro: o cliente liga citando
+          * "RIC-2026-0041" e alguém precisa achar aquilo em segundos.
+          */}
+        <div className="insp-filtros nao-imprimir">
+          <label className="insp-busca">
+            <span className="insp-oculto">Buscar inspeção</span>
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por código, local ou inspetor"
+            />
+          </label>
+          <label>
+            <span className="insp-oculto">Local</span>
+            <select value={localFiltro} onChange={(e) => setLocalFiltro(e.target.value)}>
+              <option value="">Todos os locais</option>
+              {locaisNaLista.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="insp-oculto">Situação</span>
+            <select value={situacaoFiltro} onChange={(e) => setSituacaoFiltro(e.target.value)}>
+              <option value="">Todas as situações</option>
+              <option value="em_andamento">Em campo</option>
+              <option value="concluida">Concluída · falta emitir</option>
+              <option value="emitido">Relatório emitido</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </label>
+        </div>
+
         <table className="tabela-colab">
           <thead>
             <tr>
-              <th>Visita</th>
+              <th>Código</th>
+              <th>Data</th>
               <th>Local</th>
+              <th>Checklists</th>
+              <th>Achados</th>
               <th>Inspetor</th>
-              <th>Quando</th>
               <th>
                 Situação{' '}
                 <Ajuda
@@ -600,33 +704,63 @@ function InspecoesConteudo() {
                   texto="Em campo: ainda apontando. Concluída · falta emitir: o checklist acabou e o relatório nunca saiu. Relatório emitido: o cliente tem o documento, com código e revisão."
                 />
               </th>
-              <th>Conformidade</th>
               <th className="acoes" />
             </tr>
           </thead>
           <tbody>
-            {linhas.map((l) => (
+            {naPagina.map((l) => (
               <tr key={l.chave}>
-                <td className="nome">
-                  {l.titulo}
-                  {l.detalhe && (
-                    <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--ink-muted)', marginTop: 2 }}>
-                      {l.detalhe}
-                    </div>
-                  )}
-                </td>
-                <td>{l.local}</td>
-                <td>{l.inspetor}</td>
-                <td>{dataHora(l.quando)}</td>
-                <td>
+                {/* O código é o nome da visita fora do portal. Enquanto
+                    o relatório não sai, a visita ainda não tem nome —
+                    e a tela diz isso em vez de inventar um. */}
+                <td className="mono nome">
                   {l.emitido && l.situacao !== 'cancelada' ? (
                     <>
-                      <span className="pill good">Relatório emitido</span>
-                      <div className="mono" style={{ fontSize: 11.5, marginTop: 3 }}>
-                        {l.emitido.codigo}
-                        {l.emitido.revisao > 1 ? ' · rev. ' + l.emitido.revisao : ''}
-                      </div>
+                      {l.emitido.codigo}
+                      {l.emitido.revisao > 1 && (
+                        <span style={{ fontWeight: 500, color: 'var(--ink-muted)' }}>
+                          {' · rev. ' + l.emitido.revisao}
+                        </span>
+                      )}
                     </>
+                  ) : (
+                    <span style={{ fontWeight: 500, color: 'var(--ink-faint)' }}>sem código</span>
+                  )}
+                  <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--ink-muted)', marginTop: 2 }}>
+                    {l.detalhe || l.titulo}
+                  </div>
+                </td>
+                <td>{dataHora(l.quando)}</td>
+                <td>{l.local}</td>
+                <td style={{ color: 'var(--ink-muted)' }}>
+                  {l.checklists === 0
+                    ? '—'
+                    : l.respondidos === l.checklists
+                      ? `${l.checklists} aplicado${l.checklists > 1 ? 's' : ''}`
+                      : `${l.checklists} escolhido${l.checklists > 1 ? 's' : ''}`}
+                </td>
+                <td>
+                  {l.checklists === 0 || (l.naoConformes === 0 && l.conformes === 0) ? (
+                    <span style={{ color: 'var(--ink-faint)' }}>—</span>
+                  ) : (
+                    <>
+                      {l.naoConformes > 0 && (
+                        <b style={{ color: 'var(--danger)' }}>{l.naoConformes} NC</b>
+                      )}
+                      {l.naoConformes > 0 && <span style={{ color: 'var(--ink-muted)' }}> · </span>}
+                      <span style={{ color: 'var(--ink-muted)' }}>{l.conformes} ok</span>
+                      {l.percentual !== null && (
+                        <span style={{ color: 'var(--ink-faint)' }}> · {l.percentual}%</span>
+                      )}
+                    </>
+                  )}
+                </td>
+                <td>{l.inspetor}</td>
+                <td>
+                  {l.emitido && l.situacao !== 'cancelada' ? (
+                    /* O código já está na primeira coluna; repetir
+                       aqui só gastava linha. */
+                    <span className="pill good">Relatório emitido</span>
                   ) : l.situacao === 'em_andamento' ? (
                     <span className="pill warn">Em campo</span>
                   ) : l.situacao === 'concluida' ? (
@@ -638,16 +772,6 @@ function InspecoesConteudo() {
                     </>
                   ) : (
                     <span className="pill flat">Cancelada</span>
-                  )}
-                </td>
-                <td>
-                  {l.percentual === null ? (
-                    '—'
-                  ) : (
-                    <>
-                      {l.percentual}%
-                      {l.naoConformes > 0 && <span className="pill bad"> {l.naoConformes} NC</span>}
-                    </>
                   )}
                 </td>
                 <td className="acoes">
@@ -672,6 +796,37 @@ function InspecoesConteudo() {
             ))}
           </tbody>
         </table>
+
+        {/* Quantas estão à vista de quantas existem, e como ver o
+            resto. Sem isto, uma lista cortada em quinze parece uma
+            empresa que só fez quinze inspeções. */}
+        <div className="insp-rodape nao-imprimir">
+          <span>
+            {naPagina.length} de {filtradas.length}
+            {filtradas.length === 1 ? ' inspeção' : ' inspeções'}
+            {filtradas.length !== linhas.length ? ` (de ${linhas.length} no total)` : ''}
+          </span>
+          {paginas > 1 && (
+            <span className="insp-rodape-botoes">
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={pagina === 0}
+                onClick={() => setPagina((p) => Math.max(0, p - 1))}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={pagina >= paginas - 1}
+                onClick={() => setPagina((p) => Math.min(paginas - 1, p + 1))}
+              >
+                Próxima
+              </button>
+            </span>
+          )}
+        </div>
         </>
       )}
     </div>

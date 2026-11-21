@@ -7,6 +7,7 @@ import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import '../visual.css'
 import {
   porLocal as calcPorLocal,
   reincidencia as calcReincidencia,
@@ -49,6 +50,8 @@ const TIPO_INCIDENTE: Record<string, string> = {
 
 type Empresa = { id: string; razao_social: string; nome_fantasia: string | null }
 
+type Acao = { id: string; empresa_id: string; prazo: string | null; situacao: string }
+
 type Inspecao = InspecaoIndicador
 type Resposta = RespostaIndicador
 type NC = NcIndicador
@@ -74,6 +77,11 @@ function PainelInspecoesConteudo() {
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
   const [respostas, setRespostas] = useState<Resposta[]>([])
   const [ncs, setNcs] = useState<NC[]>([])
+  /* Só o que o painel precisa saber de um plano: de quem é, para
+     quando, e se ainda está vivo. */
+  const [acoes, setAcoes] = useState<Acao[]>([])
+  /* visita → código do relatório emitido, para a lista de últimas. */
+  const [codigoDaVisita, setCodigoDaVisita] = useState<Record<string, string>>({})
 
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
@@ -114,8 +122,9 @@ function PainelInspecoesConteudo() {
       const { data: insp, error } = await supabase
         .from('inspecoes')
         .select(
-          'id, empresa_id, modelo_nome, local_nome, iniciada_em, concluida_em, situacao, ' +
-            'itens_total, conformes, nao_conformes, nao_aplicaveis, percentual'
+          'id, empresa_id, modelo_nome, local_nome, inspetor_nome, visita_id, iniciada_em, ' +
+            'concluida_em, situacao, itens_total, conformes, nao_conformes, nao_aplicaveis, ' +
+            'percentual'
         )
         /* Indicador de inspeção de campo não soma auditoria de sistema
          * de gestão: a conta de "conformidade" quer dizer coisas
@@ -134,7 +143,13 @@ function PainelInspecoesConteudo() {
 
       setInspecoes((insp || []) as unknown as Inspecao[])
 
-      const [{ data: rs }, { data: ns }] = await Promise.all([
+      /*
+       * Os planos entram no painel por um motivo só: plano atrasado é
+       * o indicador que o cliente cobra na reunião. Conformidade alta
+       * com plano vencido é tratamento que parou no meio, e só este
+       * número mostra isso.
+       */
+      const [{ data: rs }, { data: ns }, { data: as }, { data: es }] = await Promise.all([
         supabase.from('inspecao_respostas').select('id, inspecao_id, pergunta, resposta').limit(20000),
         supabase
           .from('nao_conformidades')
@@ -145,10 +160,36 @@ function PainelInspecoesConteudo() {
           )
           .eq('tipo', 'inspecao')
           .limit(2000),
+        supabase
+          .from('nc_acoes')
+          .select('id, empresa_id, prazo, situacao')
+          .limit(4000),
+        /* O código do relatório é o nome pelo qual a visita é citada
+           fora do portal. Sem ele, a lista de últimas inspeções diria
+           "Galpão 03" três vezes e ninguém saberia qual é qual. */
+        supabase
+          .from('relatorios_emitidos')
+          .select('visita_id, codigo, revisao')
+          .eq('tipo', 'inspecao')
+          .not('visita_id', 'is', null)
+          .limit(1000),
       ])
 
       setRespostas((rs || []) as unknown as Resposta[])
       setNcs((ns || []) as unknown as NC[])
+      setAcoes((as || []) as unknown as Acao[])
+
+      /* Várias revisões do mesmo código: fica a mais alta. */
+      const porVisita: Record<string, { codigo: string; revisao: number }> = {}
+      for (const r of (es || []) as any[]) {
+        const atual = porVisita[r.visita_id]
+        if (!atual || r.revisao > atual.revisao) {
+          porVisita[r.visita_id] = { codigo: r.codigo, revisao: r.revisao }
+        }
+      }
+      setCodigoDaVisita(
+        Object.fromEntries(Object.entries(porVisita).map(([k, v]) => [k, v.codigo]))
+      )
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível montar o painel.')
@@ -170,6 +211,19 @@ function PainelInspecoesConteudo() {
   }
 
   /* Só inspeção concluída entra na conta: rascunho não é resultado. */
+  /* Todas as do período, inclusive as que ainda estão em campo: daqui
+     saem "ainda em campo" e a lista das últimas visitas. Os
+     indicadores de resultado continuam usando só as concluídas. */
+  const visiveis = useMemo(
+    () =>
+      inspecoes
+        .filter((i) => !empresaAtual || i.empresa_id === empresaAtual)
+        .filter((i) => i.situacao !== 'cancelada')
+        .filter((i) => noPeriodo(i.concluida_em || i.iniciada_em)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inspecoes, empresaAtual, de, ate]
+  )
+
   const concluidas = useMemo(
     () =>
       inspecoes
@@ -200,6 +254,42 @@ function PainelInspecoesConteudo() {
   const pareto = useMemo(() => calcPareto(ncsVisiveis), [ncsVisiveis])
   const fatais = useMemo(() => potencialFatalEmAberto(ncsVisiveis), [ncsVisiveis])
 
+  /*
+   * Plano atrasado é o número que o cliente cobra na reunião:
+   * conformidade alta com plano vencido é tratamento que parou no
+   * meio. O filtro de período não vale aqui de propósito — atraso não
+   * tem data de validade, e esconder o antigo seria o mesmo que
+   * perdoá-lo.
+   */
+  const planosAtrasados = useMemo(() => {
+    const limite = new Date().toISOString().slice(0, 10)
+    return acoes.filter(
+      (a) =>
+        (!empresaAtual || a.empresa_id === empresaAtual) &&
+        !!a.prazo &&
+        a.prazo < limite &&
+        !['encerrada', 'cancelada'].includes(a.situacao)
+    ).length
+  }, [acoes, empresaAtual])
+
+  /*
+   * Quantos dias a empresa leva para encerrar uma não conformidade.
+   *
+   * Conta só as encerradas, porque as abertas ainda não têm fim para
+   * medir — incluí-las com a data de hoje faria o número melhorar
+   * sozinho a cada dia de atraso, que é o oposto do que ele serve.
+   */
+  const prazoMedio = useMemo(() => {
+    const fechadas = ncsVisiveis.filter((n) => n.situacao === 'encerrada' && n.encerrada_em)
+    if (fechadas.length === 0) return null
+    const dias = fechadas.map((n) => {
+      const inicio = new Date(n.created_at).getTime()
+      const fim = new Date(n.encerrada_em as string).getTime()
+      return Math.max(0, Math.round((fim - inicio) / 86400000))
+    })
+    return Math.round(dias.reduce((s, d) => s + d, 0) / dias.length)
+  }, [ncsVisiveis])
+
   const reincidencia = useMemo(
     () => calcReincidencia(concluidas, respostas),
     [concluidas, respostas]
@@ -214,9 +304,86 @@ function PainelInspecoesConteudo() {
 
   const incidentes = useMemo(() => calcIncidentes(ncsVisiveis), [ncsVisiveis])
 
+  /* Quantas visitas ainda estão em campo: a ressalva do primeiro
+     número, porque inspeção em campo ainda não virou resultado. */
+  const emCampo = useMemo(
+    () => visiveis.filter((i) => i.situacao === 'em_andamento').length,
+    [visiveis]
+  )
+
+  /* Quantas vencem nos próximos sete dias — a pergunta que vem logo
+     depois de "quantas estão abertas". */
+  const vencemNaSemana = useMemo(() => {
+    const agora = new Date().toISOString().slice(0, 10)
+    const semana = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+    return ncsVisiveis.filter(
+      (n) =>
+        !['encerrada', 'cancelada'].includes(n.situacao) &&
+        !!n.prazo &&
+        (n.prazo as string) >= agora &&
+        (n.prazo as string) <= semana
+    ).length
+  }, [ncsVisiveis])
+
+  /* Há quantos dias está parado o plano mais antigo. "O mais antigo
+     há 23 dias" cobra sozinho; "4 atrasados" não. */
+  const atrasoMaisVelho = useMemo(() => {
+    const agora = new Date().toISOString().slice(0, 10)
+    const vencidos = acoes
+      .filter(
+        (a) =>
+          (!empresaAtual || a.empresa_id === empresaAtual) &&
+          !!a.prazo &&
+          (a.prazo as string) < agora &&
+          !['encerrada', 'cancelada'].includes(a.situacao)
+      )
+      .map((a) => a.prazo as string)
+      .sort()
+    if (vencidos.length === 0) return null
+    return Math.round((Date.now() - new Date(vencidos[0]).getTime()) / 86400000)
+  }, [acoes, empresaAtual])
+
+  /*
+   * As últimas visitas, uma linha cada.
+   *
+   * O painel lista VISITA, não checklist: uma visita com quatro
+   * checklists é um documento só, com um código só, e mostrá-la
+   * quatro vezes faria o painel mentir sobre quantas vezes a equipe
+   * foi a campo.
+   */
+  const ultimas = useMemo(() => {
+    const grupos = new Map<string, Inspecao[]>()
+    for (const i of visiveis) {
+      const chave = i.visita_id || i.id
+      grupos.set(chave, [...(grupos.get(chave) || []), i])
+    }
+
+    return [...grupos.entries()]
+      .map(([chave, itens]) => {
+        const primeira = itens[0]
+        const quando = itens
+          .map((i) => i.concluida_em || i.iniciada_em)
+          .sort()
+          .slice(-1)[0]
+        return {
+          chave,
+          codigo: (primeira.visita_id && codigoDaVisita[primeira.visita_id]) || null,
+          local: primeira.local_nome || '—',
+          inspetor: primeira.inspetor_nome || '—',
+          quando,
+          emAndamento: itens.some((i) => i.situacao === 'em_andamento'),
+          naoConformes: itens.reduce((s, i) => s + (i.nao_conformes || 0), 0),
+          conformes: itens.reduce((s, i) => s + (i.conformes || 0), 0),
+          inspecaoId: primeira.id,
+        }
+      })
+      .sort((a, b) => (b.quando || '').localeCompare(a.quando || ''))
+      .slice(0, 5)
+  }, [visiveis, codigoDaVisita])
+
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">
           As inspeções ainda não foram criadas no banco. Rode <code>supabase/inspecoes.sql</code>.
         </div>
@@ -225,13 +392,13 @@ function PainelInspecoesConteudo() {
   }
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">Painel</h1>
         <p className="subtitulo-tela">
-          O resultado por local, a pergunta que falha de novo e o que ainda falta tratar. Só
-          inspeção concluída entra na conta — rascunho não é resultado.
+          O que está aberto, o que está atrasado e por que volta a acontecer. Só inspeção
+          concluída entra na conta de resultado — rascunho não é resultado.
         </p>
       </div>
 
@@ -266,59 +433,81 @@ function PainelInspecoesConteudo() {
       ) : (
         <>
           <div className="stats">
+            {/*
+              * OS CINCO NÚMEROS, na ordem da pergunta que a reunião
+              * faz: quanto se andou, quanto está aberto, quanto parou,
+              * quanto tempo leva e se resolveu. Cada um carrega a
+              * ressalva que evitaria a pergunta seguinte.
+              *
+              * Conformidade saiu daqui de propósito: percentual alto
+              * com plano atrasado é o número que engana. Ele continua
+              * no relatório do período, onde há espaço para explicá-lo.
+              */}
             <div className="stat">
               <div className="num">{totais.aplicadas}</div>
-              <div className="lbl">Inspeções concluídas</div>
-            </div>
-            <div className="stat">
-              <div className="num">{totais.conformidade === null ? '—' : totais.conformidade + '%'}</div>
-              <div className="lbl">Conformidade</div>
+              <div className="lbl">Inspeções no período</div>
+              <div className="dica">
+                {emCampo === 0
+                  ? 'nenhuma em campo agora'
+                  : emCampo === 1
+                    ? '1 ainda em campo'
+                    : `${emCampo} ainda em campo`}
+              </div>
             </div>
             <div className={'stat' + (totais.abertas ? ' warn' : '')}>
               <div className="num">{totais.abertas}</div>
               <div className="lbl">Não conformidades abertas</div>
+              <div className="dica">
+                {totais.vencidas > 0
+                  ? `${totais.vencidas} já com prazo vencido`
+                  : vencemNaSemana > 0
+                    ? `${vencemNaSemana} vencem esta semana`
+                    : 'nenhuma vencida'}
+              </div>
             </div>
-            <div className={'stat' + (totais.vencidas ? ' bad' : '')}>
-              <div className="num">{totais.vencidas}</div>
-              <div className="lbl">Com prazo vencido</div>
+            <div className={'stat' + (planosAtrasados ? ' bad' : '')}>
+              <div className="num">{planosAtrasados}</div>
+              <div className="lbl">Planos atrasados</div>
+              <div className="dica">
+                {atrasoMaisVelho === null
+                  ? 'nenhum plano vencido'
+                  : `o mais antigo há ${atrasoMaisVelho} dias`}
+              </div>
+            </div>
+            <div className="stat">
+              <div className="num">
+                {prazoMedio === null ? '—' : prazoMedio}
+                {prazoMedio === null ? '' : <span className="unidade"> dias</span>}
+              </div>
+              <div className="lbl">Prazo médio de tratamento</div>
+              <div className="dica">
+                {prazoMedio === null ? 'nenhuma encerrada ainda' : 'da abertura até encerrar'}
+              </div>
+            </div>
+            <div className={'stat' + (eficacia.encerradas ? ' good' : '')}>
+              <div className="num">
+                {eficacia.encerradas === 0 ? '—' : eficacia.taxa}
+                {eficacia.encerradas === 0 ? '' : <span className="unidade">%</span>}
+              </div>
+              <div className="lbl">Eficácia verificada</div>
+              <div className="dica">
+                {/* Encerrar não prova nada — prova é não voltar. A
+                    conta procura a mesma pergunta reprovando de novo
+                    no mesmo local nos 90 dias seguintes. */}
+                {eficacia.encerradas === 0
+                  ? 'nenhuma encerrada no período'
+                  : `de ${eficacia.encerradas} encerradas, sem voltar em 90 dias`}
+              </div>
             </div>
           </div>
 
-          <div className="panel">
-            <div className="panel-head">
-              <div className="section-title">
-                Eficácia — a ação resolveu, ou o problema voltou?
-              </div>
-            </div>
-            <div className="panel-body">
-              {eficacia.encerradas === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
-                  Nenhuma não conformidade de inspeção encerrada no período.
-                </p>
-              ) : (
-                <div className="stats">
-                  <div className="stat good">
-                    <div className="num">{eficacia.taxa}%</div>
-                    <div className="lbl">Não voltaram em 90 dias</div>
-                  </div>
-                  <div className="stat">
-                    <div className="num">{eficacia.encerradas}</div>
-                    <div className="lbl">Encerradas no período</div>
-                  </div>
-                  <div className={'stat' + (eficacia.reincidiu ? ' bad' : '')}>
-                    <div className="num">{eficacia.reincidiu}</div>
-                    <div className="lbl">Voltaram a reprovar</div>
-                  </div>
-                </div>
-              )}
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
-                Encerrar não prova nada — prova é não voltar. Para cada não conformidade
-                encerrada, o portal procura a mesma pergunta reprovando de novo no mesmo local
-                nos 90 dias seguintes. É a verificação da eficácia que o item 10.2 pede,
-                virada em número.
-              </p>
-            </div>
-          </div>
+          {/*
+            * A GRADE DO MEIO, como no desenho: à esquerda o gráfico
+            * que explica o passado, à direita as duas listas que
+            * cobram o presente. Quem entra no painel lê a coluna da
+            * direita primeiro — é a que tem nome e prazo.
+            */}
+          <div className="insp-painel-grade">
 
           {/*
             * PRIMEIRO O QUE AINDA PODE MATAR.
@@ -339,41 +528,39 @@ function PainelInspecoesConteudo() {
                   acontecido — não pela gravidade do que aconteceu.
                 </p>
               ) : (
-                <table className="tabela-colab">
-                  <thead>
-                    <tr>
-                      <th>O que foi visto</th>
-                      <th>Local</th>
-                      <th>Gravidade</th>
-                      <th>Prazo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fatais.map((n) => {
-                      const vencido =
-                        n.prazo && n.prazo < new Date().toISOString().slice(0, 10)
-                      return (
-                        <tr key={n.id}>
-                          <td className="nome">{n.titulo || '—'}</td>
-                          <td>{n.local_nome || '—'}</td>
-                          {/* A gravidade fica à vista justamente para
-                              mostrar quantas são "baixa" e mesmo assim
-                              estão aqui. */}
-                          <td>{n.gravidade}</td>
-                          <td>
-                            {n.prazo ? (
-                              <span className={'pill ' + (vencido ? 'bad' : 'warn')}>
-                                {n.prazo.split('-').reverse().join('/')}
-                              </span>
-                            ) : (
-                              <span className="pill flat">sem prazo</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                /*
+                 * Cartão, e não linha de tabela.
+                 *
+                 * Tabela é para comparar muitas coisas parecidas. Aqui
+                 * são poucas e nenhuma é parecida com outra: cada uma é
+                 * um acidente que não aconteceu. O cartão tinto de
+                 * vermelho é lido de longe, de pé, na reunião — que é
+                 * onde esta lista costuma ser aberta.
+                 */
+                <ul className="insp-fatais">
+                  {fatais.map((n) => {
+                    const vencido = n.prazo && n.prazo < new Date().toISOString().slice(0, 10)
+                    return (
+                      <li key={n.id}>
+                        <p className="insp-fatal-tit">{n.titulo || 'Sem título'}</p>
+                        <p className="insp-fatal-pe">
+                          {n.local_nome || 'local não informado'}
+                          {' · gravidade '}
+                          {n.gravidade}
+                          {' · '}
+                          {n.prazo ? (
+                            <b className={vencido ? 'vencido' : undefined}>
+                              {vencido ? 'prazo vencido em ' : 'vence em '}
+                              {n.prazo.split('-').reverse().join('/')}
+                            </b>
+                          ) : (
+                            <b className="vencido">sem prazo definido</b>
+                          )}
+                        </p>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
             </div>
           </div>
@@ -387,7 +574,7 @@ function PainelInspecoesConteudo() {
             */}
           <div className="panel">
             <div className="panel-head">
-              <div className="section-title">Causas-raiz — o que mais produz não conformidade</div>
+              <div className="section-title">Causas-raiz mais frequentes</div>
             </div>
             <div className="panel-body">
               {pareto.linhas.length === 0 ? (
@@ -438,7 +625,7 @@ function PainelInspecoesConteudo() {
 
           <div className="panel">
             <div className="panel-head">
-              <div className="section-title">Reincidência — a pergunta que falha de novo</div>
+              <div className="section-title">Volta a acontecer no mesmo lugar</div>
             </div>
             <div className="panel-body">
               {reincidencia.length === 0 ? (
@@ -446,26 +633,97 @@ function PainelInspecoesConteudo() {
                   Nenhum item reprovado no período.
                 </p>
               ) : (
+                /*
+                 * Lista, e não tabela de quatro colunas.
+                 *
+                 * A pergunta aqui é uma só — "o que falha de novo?" —,
+                 * e a resposta cabe em duas informações: qual item e
+                 * quantas vezes. Avaliada e taxa viraram a letra miúda
+                 * da mesma linha: continuam disponíveis para quem
+                 * precisa conferir, sem ocupar uma coluna cada.
+                 */
+                <ul className="insp-repete">
+                  {reincidencia.map((r) => (
+                    <li key={r.pergunta}>
+                      <span className="insp-repete-item">{r.pergunta}</span>
+                      <span className="insp-repete-conta">
+                        <b className={r.reprovada > 1 ? 'muitas' : undefined}>{r.reprovada}×</b>
+                        <em>
+                          em {r.avaliada} · {r.taxa}%
+                        </em>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
+                Item que reprova mais de uma vez não é achado: é controle que não existe. O
+                percentual de conformidade sozinho esconde justamente isso.
+              </p>
+            </div>
+          </div>
+
+          </div>
+
+          {/*
+            * AS ÚLTIMAS VISITAS, uma linha cada.
+            *
+            * Fecha o painel com o trabalho concreto por trás dos
+            * números de cima: quem foi, onde, o que achou e se o
+            * documento já saiu. É também o atalho mais usado — de
+            * olhar um número e querer ver a visita que o produziu.
+            */}
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Últimas inspeções</div>
+              <Link href="/inspecoes" className="btn btn-sm">
+                Ver todas
+              </Link>
+            </div>
+            <div className="panel-body">
+              {ultimas.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
+                  Nenhuma inspeção no período.
+                </p>
+              ) : (
                 <table className="tabela-colab">
                   <thead>
                     <tr>
-                      <th>Pergunta</th>
-                      <th>Avaliada</th>
-                      <th>Reprovada</th>
-                      <th>Taxa</th>
+                      <th>Código</th>
+                      <th>Local</th>
+                      <th>Achados</th>
+                      <th>Inspetor</th>
+                      <th>Situação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reincidencia.map((r) => (
-                      <tr key={r.pergunta}>
-                        <td className="nome">{r.pergunta}</td>
-                        <td>{r.avaliada}</td>
-                        <td>{r.reprovada}</td>
+                    {ultimas.map((u) => (
+                      <tr key={u.chave}>
+                        <td className="mono">
+                          <Link href={'/inspecoes/' + u.inspecaoId}>
+                            {u.codigo || 'sem código'}
+                          </Link>
+                        </td>
+                        <td>{u.local}</td>
                         <td>
-                          {r.reprovada > 1 ? (
-                            <span className="pill warn">{r.taxa}%</span>
+                          {u.naoConformes > 0 ? (
+                            <b style={{ color: 'var(--danger)' }}>{u.naoConformes} NC</b>
                           ) : (
-                            r.taxa + '%'
+                            <span style={{ color: 'var(--ink-faint)' }}>sem NC</span>
+                          )}
+                          <span style={{ color: 'var(--ink-muted)' }}>
+                            {' · '}
+                            {u.conformes} conformes
+                          </span>
+                        </td>
+                        <td>{u.inspetor}</td>
+                        <td>
+                          {u.emAndamento ? (
+                            <span className="pill warn">Em campo</span>
+                          ) : u.codigo ? (
+                            <span className="pill good">Relatório emitido</span>
+                          ) : (
+                            <span className="pill flat">Concluída · falta emitir</span>
                           )}
                         </td>
                       </tr>
@@ -473,10 +731,6 @@ function PainelInspecoesConteudo() {
                   </tbody>
                 </table>
               )}
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
-                Item que reprova mais de uma vez não é achado: é controle que não existe. O
-                percentual de conformidade sozinho esconde justamente isso.
-              </p>
             </div>
           </div>
 

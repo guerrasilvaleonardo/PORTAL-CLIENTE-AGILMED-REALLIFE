@@ -11,6 +11,7 @@ import '../../inspecoes.css'
 import '../../../auditorias/[id]/relatorio/relatorio.css'
 import '../../[id]/relatorio/relatorio.css'
 import './visita.css'
+import '../../visual.css'
 
 /*
  * RIC — Relatório de Inspeção de Campo.
@@ -202,7 +203,7 @@ function VisitaConteudo() {
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
@@ -210,7 +211,7 @@ function VisitaConteudo() {
 
   if (erro || !visita) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">{erro || 'Visita não encontrada.'}</div>
         <Link href="/inspecoes/campo" className="btn btn-sm">
           Voltar

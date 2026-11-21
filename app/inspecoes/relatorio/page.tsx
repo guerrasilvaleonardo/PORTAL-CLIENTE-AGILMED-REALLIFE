@@ -31,6 +31,7 @@ import '../inspecoes.css'
 import '../../auditorias/[id]/relatorio/relatorio.css'
 import '../[id]/relatorio/relatorio.css'
 import './consolidado.css'
+import '../visual.css'
 
 /*
  * Relatório consolidado das inspeções de um período.
@@ -252,7 +253,7 @@ function ConsolidadoConteudo() {
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
