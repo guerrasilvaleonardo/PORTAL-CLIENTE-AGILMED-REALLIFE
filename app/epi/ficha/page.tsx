@@ -659,6 +659,17 @@ export default function FichaEpi() {
                   <tr key={`${e.id}-${k}`}>
                     <td className="mono" data-rotulo="Entrega">
                       {dataCurta(e.entregue_em)}
+                      {/* Quem entregou, só na primeira linha da entrega —
+                          as demais são itens da mesma entrega, e repetir
+                          o nome em cada uma suja a ficha impressa.
+                          Vai aqui, embaixo da data, em vez de virar nona
+                          coluna: a ficha é impressa em retrato e não
+                          sobra largura. */}
+                      {k === 0 && (
+                        <span className="ficha-mini">
+                          por {e.entregue_por_nome || 'não registrado'}
+                        </span>
+                      )}
                     </td>
                     <td className="mono" data-rotulo="Devolução">
                       {i.devolvido_em ? (
