@@ -122,6 +122,7 @@ type Checklist = {
 
 type Apontamento = {
   id: string
+  titulo: string | null
   descricao: string
   classificacao: string | null
   tipologia: string | null
@@ -345,6 +346,7 @@ function CampoConteudo() {
       setFeitos(
         ((aps || []) as any[]).map((a) => ({
           id: a.id,
+          titulo: a.titulo,
           descricao: a.descricao,
           classificacao: a.classificacao,
           tipologia: a.tipologia,
@@ -1129,6 +1131,7 @@ function CampoConteudo() {
     setFeitos(
       ((data || []) as any[]).map((a) => ({
         id: a.id,
+        titulo: a.titulo,
         descricao: a.descricao,
         classificacao: a.classificacao,
         tipologia: a.tipologia,
@@ -1297,6 +1300,7 @@ function CampoConteudo() {
             a.id === editando
               ? {
                   ...a,
+                  titulo: titulo.trim() || null,
                   descricao: descricao.trim(),
                   classificacao: tipo === 'nao_conformidade' ? null : tipo,
                   tipologia: tipologia || null,
@@ -1360,6 +1364,7 @@ function CampoConteudo() {
       setFeitos((lista) => [
         {
           id: (data as any).id,
+          titulo: titulo.trim() || null,
           descricao: descricao.trim(),
           classificacao: tipo === 'nao_conformidade' ? null : tipo,
           tipologia: tipologia || null,
@@ -1640,6 +1645,18 @@ function CampoConteudo() {
               </button>
             </div>
           )}
+
+          {/*
+            * DUAS COLUNAS, como no desenho da visita aberta.
+            *
+            * À esquerda o que se faz: responder checklist e apontar.
+            * À direita o que se confere: o que já foi apontado, o que
+            * falta para encerrar e o resumo. No celular vira uma
+            * coluna só, nessa mesma ordem — primeiro fazer, depois
+            * conferir.
+            */}
+          <div className="campo-colunas">
+          <div className="campo-coluna-fazer">
 
           {checklists.length > 0 && (
             <div className="campo-abas nao-imprimir">
@@ -2050,6 +2067,8 @@ function CampoConteudo() {
             </div>
           </div>
 
+          </div>
+
           {feitos.length > 0 && (
             <div className="campo-visita">
               <div className="campo-visita-cabeca">
@@ -2157,9 +2176,16 @@ function CampoConteudo() {
                         apontamento de gravidade baixa pode ter esta
                         marca. */}
                     {a.potencial_fatal && <span className="pill bad">Potencial fatal</span>}
+                    {a.tipologia && (
+                      <span className="campo-assunto">{rotuloTipologia(a.tipologia)}</span>
+                    )}
+                    {/* Título em cima, descrição embaixo: é o título
+                        que liga este apontamento ao da visita passada,
+                        e é por ele que a pessoa reconhece o item sem
+                        ler o parágrafo inteiro. */}
+                    {a.titulo && <p className="campo-item-titulo">{a.titulo}</p>}
                     <p>{a.descricao}</p>
                     <p className="campo-mini">
-                      {a.tipologia ? `${rotuloTipologia(a.tipologia)} · ` : ''}
                       {a.criado}
                       {a.prazo ? ` · prazo ${a.prazo.split('-').reverse().join('/')}` : ''}
                       {a.responsavel_nome ? ` · ${a.responsavel_nome}` : ''}
@@ -2229,6 +2255,8 @@ function CampoConteudo() {
               </p>
             </div>
           )}
+
+          </div>
         </>
       )}
     </div>

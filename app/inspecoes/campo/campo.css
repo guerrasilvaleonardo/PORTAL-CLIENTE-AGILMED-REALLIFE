@@ -849,3 +849,60 @@
   color: var(--ink-muted);
   line-height: 1.35;
 }
+
+/* ---------- As duas colunas da visita aberta ----------------------- */
+
+/*
+ * À esquerda o que se faz (responder checklist, apontar); à direita o
+ * que se confere (o que já foi apontado, o que falta para encerrar).
+ *
+ * No celular é uma coluna só, nessa ordem — primeiro fazer, depois
+ * conferir —, e é por isso que a ordem no código é essa e não o
+ * contrário: sem media query, o telefone já recebe a ordem certa.
+ */
+.campo-colunas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.campo-coluna-fazer {
+  flex: 999 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.campo-colunas > .campo-visita {
+  flex: 1 1 320px;
+  min-width: 0;
+  margin-top: 0;
+}
+
+@media print {
+  /* No papel não há coluna: a folha é uma só, e o que foi apontado
+     vem depois do que foi respondido. */
+  .campo-colunas {
+    display: block;
+  }
+}
+
+/* O cartão do apontamento já salvo: marcas, título, texto, rodapé. */
+.campo-item-titulo {
+  margin: 6px 0 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* O assunto fica ao lado das marcas, em letra miúda: é contexto, não
+   classificação — e classificação já tem cor própria. */
+.campo-assunto {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
