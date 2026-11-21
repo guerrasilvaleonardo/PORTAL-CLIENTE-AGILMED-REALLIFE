@@ -65,6 +65,39 @@ type Modelo = { id: string; nome: string; norma: string | null }
  * saem do gatilho do banco, e cada item reprovado vira não
  * conformidade com prazo sozinho.
  */
+/*
+ * A conferência de saída, em ordem de quem resolve primeiro: o que
+ * depende de sinal, o que depende de responder e o que depende da
+ * pessoa que recebe a folha.
+ */
+const CONFERENCIA: {
+  chave: string
+  rotulo: (c: { pendentes: number; semResposta: number; ciente: string }) => string
+  comoResolver: string
+}[] = [
+  {
+    chave: 'fila',
+    rotulo: (c) =>
+      c.pendentes === 0
+        ? 'Tudo enviado'
+        : `${c.pendentes} apontamento${c.pendentes === 1 ? '' : 's'} ainda no aparelho`,
+    comoResolver: 'Sobem sozinhos quando pegar sinal.',
+  },
+  {
+    chave: 'checklist',
+    rotulo: (c) =>
+      c.semResposta === 0
+        ? 'Checklists respondidos'
+        : `${c.semResposta} ${c.semResposta === 1 ? 'item' : 'itens'} de checklist sem resposta`,
+    comoResolver: 'Responda ou marque como não aplicável.',
+  },
+  {
+    chave: 'ciente',
+    rotulo: (c) => (c.ciente ? 'Ciência colhida: ' + c.ciente : 'Ciência do cliente em branco'),
+    comoResolver: 'Nome e cargo de quem recebeu a visita, no fim desta tela.',
+  },
+]
+
 type Checklist = {
   inspecaoId: string
   nome: string
@@ -1250,6 +1283,25 @@ function CampoConteudo() {
   const local = locais.find((l) => l.id === localId)
   const empresa = empresas.find((e) => e.id === empresaAtual)
 
+  /*
+   * A conferência de saída. Três coisas impedem o relatório de sair
+   * honesto, e nenhuma delas é opinião: apontamento preso no aparelho,
+   * pergunta de checklist sem resposta e a folha sem quem recebeu.
+   * As observações finais ficam de fora de propósito — visita sem nada
+   * a observar existe, e exigi-las ensinaria a escrever "ok".
+   */
+  const contagem = {
+    pendentes,
+    semResposta: checklists.reduce((n, c) => n + c.itens.filter((i) => !i.resposta).length, 0),
+    ciente: cienteNome.trim(),
+  }
+
+  const faltas = [
+    contagem.pendentes > 0 ? 'fila' : null,
+    contagem.semResposta > 0 ? 'checklist' : null,
+    !contagem.ciente ? 'ciente' : null,
+  ].filter(Boolean) as string[]
+
   return (
     <div className="app campo">
       {!emVisita ? (
@@ -1755,6 +1807,45 @@ function CampoConteudo() {
                   titulo="Encerrar e emitir"
                   texto="Fecha a visita, conclui os checklists respondidos e reserva o código do relatório (RIC). A partir daí reimprimir não gera número novo — o que muda é a revisão. Não encerra com apontamento guardado no aparelho: o relatório não sai incompleto."
                 />
+              </div>
+
+              {/*
+                * O QUE FALTA PARA ENCERRAR, dito antes de alguém tentar.
+                *
+                * Encerrar reserva um código e produz documento. Antes
+                * disto, a recusa só aparecia depois do clique — a pessoa
+                * já de saída, o cliente esperando a folha. Agora a lista
+                * está à vista o tempo todo: três linhas, cada uma com o
+                * que resolver, e o botão explica a si mesmo.
+                */}
+              <div className="campo-falta nao-imprimir">
+                <p className="campo-falta-titulo">
+                  {faltas.length === 0
+                    ? 'Pronto para encerrar'
+                    : faltas.length === 1
+                      ? 'Para encerrar, falta 1 coisa'
+                      : `Para encerrar, faltam ${faltas.length} coisas`}
+                </p>
+
+                <ul>
+                  {CONFERENCIA.map((item) => {
+                    const pendente = faltas.includes(item.chave)
+                    return (
+                      <li key={item.chave} className={pendente ? 'pendente' : 'ok'}>
+                        <span aria-hidden="true">{pendente ? '×' : '✓'}</span>
+                        <span>
+                          <strong>{item.rotulo(contagem)}</strong>
+                          {pendente && <em>{item.comoResolver}</em>}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+
+                <p className="campo-falta-nota">
+                  Encerrar reserva o código do relatório. Depois disso, mudança vira revisão nova,
+                  com o motivo registrado.
+                </p>
               </div>
 
               {/* Cabeçalho que só aparece no papel: quem recebe a folha

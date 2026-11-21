@@ -38,7 +38,24 @@ type Inspecao = {
   itens_total: number
   nao_conformes: number
   percentual: number | null
+  visita_id: string | null
 }
+
+/*
+ * O caminho de uma inspeção, escrito na tela.
+ *
+ * POR QUE ISTO EXISTE. A lista dizia "em andamento" ou "concluída" e
+ * parava aí. Só que concluir o checklist não é o fim: o fim é o
+ * relatório com código na mão do cliente — e entre uma coisa e outra
+ * cabem três dias e um telefonema perguntando "já posso mandar?".
+ * Quem abre esta tela precisa ver o caminho inteiro de uma vez, e em
+ * que degrau cada visita parou.
+ */
+const CAMINHO = [
+  { titulo: '1. Em campo', texto: 'Estou apontando. Pode fechar o celular e voltar.' },
+  { titulo: '2. Concluída', texto: 'Checklist respondido. Ainda dá para rever.' },
+  { titulo: '3. Relatório emitido', texto: 'Tem código, data e hora. Mudança vira revisão.' },
+]
 
 const dataHora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—'
@@ -57,6 +74,9 @@ function InspecoesConteudo() {
   const [modelos, setModelos] = useState<Modelo[]>([])
   const [locais, setLocais] = useState<Local[]>([])
   const [inspecoes, setInspecoes] = useState<Inspecao[]>([])
+  const [relatorioDaVisita, setRelatorioDaVisita] = useState<
+    Record<string, { codigo: string; revisao: number }>
+  >({})
 
   const [modeloEscolhido, setModeloEscolhido] = useState('')
   /* Os checklists desta inspeção. Vazio = nenhum escolhido ainda. */
@@ -102,7 +122,7 @@ function InspecoesConteudo() {
         .from('inspecoes')
         .select(
           'id, empresa_id, modelo_nome, norma, local_nome, inspetor_nome, iniciada_em, ' +
-            'concluida_em, situacao, itens_total, nao_conformes, percentual'
+            'concluida_em, situacao, itens_total, nao_conformes, percentual, visita_id'
         )
         /* Auditoria de sistema de gestão é outro processo e tem tela
          * própria. Misturar as duas aqui faria o canteiro e o requisito
@@ -120,6 +140,33 @@ function InspecoesConteudo() {
       }
 
       setInspecoes((lista || []) as unknown as Inspecao[])
+
+      /*
+       * Quais visitas já viraram documento. É isto que separa "o
+       * checklist acabou" de "o cliente tem o relatório": sem esta
+       * consulta a lista pararia na conclusão, que é justamente onde
+       * a dúvida começa.
+       *
+       * A tabela pode não existir ainda (migração não rodada): aqui o
+       * silêncio é a resposta certa — a coluna mostra a situação de
+       * antes em vez de quebrar a tela inteira.
+       */
+      const { data: emitidos } = await supabase
+        .from('relatorios_emitidos')
+        .select('visita_id, codigo, revisao')
+        .eq('tipo', 'inspecao')
+        .not('visita_id', 'is', null)
+        .limit(1000)
+
+      const porVisita: Record<string, { codigo: string; revisao: number }> = {}
+      for (const r of (emitidos || []) as any[]) {
+        /* Várias revisões do mesmo código: fica a mais alta. */
+        const atual = porVisita[r.visita_id]
+        if (!atual || r.revisao > atual.revisao) {
+          porVisita[r.visita_id] = { codigo: r.codigo, revisao: r.revisao }
+        }
+      }
+      setRelatorioDaVisita(porVisita)
 
       const [{ data: ms }, { data: ls }] = await Promise.all([
         /* Os checklists de auditoria ficam na tela de Auditorias. */
@@ -421,6 +468,16 @@ function InspecoesConteudo() {
             : 'Nenhuma inspeção ainda.'}
         </p>
       ) : (
+        <>
+        <ol className="insp-caminho nao-imprimir">
+          {CAMINHO.map((passo) => (
+            <li key={passo.titulo}>
+              <strong>{passo.titulo}</strong>
+              <span>{passo.texto}</span>
+            </li>
+          ))}
+        </ol>
+
         <table className="tabela-colab">
           <thead>
             <tr>
@@ -444,9 +501,37 @@ function InspecoesConteudo() {
                 <td>{i.inspetor_nome || '—'}</td>
                 <td>{dataHora(i.concluida_em || i.iniciada_em)}</td>
                 <td>
-                  {i.situacao === 'em_andamento' && <span className="pill warn">Em andamento</span>}
-                  {i.situacao === 'concluida' && <span className="pill good">Concluída</span>}
-                  {i.situacao === 'cancelada' && <span className="pill flat">Cancelada</span>}
+                  {(() => {
+                    const emitido = i.visita_id ? relatorioDaVisita[i.visita_id] : null
+
+                    /* O documento emitido vence a situação do checklist:
+                       uma inspeção concluída cujo relatório já saiu não
+                       está "esperando" mais nada. */
+                    if (emitido && i.situacao !== 'cancelada') {
+                      return (
+                        <>
+                          <span className="pill good">Relatório emitido</span>
+                          <div className="mono" style={{ fontSize: 11.5, marginTop: 3 }}>
+                            {emitido.codigo}
+                            {emitido.revisao > 1 ? ' · rev. ' + emitido.revisao : ''}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    if (i.situacao === 'em_andamento') return <span className="pill warn">Em campo</span>
+                    if (i.situacao === 'concluida')
+                      return (
+                        <>
+                          <span className="pill flat">Concluída</span>
+                          <div style={{ fontSize: 11.5, marginTop: 3, color: 'var(--ink-faint)' }}>
+                            falta emitir
+                          </div>
+                        </>
+                      )
+                    if (i.situacao === 'cancelada') return <span className="pill flat">Cancelada</span>
+                    return null
+                  })()}
                 </td>
                 <td>
                   {i.percentual === null ? (
@@ -469,6 +554,7 @@ function InspecoesConteudo() {
             ))}
           </tbody>
         </table>
+        </>
       )}
     </div>
   )

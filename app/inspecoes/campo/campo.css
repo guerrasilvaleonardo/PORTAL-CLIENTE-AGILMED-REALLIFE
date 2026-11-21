@@ -574,3 +574,80 @@
   font-weight: 600;
   color: var(--ink-muted);
 }
+
+/* ----------------------------------------------------------------
+ * A conferência de saída: o que falta para encerrar.
+ * ---------------------------------------------------------------- */
+
+.campo-falta {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 13px 15px;
+  margin: 12px 0 14px;
+  background: var(--surface);
+}
+
+.campo-falta-titulo {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.campo-falta ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.campo-falta li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* O sinal não é só cor: × e ✓ dizem a mesma coisa de longe e para
+   quem não distingue vermelho de verde. */
+.campo-falta li > span:first-child {
+  flex: 0 0 auto;
+  width: 17px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.campo-falta li.pendente > span:first-child {
+  color: var(--danger);
+}
+
+.campo-falta li.ok > span:first-child {
+  color: var(--success);
+}
+
+.campo-falta li.ok strong {
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.campo-falta li strong {
+  display: block;
+  font-weight: 600;
+}
+
+.campo-falta li em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.campo-falta-nota {
+  margin: 11px 0 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}

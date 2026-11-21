@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import AbasRelatorios from '@/components/AbasRelatorios'
 import {
   porLocal as calcPorLocal,
   reincidencia as calcReincidencia,
@@ -262,6 +263,8 @@ function ConsolidadoConteudo() {
 
   return (
     <div className="app rel">
+      <AbasRelatorios />
+
       <div className="nao-imprimir cons-controles">
         <Link href="/inspecoes/painel" className="btn btn-sm">
           Voltar à visão geral

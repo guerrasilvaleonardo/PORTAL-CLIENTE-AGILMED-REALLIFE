@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import Ajuda from '@/components/Ajuda'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import AbasRelatorios from '@/components/AbasRelatorios'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 
@@ -146,12 +147,14 @@ function RelatoriosConteudo() {
     <div className="app">
       <div>
         <p className="eyebrow">INSPEÇÕES</p>
-        <h1 className="titulo-tela">Relatórios emitidos</h1>
+        <h1 className="titulo-tela">Relatórios</h1>
         <p className="subtitulo-tela">
           Todos, por código e em ordem. Reimprimir não gera número novo — o código é do evento, e
           o que muda é a revisão.
         </p>
       </div>
+
+      <AbasRelatorios />
 
       {erro && <div className="banner bad">{erro}</div>}
 

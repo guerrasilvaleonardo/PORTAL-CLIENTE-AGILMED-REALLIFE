@@ -321,7 +321,7 @@ function PlanosConteudo() {
                       >
                         {TIPOS[a.tipo] || a.tipo}
                       </span>
-                      <a href={'/inspecoes/nc?nc=' + a.nc_id} className="mono">
+                      <a href={'/inspecoes/nc/' + a.nc_id} className="mono">
                         {a.nao_conformidades?.codigo || 'NC sem número'}
                       </a>
                     </div>
