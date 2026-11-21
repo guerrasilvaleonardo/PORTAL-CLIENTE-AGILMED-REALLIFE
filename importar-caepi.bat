@@ -7,9 +7,15 @@ echo ==================================================
 echo  Importar a base de CAs do Ministerio do Trabalho
 echo ==================================================
 echo.
+echo Antes de rodar, baixe a base atual:
+echo   1. abra https://caepi.trabalho.gov.br/internet/ConsultaCAinternet.aspx
+echo   2. clique em "Base de dados do sistema CAEPI (Download)"
+echo   3. deixe o arquivo na pasta Downloads (ou arraste-o sobre este programa)
+echo.
 echo O que este programa faz:
-echo   - baixa a base oficial de CAs publicada em gov.br
+echo   - pega o tgg_export_caepi mais recente da pasta Downloads
 echo   - descompacta com o WinRAR que ja existe nesta maquina
+echo   - confere a data: base com mais de 45 dias NAO entra
 echo   - grava os CAs no portal, para o botao "Buscar no CAEPI"
 echo.
 echo Demora alguns minutos. Pode rodar quantas vezes quiser:
@@ -31,9 +37,24 @@ if not defined SUPABASE_SERVICE_ROLE_KEY goto chave_vazia
 if "%SUPABASE_SERVICE_ROLE_KEY%"=="cole-a-chave-aqui" goto chave_vazia
 if not defined NEXT_PUBLIC_SUPABASE_URL goto chave_vazia
 
-rem ---------- 3. importar ----------
+rem ---------- 3. o arquivo da base ----------
+rem O arquivo publicado em gov.br esta parado desde 2020 e nao serve.
+rem A base atual sai do link de download da pagina do CAEPI, que so
+rem funciona no navegador. Vale o arquivo arrastado sobre este programa
+rem ou, sem isso, o tgg_export_caepi mais recente da pasta Downloads.
+set "ARQ=%~1"
+if defined ARQ goto importar
+for /f "delims=" %%f in ('dir /b /o-d "%USERPROFILE%\Downloads\tgg_export_caepi*" 2^>nul') do (
+  set "ARQ=%USERPROFILE%\Downloads\%%f"
+  goto importar
+)
+goto sem_arquivo
+
+:importar
+echo Arquivo: %ARQ%
 echo --------------------------------------------------
-node supabase\caepi-importar.mjs
+node supabase\caepi-importar.mjs "%ARQ%"
+if errorlevel 2 goto base_velha
 if errorlevel 1 goto erro
 echo --------------------------------------------------
 echo.
@@ -79,6 +100,28 @@ echo Vou abri-lo de novo. Troque cole-a-chave-aqui pela chave do Supabase,
 echo salve, feche, e rode este programa outra vez.
 echo.
 start "" notepad "%CHAVE%"
+pause
+exit /b 1
+
+:sem_arquivo
+echo.
+echo Nao achei a base do CAEPI na pasta Downloads.
+echo Vou abrir a pagina do CAEPI: clique em
+echo "Base de dados do sistema CAEPI (Download)", espere baixar
+echo e rode este programa de novo.
+echo.
+start "" "https://caepi.trabalho.gov.br/internet/ConsultaCAinternet.aspx"
+pause
+exit /b 1
+
+:base_velha
+echo --------------------------------------------------
+echo.
+echo O arquivo e antigo e NAO foi importado (veja a data acima).
+echo O portal continua como estava. Baixe a base de novo pelo
+echo link da pagina do CAEPI e rode outra vez.
+echo.
+start "" "https://caepi.trabalho.gov.br/internet/ConsultaCAinternet.aspx"
 pause
 exit /b 1
 
