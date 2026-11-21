@@ -129,8 +129,19 @@ export function reincidencia(
  */
 const NAO_SAO_PROBLEMA = ['oportunidade', 'conforme']
 
+/*
+ * "Atende em parte" (insuficiente) CONTA como problema. Tem prazo,
+ * dono e aviso, e entra nas mesmas filas da não conformidade — do
+ * contrário viraria o esconderijo confortável de tudo que ninguém quer
+ * tratar. O que muda é só como o relatório conta a história: o cliente
+ * lê "três não atendem e dois atendem em parte" muito diferente de
+ * "cinco não atendem", e a segunda frase faz ele parar de ler.
+ */
 export const ehNaoConformidade = (n: NcIndicador) =>
   !NAO_SAO_PROBLEMA.includes(n.classificacao || '')
+
+export const parciais = (ncsVisiveis: NcIndicador[]) =>
+  ncsVisiveis.filter((n) => n.classificacao === 'insuficiente')
 
 export const oportunidades = (ncsVisiveis: NcIndicador[]) =>
   ncsVisiveis.filter((n) => n.classificacao === 'oportunidade')
@@ -171,6 +182,10 @@ export function totais(concluidas: InspecaoIndicador[], todasNcs: NcIndicador[])
        problemas. */
     oportunidades: oportunidades(todasNcs).length,
     conformes: conformidades(todasNcs).length,
+    /* Dentro de `abertas`, mas contado para o relatório poder separar. */
+    parciais: parciais(todasNcs).filter(
+      (n) => !['encerrada', 'cancelada'].includes(n.situacao)
+    ).length,
     mediaDias: dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null,
   }
 }

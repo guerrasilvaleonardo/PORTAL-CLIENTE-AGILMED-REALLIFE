@@ -73,6 +73,19 @@
   grid-template-columns: repeat(3, 1fr);
 }
 
+/* Quatro conclusões: duas por linha no celular, quatro no computador.
+   Quatro alvos lado a lado numa tela de mão são quatro alvos que o
+   polegar erra. */
+.campo-tipo.quatro {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 560px) {
+  .campo-tipo.quatro {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 @media (max-width: 420px) {
   .campo-tipo.tres {
     grid-template-columns: 1fr;
@@ -101,6 +114,14 @@
 .campo-tipo button.bom.sel {
   border-color: var(--success);
   background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+/* Atende em parte usa o mesmo âmbar da oportunidade por ser o meio do
+   caminho, mas com traço cheio: é problema, não sugestão. */
+.campo-tipo button.parcial.sel {
+  border-color: var(--amber, #b7791f);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--amber, #b7791f) 16%, transparent);
 }
 
 .campo-tipo button.melhoria.sel {

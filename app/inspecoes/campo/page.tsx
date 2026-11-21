@@ -95,7 +95,9 @@ function CampoConteudo() {
    * de defeito descreve a empresa pior do que ela é, e não diz quantos
    * itens foram olhados para achar os dois problemas.
    */
-  const [tipo, setTipo] = useState<'conforme' | 'oportunidade' | 'nao_conformidade'>('conforme')
+  const [tipo, setTipo] = useState<
+    'conforme' | 'insuficiente' | 'oportunidade' | 'nao_conformidade'
+  >('conforme')
   const [descricao, setDescricao] = useState('')
   const [gravidade, setGravidade] = useState('media')
   const [prazo, setPrazo] = useState('')
@@ -371,14 +373,28 @@ function CampoConteudo() {
       return
     }
 
+    /*
+     * Conforme exige foto. É a diferença entre dizer que está certo e
+     * mostrar que está: sem imagem, o apontamento positivo vira a
+     * palavra de quem inspecionou contra a de quem pergunta, e é o
+     * primeiro que o auditor externo derruba. Os outros três não
+     * exigem — problema sem foto ainda é problema que precisa entrar.
+     */
+    if (tipo === 'conforme' && fotos.length === 0) {
+      setErro('Conforme precisa de foto: é ela que prova que está certo.')
+      return
+    }
+
     setSalvando(true)
     try {
       const local = locais.find((l) => l.id === localId)
-      /* Conforme e oportunidade compartilham o mesmo tratamento: não
-         têm prazo, dono, gravidade nem aviso. O que muda é a conclusão
-         que fica registrada. */
-      const semAcao = tipo !== 'nao_conformidade'
-      const oportunidade = semAcao
+      /*
+       * Conforme e oportunidade não têm prazo, dono nem aviso: nada
+       * está errado. "Atende em parte" tem tudo isso, como a não
+       * conformidade — é problema, só que começado. Essa é a linha que
+       * impede o parcial de virar esconderijo.
+       */
+      const oportunidade = tipo === 'conforme' || tipo === 'oportunidade'
 
       const { data, error } = await supabase
         .from('nao_conformidades')
@@ -571,13 +587,25 @@ function CampoConteudo() {
 
           <div className="panel nao-imprimir">
             <div className="panel-body campo-form">
-              <div className="campo-tipo tres">
+              {/* Quatro conclusões, na ordem do melhor para o pior. A
+                  do meio é a que faltava: em campo a verdade quase
+                  sempre é "está pela metade", e obrigar a escolher
+                  entre certo e errado produz relatório que o cliente
+                  não reconhece. */}
+              <div className="campo-tipo quatro">
                 <button
                   type="button"
                   className={'bom' + (tipo === 'conforme' ? ' sel' : '')}
                   onClick={() => setTipo('conforme')}
                 >
                   Conforme
+                </button>
+                <button
+                  type="button"
+                  className={'parcial' + (tipo === 'insuficiente' ? ' sel' : '')}
+                  onClick={() => setTipo('insuficiente')}
+                >
+                  Atende em parte
                 </button>
                 <button
                   type="button"
@@ -640,7 +668,7 @@ function CampoConteudo() {
                 )}
               </div>
 
-              {tipo === 'nao_conformidade' ? (
+              {tipo === 'nao_conformidade' || tipo === 'insuficiente' ? (
                 <div className="campo-nc">
                   <label className="campo-linha">
                     <span>Gravidade</span>
@@ -702,7 +730,7 @@ function CampoConteudo() {
               ) : (
                 <p className="campo-dica">
                   {tipo === 'conforme'
-                    ? 'Conforme não pede prazo nem responsável: está certo e fica registrado. É o que mostra quantos itens foram olhados para achar os problemas — e sustenta o controle que deu certo.'
+                    ? 'Conforme não pede prazo nem responsável: está certo e fica registrado. Precisa de foto — conformidade sem imagem é palavra, com imagem é evidência.'
                     : 'Oportunidade não pede prazo nem responsável: nada está errado. Abrir ação corretiva do que não falhou ensina a equipe a parar de sugerir.'}
                 </p>
               )}
@@ -754,16 +782,19 @@ function CampoConteudo() {
                         'pill ' +
                         (a.classificacao === 'conforme'
                           ? 'good'
-                          : a.classificacao === 'oportunidade'
+                          : a.classificacao === 'oportunidade' ||
+                              a.classificacao === 'insuficiente'
                             ? 'warn'
                             : 'bad')
                       }
                     >
                       {a.classificacao === 'conforme'
                         ? 'Conforme'
-                        : a.classificacao === 'oportunidade'
-                          ? 'Melhoria'
-                          : 'Não conformidade'}
+                        : a.classificacao === 'insuficiente'
+                          ? 'Atende em parte'
+                          : a.classificacao === 'oportunidade'
+                            ? 'Melhoria'
+                            : 'Não conformidade'}
                     </span>
                     <p>{a.descricao}</p>
                     <p className="campo-mini">
