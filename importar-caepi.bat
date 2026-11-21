@@ -13,8 +13,7 @@ echo   2. clique em "Base de dados do sistema CAEPI (Download)"
 echo   3. deixe o arquivo na pasta Downloads (ou arraste-o sobre este programa)
 echo.
 echo O que este programa faz:
-echo   - pega o tgg_export_caepi mais recente da pasta Downloads
-echo   - descompacta com o WinRAR que ja existe nesta maquina
+echo   - pega o RelatorioCA mais recente da pasta Downloads
 echo   - confere a data: base com mais de 45 dias NAO entra
 echo   - grava os CAs no portal, para o botao "Buscar no CAEPI"
 echo.
@@ -41,9 +40,15 @@ rem ---------- 3. o arquivo da base ----------
 rem O arquivo publicado em gov.br esta parado desde 2020 e nao serve.
 rem A base atual sai do link de download da pagina do CAEPI, que so
 rem funciona no navegador. Vale o arquivo arrastado sobre este programa
-rem ou, sem isso, o tgg_export_caepi mais recente da pasta Downloads.
+rem ou, sem isso, o RelatorioCA mais recente da pasta Downloads (nome
+rem do arquivo que o CAEPI entrega desde 2026); o tgg_export_caepi antigo
+rem so e procurado se nao houver nenhum RelatorioCA.
 set "ARQ=%~1"
 if defined ARQ goto importar
+for /f "delims=" %%f in ('dir /b /o-d "%USERPROFILE%\Downloads\RelatorioCA_*" 2^>nul') do (
+  set "ARQ=%USERPROFILE%\Downloads\%%f"
+  goto importar
+)
 for /f "delims=" %%f in ('dir /b /o-d "%USERPROFILE%\Downloads\tgg_export_caepi*" 2^>nul') do (
   set "ARQ=%USERPROFILE%\Downloads\%%f"
   goto importar
