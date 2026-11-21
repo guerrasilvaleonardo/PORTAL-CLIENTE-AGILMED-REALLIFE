@@ -111,6 +111,10 @@ type Checklist = {
     pergunta: string
     resposta: string | null
     observacao: string | null
+    /* O assunto e o potencial do item reprovado, respondidos em
+       campo. O gatilho leva os dois para a não conformidade. */
+    tipologia: string | null
+    potencial_fatal: boolean
     /* Caminhos no balde. A prova do item reprovado mora aqui, e é
        daqui que o gatilho do banco leva a foto para a não
        conformidade que ele abre ao concluir o checklist. */
@@ -745,7 +749,9 @@ function CampoConteudo() {
     for (const i of (insps || []) as any[]) {
       const { data: itens } = await supabase
         .from('inspecao_respostas')
-        .select('id, ordem, categoria, pergunta, resposta, observacao, fotos')
+        .select(
+          'id, ordem, categoria, pergunta, resposta, observacao, fotos, tipologia, potencial_fatal'
+        )
         .eq('inspecao_id', i.id)
         .order('ordem')
 
@@ -812,6 +818,32 @@ function CampoConteudo() {
       lista.map((c) =>
         c.inspecaoId === inspecaoId
           ? { ...c, itens: c.itens.map((i) => (i.id === itemId ? { ...i, observacao: texto } : i)) }
+          : c
+      )
+    )
+  }
+
+  /*
+   * O assunto e o potencial do item reprovado.
+   *
+   * Quem sabe se aquilo podia matar alguém é quem estava na frente da
+   * cena, no momento em que reprovou. Perguntar depois, na mesa, é
+   * perguntar para quem não viu — e era isso que acontecia: a não
+   * conformidade nascia muda e alguém tentava adivinhar dias depois.
+   *
+   * Grava na resposta do checklist; o gatilho leva as duas para a não
+   * conformidade quando a inspeção é concluída.
+   */
+  async function marcarItem(
+    inspecaoId: string,
+    itemId: string,
+    campos: { tipologia?: string | null; potencial_fatal?: boolean }
+  ) {
+    await supabase.from('inspecao_respostas').update(campos).eq('id', itemId)
+    setChecklists((lista) =>
+      lista.map((c) =>
+        c.inspecaoId === inspecaoId
+          ? { ...c, itens: c.itens.map((i) => (i.id === itemId ? { ...i, ...campos } : i)) }
           : c
       )
     )
@@ -1737,6 +1769,52 @@ function CampoConteudo() {
                                         observar(c.inspecaoId, i.id, e.target.value.trim())
                                       }
                                     />
+
+                                    {/* Assunto e potencial do item, respondidos
+                                        aqui porque quem viu a cena é quem sabe.
+                                        Descem para a não conformidade sozinhos. */}
+                                    <div className="campo-item-marcas">
+                                      <label>
+                                        <span className="campo-mini">Assunto</span>
+                                        <select
+                                          value={i.tipologia || ''}
+                                          onChange={(e) =>
+                                            marcarItem(c.inspecaoId, i.id, {
+                                              tipologia: e.target.value || null,
+                                            })
+                                          }
+                                        >
+                                          <option value="">Sem assunto definido</option>
+                                          {TIPOLOGIAS.map((t) => (
+                                            <option key={t.valor} value={t.valor}>
+                                              {t.rotulo}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+
+                                      <label
+                                        className={
+                                          'campo-fatal' + (i.potencial_fatal ? ' marcado' : '')
+                                        }
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={!!i.potencial_fatal}
+                                          onChange={(e) =>
+                                            marcarItem(c.inspecaoId, i.id, {
+                                              potencial_fatal: e.target.checked,
+                                            })
+                                          }
+                                        />
+                                        <span>
+                                          <strong>Podia ter matado alguém</strong>
+                                          <span className="campo-mini">
+                                            pelo que poderia ter acontecido, não pelo que aconteceu
+                                          </span>
+                                        </span>
+                                      </label>
+                                    </div>
 
                                     {/* A prova do que foi visto. Vai junto
                                         para a não conformidade. */}
