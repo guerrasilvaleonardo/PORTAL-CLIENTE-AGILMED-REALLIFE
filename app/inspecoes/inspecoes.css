@@ -591,7 +591,11 @@
  */
 .nc-espinhas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  /* Largura pensada pela SUGESTÃO, não pela coluna: com 215 px as seis
+     famílias cabiam na mesma linha e cada sugestão quebrava em três,
+     virando um muro de palavras picadas. Em 280 px cada sugestão cabe
+     numa linha só, que é o que faz a lista ser varrida com o olho. */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 10px;
 }
 

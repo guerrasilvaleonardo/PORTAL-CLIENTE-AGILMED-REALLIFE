@@ -15,6 +15,19 @@
  * grande, o que é pequeno.
  */
 
+/* ---------- A largura de leitura ----------------------------------- */
+
+/*
+ * Num monitor largo o conteúdo ia até a borda, e cada linha de texto
+ * virava uma travessia: o olho perde a linha de volta e relê a mesma
+ * frase. O desenho foi feito em 1360 px de largura, e é isso que esta
+ * medida devolve — o resto da tela fica em branco, de propósito.
+ */
+.insp-v2 {
+  width: 100%;
+  max-width: 1320px;
+}
+
 /* ---------- Cabeçalho da tela ------------------------------------- */
 
 .insp-v2 .titulo-tela {
@@ -125,14 +138,6 @@
 
 /* ---------- A faixa que explica o caminho -------------------------- */
 
-/*
- * "Onde começa e onde termina", escrito na tela.
- *
- * Esta faixa existe porque a lista sozinha não ensina o ciclo: ela
- * mostra situações soltas numa coluna e deixa a pessoa adivinhar a
- * ordem. Quatro cartões em sequência resolvem em dois segundos o que
- * um manual não resolveu.
- */
 /*
  * A faixa já existia; o que faltava era dizer onde ela TERMINA. Sem
  * destaque nenhum, quatro cartões iguais lado a lado parecem quatro
