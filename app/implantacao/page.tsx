@@ -11,9 +11,15 @@ import './implantacao.css'
 /*
  * As implantações da empresa.
  *
- * Normalmente há uma só — a empresa implanta a 9001 uma vez. A lista
- * existe para o caso de haver mais de uma norma, e para a equipe da
- * Real Life, que vê a de todos os clientes.
+ * Há uma trilha por norma — 9001 e 45001 — e a empresa pode querer as
+ * duas, normalmente uma depois da outra.
+ *
+ * POR QUE O BOTÃO DE COMEÇAR FICA SEMPRE VISÍVEL. Ele já esteve dentro
+ * do "nenhuma implantação começou ainda", e com isso a segunda trilha
+ * virava inalcançável: quem tinha começado a 9001 não tinha como abrir
+ * a 45001 por lugar nenhum da tela. Agora as trilhas ainda não
+ * iniciadas aparecem abaixo da lista, e some da oferta o que já está
+ * em andamento.
  */
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -137,6 +143,17 @@ function ImplantacoesConteudo() {
     )
   }
 
+  /*
+   * As trilhas que esta empresa ainda não começou. A comparação é pela
+   * empresa de quem está vendo, e não pela lista inteira: a equipe
+   * interna vê as implantações de todos os clientes, e sem este filtro
+   * a trilha sumiria da oferta porque OUTRA empresa a começou.
+   */
+  const jaIniciadas = new Set(
+    linhas.filter((l) => l.empresa_id === minhaEmpresa).map((l) => l.modelo_id)
+  )
+  const naoIniciadas = minhaEmpresa ? modelos.filter((m) => !jaIniciadas.has(m.id)) : []
+
   return (
     <div className="app">
       <header className="page-head">
@@ -159,17 +176,6 @@ function ImplantacoesConteudo() {
               Nenhuma implantação começou ainda.
               {modelos.length === 0 && ' Nenhuma trilha publicada — avise a nossa equipe.'}
             </p>
-            {modelos.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className="btn btn-primary"
-                disabled={criando}
-                onClick={() => comecar(m.id)}
-              >
-                {criando ? 'Começando…' : 'Começar: ' + m.nome}
-              </button>
-            ))}
           </div>
         </div>
       ) : (
@@ -206,6 +212,32 @@ function ImplantacoesConteudo() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {naoIniciadas.length > 0 && (
+        <div className="panel" style={{ marginTop: 20 }}>
+          <div className="panel-body">
+            <h3 style={{ marginTop: 0 }}>
+              {linhas.length === 0 ? 'Comece por aqui' : 'Outra norma'}
+            </h3>
+            <p className="subtitulo" style={{ marginTop: 0 }}>
+              Cada norma tem a sua trilha, e elas correm em paralelo — começar a segunda não
+              atrapalha a primeira.
+            </p>
+            {naoIniciadas.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="btn btn-primary"
+                style={{ marginRight: 8 }}
+                disabled={criando}
+                onClick={() => comecar(m.id)}
+              >
+                {criando ? 'Começando…' : 'Começar: ' + m.nome}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )
