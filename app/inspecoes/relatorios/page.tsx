@@ -9,6 +9,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import AbasRelatorios from '@/components/AbasRelatorios'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import '../visual.css'
 
 /*
  * Todos os relatórios emitidos, por código.
@@ -121,7 +122,7 @@ function RelatoriosConteudo() {
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
@@ -144,7 +145,7 @@ function RelatoriosConteudo() {
         : '/inspecoes/relatorio'
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">Relatórios</h1>

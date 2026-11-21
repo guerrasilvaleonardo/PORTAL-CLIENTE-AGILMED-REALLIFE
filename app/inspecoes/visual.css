@@ -1,0 +1,156 @@
+/*
+ * O acabamento das telas de Inspeções.
+ *
+ * POR QUE UMA FOLHA SÓ PARA ESTE MÓDULO. O desenho aprovado deixou as
+ * telas de inspeção mais densas que o resto do portal: cartão menor,
+ * título de seção em caixa baixa, tabela com cabeçalho leve. Aplicar
+ * isso no portal inteiro mudaria módulos que ninguém pediu para mexer,
+ * então tudo aqui vive dentro de `.insp-v2` — a classe que as seis
+ * telas do módulo carregam na raiz. Fora dela, nada muda.
+ *
+ * AS CORES SÃO AS DA MARCA, não as do desenho. O azul-petróleo do
+ * protótipo era invenção minha; o portal é azul-marinho com
+ * verde-limão, e um módulo destoando do logo pareceria remendo. O que
+ * veio do desenho é a estrutura: o que fica junto de quê, o que é
+ * grande, o que é pequeno.
+ */
+
+/* ---------- Cabeçalho da tela ------------------------------------- */
+
+.insp-v2 .titulo-tela {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+
+.insp-v2 .subtitulo-tela {
+  font-size: 13px;
+  max-width: 76ch;
+}
+
+/* ---------- Os números do topo ------------------------------------ */
+
+/*
+ * Quatro colunas fixas quebravam feio quando o módulo tinha cinco
+ * números para mostrar. Aqui eles se acomodam: cabem cinco no monitor
+ * largo, dois no celular, sem nenhuma linha órfã.
+ */
+.insp-v2 .stats {
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+}
+
+.insp-v2 .stat {
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+}
+
+.insp-v2 .stat .num {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* O rótulo explica o número; não precisa competir com ele. */
+.insp-v2 .stat .lbl {
+  font-weight: 500;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+/* ---------- Os blocos --------------------------------------------- */
+
+.insp-v2 .panel {
+  border-radius: var(--radius-m);
+}
+
+/*
+ * O título do bloco deixa de ser etiqueta em caixa alta e passa a ser
+ * frase. "CAUSAS-RAIZ — O QUE MAIS PRODUZ NÃO CONFORMIDADE" gritado em
+ * maiúsculas é mais difícil de ler justamente onde o texto é mais
+ * longo, e estas telas têm títulos que explicam.
+ */
+.insp-v2 .panel-head {
+  border-bottom: none;
+  padding: 16px 18px 0;
+}
+
+.insp-v2 .section-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.insp-v2 .panel-body {
+  padding-top: 12px;
+}
+
+/* ---------- Duas colunas ------------------------------------------ */
+
+/*
+ * Blocos que se leem juntos ficam lado a lado no monitor e empilhados
+ * no celular, sem media query: o minmax decide pela largura real.
+ */
+.insp-v2 .insp-duas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* ---------- Tabelas ----------------------------------------------- */
+
+/*
+ * Cabeçalho leve, sobre fundo rebaixado: a linha de cima deixa de
+ * disputar atenção com os dados, que é o que a pessoa veio ver.
+ */
+.insp-v2 .tabela-colab th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  background: var(--surface-sunken);
+}
+
+.insp-v2 .tabela-colab td {
+  font-size: 13px;
+}
+
+.insp-v2 .tabela-colab td.mono,
+.insp-v2 .tabela-colab td .mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- A faixa que explica o caminho -------------------------- */
+
+/*
+ * "Onde começa e onde termina", escrito na tela.
+ *
+ * Esta faixa existe porque a lista sozinha não ensina o ciclo: ela
+ * mostra situações soltas numa coluna e deixa a pessoa adivinhar a
+ * ordem. Quatro cartões em sequência resolvem em dois segundos o que
+ * um manual não resolveu.
+ */
+/*
+ * A faixa já existia; o que faltava era dizer onde ela TERMINA. Sem
+ * destaque nenhum, quatro cartões iguais lado a lado parecem quatro
+ * opções, não quatro etapas em ordem.
+ */
+.insp-v2 .insp-caminho li:last-child {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+}
+
+.insp-v2 .insp-caminho li:last-child span {
+  color: var(--ink);
+}
+
+/*
+ * O QUE NÃO ESTÁ AQUI, e é de propósito: régua de etapas e colunas de
+ * plano de ação. As duas já existiam no módulo, com estilo próprio
+ * (campo.css e planos.css). Repetir as regras aqui criaria dois donos
+ * para o mesmo desenho, e o segundo dono é sempre o que fica
+ * desatualizado.
+ */

@@ -8,6 +8,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import Ajuda from '@/components/Ajuda'
 import '../colaboradores/colaboradores.css'
 import './inspecoes.css'
+import './visual.css'
 
 /*
  * Inspeções aplicadas (supabase/inspecoes.sql).
@@ -436,7 +437,7 @@ function InspecoesConteudo() {
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">
           As inspeções ainda não foram criadas no banco. Rode <code>supabase/inspecoes.sql</code>.
         </div>
@@ -445,7 +446,7 @@ function InspecoesConteudo() {
   }
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">Inspeções</h1>

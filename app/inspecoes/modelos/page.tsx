@@ -6,6 +6,7 @@ import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import '../visual.css'
 
 /*
  * Modelos de checklist (supabase/inspecoes.sql).
@@ -220,7 +221,7 @@ function ModelosDeInspecaoConteudo({ tipo }: { tipo: 'inspecao' | 'auditoria' })
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">
           As inspeções ainda não foram criadas no banco. Rode <code>supabase/inspecoes.sql</code>.
         </div>
@@ -229,7 +230,7 @@ function ModelosDeInspecaoConteudo({ tipo }: { tipo: 'inspecao' | 'auditoria' })
   }
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">{auditoria ? 'AUDITORIAS' : 'INSPEÇÕES'}</p>
         <h1 className="titulo-tela">

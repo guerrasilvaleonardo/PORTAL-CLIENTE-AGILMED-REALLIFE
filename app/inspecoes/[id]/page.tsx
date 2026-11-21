@@ -10,6 +10,7 @@ import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 import '../auditoria.css'
 import '../conversa.css'
+import '../visual.css'
 
 /*
  * Aplicar a inspeção (supabase/inspecoes.sql).
@@ -711,7 +712,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
@@ -719,14 +720,14 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
 
   if (!inspecao) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">{erro || 'Inspeção não encontrada.'}</div>
       </div>
     )
   }
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       {/* Em auditoria o título é a norma e a empresa auditada — é assim
        * que o documento vai ser citado depois. Em inspeção de campo o
        * que identifica é o checklist e o local. */}

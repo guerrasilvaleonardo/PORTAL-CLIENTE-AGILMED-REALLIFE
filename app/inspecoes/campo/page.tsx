@@ -17,6 +17,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 import './campo.css'
+import '../visual.css'
 
 /*
  * Apontamento de campo — o registro avulso, sem checklist.
@@ -1414,7 +1415,7 @@ function CampoConteudo() {
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
@@ -1443,7 +1444,7 @@ function CampoConteudo() {
   ].filter(Boolean) as string[]
 
   return (
-    <div className="app campo">
+    <div className="app campo insp-v2">
       {!emVisita ? (
         <>
           <div className="nao-imprimir">
@@ -2239,7 +2240,7 @@ export default function ApontamentoDeCampo() {
     <ComModulo modulo="inspecoes">
       {/* useSearchParams precisa de fronteira de suspensão: sem ela a
           página inteira vira renderização de cliente no build. */}
-      <Suspense fallback={<div className="app"><p className="empty-state">Carregando…</p></div>}>
+      <Suspense fallback={<div className="app insp-v2"><p className="empty-state">Carregando…</p></div>}>
         <CampoConteudo />
       </Suspense>
     </ComModulo>

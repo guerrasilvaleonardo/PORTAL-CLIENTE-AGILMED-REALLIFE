@@ -17,6 +17,7 @@ import {
 } from '@/lib/vocabularioNC'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import '../visual.css'
 
 /*
  * Não conformidades e incidentes (supabase/inspecoes.sql e
@@ -409,7 +410,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">
           As inspeções ainda não foram criadas no banco. Rode <code>supabase/inspecoes.sql</code>.
         </div>
@@ -906,7 +907,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     ) : null
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">{auditoria ? 'AUDITORIAS' : 'INSPEÇÕES'}</p>
         <h1 className="titulo-tela">{auditoria ? 'Constatações' : 'Não conformidades'}</h1>

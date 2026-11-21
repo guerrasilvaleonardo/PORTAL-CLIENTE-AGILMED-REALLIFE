@@ -7,6 +7,7 @@ import FiltroEmpresa from '@/components/FiltroEmpresa'
 import Ajuda from '@/components/Ajuda'
 import '../inspecoes.css'
 import './planos.css'
+import '../visual.css'
 
 /*
  * Planos de ação (supabase/planos-de-acao.sql).
@@ -228,11 +229,11 @@ function PlanosConteudo() {
     setLista((l) => l.map((x) => (x.id === a.id ? { ...x, situacao: 'encerrada', eficaz } : x)))
   }
 
-  if (carregando) return <div className="app">Carregando…</div>
+  if (carregando) return <div className="app insp-v2">Carregando…</div>
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div>
           <p className="eyebrow">INSPEÇÕES</p>
           <h1 className="titulo-tela">Planos de ação</h1>
@@ -246,7 +247,7 @@ function PlanosConteudo() {
   }
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">Planos de ação</h1>

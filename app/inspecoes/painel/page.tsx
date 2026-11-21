@@ -7,6 +7,7 @@ import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
+import '../visual.css'
 import {
   porLocal as calcPorLocal,
   reincidencia as calcReincidencia,
@@ -216,7 +217,7 @@ function PainelInspecoesConteudo() {
 
   if (semTabela) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">
           As inspeções ainda não foram criadas no banco. Rode <code>supabase/inspecoes.sql</code>.
         </div>
@@ -225,7 +226,7 @@ function PainelInspecoesConteudo() {
   }
 
   return (
-    <div className="app">
+    <div className="app insp-v2">
       <div>
         <p className="eyebrow">INSPEÇÕES</p>
         <h1 className="titulo-tela">Painel</h1>
@@ -378,6 +379,12 @@ function PainelInspecoesConteudo() {
             </div>
           </div>
 
+          {/* Os dois lados da mesma pergunta, lado a lado: o que mais
+              produz não conformidade e o que volta a falhar no mesmo
+              lugar. Separados por uma tela de rolagem, ninguém os lia
+              junto. */}
+          <div className="insp-duas">
+
           {/*
             * O Pareto das causas.
             *
@@ -478,6 +485,8 @@ function PainelInspecoesConteudo() {
                 percentual de conformidade sozinho esconde justamente isso.
               </p>
             </div>
+          </div>
+
           </div>
 
           <div className="panel">

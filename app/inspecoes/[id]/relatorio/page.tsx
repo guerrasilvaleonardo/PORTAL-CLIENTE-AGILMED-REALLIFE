@@ -14,6 +14,7 @@ import '../../inspecoes.css'
  * lado. */
 import '../../../auditorias/[id]/relatorio/relatorio.css'
 import './relatorio.css'
+import '../../visual.css'
 
 /*
  * Relatório da inspeção.
@@ -236,7 +237,7 @@ function RelatorioConteudo() {
 
   if (carregando) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <p className="empty-state">Carregando…</p>
       </div>
     )
@@ -244,7 +245,7 @@ function RelatorioConteudo() {
 
   if (erro || !inspecao) {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner bad">{erro || 'Inspeção não encontrada.'}</div>
         <Link href="/inspecoes" className="btn btn-sm">
           Voltar
@@ -260,7 +261,7 @@ function RelatorioConteudo() {
      relatório nenhum. */
   if (inspecao.tipo === 'auditoria') {
     return (
-      <div className="app">
+      <div className="app insp-v2">
         <div className="banner">
           Isto é uma auditoria, não uma inspeção. O relatório dela segue a ISO 19011 e tem outro
           formato.{' '}
