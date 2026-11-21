@@ -271,8 +271,12 @@
  * A terceira linha do cartão: a ressalva que evita a pergunta
  * seguinte. "Planos atrasados: 4" sem dizer de quando faz a pessoa
  * conferir o filtro de período antes de acreditar no número.
+ *
+ * O nome NÃO é `dica`: essa classe já existe no portal e desenha uma
+ * caixa cinza com borda — e a ressalva dentro de uma caixa parecia
+ * campo de formulário vazio dentro do cartão.
  */
-.insp-v2 .stat .dica {
+.insp-v2 .stat .stat-ressalva {
   margin-top: 3px;
   font-size: 11.5px;
   font-weight: 400;
@@ -358,6 +362,25 @@
   display: grid;
   gap: 14px;
   align-items: start;
+}
+
+/*
+ * SEM ISTO O TEXTO SE SOBREPÕE.
+ *
+ * Item de grade tem largura mínima automática: ele não encolhe abaixo
+ * do conteúdo. A tabela do portal pede 720 px fixos, então dentro de
+ * uma coluna de 600 px ela estourava para fora do bloco e caía por
+ * cima do bloco vizinho — o aviso do potencial fatal apareceu escrito
+ * em cima do gráfico de causas.
+ */
+.insp-v2 .insp-painel-grade > * {
+  min-width: 0;
+}
+
+/* E a tabela que sobrar numa coluna estreita rola dentro dela, em vez
+   de empurrar o resto da tela. */
+.insp-v2 .insp-painel-grade .panel-body {
+  overflow-x: auto;
 }
 
 @media (min-width: 900px) {
@@ -647,4 +670,49 @@
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
+}
+
+/* ---------- O Pareto, em lista ------------------------------------- */
+
+/*
+ * Rótulo e percentual na mesma linha, barra embaixo, contagem em
+ * letra miúda. O que o olho compara aqui é comprimento — por isso a
+ * barra ocupa a largura inteira do bloco, e não uma coluna de tabela.
+ */
+.insp-v2 .pareto {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.insp-v2 .pareto-rotulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.insp-v2 .pareto-rotulo b {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.insp-v2 .pareto-conta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+/* A frase que explica de onde vem o gráfico, logo abaixo do título. */
+.insp-v2 .insp-sub {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
 }
