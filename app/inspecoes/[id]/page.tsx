@@ -55,6 +55,9 @@ type ItemDoModelo = {
   orientacao: string | null
   modelo_arquivo: string | null
   modelo_rotulo: string | null
+  /* Os passos do requisito, na ordem. A tela numera. */
+  passos: string[] | null
+  video_url: string | null
 }
 
 type Alteracao = {
@@ -165,7 +168,7 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
         .from('inspecao_respostas')
         .select('id, ordem, categoria, pergunta, resposta, observacao, fotos, anexos, anexos_estado, ' +
           'aprovado_em, aprovado_nome, item_id, ' +
-          'inspecao_modelo_itens!item_id(requisito, prescricao, explicacao, orientacao, modelo_arquivo, modelo_rotulo)')
+          'inspecao_modelo_itens!item_id(requisito, prescricao, explicacao, orientacao, modelo_arquivo, modelo_rotulo, passos, video_url)')
         .eq('inspecao_id', id)
         .order('ordem')
       const listaR = (rs || []) as unknown as Resposta[]
@@ -1396,6 +1399,33 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                   <summary>Como atender este requisito</summary>
                   <div>{itemDe(r)!.prescricao}</div>
                 </details>
+              )}
+
+              {/* Os passos ficam ABERTOS, ao contrário da prescrição.
+                  São dois momentos: a aula se lê uma vez, com calma; os
+                  passos se leem com o arquivo aberto, na hora de fazer.
+                  Esconder o que é para fazer agora atrás de um clique é
+                  o que faz a pessoa ler, entender e mesmo assim não
+                  começar. */}
+              {auditoria && (itemDe(r)?.passos || []).length > 0 && (
+                <div className="insp-passos">
+                  <h4>O que fazer</h4>
+                  <ol>
+                    {(itemDe(r)!.passos || []).map((passo, i) => (
+                      <li key={i}>{passo}</li>
+                    ))}
+                  </ol>
+                  {itemDe(r)?.video_url && (
+                    <a
+                      href={itemDe(r)!.video_url as string}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="insp-video"
+                    >
+                      Ver o vídeo deste requisito
+                    </a>
+                  )}
+                </div>
               )}
 
               {/* Em auditoria o meio-termo é real: o programa existe mas

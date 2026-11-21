@@ -397,3 +397,41 @@
     display: initial;
   }
 }
+
+/* ---------- Os passos do requisito ----------------------------------
+   Ficam abertos, ao contrário da prescrição. São dois momentos: a aula
+   se lê uma vez, com calma, antes; os passos se leem com o arquivo
+   aberto, na hora de fazer. Esconder o que é para fazer agora atrás de
+   um clique é o que faz a pessoa ler, entender e não começar. */
+.insp-passos {
+  margin: 10px 0 12px;
+  padding: 11px 13px;
+  border-radius: var(--radius-m, 14px);
+  background: var(--surface-sunken, #f0f1f5);
+}
+
+.insp-passos h4 {
+  margin: 0 0 5px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.insp-passos ol {
+  margin: 0;
+  padding-left: 19px;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.insp-passos li {
+  margin-bottom: 3px;
+}
+
+.insp-video {
+  display: inline-block;
+  margin-top: 7px;
+  font-size: 12.5px;
+}
