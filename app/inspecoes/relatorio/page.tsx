@@ -456,6 +456,18 @@ function ConsolidadoConteudo() {
           <p className="rel-valor">Nenhuma não conformidade em aberto no período.</p>
         ) : (
           <>
+            {/* Separar o parcial muda como o cliente lê: "três não
+                atendem e dois atendem em parte" é uma empresa que está
+                trabalhando; "cinco não atendem" é uma empresa que
+                desistiu — e quem lê a segunda frase para de ler. */}
+            {totais.parciais > 0 && (
+              <p className="rel-nota">
+                Dos {abertas.length} em aberto, {totais.parciais} atende
+                {totais.parciais === 1 ? '' : 'm'} em parte: o trabalho começou e não terminou.
+                Entram na mesma fila porque têm prazo e dono, mas não são o mesmo caso de quem
+                não fez nada.
+              </p>
+            )}
             {totais.vencidas > 0 && (
               <p className="rel-conclusao falta">
                 {totais.vencidas} com prazo vencido. Prazo vencido sem repactuação registrada é a
@@ -466,6 +478,7 @@ function ConsolidadoConteudo() {
               <thead>
                 <tr>
                   <th style={{ width: 110 }}>Prazo</th>
+                  <th style={{ width: 120 }}>Conclusão</th>
                   <th style={{ width: 100 }}>Gravidade</th>
                   <th>Local</th>
                   <th style={{ width: 140 }}>Situação</th>
@@ -481,6 +494,13 @@ function ConsolidadoConteudo() {
                           <span className={vencida ? 'pill bad' : ''}>{soData(n.prazo)}</span>
                         ) : (
                           <span className="rel-valor falta">sem prazo</span>
+                        )}
+                      </td>
+                      <td>
+                        {n.classificacao === 'insuficiente' ? (
+                          <span className="pill warn">Atende em parte</span>
+                        ) : (
+                          <span className="pill bad">Não atende</span>
                         )}
                       </td>
                       <td>{n.gravidade}</td>
