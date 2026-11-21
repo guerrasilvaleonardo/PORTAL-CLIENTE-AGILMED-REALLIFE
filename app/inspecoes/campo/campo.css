@@ -336,3 +336,163 @@
   font-size: 13.5px;
   line-height: 1.5;
 }
+
+/* ---------- Checklists dentro da visita ---------- */
+
+/* Escolha dos checklists na chegada: cartões grandes, porque é
+   decisão tomada de pé, antes de guardar o celular no bolso. */
+.campo-modelos {
+  display: grid;
+  gap: 8px;
+}
+
+.campo-modelo {
+  font: inherit;
+  text-align: left;
+  display: grid;
+  gap: 2px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+.campo-modelo span {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+.campo-modelo.sel {
+  border-color: var(--success);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+/* As abas da visita. Rolam na horizontal: com três checklists os
+   nomes não cabem na largura de um celular, e quebrar em duas linhas
+   empurraria o conteúdo para fora da primeira tela. */
+.campo-abas {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+
+.campo-abas button {
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.campo-abas button.sel {
+  border-color: var(--ink-faint);
+  color: inherit;
+  font-weight: 600;
+}
+
+.campo-aba-conta {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+}
+
+.campo-checklist {
+  display: grid;
+  gap: 4px;
+}
+
+.campo-categoria {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.campo-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.campo-pergunta {
+  margin: 0 0 10px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  display: flex;
+  gap: 9px;
+}
+
+.campo-ordem {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+
+/* Três respostas num toque. Sem botão de salvar: em campo ninguém
+   volta para conferir se salvou. */
+.campo-respostas {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+}
+
+.campo-respostas button {
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.campo-respostas button.bom.sel {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: inherit;
+  font-weight: 600;
+}
+
+.campo-respostas button.ruim.sel {
+  border-color: var(--bad, #c0392b);
+  background: color-mix(in srgb, var(--bad, #c0392b) 14%, transparent);
+  color: inherit;
+  font-weight: 600;
+}
+
+.campo-respostas button.neutro.sel {
+  border-color: var(--ink-faint);
+  background: var(--surface-sunken);
+  color: inherit;
+  font-weight: 600;
+}
+
+.campo-obs {
+  margin-top: 8px;
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: inherit;
+}
