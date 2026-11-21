@@ -111,6 +111,11 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
     { href: '/auditorias/checklists', rotulo: 'Checklists da norma' },
     { href: '/auditorias/modelos', rotulo: 'Modelos e explicações' },
   ],
+  '/implantacao': [
+    { href: '/implantacao', rotulo: 'Minha trilha' },
+    /* Bancada da equipe: o cliente que entrar vê um aviso, não um erro. */
+    { href: '/implantacao/modelos', rotulo: 'Modelos de documento' },
+  ],
   '/inspecoes': [
     { href: '/inspecoes/painel', rotulo: 'Visão geral' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
