@@ -124,7 +124,17 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
   ],
   '/inspecoes': [
     { href: '/inspecoes/painel', rotulo: 'Visão geral' },
+    /* "Visão geral" é para olhar; "Relatório" é para entregar. São o
+       mesmo número com usos diferentes, e sem a entrada no menu o
+       documento existia sem ninguém achar. */
+    { href: '/inspecoes/relatorio', rotulo: 'Relatório do período' },
+    /* Primeiro das ações, porque é a de campo: quem está no cliente
+       abre esta e não procura mais nada. */
+    { href: '/inspecoes/campo', rotulo: 'Apontamento de campo' },
     { href: '/inspecoes', rotulo: 'Inspeções' },
+    /* Perto dos modelos, porque é preparação: imprime-se uma vez e
+       cola-se no cliente. */
+    { href: '/inspecoes/locais', rotulo: 'Locais e etiquetas' },
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
     { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
   ],

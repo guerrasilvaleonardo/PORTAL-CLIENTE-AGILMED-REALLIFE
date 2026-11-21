@@ -1,0 +1,251 @@
+/*
+ * Apontamento de campo. Desenhado para o celular primeiro: quem usa
+ * esta tela está de pé, de capacete, às vezes de luva. Alvos grandes,
+ * uma coluna, nada de tabela.
+ */
+
+.campo {
+  max-width: 640px;
+}
+
+.campo-cabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.campo-sem-gps {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+.campo-form {
+  display: grid;
+  gap: 14px;
+}
+
+.campo-linha {
+  display: grid;
+  gap: 5px;
+}
+
+.campo-linha > span {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.campo-linha input,
+.campo-linha select,
+.campo-linha textarea {
+  font: inherit;
+  /* 16px evita o zoom automático do iOS ao focar o campo, que
+     desenquadra a tela inteira no meio do apontamento. */
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: inherit;
+  width: 100%;
+}
+
+.campo-linha textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* Os dois tipos lado a lado: a escolha é a primeira coisa, e precisa
+   caber no polegar. */
+.campo-tipo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.campo-tipo button {
+  font: inherit;
+  font-size: 13px;
+  padding: 12px 8px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.campo-tipo button.sel {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: inherit;
+  font-weight: 600;
+}
+
+.campo-tipo button:nth-child(2).sel {
+  border-color: var(--bad, #c0392b);
+  background: color-mix(in srgb, var(--bad, #c0392b) 10%, transparent);
+}
+
+.campo-fotos {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.campo-foto {
+  position: relative;
+  width: 84px;
+  height: 84px;
+}
+
+.campo-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+}
+
+.campo-foto button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.campo-add-foto {
+  width: 84px;
+  height: 84px;
+  border: 1px dashed var(--ink-faint);
+  border-radius: var(--radius-s);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.campo-add-foto input {
+  display: none;
+}
+
+.campo-nc {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+}
+
+.campo-dica {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+}
+
+.campo-visita {
+  margin-top: 22px;
+}
+
+.campo-visita-cabeca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.campo-visita-cabeca h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.campo-lista {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.campo-lista p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.campo-mini {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Só no papel. O RCN que fica com o cliente precisa dizer de quem é,
+   de onde e de quando — na tela isso já está no cabeçalho. */
+.campo-so-impresso {
+  display: none;
+}
+
+.campo-rcn-titulo {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+@media print {
+  .campo-so-impresso {
+    display: block;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .campo-so-impresso p {
+    margin: 2px 0;
+    font-size: 12px;
+  }
+
+  .campo-lista li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Botão de ditar, ao lado do rótulo: perto do campo que ele preenche,
+   e grande o bastante para o polegar com luva. */
+.campo-rotulo-voz {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.campo-voz {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.campo-voz.ouvindo {
+  border-color: var(--success);
+  color: inherit;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
