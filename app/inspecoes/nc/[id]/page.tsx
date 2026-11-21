@@ -6,6 +6,12 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import Ajuda from '@/components/Ajuda'
+import {
+  ESPINHAS,
+  rotuloCausa,
+  rotuloTipologia,
+  type Ishikawa,
+} from '@/lib/vocabularioNC'
 import '../../inspecoes.css'
 import './rnc.css'
 
@@ -51,6 +57,13 @@ type NC = {
   porque_3: string | null
   porque_4: string | null
   porque_5: string | null
+  tipologia: string | null
+  causa_classe: string | null
+  potencial_fatal: boolean | null
+  impacto_legal: boolean | null
+  impacto_ambiental: boolean | null
+  impacto_financeiro: boolean | null
+  ishikawa: Ishikawa | null
   causa: string | null
   acao_corretiva: string | null
   situacao: string
@@ -215,6 +228,13 @@ function RncConteudo() {
     (p) => (p || '').trim()
   )
 
+  /* Só as famílias que alguém marcou: espinha vazia na folha impressa
+     é linha ocupando papel sem dizer nada. */
+  const espinhasMarcadas = ESPINHAS.map(({ chave, rotulo }) => ({
+    rotulo,
+    itens: nc.ishikawa?.[chave] || [],
+  })).filter((e) => e.itens.length > 0)
+
   /*
    * A identificação que vai no rodapé de todas as folhas. A hora da
    * última alteração é o que diz se a folha na mão de alguém é a
@@ -325,6 +345,45 @@ function RncConteudo() {
         {nc.titulo && <p className="rnc-texto" style={{ fontWeight: 600 }}>{nc.titulo}</p>}
         <p className="rnc-texto">{nc.descricao}</p>
 
+        {/*
+          * O assunto e o potencial impressos junto da descrição.
+          *
+          * O potencial é o que distingue esta folha de um registro
+          * comum: quem lê daqui a dois anos precisa saber que aquele
+          * apontamento de gravidade baixa podia ter matado alguém —
+          * é essa frase que justifica o custo da ação que veio depois.
+          */}
+        {(nc.tipologia ||
+          nc.potencial_fatal ||
+          nc.impacto_legal ||
+          nc.impacto_ambiental ||
+          nc.impacto_financeiro) && (
+          <p className="rnc-texto" style={{ marginTop: 10 }}>
+            {nc.tipologia && (
+              <>
+                <b>Assunto:</b> {rotuloTipologia(nc.tipologia)}.{' '}
+              </>
+            )}
+            {(nc.potencial_fatal ||
+              nc.impacto_legal ||
+              nc.impacto_ambiental ||
+              nc.impacto_financeiro) && (
+              <>
+                <b>Se tivesse dado errado:</b>{' '}
+                {[
+                  nc.potencial_fatal ? 'podia ter sido fatal' : null,
+                  nc.impacto_legal ? 'impacto legal' : null,
+                  nc.impacto_ambiental ? 'impacto ambiental' : null,
+                  nc.impacto_financeiro ? 'impacto financeiro' : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+                .
+              </>
+            )}
+          </p>
+        )}
+
         {fotos.length > 0 && (
           <div className="rnc-fotos">
             {fotos.map((src, i) => (
@@ -363,7 +422,25 @@ function RncConteudo() {
           <p className="rnc-vazio">Os porquês não foram preenchidos.</p>
         )}
 
+        {/* A espinha, impressa como texto por família. Na folha ela não
+            é diagrama: é a lista do que foi considerado — e o que foi
+            considerado e descartado também é evidência de investigação. */}
+        {espinhasMarcadas.length > 0 && (
+          <dl className="rnc-campos" style={{ marginTop: 14 }}>
+            {espinhasMarcadas.map(({ rotulo, itens }) => (
+              <div key={rotulo}>
+                <dt>{rotulo}</dt>
+                <dd>{itens.join('; ')}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
         <dl className="rnc-campos" style={{ marginTop: 14 }}>
+          <div>
+            <dt>Família da causa</dt>
+            <dd style={{ fontWeight: 500 }}>{rotuloCausa(nc.causa_classe) || '—'}</dd>
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <dt>Causa-raiz</dt>
             <dd style={{ fontWeight: 500 }}>{nc.causa?.trim() || '—'}</dd>

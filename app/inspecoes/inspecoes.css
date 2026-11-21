@@ -537,3 +537,135 @@
   line-height: 1.45;
   max-width: 62ch;
 }
+
+/* ---------- O vocabulário da não conformidade ---------------------- */
+
+/*
+ * "Se tivesse dado errado": o potencial, separado da gravidade.
+ *
+ * Caixa própria porque é a única pergunta da ficha que não descreve o
+ * que aconteceu. Misturada com os outros campos, ninguém marcava.
+ */
+.nc-potencial {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 10px 14px 12px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.nc-potencial legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  padding: 0 4px;
+}
+
+.nc-potencial label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  margin: 0;
+}
+
+.nc-potencial label.marcado {
+  color: #a52017;
+  font-weight: 600;
+}
+
+.nc-potencial input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+
+/*
+ * A espinha de peixe. Seis famílias lado a lado no monitor, uma
+ * embaixo da outra no celular — investigação se faz sentado, mas a
+ * ficha abre no telefone do mesmo jeito.
+ */
+.nc-espinhas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 10px;
+}
+
+.nc-espinha {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 10px 12px;
+}
+
+.nc-espinha h4 {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.nc-sugestoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* A sugestão é um botão de verdade: dá para chegar nele pelo teclado,
+   e o leitor de tela diz se está marcado. */
+.nc-sug {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.nc-sug:hover {
+  border-color: var(--ink-faint);
+  color: inherit;
+}
+
+.nc-sug.marcada {
+  border-color: #0f5e78;
+  background: #e9f3f6;
+  color: #0a4358;
+  font-weight: 600;
+}
+
+.nc-sug-outra {
+  border-style: dashed;
+}
+
+/* O assunto na lista: discreto, ao lado da descrição. */
+.nc-assunto {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+/* A barra do Pareto. Comprimento é o que o olho compara mais rápido —
+   por isso barra, e não só número. */
+.pareto-trilho {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.pareto-barra {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: #0f5e78;
+}

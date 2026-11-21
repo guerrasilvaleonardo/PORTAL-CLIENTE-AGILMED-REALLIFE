@@ -13,10 +13,13 @@ import {
   totais as calcTotais,
   eficacia as calcEficacia,
   incidentes as calcIncidentes,
+  pareto as calcPareto,
+  potencialFatalEmAberto,
   type InspecaoIndicador,
   type RespostaIndicador,
   type NcIndicador,
 } from '@/lib/indicadoresInspecao'
+import { rotuloCausa } from '@/lib/vocabularioNC'
 
 /*
  * Painel das inspeções.
@@ -137,6 +140,7 @@ function PainelInspecoesConteudo() {
           .from('nao_conformidades')
           .select(
             'id, empresa_id, origem, classificacao, titulo, gravidade, situacao, prazo, ocorrido_em, resposta_id, ' +
+              'tipologia, causa_classe, potencial_fatal, ' +
               'local_nome, risco, tipo_incidente, afastamento_dias, created_at, encerrada_em'
           )
           .eq('tipo', 'inspecao')
@@ -192,6 +196,9 @@ function PainelInspecoesConteudo() {
    * destrói a confiança no portal inteiro.
    */
   const porLocal = useMemo(() => calcPorLocal(concluidas), [concluidas])
+
+  const pareto = useMemo(() => calcPareto(ncsVisiveis), [ncsVisiveis])
+  const fatais = useMemo(() => potencialFatalEmAberto(ncsVisiveis), [ncsVisiveis])
 
   const reincidencia = useMemo(
     () => calcReincidencia(concluidas, respostas),
@@ -310,6 +317,122 @@ function PainelInspecoesConteudo() {
                 nos 90 dias seguintes. É a verificação da eficácia que o item 10.2 pede,
                 virada em número.
               </p>
+            </div>
+          </div>
+
+          {/*
+            * PRIMEIRO O QUE AINDA PODE MATAR.
+            *
+            * É a única lista do painel que fala do acidente que não
+            * aconteceu. Vem antes dos gráficos porque quem tem três
+            * destas na mão não precisa de gráfico: precisa de nome,
+            * prazo e telefone.
+            */}
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Potencial fatal em aberto</div>
+            </div>
+            <div className="panel-body">
+              {fatais.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
+                  Nenhuma em aberto no período. A marca é dada em campo, pelo que poderia ter
+                  acontecido — não pela gravidade do que aconteceu.
+                </p>
+              ) : (
+                <table className="tabela-colab">
+                  <thead>
+                    <tr>
+                      <th>O que foi visto</th>
+                      <th>Local</th>
+                      <th>Gravidade</th>
+                      <th>Prazo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fatais.map((n) => {
+                      const vencido =
+                        n.prazo && n.prazo < new Date().toISOString().slice(0, 10)
+                      return (
+                        <tr key={n.id}>
+                          <td className="nome">{n.titulo || '—'}</td>
+                          <td>{n.local_nome || '—'}</td>
+                          {/* A gravidade fica à vista justamente para
+                              mostrar quantas são "baixa" e mesmo assim
+                              estão aqui. */}
+                          <td>{n.gravidade}</td>
+                          <td>
+                            {n.prazo ? (
+                              <span className={'pill ' + (vencido ? 'bad' : 'warn')}>
+                                {n.prazo.split('-').reverse().join('/')}
+                              </span>
+                            ) : (
+                              <span className="pill flat">sem prazo</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/*
+            * O Pareto das causas.
+            *
+            * A pergunta que ele responde não é "qual é a maior" — é
+            * "quantas eu preciso atacar para resolver a maior parte".
+            * Por isso a coluna do acumulado existe.
+            */}
+          <div className="panel">
+            <div className="panel-head">
+              <div className="section-title">Causas-raiz — o que mais produz não conformidade</div>
+            </div>
+            <div className="panel-body">
+              {pareto.linhas.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-faint)' }}>
+                  Nenhuma não conformidade com causa classificada no período. A classificação é
+                  feita na ficha da NC, na aba de investigação — é ela que monta este gráfico.
+                </p>
+              ) : (
+                <table className="tabela-colab">
+                  <thead>
+                    <tr>
+                      <th>Causa</th>
+                      <th style={{ width: '38%' }}>Peso</th>
+                      <th>Quantas</th>
+                      <th>Acumulado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pareto.linhas.map((l) => (
+                      <tr key={l.causa}>
+                        <td className="nome">{rotuloCausa(l.causa) || l.causa}</td>
+                        <td>
+                          <span className="pareto-trilho">
+                            <span className="pareto-barra" style={{ width: l.percentual + '%' }} />
+                          </span>
+                        </td>
+                        <td>
+                          {l.quantas} <span style={{ color: 'var(--ink-faint)' }}>({l.percentual}%)</span>
+                        </td>
+                        <td>{l.acumulado}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {pareto.semCausa > 0 && (
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
+                  {pareto.semCausa}{' '}
+                  {pareto.semCausa === 1
+                    ? 'não conformidade ainda não tem causa classificada e ficou de fora'
+                    : 'não conformidades ainda não têm causa classificada e ficaram de fora'}
+                  . Elas não viram &quot;outros&quot;: contá-las como categoria mentiria sobre o
+                  tamanho das demais.
+                </p>
+              )}
             </div>
           </div>
 
