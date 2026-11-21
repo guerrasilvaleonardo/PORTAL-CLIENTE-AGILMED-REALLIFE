@@ -118,6 +118,22 @@
   color: var(--primary-strong);
 }
 
+/* O rótulo do grupo. Não é link e não deve parecer um: letra miúda,
+   maiúscula e apagada, só o suficiente para dividir a lista. */
+.modtabs.vertical .submenu-grupo {
+  margin: 9px 0 2px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.modtabs.vertical .submenu-grupo:first-child {
+  margin-top: 3px;
+}
+
 /* Celular: a barra vira a faixa de botões de antes. Coluna lateral numa
    tela de 360px come metade do espaço. */
 @media (max-width: 860px) {
@@ -145,6 +161,14 @@
     flex-wrap: wrap;
     margin: 0;
     padding-left: 6px;
+  }
+
+  /* Em linha, o rótulo do grupo ocupa a largura toda e quebra a faixa
+     no lugar certo — sem isso ele viraria mais um botão no meio. */
+  .modtabs.vertical .submenu-grupo {
+    flex: 1 0 100%;
+    margin: 6px 0 1px;
+    padding: 0 4px;
   }
 }
 

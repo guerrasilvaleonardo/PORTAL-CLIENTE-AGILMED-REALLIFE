@@ -406,3 +406,80 @@
   color: var(--ink-muted);
   font-size: 12px;
 }
+
+/* ----------------------------------------------------------------
+ * As abas da ficha de tratamento, e as ações do plano.
+ * ---------------------------------------------------------------- */
+
+/* As quatro etapas do item 10.2. Rolam na horizontal no celular em vez
+   de quebrar em duas linhas desalinhadas. */
+.ficha-abas {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.ficha-aba {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 9px 13px;
+  border: none;
+  background: none;
+  color: var(--ink-muted);
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ficha-aba:hover {
+  color: var(--ink);
+}
+
+.ficha-aba.ativa {
+  font-weight: 650;
+  color: var(--primary-strong);
+  border-bottom-color: var(--primary-strong);
+}
+
+/* A bolinha de "ainda em branco". Cor sozinha não diz nada a quem não
+   distingue: ela só aparece quando falta, e some quando preenche — a
+   presença é o recado, e o title explica. */
+.ficha-aba-falta {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber, #8a5a00);
+}
+
+.nc-acoes {
+  margin-top: 4px;
+}
+
+.nc-acao-nova {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-m);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ajuda-linha {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.prazo-vencido {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--danger, #a52017);
+}

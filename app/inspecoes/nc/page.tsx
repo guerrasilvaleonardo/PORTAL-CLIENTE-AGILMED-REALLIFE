@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
+import AcoesDaNC from './AcoesDaNC'
 import '../../colaboradores/colaboradores.css'
 import '../inspecoes.css'
 
@@ -39,6 +40,29 @@ const SITUACAO: Record<string, string> = {
   encerrada: 'Encerrada',
   cancelada: 'Cancelada',
 }
+
+/*
+ * As quatro etapas do tratamento, nas abas da ficha.
+ *
+ * POR QUE ABAS E NÃO UMA COLUNA SÓ. Tudo empilhado, a ficha é uma
+ * página de vinte campos onde não se vê o que já foi feito nem o que
+ * falta: quem abre no meio do tratamento rola para cima e para baixo
+ * procurando onde parou. As abas são o ciclo do item 10.2 desenhado —
+ * o que aconteceu, por que aconteceu, o que vamos fazer, se adiantou —
+ * e a bolinha na aba diz qual delas ainda está vazia.
+ *
+ * Os botões de salvar e encerrar ficam FORA das abas, sempre à vista:
+ * o rascunho é um só, e esconder o botão de salvar atrás da aba certa
+ * seria a forma mais rápida de perder o que alguém acabou de digitar.
+ */
+const ABAS = [
+  { chave: 'ocorrencia', rotulo: 'Ocorrência' },
+  { chave: 'investigacao', rotulo: 'Investigação' },
+  { chave: 'plano', rotulo: 'Plano de ação' },
+  { chave: 'verificacao', rotulo: 'Verificação' },
+] as const
+
+type AbaFicha = (typeof ABAS)[number]['chave']
 
 const TIPO_INCIDENTE: Record<string, string> = {
   acidente_com_afastamento: 'Acidente com afastamento',
@@ -110,6 +134,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
   const [salvando, setSalvando] = useState(false)
   /* Encerrar é o fim da linha: a tela pergunta de novo antes. */
   const [confirmandoFim, setConfirmandoFim] = useState(false)
+  const [aba, setAba] = useState<AbaFicha>('ocorrencia')
 
   /* Lançar incidente. */
   const [abrindoIncidente, setAbrindoIncidente] = useState(false)
@@ -201,6 +226,7 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
   function abrir(n: NC) {
     setEscolhida(n.id)
     setConfirmandoFim(false)
+    setAba('ocorrencia')
     setRascunho({
       classificacao: n.classificacao,
       gravidade: n.gravidade,
@@ -329,6 +355,16 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
     )
   }
 
+  /* A bolinha na aba: o que ainda está em branco. É a resposta à
+     pergunta que todo mundo faz na frente desta ficha — "falta o quê?"
+     — sem precisar abrir as quatro abas para descobrir. */
+  const faltando: Record<AbaFicha, boolean> = {
+    ocorrencia: false,
+    investigacao: !(rascunho.causa || '').trim(),
+    plano: !(rascunho.acao_corretiva || '').trim(),
+    verificacao: !(rascunho.verificacao_obs || '').trim(),
+  }
+
   /* A ficha de tratamento abre DENTRO da linha, não no fim da página.
    * Com trinta constatações, clicar em "Tratar" e ser jogado para o
    * rodapé faz perder de vista qual item estava sendo tratado — e na
@@ -343,6 +379,25 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
             </button>
           </div>
           <div className="panel-body insp-ficha">
+            <nav className="ficha-abas nao-imprimir" aria-label="Etapas do tratamento">
+              {ABAS.map((a) => (
+                <button
+                  key={a.chave}
+                  type="button"
+                  className={'ficha-aba' + (aba === a.chave ? ' ativa' : '')}
+                  aria-current={aba === a.chave ? 'step' : undefined}
+                  onClick={() => setAba(a.chave)}
+                >
+                  {a.rotulo}
+                  {faltando[a.chave] && (
+                    <span className="ficha-aba-falta" aria-label="ainda em branco" title="ainda em branco" />
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            {aba === 'ocorrencia' && (
+            <>
             {/* Numa auditoria, o nível do achado é a primeira decisão e
                 muda tudo o que vem depois: a maior trava a certificação,
                 a oportunidade de melhoria não pede ação corretiva
@@ -459,6 +514,11 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
+            </>
+            )}
+
+            {aba === 'investigacao' && (
+            <>
             {/* Cinco porquês: cada resposta tem de explicar a anterior. É
                 o que tira a análise de "falta de atenção" e leva até o
                 processo, que é onde a ação corretiva funciona. */}
@@ -494,6 +554,11 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
+            </>
+            )}
+
+            {aba === 'plano' && (
+            <>
             <label>
               Ação corretiva — o que impede de acontecer de novo
               <textarea
@@ -502,6 +567,12 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
               />
             </label>
 
+            <AcoesDaNC ncId={atual.id} empresaId={atual.empresa_id} />
+            </>
+            )}
+
+            {aba === 'verificacao' && (
+            <>
             <label>
               Verificação da eficácia
               <textarea
@@ -553,6 +624,8 @@ export function NaoConformidadesConteudo({ tipo }: { tipo: 'inspecao' | 'auditor
                 </div>
               </div>
             ) : null}
+            </>
+            )}
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="btn" disabled={salvando} onClick={() => salvar(false)}>

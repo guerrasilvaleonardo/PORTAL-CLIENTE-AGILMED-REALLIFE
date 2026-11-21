@@ -1,0 +1,138 @@
+/*
+ * Planos de ação: quatro colunas que são o andar da ação.
+ *
+ * POR QUE COLUNAS E NÃO UMA TABELA. A pergunta desta tela não é
+ * "quais ações existem", é "o que está parado onde". Em tabela isso
+ * exige ler a coluna de situação linha a linha; em colunas a pilha
+ * alta já diz onde o trabalho empacou, de longe.
+ */
+
+.planos-colunas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+/* Abaixo de 1100px quatro colunas espremem o texto da ação a duas
+   palavras por linha. Duas colunas, e depois uma. */
+@media (max-width: 1100px) {
+  .planos-colunas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .planos-colunas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.planos-coluna > h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planos-conta {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.planos-pilha {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plano-cartao {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 12px 13px;
+  text-align: left;
+}
+
+.plano-cartao.atrasado {
+  border-color: var(--danger-border, #e8a9a2);
+}
+
+.plano-topo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.plano-descricao {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.plano-rodape {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.plano-prazo-vencido {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--danger, #a52017);
+}
+
+.plano-prazo {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.plano-acoes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.plano-vazio {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-m);
+  padding: 14px 13px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* A faixa que explica os tipos. Fica no topo porque o vocabulário é
+   justamente o que a equipe ainda não tem na ponta da língua. */
+.planos-tipos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.planos-tipos > div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 11px 13px;
+}
+
+.planos-tipos p {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}

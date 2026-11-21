@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -82,7 +82,17 @@ const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
  *
  * Tela nova de um módulo entra aqui e não monta navegação própria.
  */
-const SECOES: Record<string, { href: string; rotulo: string }[]> = {
+/*
+ * Uma seção pode abrir um grupo: o rótulo aparece acima dela, em letra
+ * miúda, e vale até o próximo grupo.
+ *
+ * POR QUE AGRUPAR. Lista de oito links iguais é lista que se lê uma
+ * vez e nunca mais: tudo tem o mesmo peso, e quem chega não sabe onde
+ * a rotina começa nem onde termina. Com três rótulos — o que acompanho,
+ * o ciclo em si, o que preparo antes — o mesmo menu passa a contar a
+ * ordem do trabalho. Módulo sem grupo nenhum continua lista simples.
+ */
+const SECOES: Record<string, { href: string; rotulo: string; grupo?: string }[]> = {
   /*
    * As telas do Atendimento existiam desde sempre sem entrada em menu
    * nenhum: só se chegava nelas por link direto ou digitando o
@@ -133,25 +143,32 @@ const SECOES: Record<string, { href: string; rotulo: string }[]> = {
    * documento de um trabalho que ainda não tinha feito.
    */
   '/inspecoes': [
-    { href: '/inspecoes/painel', rotulo: 'Visão geral' },
+    { href: '/inspecoes/painel', rotulo: 'Painel', grupo: 'Acompanhar' },
+    { href: '/inspecoes/relatorios', rotulo: 'Relatórios' },
 
-    /* O que faço. Campo primeiro: é a tela diária, aberta de pé no
-       cliente, e a que mais vezes se procura. */
-    { href: '/inspecoes/campo', rotulo: 'Apontamento de campo' },
-    { href: '/inspecoes', rotulo: 'Inspeções' },
-
-    /* O que saiu disso, e precisa de alguém. */
+    /*
+     * O CICLO, na ordem em que acontece: eu vejo → eu investigo → eu
+     * trato. São três entradas e sempre as mesmas três, porque é esse
+     * o caminho que a ISO cobra e o que o cliente pergunta.
+     *
+     * O "Apontamento de campo" saiu do menu de propósito. Ele nunca
+     * foi um lugar: é o que se faz dentro de uma inspeção. Entrar por
+     * ali dava a tela de apontar sem visita aberta — começo sem fim.
+     * Agora se começa em Inspeções, no botão "Nova inspeção", e quem
+     * tem visita em campo a encontra na lista, com a situação escrita.
+     *
+     * O "Relatório do período" também saiu: virou uma aba dentro de
+     * Relatórios, junto do arquivo dos emitidos. São o mesmo assunto —
+     * o que eu entrego — e ocupavam duas linhas dizendo quase a mesma
+     * palavra.
+     */
+    { href: '/inspecoes', rotulo: 'Inspeções', grupo: 'O ciclo' },
     { href: '/inspecoes/nc', rotulo: 'Não conformidades' },
-
-    /* O que entrego. O arquivo vem antes do consolidado porque é o
-       que a auditoria pede ver — e é nele que a sequência dos códigos
-       mostra se faltou mês. */
-    { href: '/inspecoes/relatorios', rotulo: 'Relatórios emitidos' },
-    { href: '/inspecoes/relatorio', rotulo: 'Relatório do período' },
+    { href: '/inspecoes/planos', rotulo: 'Planos de ação' },
 
     /* O que preparo antes, e quase nunca mexo depois. */
+    { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist', grupo: 'Preparar' },
     { href: '/inspecoes/locais', rotulo: 'Locais e etiquetas' },
-    { href: '/inspecoes/modelos', rotulo: 'Modelos de checklist' },
   ],
   '/epi': [
     { href: '/epi/painel', rotulo: 'Visão geral' },
@@ -505,9 +522,12 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
                   {expandido && (
                     <div className="submenu">
                       {secoes.map((s) => (
-                        <Link key={s.href} href={s.href} className={naSecao(s.href) ? 'active' : ''}>
-                          {s.rotulo}
-                        </Link>
+                        <Fragment key={s.href}>
+                          {s.grupo && <p className="submenu-grupo">{s.grupo}</p>}
+                          <Link href={s.href} className={naSecao(s.href) ? 'active' : ''}>
+                            {s.rotulo}
+                          </Link>
+                        </Fragment>
                       ))}
                     </div>
                   )}
