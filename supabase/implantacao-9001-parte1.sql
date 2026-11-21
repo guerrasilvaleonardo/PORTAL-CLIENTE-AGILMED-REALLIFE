@@ -149,7 +149,7 @@ with dados(etapa, ordem, titulo, tipo, requisito, aula, passos, upload, aprova) 
    'O portal gera a estrutura pronta, uma pasta por requisito da norma, com um '
    || 'LEIA-ME dentro de cada uma explicando o que vai ali.',
    array[
-     'Abra "Antes de começar" no menu de Auditorias;',
+     'Abra "Antes de começar", aqui mesmo em Implantar o sistema;',
      'Baixe o arquivo que cria as pastas e execute-o na pasta onde o SGQ vai morar;',
      'Confira que as pastas apareceram com os nomes certos;',
      'Combine com a equipe que esta é a única cópia válida — e que ninguém guarda documento do SGQ no desktop;',

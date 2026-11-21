@@ -11,7 +11,23 @@ import '@/app/vitrine.css'
  * ferramenta contratada vê a vitrine dela e o botão para pedir a
  * proposta por chamado; quem tem acesso (ou a equipe) vê a página.
  */
-export function ComModulo({ modulo, children }: { modulo: Modulo; children: ReactNode }) {
+/*
+ * `ou` existe para a única tela que serve às duas ferramentas: a de
+ * organizar as pastas por requisito. Quem está montando o sistema
+ * precisa dela para ter onde guardar o primeiro documento; quem já tem
+ * o sistema precisa dela para achar a evidência quando o auditor
+ * pedir. Exigir uma ferramenta só tiraria a tela de metade de quem a
+ * usa — e a vitrine mostrada é a da ferramenta principal (`modulo`).
+ */
+export function ComModulo({
+  modulo,
+  ou,
+  children,
+}: {
+  modulo: Modulo
+  ou?: Modulo
+  children: ReactNode
+}) {
   const acesso = useModulos()
 
   if (acesso.carregando) {
@@ -22,7 +38,9 @@ export function ComModulo({ modulo, children }: { modulo: Modulo; children: Reac
     )
   }
 
-  if (!acesso.liberado(modulo)) return <ModuloBloqueado modulo={modulo} />
+  if (!acesso.liberado(modulo) && !(ou && acesso.liberado(ou))) {
+    return <ModuloBloqueado modulo={modulo} />
+  }
 
   return <>{children}</>
 }

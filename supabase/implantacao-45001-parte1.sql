@@ -161,6 +161,7 @@ with dados(etapa, ordem, titulo, tipo, requisito, aula, passos, upload, aprova) 
    || 'de pessoa identificada. ASO, atestado e resultado de exame não ficam na '
    || 'pasta geral do SGSSO, e sim em pasta com acesso restrito.',
    array[
+     'Abra "Antes de começar", aqui mesmo em Implantar o sistema;',
      'Baixe o arquivo que cria as pastas e execute-o na pasta onde o SGSSO vai morar;',
      'Confira que as pastas apareceram com os nomes certos;',
      'Crie uma pasta separada, de acesso restrito, para documento médico individual;',
