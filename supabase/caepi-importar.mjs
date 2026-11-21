@@ -8,7 +8,9 @@
  *
  *     node supabase/caepi-importar.mjs C:\Users\...\Downloads\tgg_export_caepi.zip
  *
- * Aceita o .zip/.rar como veio, ou o .txt já descompactado.
+ * Em 21/11/2026 esse link entregava RelatorioCA_AAAAMMDD_HHMMSS.csv.gz
+ * (CSV em UTF-8, separado por ";"). Aceita também o formato antigo
+ * (tgg_export_caepi .zip/.rar ou .txt).
  *
  * ATENÇÃO — O ARQUIVO DE gov.br ESTÁ PARADO. Sem argumento, o script
  * tenta o endereço antigo em gov.br, mas em 21/11/2026 aquele arquivo
@@ -30,6 +32,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 
 const ARQUIVO =
@@ -80,11 +83,44 @@ function descompactar(compactado) {
   );
 }
 
+/* O CAEPI entrega hoje um RelatorioCA_AAAAMMDD_HHMMSS.csv.gz. O gzip
+ * vem com bytes sobrando no fim, e o gunzip do Node recusa o arquivo
+ * por isso ("incorrect header check"); o conteúdo em si está íntegro.
+ * Então pula o cabeçalho do gzip e descompacta o deflate cru, que para
+ * sozinho no fim dos dados. */
+function gunzipTolerante(buf) {
+  try {
+    return zlib.gunzipSync(buf);
+  } catch {
+    if (buf[0] !== 0x1f || buf[1] !== 0x8b) throw new Error('o arquivo não é um .gz válido');
+    const flags = buf[3];
+    let p = 10;
+    if (flags & 4) p += 2 + buf.readUInt16LE(p); // FEXTRA
+    if (flags & 8) while (buf[p++] !== 0); // FNAME
+    if (flags & 16) while (buf[p++] !== 0); // FCOMMENT
+    if (flags & 2) p += 2; // FHCRC
+    return zlib.inflateRawSync(buf.subarray(p));
+  }
+}
+
+/* A data da base: no RelatorioCA ela está no próprio nome do arquivo
+ * (RelatorioCA_20261121_093110 = 21/11/2026); fora isso, a data do
+ * arquivo em disco. */
+function dataDoArquivo(caminho) {
+  const m = path.basename(caminho).match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  return fs.statSync(caminho).mtime;
+}
+
 async function pegarTxt() {
   if (informado) {
     console.log('usando o arquivo informado:', informado);
-    if (informado.toLowerCase().endsWith('.txt')) {
-      return { bruto: fs.readFileSync(informado), data: fs.statSync(informado).mtime };
+    const nome = informado.toLowerCase();
+    if (nome.endsWith('.gz')) {
+      return { bruto: gunzipTolerante(fs.readFileSync(informado)), data: dataDoArquivo(informado) };
+    }
+    if (nome.endsWith('.txt') || nome.endsWith('.csv')) {
+      return { bruto: fs.readFileSync(informado), data: dataDoArquivo(informado) };
     }
     return descompactar(informado);
   }
@@ -114,7 +150,9 @@ const { bruto, data: dataArquivo } = await pegarTxt();
 
 /* Base velha não entra: ela não só deixa de trazer os CAs novos, ela
  * PIORA o portal, porque troca validade renovada por validade vencida. */
-const idadeDias = Math.floor((Date.now() - dataArquivo.getTime()) / 864e5);
+/* A hora no nome do RelatorioCA é a do servidor e pode vir adiantada
+ * em relação ao relógio daqui: nunca menos que zero. */
+const idadeDias = Math.max(0, Math.floor((Date.now() - dataArquivo.getTime()) / 864e5));
 console.log(
   'data do arquivo:',
   dataArquivo.toLocaleDateString('pt-BR'),
@@ -131,11 +169,83 @@ if (idadeDias > IDADE_MAXIMA_DIAS && !FORCAR) {
   process.exit(2);
 }
 
-/* O arquivo vem em latin1: lido como utf-8, "PROTEÇÃO" sai quebrado. */
-const linhas = bruto.toString('latin1').split(/\r?\n/).filter(Boolean);
-const cabecalho = linhas.shift().replace(/^#/, '').split('|');
-const col = Object.fromEntries(cabecalho.map((c, i) => [c.trim(), i]));
-console.log('linhas no arquivo:', linhas.length);
+/* Dois formatos convivem:
+ *  - o tgg_export_caepi.txt antigo: latin1, separado por "|", sem aspas,
+ *    cabeçalho "#NRRegistroCA|DataValidade|...";
+ *  - o RelatorioCA.csv atual: UTF-8 com BOM, separado por ";", campos
+ *    entre aspas (que podem ter ";" e quebra de linha dentro), cabeçalho
+ *    "NR Registro CA;DATA DE VALIDADE;...".
+ * Os dois são lidos como lista de campos, e as colunas são achadas pelo
+ * nome sem espaço, acento ou caixa — "NR Registro CA" e "NRRegistroCA"
+ * viram a mesma chave. */
+function* linhasPipe(texto) {
+  for (const l of texto.split(/\r?\n/)) if (l) yield l.split('|');
+}
+function* linhasCsv(texto, sep = ';') {
+  let campo = '';
+  let linha = [];
+  let aspas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const ch = texto[i];
+    if (aspas) {
+      if (ch === '"') {
+        if (texto[i + 1] === '"') {
+          campo += '"';
+          i++;
+        } else aspas = false;
+      } else campo += ch;
+      continue;
+    }
+    if (ch === '"') aspas = true;
+    else if (ch === sep) {
+      linha.push(campo);
+      campo = '';
+    } else if (ch === '\n') {
+      linha.push(campo);
+      campo = '';
+      if (linha.length > 1 || linha[0] !== '') yield linha;
+      linha = [];
+    } else if (ch !== '\r') campo += ch;
+  }
+  if (campo || linha.length) {
+    linha.push(campo);
+    yield linha;
+  }
+}
+const ehUtf8 = !bruto.toString('utf8', 0, 200000).includes('�');
+/* O formato antigo vem em latin1: lido como utf-8, "PROTEÇÃO" sai quebrado. */
+const texto = bruto.toString(ehUtf8 ? 'utf8' : 'latin1').replace(/^﻿+/, '');
+const primeira = texto.slice(0, texto.indexOf('\n'));
+const leitor = primeira.includes('|') ? linhasPipe(texto) : linhasCsv(texto);
+const chaveCol = (n) =>
+  n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+const cabecalho = leitor.next().value.map((c) => chaveCol(c.replace(/^#/, '')));
+const achar = (...nomes) => {
+  const i = cabecalho.findIndex((c) => nomes.includes(c));
+  return i < 0 ? undefined : i;
+};
+const col = {
+  NRRegistroCA: achar('NRREGISTROCA'),
+  DataValidade: achar('DATAVALIDADE', 'DATADEVALIDADE'),
+  Situacao: achar('SITUACAO'),
+  CNPJ: achar('CNPJ'),
+  RazaoSocial: achar('RAZAOSOCIAL'),
+  Natureza: achar('NATUREZA'),
+  NomeEquipamento: achar('NOMEEQUIPAMENTO', 'EQUIPAMENTO'),
+  DescricaoEquipamento: achar('DESCRICAOEQUIPAMENTO'),
+  MarcaCA: achar('MARCACA'),
+  Referencia: achar('REFERENCIA'),
+  Cor: achar('COR'),
+  Norma: achar('NORMA'),
+};
+const faltando = ['NRRegistroCA', 'DataValidade', 'Situacao'].filter((k) => col[k] === undefined);
+if (faltando.length) {
+  console.error('O arquivo não tem as colunas esperadas (' + faltando.join(', ') + '). Nada foi gravado.');
+  console.error('Cabeçalho encontrado:', cabecalho.join(' | '));
+  process.exit(1);
+}
+const linhas = [...leitor];
+console.log('formato:', primeira.includes('|') ? 'tgg_export (txt)' : 'RelatorioCA (csv)', '· linhas no arquivo:', linhas.length);
 
 /* O arquivo traz UMA LINHA POR LAUDO, não por CA: o mesmo certificado
  * aparece repetido, uma vez para cada ensaio de laboratório (o CA 32297
@@ -160,8 +270,7 @@ const montar = (c, ca) => ({
   norma: null,
 });
 const porCa = new Map();
-for (const linha of linhas) {
-  const c = linha.split('|');
+for (const c of linhas) {
   const ca = limpo(c[col.NRRegistroCA]);
   if (!ca) continue;
   const norma = limpo(c[col.Norma]);
