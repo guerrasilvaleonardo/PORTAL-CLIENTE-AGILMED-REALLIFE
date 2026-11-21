@@ -141,7 +141,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
   const chamadosNovos = Object.keys(useChamadosNaoLidos(!carregando && !!marca)).length
   /* Ferramentas cobradas à parte: cadeado no menu do cliente sem contratação. */
   const modulos = useModulos()
-  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi', '/inspecoes': 'inspecoes', '/auditorias': 'auditoria' }
+  const MODULO_DA_ROTA: Record<string, Modulo> = { '/certificados': 'certificados', '/treinamentos': 'treinamentos', '/documentos': 'documentos', '/epi': 'epi', '/inspecoes': 'inspecoes', '/auditorias': 'auditoria', '/implantacao': 'implantacao' }
 
   useEffect(() => {
     let ativo = true
@@ -284,6 +284,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/inspecoes', rotulo: 'Inspeções' },
+        { href: '/implantacao', rotulo: 'Implantação' },
         { href: '/auditorias', rotulo: 'Auditorias' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
@@ -297,6 +298,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         { href: '/colaboradores', rotulo: 'Colaboradores' },
         { href: '/epi', rotulo: 'EPI' },
         { href: '/inspecoes', rotulo: 'Inspeções' },
+        { href: '/implantacao', rotulo: 'Implantação' },
         { href: '/auditorias', rotulo: 'Auditorias' },
         { href: '/certificados', rotulo: 'Certificados' },
         { href: '/documentos', rotulo: 'Documentos de SST' },
