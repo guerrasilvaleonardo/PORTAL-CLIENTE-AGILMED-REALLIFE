@@ -278,6 +278,35 @@ function DocumentosSstPageConteudo() {
     }
   }, [base])
 
+  /*
+   * O acervo por tipo de documento.
+   *
+   * POR QUE. Os cartões de cima respondem "o que está vencendo", que é
+   * a pergunta da semana. A outra pergunta, a da reunião e da proposta
+   * comercial, é "o que a gente tem" — quantos PGR, quantos PCMSO,
+   * quantos laudos. Isso só existia dentro do painel de tipos, que é
+   * de uso interno e abre em cima da tela.
+   *
+   * A conta ignora o filtro de tipo de propósito: filtrar por PGR e
+   * ver só PGR na faixa transformaria o panorama numa linha só.
+   * Acompanha o filtro de empresa, como os outros indicadores.
+   */
+  const porTipo = useMemo(() => {
+    const mapa = new Map<string, { id: string; rotulo: string; total: number; vencidos: number }>()
+
+    for (const d of base) {
+      const t = tipoPorId.get(d.tipo_id)
+      const id = d.tipo_id || '_sem'
+      const atual =
+        mapa.get(id) || { id, rotulo: t?.sigla || t?.nome || 'Sem tipo', total: 0, vencidos: 0 }
+      atual.total += 1
+      if (faixaVencimento(d) === 'vencido') atual.vencidos += 1
+      mapa.set(id, atual)
+    }
+
+    return [...mapa.values()].sort((a, b) => b.total - a.total || a.rotulo.localeCompare(b.rotulo))
+  }, [base, tipoPorId])
+
   const filtrados = useMemo(() => {
     const palavras = palavrasDaBusca(busca)
 
@@ -887,6 +916,38 @@ function DocumentosSstPageConteudo() {
           {cartao('revisao', indicadores.revisao, 'Revisões pendentes', 'alerta', 'revisao')}
         </div>
       </div>
+
+      {porTipo.length > 0 && (
+        <div className="cert-ind-grupo">
+          <div className="cert-ind-titulo">
+            Por tipo de documento
+            <span>o que a empresa tem, e quanto de cada</span>
+          </div>
+          <div className="doc-tipos-faixa">
+            {porTipo.map((t) => {
+              const ativo = filtroTipo === t.id
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={'doc-tipo-cartao' + (ativo ? ' ativo' : '')}
+                  aria-pressed={ativo}
+                  onClick={() => setFiltroTipo(ativo ? '' : t.id)}
+                  title={ativo ? 'Clique para tirar este filtro' : 'Clique para ver só estes documentos'}
+                >
+                  <span className="doc-tipo-num">{t.total}</span>
+                  <span className="doc-tipo-nome">{t.rotulo}</span>
+                  {t.vencidos > 0 && (
+                    <span className="doc-tipo-vencidos">
+                      {t.vencidos} vencido{t.vencidos === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="cert-filtros">
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={interno ? 'Buscar empresa, unidade, documento, versão ou responsável...' : 'Buscar unidade, documento ou versão...'} />
