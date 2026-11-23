@@ -2493,6 +2493,7 @@ export default function AtendimentoChamadoPage() {
         )}
 
         <div
+          className="chamado-grade"
           style={{
             display:
               'grid',
@@ -2508,6 +2509,10 @@ export default function AtendimentoChamadoPage() {
             style={{
               display:
                 'grid',
+              gridTemplateColumns:
+                'minmax(0, 1fr)',
+              minWidth:
+                0,
               gap:
                 '20px',
             }}
@@ -2636,6 +2641,8 @@ export default function AtendimentoChamadoPage() {
                       '#334155',
                     whiteSpace:
                       'pre-wrap',
+                    overflowWrap:
+                      'anywhere',
                     lineHeight:
                       1.6,
                   }}
@@ -3911,6 +3918,10 @@ export default function AtendimentoChamadoPage() {
             style={{
               display:
                 'grid',
+              gridTemplateColumns:
+                'minmax(0, 1fr)',
+              minWidth:
+                0,
               gap:
                 '20px',
             }}

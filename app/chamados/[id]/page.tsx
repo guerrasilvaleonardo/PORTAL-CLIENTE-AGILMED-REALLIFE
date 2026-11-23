@@ -2435,11 +2435,15 @@ const styles: Record<
 
   mainColumn: {
     display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr)',
+    minWidth: 0,
     gap: '24px',
   },
 
   sideColumn: {
     display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr)',
+    minWidth: 0,
     gap: '24px',
   },
 
@@ -2509,6 +2513,7 @@ const styles: Record<
     fontSize: '15px',
     lineHeight: 1.7,
     whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
   },
 
   evaluationBox: {

@@ -66,6 +66,15 @@
 .chamado-detalhes[open] > summary { margin-bottom: 18px; }
 .chamado-detalhes-dica { font-size: 12.5px; color: var(--ink-faint); flex: 1 1 200px; }
 
+/* Texto longo sem espaço (links, e-mails, códigos) quebra a linha em vez de
+   alargar a coluna e empurrar o conteúdo para baixo do painel lateral. */
+.chamado-detalhe { overflow-wrap: anywhere; }
+
+/* Itens de grade podem encolher até a largura da coluna. Sem isso, uma linha
+   com "…" (link ou anexo de nome longo) alarga o card inteiro e o joga para
+   baixo do painel "Gestão do chamado". */
+.chamado-detalhe [style*="display: grid"] > * { min-width: 0; }
+
 /* Celular e tablet: uma coluna, sem rolar para o lado. */
 @media (max-width: 900px) {
   .chamado-grade { grid-template-columns: minmax(0, 1fr) !important; }
