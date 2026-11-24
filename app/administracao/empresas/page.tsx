@@ -22,6 +22,9 @@ type Empresa = {
   modulo_treinamentos?: boolean | null
   modulo_documentos?: boolean | null
   modulo_epi?: boolean | null
+  modulo_inspecoes?: boolean | null
+  modulo_implantacao?: boolean | null
+  modulo_auditoria?: boolean | null
   total_usuarios: number
   total_chamados: number
 }
@@ -35,6 +38,25 @@ const marcaCores: Record<string, string> = {
   agilmed: '#2563eb',
   reallife: '#0f766e',
 }
+
+/*
+ * AS SETE FERRAMENTAS COBRADAS À PARTE, na ordem em que o cliente as vê
+ * na tela inicial e em Contratar. Uma lista só: dela saem as marcações
+ * do formulário, o resumo embaixo do nome da empresa e o tipo que o
+ * `alterar` precisa excluir. Ferramenta nova entra aqui, em
+ * lib/modulos.ts e na rota da administração.
+ */
+const FERRAMENTAS = [
+  ['modulo_treinamentos', 'Treinamentos'],
+  ['modulo_certificados', 'Certificados'],
+  ['modulo_documentos', 'Documentos SST'],
+  ['modulo_epi', 'EPI'],
+  ['modulo_inspecoes', 'Inspeções'],
+  ['modulo_implantacao', 'Implantar o sistema'],
+  ['modulo_auditoria', 'Auditar o sistema'],
+] as const
+
+type CampoFerramenta = (typeof FERRAMENTAS)[number][0]
 
 const formVazio = {
   id: '',
@@ -55,6 +77,9 @@ const formVazio = {
   modulo_treinamentos: false,
   modulo_documentos: false,
   modulo_epi: false,
+  modulo_inspecoes: false,
+  modulo_implantacao: false,
+  modulo_auditoria: false,
 }
 
 function formatarCnpj(valor: string | null) {
@@ -77,7 +102,7 @@ export default function EmpresasPage() {
 
   const editando = form.id !== ''
 
-  function alterar(campo: Exclude<keyof typeof formVazio, 'modulo_certificados' | 'modulo_treinamentos' | 'modulo_documentos' | 'modulo_epi'>, valor: string) {
+  function alterar(campo: Exclude<keyof typeof formVazio, CampoFerramenta>, valor: string) {
     setForm((atual) => ({ ...atual, [campo]: valor }))
   }
 
@@ -198,6 +223,9 @@ export default function EmpresasPage() {
       modulo_treinamentos: empresa.modulo_treinamentos !== false,
       modulo_documentos: empresa.modulo_documentos !== false,
       modulo_epi: empresa.modulo_epi !== false,
+      modulo_inspecoes: empresa.modulo_inspecoes !== false,
+      modulo_implantacao: empresa.modulo_implantacao !== false,
+      modulo_auditoria: empresa.modulo_auditoria !== false,
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -413,14 +441,7 @@ export default function EmpresasPage() {
               Ferramentas contratadas pelo cliente
             </label>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 13.5 }}>
-              {(
-                [
-                  ['modulo_certificados', 'Certificados'],
-                  ['modulo_treinamentos', 'Treinamentos'],
-                  ['modulo_documentos', 'Documentos SST'],
-                  ['modulo_epi', 'EPI'],
-                ] as const
-              ).map(([campo, rotulo]) => (
+              {FERRAMENTAS.map(([campo, rotulo]) => (
                 <label key={campo} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontWeight: 500, color: 'var(--ink)', fontSize: 13.5 }}>
                   <input
                     type="checkbox"
@@ -523,13 +544,8 @@ export default function EmpresasPage() {
 
                       {empresa.modulo_certificados !== undefined && (
                         <span style={{ display: 'block', fontSize: 11.5, color: 'var(--ink-muted)', marginTop: 2 }}>
-                          {[
-                            empresa.modulo_certificados !== false && 'Certificados',
-                            empresa.modulo_treinamentos !== false && 'Treinamentos',
-                            empresa.modulo_documentos !== false && 'Documentos SST',
-                            empresa.modulo_epi !== false && 'EPI',
-                          ]
-                            .filter(Boolean)
+                          {FERRAMENTAS.filter(([campo]) => empresa[campo] !== false)
+                            .map(([, rotulo]) => rotulo)
                             .join(' · ') || 'Só chamados'}
                         </span>
                       )}
