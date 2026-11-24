@@ -579,12 +579,13 @@ const manualInterno: Manual = {
             blocos: [
               menu('Estrelas'),
               { t: 'cartoes', n: 1, itens: [{ titulo: '★ Prazo', texto: '1 estrela por resolver dentro do prazo' }, { titulo: '★ Bom', texto: '+1 pela avaliação do cliente' }, { titulo: '★★ Excelente', texto: '+2 pela avaliação do cliente' }] },
-              { t: 'botoes', n: 2, itens: [{ rotulo: 'Mensal', primario: true }, { rotulo: 'Anual' }, { rotulo: 'Meu painel' }, { rotulo: 'Gestão do programa' }] },
+              { t: 'botoes', n: 2, itens: [{ rotulo: 'Mensal', primario: true }, { rotulo: 'Anual' }, { rotulo: 'Meu painel' }, { rotulo: 'Reconhecimento do mês' }, { rotulo: 'Gestão do programa' }] },
             ],
           },
           passos: [
             'Até 3 estrelas por chamado: 1 por resolver dentro do prazo (no limite exato também conta) e até 2 pela avaliação de quem pediu. Ruim ou sem avaliação: +0. Nos chamados internos (empresa Real Life SSMA), quem avalia é o solicitante da equipe; ninguém avalia chamado em que é o responsável nem chamado cujas estrelas recebeu.',
-            'Abas: Mensal (pódio e ranking do mês), Anual (estrelas acumuladas do ano; o vencedor só aparece quando a gestão revelar o resultado pelo índice final), Meu painel (seus chamados e estrelas) e Gestão do programa (gestor e admin).',
+            'Abas: Mensal (pódio e ranking do mês), Anual (estrelas acumuladas do ano; o vencedor só aparece quando a gestão revelar o resultado pelo índice final), Meu painel (seus chamados e estrelas), Reconhecimento do mês e Gestão do programa (essas duas, só gestor e admin).',
+            'Todo mês você recebe, da gestão, um e-mail individual de reconhecimento com os seus números do mês anterior (estrelas, chamados resolvidos, no prazo e avaliações). Ele nunca traz a sua posição no ano. Responder o e-mail fala direto com quem enviou.',
           ],
         },
         {
@@ -606,6 +607,28 @@ const manualInterno: Manual = {
             'Avaliações ruins: acompanhamento reservado. O gestor registra a ação tomada.',
             'Extensões de prazo pendentes: decida na tela do chamado, com justificativa.',
           ],
+        },
+        {
+          titulo: 'Reconhecimento do mês (gestor e admin)',
+          tela: {
+            url: '/estrelas?aba=reconhecimento',
+            blocos: [
+              menu('Estrelas'),
+              { t: 'botoes', n: 1, itens: [{ rotulo: 'Reconhecimento do mês', primario: true }] },
+              { t: 'cartoes', n: 2, itens: [{ titulo: '🥇 1º · Destaque obrigatório', texto: 'Escreva um resultado que a pessoa reconheça como dela' }, { titulo: 'Demais · Destaque opcional', texto: 'Agradecimento com os números do mês' }, { titulo: 'Conversa pessoal', texto: 'Sem e-mail: avaliação Ruim ou atrasos' }] },
+              { t: 'botoes', n: 3, itens: [{ rotulo: 'Salvar' }, { rotulo: 'Enviar e-mails prontos', primario: true }] },
+            ],
+          },
+          passos: [
+            'No 3º dia útil do mês (ou depois do fim do prazo para o cliente avaliar, se for mais tarde), o portal congela o ranking do mês anterior e avisa gestores e admins por e-mail. Avaliações que chegarem depois contam para o ano, mas não mudam os e-mails do mês.',
+            'Cada pessoa aparece com posição (empate = mesma posição), números e o rascunho do e-mail. No pódio, o destaque do mês é obrigatório: abra "Chamados do mês" para ver os chamados, as avaliações e os comentários dos clientes.',
+            'Quem teve avaliação Ruim ou mais chamados fora do prazo do que no prazo já vem como "Conversa pessoal" (sem e-mail). Você pode mudar para "Enviar e-mail" ou "Não enviar". Mês parcial (entrada, férias, afastamento): use "Inserir frase de mês parcial" e ajuste as datas, sem citar o motivo.',
+            'Salve cada pessoa e clique em "Enviar e-mails prontos". Cada um recebe só o próprio e-mail, com o seu nome como remetente; as respostas vão para o seu e-mail. Enviado não pode mais ser alterado e fica registrado.',
+            'Se o agendamento ainda não rodou e você precisar adiantar, use "Congelar agora" no mês desejado.',
+          ],
+          atencao: 'O e-mail mensal nunca traz posição ou estrelas acumuladas do ano: o resultado anual só é revelado no fechamento.',
+          dica: 'Prefira destacar qualidade e casos difíceis, não volume. Ex.: "o chamado #493, que você resolveu em 2 horas e o cliente avaliou como Excelente".',
+          link: { href: '/estrelas?aba=reconhecimento', rotulo: 'Abrir Reconhecimento do mês' },
         },
       ],
     },
