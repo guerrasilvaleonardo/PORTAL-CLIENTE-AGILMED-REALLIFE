@@ -23,13 +23,13 @@ export type Servico = {
 
 export const SERVICOS: Servico[] = [
   {
-    titulo: 'Cursos EAD para a equipe',
-    texto: 'NR-35, NR-12, NR-10 e outros cursos a distância, com certificado.',
-    categoria: 'Treinamentos',
-    icone: 'computador',
-    marcas: ['reallife', 'agilmed'],
-  },
-  {
+    /*
+     * OS CURSOS EAD SAÍRAM DESTA LISTA. Eram uma linha — "Cursos EAD
+     * para a equipe: NR-35, NR-12, NR-10 e outros" — e quem procurava
+     * NR-33 não achava NR-33. Viraram seção própria em /contratar, com
+     * o catálogo inteiro: carga, preço por aluno e o orçamento já
+     * preenchido, lido da plataforma para o preço ter um dono só.
+     */
     titulo: 'Treinamento presencial na empresa',
     texto: 'Turma na sua empresa, com a parte prática.',
     categoria: 'Treinamentos',
