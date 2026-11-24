@@ -9,6 +9,7 @@ import { MODULOS, linkContratacao, useModulos, type Modulo } from '@/lib/modulos
 import { SERVICOS, linkOrcamento, PREFIXO_CONTRATACAO, PREFIXO_ORCAMENTO } from '@/lib/servicos'
 import { ROTULO_SITUACAO } from '@/lib/situacoes'
 import Icone from '@/components/Icone'
+import CursosEad from '@/components/CursosEad'
 import '../vitrine.css'
 
 /*
@@ -137,8 +138,21 @@ export default function ContratarPage() {
           </div>
         </section>
 
+        {/*
+          * OS CURSOS GANHARAM SEÇÃO PRÓPRIA.
+          *
+          * Eram uma linha no meio dos serviços — "Cursos EAD para a
+          * equipe", e quem procurava NR-33 não achava NR-33. São 36
+          * cursos com carga e preço, e é isso que o cliente compara
+          * antes de perguntar quanto custa.
+          */}
         <section>
-          <div className="section-title" style={{ marginBottom: 10 }}>Serviços e cursos</div>
+          <div className="section-title" style={{ marginBottom: 10 }}>Cursos EAD</div>
+          <CursosEad />
+        </section>
+
+        <section>
+          <div className="section-title" style={{ marginBottom: 10 }}>Outros serviços</div>
           <div className="panel contratar-lista">
             {servicos.map((s) => (
               <div key={s.titulo} className="contratar-item">

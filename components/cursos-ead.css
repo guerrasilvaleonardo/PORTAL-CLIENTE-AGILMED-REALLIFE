@@ -1,0 +1,166 @@
+/*
+ * O catálogo de cursos na vitrine.
+ *
+ * A tabela do portal pede 720 px fixos e aqui ela convive com uma
+ * coluna de botão: tudo rola dentro de uma caixa, em vez de empurrar
+ * a tela — a mesma trava que o painel de inspeções precisou.
+ */
+
+.cursos-ead {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cursos-ead-abre {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+  max-width: 76ch;
+}
+
+/* ---------- Busca e grupos ----------------------------------------- */
+
+.cursos-ead-filtros {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.cursos-ead-busca input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+/* Rótulo que existe para o leitor de tela e não ocupa espaço. */
+.cursos-ead-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.cursos-ead-grupos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/*
+ * O grupo é um filtro, e filtro ligado tem de parecer ligado: a
+ * contagem ao lado do nome é o que diz, antes do clique, se vale a
+ * pena filtrar por ali.
+ */
+.cursos-ead-chip {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.cursos-ead-chip:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.cursos-ead-chip.sel {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ---------- A lista ------------------------------------------------- */
+
+.cursos-ead-rolagem {
+  overflow-x: auto;
+}
+
+.cursos-ead-tabela .nome {
+  min-width: 260px;
+}
+
+.cursos-ead-nivel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.cursos-ead-carga {
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+
+/* A prática presencial é o que muda o preço e exige agenda: aparece
+   junto da carga, não numa nota de rodapé. */
+.cursos-ead-pratica {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.cursos-ead-preco {
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cursos-ead-rodape {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+.cursos-ead-rodape .btn {
+  margin-left: auto;
+}
+
+/* ---------- Como funciona ------------------------------------------- */
+
+.cursos-ead-como {
+  padding: 16px 18px;
+}
+
+.cursos-ead-como ol {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cursos-ead-como li {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.cursos-ead-nota {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
