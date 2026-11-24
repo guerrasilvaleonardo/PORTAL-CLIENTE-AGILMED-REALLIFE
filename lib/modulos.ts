@@ -88,12 +88,16 @@ export const MODULOS: Record<
    */
   auditoria: {
     rotulo: 'Auditar o sistema',
-    chamada: 'Já tem o sistema montado? Veja se ele atende antes do auditor externo',
+    /* As duas normas pelo nome, não "o sistema" nem "a norma". Quem
+       está pensando em certificação procura por ISO 9001 e ISO 45001;
+       "sistema de gestão" é como nós chamamos, não como ele pergunta. */
+    chamada: 'Já tem ISO 9001 ou ISO 45001? Veja se passa antes do auditor externo',
     href: '/auditorias',
     coluna: 'modulo_auditoria',
     resumo:
-      'Para quem JÁ TEM o sistema de gestão funcionando. Percorre a norma requisito a requisito, '
-      + 'diz o que pedir para ver em cada um, e o que não atende vira constatação com prazo e dono.',
+      'Para quem JÁ TEM o sistema de gestão funcionando. Percorre a ISO 9001 e a ISO 45001 '
+      + 'requisito a requisito, diz o que pedir para ver em cada um, e o que não atende vira '
+      + 'constatação com prazo e dono.',
     beneficios: [
       'Checklist da ISO 45001 e da ISO 9001, requisito por requisito',
       'Programa anual, plano, reuniões e relatório, como a ISO 19011 pede',
@@ -105,12 +109,16 @@ export const MODULOS: Record<
    * cliente que ainda não tem nada montado — que é a maioria. */
   implantacao: {
     rotulo: 'Implantar o sistema',
-    chamada: 'Não tem nada montado? Monte o sistema do zero, etapa por etapa',
+    /* A pergunta que separa os dois módulos continua na frente — é ela
+       que diz ao cliente qual dos dois é o dele —, agora com as normas
+       pelo nome. */
+    chamada: 'Não tem ISO 9001 nem ISO 45001? Monte do zero, etapa por etapa',
     href: '/implantacao',
     coluna: 'modulo_implantacao',
     resumo:
-      'Para quem NÃO TEM o sistema ainda. Trilha guiada pela empresa inteira, área por área: '
-      + 'cada atividade traz a aula, os passos, o modelo para baixar e a conferência da nossa equipe.',
+      'Para quem NÃO TEM o sistema ainda. Trilha guiada da ISO 9001 e da ISO 45001 pela empresa '
+      + 'inteira, área por área: cada atividade traz a aula, os passos, o modelo para baixar e a '
+      + 'conferência da nossa equipe.',
     beneficios: [
       'Cronograma em 16 etapas, do primeiro documento ao certificado',
       'Modelo pronto para baixar e preencher, com os passos escritos',
