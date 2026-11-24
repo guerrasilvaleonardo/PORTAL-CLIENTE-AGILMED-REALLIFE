@@ -339,3 +339,32 @@ button {
   .treino-linha > span:first-child { grid-column: 1 / -1; }
   .treino-atualizado { grid-column: 1 / -1; }
 }
+
+/*
+ * A VITRINE DA TELA INICIAL: o que o cliente ainda não contratou.
+ *
+ * Misturadas com as ferramentas dele, as bloqueadas pareciam
+ * ferramenta quebrada. Separadas, com título e uma frase explicando,
+ * viram convite — e o cadeado deixa de ser erro.
+ */
+.inicio-vitrine {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inicio-vitrine-topo h2 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.inicio-vitrine-topo p {
+  margin: 5px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  max-width: 70ch;
+}
