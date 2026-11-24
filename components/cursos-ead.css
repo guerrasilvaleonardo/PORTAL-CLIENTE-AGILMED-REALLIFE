@@ -92,8 +92,47 @@
   overflow-x: auto;
 }
 
+/*
+ * QUEM FICA COM A SOBRA DE LARGURA.
+ *
+ * Sem dizer nada, o navegador repartia a largura entre as quatro
+ * colunas: o nome do curso ficava espremido contra a carga e sobrava
+ * um palmo de branco depois do botão. Agora o nome fica com toda a
+ * sobra e as outras três encolhem até o conteúdo — o botão encosta na
+ * direita, o nome respira à esquerda.
+ */
 .cursos-ead-tabela .nome {
-  min-width: 260px;
+  width: 100%;
+  min-width: 240px;
+  padding-right: 26px;
+  /* O nome é frase, não etiqueta: pode quebrar em duas linhas em vez
+     de empurrar a tabela para a rolagem lateral. */
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.cursos-ead-tabela .cursos-ead-carga,
+.cursos-ead-tabela .cursos-ead-preco,
+.cursos-ead-tabela .acoes {
+  width: 1%;
+}
+
+/* Linhas mais altas: com duas linhas de texto no nome, 10 px em cima e
+   embaixo deixavam as linhas coladas umas nas outras. */
+.cursos-ead-tabela td {
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+
+/* Respiro nas bordas do quadro, que a tabela do portal não tem. */
+.cursos-ead-tabela th:first-child,
+.cursos-ead-tabela td:first-child {
+  padding-left: 18px;
+}
+
+.cursos-ead-tabela th:last-child,
+.cursos-ead-tabela td:last-child {
+  padding-right: 18px;
 }
 
 .cursos-ead-nivel {
