@@ -105,6 +105,16 @@ export type Envio = {
   html: string
   marca: Marca
   responderPara?: string
+  /* Nome exibido no remetente, mantendo o endereço da marca (ex.: e-mail pessoal do gestor). */
+  nomeRemetente?: string
+}
+
+function remetente(envio: Envio) {
+  const padrao = REMETENTES[envio.marca]
+  const nome = String(envio.nomeRemetente || '').replace(/["<>\r\n]/g, '').trim()
+  if (!nome) return padrao
+  const endereco = /<([^>]+)>/.exec(padrao)?.[1] || padrao
+  return '"' + nome + '" <' + endereco + '>'
 }
 
 /*
@@ -137,7 +147,7 @@ export async function enviarEmail(envio: Envio) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: REMETENTES[envio.marca],
+        from: remetente(envio),
         to: destinatarios,
         subject: envio.assunto,
         html: envio.html,

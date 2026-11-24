@@ -27,12 +27,13 @@ import {
   podeRevelar,
   regraFinal,
 } from '@/lib/estrelas'
+import AbaReconhecimento from './AbaReconhecimento'
 import './estrelas.css'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
 const ATUALIZAR_MS = 60000
 
-type Aba = 'mensal' | 'anual' | 'meu' | 'gestao'
+type Aba = 'mensal' | 'anual' | 'meu' | 'gestao' | 'reconhecimento'
 
 export default function EstrelasPage() {
   const hoje = useMemo(() => hojeBrasilia(), [])
@@ -50,7 +51,7 @@ export default function EstrelasPage() {
     setEfeitos(efeitosLigados())
     try {
       const p = new URLSearchParams(window.location.search).get('aba')
-      if (p === 'mensal' || p === 'anual' || p === 'meu' || p === 'gestao') setAba(p)
+      if (p === 'mensal' || p === 'anual' || p === 'meu' || p === 'gestao' || p === 'reconhecimento') setAba(p)
     } catch {
       /* ignora */
     }
@@ -112,7 +113,12 @@ export default function EstrelasPage() {
     { id: 'mensal', rotulo: 'Mensal' },
     { id: 'anual', rotulo: 'Anual' },
     { id: 'meu', rotulo: ehGestor ? 'Painel individual' : 'Meu painel' },
-    ...(ehGestor ? [{ id: 'gestao' as Aba, rotulo: 'Gestão do programa' }] : []),
+    ...(ehGestor
+      ? [
+          { id: 'reconhecimento' as Aba, rotulo: 'Reconhecimento do mês' },
+          { id: 'gestao' as Aba, rotulo: 'Gestão do programa' },
+        ]
+      : []),
   ]
 
   return (
@@ -196,6 +202,8 @@ export default function EstrelasPage() {
             <AbaAnual hoje={hoje} meuId={meuId} ehGestor={ehGestor} versao={versao} />
           ) : aba === 'meu' ? (
             <AbaMeuPainel hoje={hoje} meuId={meuId} ehGestor={ehGestor} versao={versao} />
+          ) : aba === 'reconhecimento' ? (
+            ehGestor ? <AbaReconhecimento hoje={hoje} /> : <div className="empty-state">Acesso restrito a gestor e admin.</div>
           ) : (
             <AbaGestao hoje={hoje} cfg={cfg} versao={versao} onSalvo={() => setVersao((v) => v + 1)} />
           )}
