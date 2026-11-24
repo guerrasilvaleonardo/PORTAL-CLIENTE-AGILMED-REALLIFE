@@ -31,7 +31,26 @@ const CLASSE_SITUACAO: Record<string, string> = {
   cancelado: 'flat',
 }
 
-const ORDEM: Modulo[] = ['treinamentos', 'certificados', 'documentos']
+/*
+ * TODAS AS FERRAMENTAS DO PORTAL, não só as três cobradas à parte.
+ *
+ * A tela mostrava Treinamentos, Certificados e Documentos SST e parava
+ * aí — mas o menu da esquerda já exibe EPI, Inspeções, Implantar e
+ * Auditar com cadeado. Quem via o cadeado no menu vinha para cá pedir o
+ * orçamento e não achava a ferramenta.
+ *
+ * A ordem é a mesma da tela inicial, de propósito: o cliente encontra
+ * as ferramentas na mesma sequência nos dois lugares.
+ */
+const ORDEM: Modulo[] = [
+  'treinamentos',
+  'certificados',
+  'documentos',
+  'epi',
+  'inspecoes',
+  'implantacao',
+  'auditoria',
+]
 
 export default function ContratarPage() {
   const modulos = useModulos()

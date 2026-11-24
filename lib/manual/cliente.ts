@@ -7,7 +7,7 @@ import type { Bloco, Manual } from './tipos'
  * entra aqui no mesmo PR (e a parte da equipe em interno.ts).
  */
 
-const MENU = ['Início', 'Chamados', 'Colaboradores', 'EPI', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
+const MENU = ['Início', 'Chamados', 'Colaboradores', 'EPI', 'Inspeções', 'Implantar o sistema', 'Auditar o sistema', 'Certificados', 'Documentos SST', 'Treinamentos', 'Conversas', 'Contratar']
 const menu = (ativo: string, n?: number): Bloco => ({ t: 'menu', itens: MENU, ativo, n })
 
 const manualCliente: Manual = {
@@ -56,7 +56,7 @@ const manualCliente: Manual = {
           },
           passos: [
             'Clique no nome da área para ir até ela: Início, Chamados, Certificados, Documentos SST, Treinamentos, Conversas ou Contratar. A área aberta fica destacada.',
-            'Áreas com cadeado são ferramentas contratadas à parte (Certificados, Treinamentos, Documentos SST). Ao clicar, você vê o que a ferramenta resolve, o que ela entrega e como contratar. O botão "Quero uma proposta" abre um chamado já preenchido para a nossa equipe enviar a proposta.',
+            'Áreas com cadeado são ferramentas contratadas à parte: EPI, Inspeções, Implantar o sistema, Auditar o sistema, Certificados, Documentos SST e Treinamentos. Ao clicar, você vê o que a ferramenta resolve, o que ela entrega e como contratar. O botão "Quero uma proposta" abre um chamado já preenchido para a nossa equipe enviar a proposta.',
             'Contratar reúne tudo o que dá para contratar: as ferramentas do portal (com cadeado quando a sua empresa ainda não tem), os cursos EAD e os outros serviços, cada um com o botão "Pedir orçamento". Em "Seus pedidos" você acompanha cada orçamento pedido e a situação dele.',
             'Em Contratar, "Cursos EAD" mostra o catálogo inteiro: busque pelo número da NR, filtre pelo grupo e veja a carga horária e o preço por aluno de cada curso. Quando a norma exige prática presencial, a carga aparece como "8 h + 4 h de prática". O botão "Pedir orçamento" abre um chamado já com o curso, a carga e o preço de tabela escritos — você só diz quantos alunos e quando precisa começar.',
             'A tela inicial também mostra as ferramentas que a sua empresa ainda não usa, com cadeado, em "Também fazemos isto". Clique para ver o que cada uma resolve e pedir um orçamento sem compromisso.',
