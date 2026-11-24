@@ -10,6 +10,7 @@ import { SERVICOS, linkOrcamento, PREFIXO_CONTRATACAO, PREFIXO_ORCAMENTO } from 
 import { ROTULO_SITUACAO } from '@/lib/situacoes'
 import Icone from '@/components/Icone'
 import CursosEad from '@/components/CursosEad'
+import CatalogoServicos from '@/components/CatalogoServicos'
 import '../vitrine.css'
 
 /*
@@ -98,7 +99,12 @@ export default function ContratarPage() {
     }
   }, [])
 
-  const servicos = SERVICOS.filter((s) => s.marcas.includes(marca))
+  /*
+   * "Laudos e programas" continua em lib/servicos.ts, mas sai desta lista:
+   * a seção do catálogo, logo acima, mostra cada laudo e programa do site
+   * um a um. Se o site estiver fora, o catálogo mostra a linha genérica.
+   */
+  const servicos = SERVICOS.filter((s) => s.marcas.includes(marca) && s.titulo !== 'Laudos e programas')
 
   return (
     <main className="app">
@@ -168,6 +174,16 @@ export default function ContratarPage() {
         <section>
           <div className="section-title" style={{ marginBottom: 10 }}>Cursos EAD</div>
           <CursosEad />
+        </section>
+
+        {/*
+          * LAUDOS, PROGRAMAS E SERVIÇOS DO SITE, um a um, lidos do site
+          * (uma fonte só), cruzados com o que a empresa já tem em
+          * Documentos SST.
+          */}
+        <section>
+          <div className="section-title" style={{ marginBottom: 10 }}>Laudos, programas e serviços técnicos</div>
+          <CatalogoServicos />
         </section>
 
         <section>
