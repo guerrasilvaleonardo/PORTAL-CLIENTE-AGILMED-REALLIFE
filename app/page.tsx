@@ -12,7 +12,7 @@ import CobrancasPendentes, { SeloCobranca } from '@/components/CobrancasPendente
 import { useCobrancasPendentes } from '@/lib/cobrancasPendentes'
 import SeloMensagemNova from '@/components/SeloMensagemNova'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
-import { useModulos, type Modulo } from '@/lib/modulos'
+import { MODULOS, useModulos, type Modulo } from '@/lib/modulos'
 import Icone, { type NomeIcone } from '@/components/Icone'
 import {
   comLimiteDeTempo,
@@ -281,12 +281,62 @@ export default function HomePage() {
         ? { texto: contagem.andamento === 1 ? '1 em andamento' : contagem.andamento + ' em andamento', cor: '' }
         : { texto: 'Nenhum em aberto', cor: '' }
 
-  const cartoes: { href: string; icone: NomeIcone; titulo: string; texto: string; modulo?: Modulo; selo?: { texto: string; cor: string } }[] = [
-    { href: '/chamados', icone: 'atendimento', titulo: 'Atendimento', texto: 'Abrir e acompanhar chamados com a nossa equipe.', selo: seloAtendimento },
-    { href: '/treinamentos', icone: 'treinamentos', titulo: 'Treinamentos EAD', texto: 'Andamento de cada colaborador nos cursos a distância.', modulo: 'treinamentos' },
-    { href: '/certificados', icone: 'certificados', titulo: 'Certificados', texto: 'Validade dos certificados, com aviso antes de vencer.', modulo: 'certificados' },
-    { href: '/documentos', icone: 'documentos', titulo: 'Documentos SST', texto: 'PGR, PCMSO e laudos com prazos e versões assinadas.', modulo: 'documentos' },
+  /*
+   * OS CARTÕES SAEM DA LISTA DE MÓDULOS, não de uma lista escrita à
+   * mão aqui.
+   *
+   * Eram quatro, fixos. Enquanto isso o portal ganhou EPI, Inspeções,
+   * Implantar e Auditar — e o cliente nunca soube que existiam: não
+   * apareciam na tela inicial, e a tela inicial é a única que ele
+   * abre. Ferramenta que ninguém vê não gera pergunta, e pergunta é o
+   * começo de todo orçamento.
+   *
+   * Agora a fonte é `MODULOS` (lib/modulos.ts). Ferramenta nova entra
+   * sozinha na tela inicial no dia em que for criada, contratada ou
+   * não — e isso é o ponto: a não contratada é justamente a que
+   * precisa aparecer.
+   */
+  const ORDEM: { modulo: Modulo; icone: NomeIcone }[] = [
+    { modulo: 'treinamentos', icone: 'treinamentos' },
+    { modulo: 'certificados', icone: 'certificados' },
+    { modulo: 'documentos', icone: 'documentos' },
+    { modulo: 'epi', icone: 'epi' },
+    { modulo: 'inspecoes', icone: 'inspecoes' },
+    { modulo: 'implantacao', icone: 'implantacao' },
+    { modulo: 'auditoria', icone: 'auditoria' },
   ]
+
+  const liberado = (m: Modulo) => modulos.carregando || modulos.liberado(m)
+
+  /* Atendimento não é módulo cobrado: todo cliente tem, e por isso
+     abre a tela, sempre em primeiro. */
+  const meus: { href: string; icone: NomeIcone; titulo: string; texto: string; modulo?: Modulo; selo?: { texto: string; cor: string } }[] = [
+    { href: '/chamados', icone: 'atendimento', titulo: 'Atendimento', texto: 'Abrir e acompanhar chamados com a nossa equipe.', selo: seloAtendimento },
+    ...ORDEM.filter((o) => liberado(o.modulo)).map((o) => ({
+      href: MODULOS[o.modulo].href,
+      icone: o.icone,
+      titulo: MODULOS[o.modulo].rotulo,
+      texto: MODULOS[o.modulo].resumo,
+      modulo: o.modulo,
+    })),
+  ]
+
+  /*
+   * As que ele ainda não tem, com a CHAMADA no lugar do resumo.
+   *
+   * "Gestão de inspeções de campo" é o nome da ferramenta; "o que o
+   * técnico viu em campo vira ação, não papel na gaveta" é o problema
+   * dele. O segundo é o que faz abrir um chamado perguntando quanto
+   * custa — e esse texto já estava escrito em lib/modulos.ts, só não
+   * aparecia em lugar nenhum que o cliente olhasse.
+   */
+  const faltam = ORDEM.filter((o) => !liberado(o.modulo)).map((o) => ({
+    href: MODULOS[o.modulo].href,
+    icone: o.icone,
+    titulo: MODULOS[o.modulo].rotulo,
+    texto: MODULOS[o.modulo].chamada,
+    modulo: o.modulo,
+  }))
 
   return (
     <main className="app">
@@ -302,37 +352,64 @@ export default function HomePage() {
 
         <PendenciasAvaliacao pendentes={pendentes} />
 
-        <nav className="inicio-grade" aria-label="Módulos do portal">
-          {cartoes.map((c) => {
-            const bloqueado = !!c.modulo && !modulos.carregando && !modulos.liberado(c.modulo)
+        <nav className="inicio-grade" aria-label="Suas ferramentas">
+          {meus.map((c) => (
+            <Link key={c.href} href={c.href} className="mod-card">
+              <div className="mod-topo">
+                <span className="mod-icone">
+                  <Icone nome={c.icone} tamanho={24} />
+                </span>
+              </div>
+              <h3>{c.titulo}</h3>
+              <p>{c.texto}</p>
+              {c.selo ? (
+                <span className={'mod-selo ' + c.selo.cor}>{c.selo.texto}</span>
+              ) : (
+                <span className="mod-go">
+                  Abrir <Icone nome="seta" tamanho={14} />
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
 
-            return (
-              <Link key={c.href} href={c.href} className={'mod-card' + (bloqueado ? ' bloqueado' : '')}>
-                <div className="mod-topo">
-                  <span className="mod-icone">
-                    <Icone nome={c.icone} tamanho={24} />
-                  </span>
-                  {bloqueado && (
+        {/*
+          * O QUE ELE AINDA NÃO TEM, embaixo e com nome próprio.
+          *
+          * Misturadas no mesmo bloco, as bloqueadas pareciam ferramenta
+          * quebrada. Separadas e anunciadas, viram vitrine: a pessoa
+          * entende que existe mais portal do que ela contratou, e o
+          * cadeado deixa de ser erro para virar convite.
+          */}
+        {faltam.length > 0 && (
+          <section className="inicio-vitrine">
+            <div className="inicio-vitrine-topo">
+              <h2>Também fazemos isto</h2>
+              <p>
+                Ferramentas que a sua empresa ainda não usa. Clique para ver o que cada uma
+                resolve e pedir um orçamento sem compromisso.
+              </p>
+            </div>
+
+            <nav className="inicio-grade" aria-label="Ferramentas não contratadas">
+              {faltam.map((c) => (
+                <Link key={c.href} href={c.href} className="mod-card bloqueado">
+                  <div className="mod-topo">
+                    <span className="mod-icone">
+                      <Icone nome={c.icone} tamanho={24} />
+                    </span>
                     <span className="mod-cadeado">
                       <Icone nome="cadeado" tamanho={18} rotulo="Ferramenta não contratada" />
                     </span>
-                  )}
-                </div>
-                <h3>{c.titulo}</h3>
-                <p>{c.texto}</p>
-                {bloqueado ? (
-                  <span className="mod-selo acento">Conhecer e contratar</span>
-                ) : c.selo ? (
-                  <span className={'mod-selo ' + c.selo.cor}>{c.selo.texto}</span>
-                ) : (
-                  <span className="mod-go">
-                    Abrir <Icone nome="seta" tamanho={14} />
-                  </span>
-                )}
-              </Link>
-            )
-          })}
-        </nav>
+                  </div>
+                  <h3>{c.titulo}</h3>
+                  <p>{c.texto}</p>
+                  <span className="mod-selo acento">Conhecer e pedir orçamento</span>
+                </Link>
+              ))}
+            </nav>
+          </section>
+        )}
 
         <div className="inicio-acoes">
           <Link href="/chamados/novo" className="btn btn-primary">
