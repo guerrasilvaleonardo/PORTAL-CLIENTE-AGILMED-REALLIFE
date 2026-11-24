@@ -155,7 +155,21 @@ function validarCampos(body: any, exigirRazaoSocial: boolean) {
   }
 }
 
-const MODULOS_EMPRESA = ['modulo_certificados', 'modulo_treinamentos', 'modulo_documentos', 'modulo_epi']
+/*
+ * AS SETE FERRAMENTAS COBRADAS À PARTE, na mesma ordem da tela inicial
+ * do cliente. Esta lista manda em tudo: no que a consulta lê, no que o
+ * formulário grava e no que a tela esconde quando o SQL ainda não
+ * rodou. Ferramenta nova entra aqui e em lib/modulos.ts.
+ */
+const MODULOS_EMPRESA = [
+  'modulo_treinamentos',
+  'modulo_certificados',
+  'modulo_documentos',
+  'modulo_epi',
+  'modulo_inspecoes',
+  'modulo_implantacao',
+  'modulo_auditoria',
+]
 
 /* Colunas das ferramentas ainda não criadas (modulos-cliente.sql não rodou). */
 function semColunaModulos(error: { code?: string; message?: string } | null) {
