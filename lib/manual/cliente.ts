@@ -29,6 +29,7 @@ const manualCliente: Manual = {
             'Documentos SST: prazos, revisões e versões assinadas de PGR, PCMSO, laudos e programas da sua empresa.',
             'Treinamentos: andamento de cada colaborador nos cursos a distância (EAD).',
             'Conversas: mensagens rápidas e privadas com a nossa equipe.',
+            'Vídeo de 3 minutos: no primeiro acesso ele abre sozinho e precisa ser assistido até o fim. Depois, reveja quando quiser pelo botão "Vídeo: como usar o portal" na tela Início.',
           ],
           dica: 'Use as setas do teclado (← →) ou os botões lá embaixo para passar os slides. O botão Índice leva direto a qualquer assunto.',
         },
