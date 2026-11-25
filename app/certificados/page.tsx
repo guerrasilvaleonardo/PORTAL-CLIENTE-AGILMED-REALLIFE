@@ -413,6 +413,8 @@ function CertificadosPageConteudo() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [certificados, setCertificados] = useState<Certificado[]>([])
   const [progressos, setProgressos] = useState<Progresso[]>([])
+  /* O andamento do EAD nao chegou: a tela avisa em vez de fingir vazio. */
+  const [progressoFalhou, setProgressoFalhou] = useState(false)
   const [atualizandoEad, setAtualizandoEad] = useState(false)
 
   const [busca, setBusca] = useState('')
@@ -1039,9 +1041,23 @@ function CertificadosPageConteudo() {
 
       /* "inicio" separa matriculas repetidas do mesmo curso. */
       /* Todas as matrículas, sem o corte de 1000 linhas do Supabase. */
-      const { data: progressoData } = await lerProgressos(supabase)
+      /*
+       * O ANDAMENTO DO EAD, E O QUE FAZER QUANDO ELE NÃO VEM.
+       *
+       * Antes o erro era engolido: a tela mostrava "− Não informado"
+       * em todas as linhas, que é exatamente o que ela mostra quando a
+       * pessoa de fato não tem matrícula. Em novembro de 2026 isso
+       * escondeu uma falha de verdade — a leitura do cliente estourava
+       * o limite de 8 segundos do banco, e durante dias pareceu que
+       * ninguém tinha começado curso nenhum.
+       *
+       * Tela que confunde "não sei" com "não existe" é tela que mente.
+       * Agora, falhando, ela diz que falhou.
+       */
+      const { data: progressoData, error: erroProgresso } = await lerProgressos(supabase)
 
       setProgressos(progressoData)
+      setProgressoFalhou(!!erroProgresso)
     } catch (e: any) {
       console.error(e)
       setErro(e?.message || 'Não foi possível carregar os certificados.')
@@ -2031,6 +2047,15 @@ function CertificadosPageConteudo() {
 
       {erro && <div className="banner bad">{erro}</div>}
       {mensagem && <div className="banner good">{mensagem}</div>}
+
+      {/* Tela que confunde "não sei" com "não existe" é tela que mente. */}
+      {progressoFalhou && (
+        <div className="banner bad">
+          O andamento dos cursos EAD não carregou agora. As colunas de progresso estão em branco
+          por isso — e não porque os cursos não tenham sido iniciados. Recarregue a página; se
+          continuar assim, fale com a nossa equipe.
+        </div>
+      )}
 
       {/* 2. Indicadores: validade (faixas que somam o total) e treinamento */}
       <div className="cert-ind-grupo">
