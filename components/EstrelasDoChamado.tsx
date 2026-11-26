@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { supabase } from '@/lib/supabase'
 import { avisarAtualizacao, formatarDataHora } from '@/lib/estrelas'
+import { podeDecidirEstrelas } from '@/lib/decisorEstrelas'
 import '@/app/estrelas/estrelas.css'
 
 /*
  * Estrelas deste chamado, na tela da equipe.
  * - Atendente vê as estrelas quando o chamado é dele (RLS no banco).
- * - Gestor vê sempre e pode estornar/restabelecer e decidir
- *   alterações de prazo, sempre com justificativa (auditado).
+ * - Gestor vê sempre. Estornar/restabelecer e decidir alterações de
+ *   prazo: só quem tem pode_decidir_estrelas (hoje, só o Leonardo),
+ *   sempre com justificativa (auditado).
  */
 
 type Lancamento = {
@@ -54,6 +56,22 @@ export default function EstrelasDoChamado({
   cardStyle?: CSSProperties
   titleStyle?: CSSProperties
 }) {
+  /* Decidir (autorizar prazo, estornar, restabelecer): só quem tem
+     pode_decidir_estrelas. null = SQL pendente, vale ehGestor. */
+  const [decide, setDecide] = useState<boolean | null>(null)
+  useEffect(() => {
+    let ativo = true
+    supabase.auth.getSession().then(async ({ data }) => {
+      const id = data.session?.user.id
+      if (!id) return
+      const r = await podeDecidirEstrelas(id)
+      if (ativo) setDecide(r)
+    })
+    return () => {
+      ativo = false
+    }
+  }, [])
+  const podeDecidir = decide === null ? ehGestor : decide
   const [lanc, setLanc] = useState<Lancamento | null>(null)
   const [alteracoes, setAlteracoes] = useState<Alteracao[]>([])
   const [instalado, setInstalado] = useState(true)
@@ -206,7 +224,7 @@ export default function EstrelasDoChamado({
               <span className={'pill ' + (a.autorizado === null ? 'warn' : a.autorizado ? 'good' : 'bad')}>
                 {a.autorizado === null ? 'Aguardando gestor' : a.autorizado ? 'Autorizada' : 'Recusada'}
               </span>
-              {ehGestor && a.autorizado === null && (
+              {podeDecidir && a.autorizado === null && (
                 <>
                   <button type="button" className="btn btn-sm" disabled={salvando}
                     onClick={() => acao('estrelas_decidir_prazo', { p_alteracao: a.id, p_autorizar: true, p_justificativa: motivo })}>
@@ -220,7 +238,7 @@ export default function EstrelasDoChamado({
               )}
             </div>
           ))}
-          {pendentes.length > 0 && !ehGestor && (
+          {pendentes.length > 0 && !podeDecidir && (
             <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-faint)' }}>
               Enquanto o gestor não autorizar, a estrela usa o prazo anterior. O SLA do chamado não muda.
             </p>
@@ -228,7 +246,7 @@ export default function EstrelasDoChamado({
         </div>
       )}
 
-      {ehGestor && (lanc || pendentes.length > 0) && (
+      {podeDecidir && (lanc || pendentes.length > 0) && (
         <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 600 }}>
             Justificativa do gestor (obrigatória para qualquer ajuste)

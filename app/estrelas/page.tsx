@@ -28,6 +28,7 @@ import {
   regraFinal,
 } from '@/lib/estrelas'
 import AbaReconhecimento from './AbaReconhecimento'
+import { podeDecidirEstrelas } from '@/lib/decisorEstrelas'
 import './estrelas.css'
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -42,6 +43,8 @@ export default function EstrelasPage() {
   const [instalado, setInstalado] = useState(true)
   const [meuId, setMeuId] = useState('')
   const [ehGestor, setEhGestor] = useState(false)
+  /* Decidir no programa (aba Gestão): só pode_decidir_estrelas. */
+  const [podeDecidir, setPodeDecidir] = useState(false)
   const [cfg, setCfg] = useState<ConfigEstrelas | null>(null)
   const [aba, setAba] = useState<Aba>('mensal')
   const [efeitos, setEfeitos] = useState(true)
@@ -93,7 +96,11 @@ export default function EstrelasPage() {
         if (!ativo) return
 
         setMeuId(user.id)
-        setEhGestor(perfil?.perfil === 'gestor' || perfil?.perfil === 'admin')
+        const gestor = perfil?.perfil === 'gestor' || perfil?.perfil === 'admin'
+        setEhGestor(gestor)
+        const decide = await podeDecidirEstrelas(user.id)
+        if (!ativo) return
+        setPodeDecidir(decide === null ? gestor : decide)
         setInstalado(!!config)
         setCfg(config)
       } catch (e: any) {
@@ -116,7 +123,7 @@ export default function EstrelasPage() {
     ...(ehGestor
       ? [
           { id: 'reconhecimento' as Aba, rotulo: 'Reconhecimento do mês' },
-          { id: 'gestao' as Aba, rotulo: 'Gestão do programa' },
+          ...(podeDecidir ? [{ id: 'gestao' as Aba, rotulo: 'Gestão do programa' }] : []),
         ]
       : []),
   ]
@@ -163,7 +170,7 @@ export default function EstrelasPage() {
       {!carregando && instalado && cfg && !cfg.ativo && (
         <div className="banner" style={{ background: 'var(--amber-tint)', color: 'var(--amber)' }}>
           O programa está <strong>desativado</strong>. Nenhuma estrela é concedida até um gestor ativá-lo
-          {ehGestor ? ' na aba "Gestão do programa".' : '.'}
+          {podeDecidir ? ' na aba "Gestão do programa".' : '.'}
         </div>
       )}
 
@@ -199,11 +206,13 @@ export default function EstrelasPage() {
           ) : aba === 'mensal' ? (
             <AbaMensal hoje={hoje} meuId={meuId} cfg={cfg} versao={versao} />
           ) : aba === 'anual' ? (
-            <AbaAnual hoje={hoje} meuId={meuId} ehGestor={ehGestor} versao={versao} />
+            <AbaAnual hoje={hoje} meuId={meuId} ehGestor={podeDecidir} versao={versao} />
           ) : aba === 'meu' ? (
             <AbaMeuPainel hoje={hoje} meuId={meuId} ehGestor={ehGestor} versao={versao} />
           ) : aba === 'reconhecimento' ? (
             ehGestor ? <AbaReconhecimento hoje={hoje} /> : <div className="empty-state">Acesso restrito a gestor e admin.</div>
+          ) : !podeDecidir ? (
+            <div className="empty-state">Acesso restrito: só o Leonardo decide no Programa de Estrelas.</div>
           ) : (
             <AbaGestao hoje={hoje} cfg={cfg} versao={versao} onSalvo={() => setVersao((v) => v + 1)} />
           )}
