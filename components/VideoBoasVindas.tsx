@@ -12,15 +12,19 @@ import { VIDEO_BOAS_VINDAS } from '@/lib/videoBoasVindas'
  *     (voltar pode) nem acelerar acima de 1x;
  *   - ao terminar, aparece "Começar a usar o portal" e onConcluir roda.
  * obrigatorio = false (botão na tela Início): fecha quando quiser.
+ * Se o vídeo não carregar, libera o fechamento e avisa por onFalhou.
  */
 export default function VideoBoasVindas({
   obrigatorio,
   onConcluir,
   onFechar,
+  onFalhou,
 }: {
   obrigatorio: boolean
   onConcluir: () => void
   onFechar: () => void
+  /* Vídeo não carregou (a pessoa pode seguir; reabre em outra sessão). */
+  onFalhou?: () => void
 }) {
   const video = useRef<HTMLVideoElement>(null)
   const assistido = useRef(0)
@@ -143,7 +147,10 @@ export default function VideoBoasVindas({
             onSeeking={aoBuscar}
             onRateChange={aoMudarVelocidade}
             onEnded={aoTerminar}
-            onError={() => setErro(true)}
+            onError={() => {
+              setErro(true)
+              onFalhou?.()
+            }}
             style={{ width: '100%', aspectRatio: '16 / 9', background: '#000', borderRadius: 'var(--radius-m)' }}
           >
             <track kind="captions" src={VIDEO_BOAS_VINDAS.legendas} srcLang="pt-BR" label="Português" default />
