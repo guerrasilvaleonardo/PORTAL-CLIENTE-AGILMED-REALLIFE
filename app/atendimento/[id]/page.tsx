@@ -513,6 +513,9 @@ export default function AtendimentoChamadoPage() {
    * Sem a coluna (SQL não rodou), vale a regra antiga: a equipe toda.
    */
   const [podeTransferir, setPodeTransferir] = useState(false)
+  /* null = coluna pode_alterar_prioridade ainda não existe (SQL pendente):
+     vale a regra antiga, gestor/admin. */
+  const [marcaPrioridade, setMarcaPrioridade] = useState<boolean | null>(null)
   const [empresas, setEmpresas] = useState<
     { id: string; nome: string }[]
   >([])
@@ -649,6 +652,20 @@ export default function AtendimentoChamadoPage() {
           erroTransferir
             ? true
             : (marcaTransferir as { pode_transferir_chamado?: boolean } | null)?.pode_transferir_chamado === true
+        )
+      }
+
+      {
+        const { data: marcaPrior, error: erroPrior } = await supabase
+          .from('profiles')
+          .select('pode_alterar_prioridade')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        setMarcaPrioridade(
+          erroPrior
+            ? null
+            : (marcaPrior as { pode_alterar_prioridade?: boolean } | null)?.pode_alterar_prioridade === true
         )
       }
 
@@ -1193,7 +1210,10 @@ export default function AtendimentoChamadoPage() {
     }
   }
 
-  const podeAlterarPrioridade = ['gestor', 'admin'].includes(meuPerfil)
+  /* Só quem tem pode_alterar_prioridade (hoje, só o Leonardo). O banco
+     também barra (a_chamado_prioridade_guarda). */
+  const podeAlterarPrioridade =
+    marcaPrioridade === null ? ['gestor', 'admin'].includes(meuPerfil) : marcaPrioridade
 
   /* Atendimento suspenso: janela de dados e histórico de suspensões. */
   const [suspendendo, setSuspendendo] = useState(false)
@@ -1291,11 +1311,11 @@ export default function AtendimentoChamadoPage() {
     if (!chamado) return
 
     /*
-     * Prioridade refaz o prazo de SLA e mexe nas estrelas: so gestor
-     * ou admin alteram. O banco tambem barra (a_chamado_prioridade_guarda).
+     * Prioridade refaz o prazo de SLA e mexe nas estrelas: so o
+     * autorizado altera. O banco tambem barra (a_chamado_prioridade_guarda).
      */
     if (!podeAlterarPrioridade) {
-      setErro('Somente gestor ou administrador pode alterar a prioridade.')
+      setErro('Somente o Leonardo (autorizado) pode alterar a prioridade.')
       return
     }
 
@@ -4327,7 +4347,7 @@ export default function AtendimentoChamadoPage() {
                     {prioridadeLabels[chamado.prioridade] || chamado.prioridade}
                   </strong>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                    Somente gestor ou administrador altera a prioridade.
+                    Somente o Leonardo (autorizado) altera a prioridade.
                   </div>
                 </div>
               )}

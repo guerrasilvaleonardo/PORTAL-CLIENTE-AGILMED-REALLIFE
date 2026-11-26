@@ -35,12 +35,12 @@ const manualInterno: Manual = {
           tela: {
             url: '/administracao/usuarios',
             blocos: [
-              { t: 'tabela', colunas: ['Perfil', 'O que faz'], linhas: [['Atendimento', 'Atende chamados, transfere, muda status'], ['Gestor', '+ prioridade, empresa, feriados, estrelas'], ['Administrador', '+ gerencia outros administradores'], ['Cliente', 'Abre e acompanha os próprios chamados']] },
+              { t: 'tabela', colunas: ['Perfil', 'O que faz'], linhas: [['Atendimento', 'Atende chamados, transfere, muda status'], ['Gestor', '+ empresa, feriados, estrelas'], ['Administrador', '+ gerencia outros administradores'], ['Cliente', 'Abre e acompanha os próprios chamados']] },
             ],
           },
           passos: [
             'Atendimento: trabalha a fila, conversa com o cliente, muda status, transfere chamados, cria etapas e gerencia a própria agenda.',
-            'Gestor: tudo do atendimento, mais alterar prioridade, mover chamado de empresa, cadastrar feriados, editar a agenda de qualquer pessoa, decidir extensões de prazo e configurar o Programa de Estrelas.',
+            'Gestor: tudo do atendimento, mais mover chamado de empresa, cadastrar feriados, editar a agenda de qualquer pessoa, decidir extensões de prazo e configurar o Programa de Estrelas.',
             'Administrador: tudo do gestor, mais criar, promover e editar administradores.',
           ],
         },
@@ -295,11 +295,11 @@ const manualInterno: Manual = {
             ],
           },
           passos: [
-            'Prioridade: só gestor e admin alteram. Salvar refaz o prazo mantendo as pausas e feriados já descontados, e avisa o cliente.',
+            'Prioridade: só o Leonardo altera. Salvar refaz o prazo mantendo as pausas e feriados já descontados, e avisa o cliente.',
             'Empresa: move o chamado para outra empresa. Muda quem enxerga o chamado e a marca dos e-mails; o portal pede confirmação.',
           ],
           atencao:
-            'O atendente vê só o texto "Somente gestor ou administrador altera a prioridade". Cliente abre como Baixa ou Normal: Alta e Urgente são decisão da equipe, depois da análise (se o cliente tentar outra coisa, o banco grava Normal, com 24 h úteis).',
+            'Prioridade: só o Leonardo altera (marcação "pode_alterar_prioridade" no cadastro, que só muda por SQL). Os demais, inclusive gestor e administrador, veem o texto "Somente o Leonardo (autorizado) altera a prioridade". Cliente abre como Baixa ou Normal: Alta e Urgente são decisão da equipe, depois da análise (se o cliente tentar outra coisa, o banco grava Normal, com 24 h úteis).',
         },
         {
           titulo: 'Conversas com o cliente',
