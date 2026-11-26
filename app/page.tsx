@@ -14,6 +14,8 @@ import SeloMensagemNova from '@/components/SeloMensagemNova'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 import { MODULOS, useModulos, type Modulo } from '@/lib/modulos'
 import Icone, { type NomeIcone } from '@/components/Icone'
+import VideoBoasVindas from '@/components/VideoBoasVindas'
+import { jaAssistiuBoasVindas, marcarBoasVindasAssistido } from '@/lib/videoBoasVindas'
 import {
   comLimiteDeTempo,
   irParaLoginSessaoExpirada,
@@ -90,6 +92,12 @@ export default function HomePage() {
   const modulos = useModulos()
   const [error, setError] = useState<string | null>(null)
   const [redirecionando, setRedirecionando] = useState(false)
+  /*
+   * Vídeo de boas-vindas: 'obrigatorio' no primeiro acesso (abre
+   * sozinho e só fecha no fim); 'livre' quando a pessoa abre pelo botão.
+   */
+  const [usuarioId, setUsuarioId] = useState<string | null>(null)
+  const [video, setVideo] = useState<'obrigatorio' | 'livre' | null>(null)
 
   /* Só cliente avalia; a busca começa quando o perfil é confirmado. */
   const { pendentes } = useAvaliacoesPendentes(perfil?.perfil === 'cliente')
@@ -176,6 +184,12 @@ export default function HomePage() {
 
         setMarca(marcaEmpresa)
         setPerfil(perfilData as Perfil)
+        setUsuarioId(user.id)
+
+        /* Não segura o carregamento da tela: decide em paralelo. */
+        jaAssistiuBoasVindas(user.id).then((visto) => {
+          if (ativo && !visto) setVideo('obrigatorio')
+        })
 
         /*
          * Busca somente os chamados da empresa do usuário.
@@ -418,6 +432,9 @@ export default function HomePage() {
           <Link href="/chamados" className="btn">
             Ver todos os chamados
           </Link>
+          <button type="button" className="btn btn-ghost" onClick={() => setVideo('livre')}>
+            ▶ Vídeo: como usar o portal
+          </button>
         </div>
 
         <section className="panel">
@@ -458,6 +475,16 @@ export default function HomePage() {
           )}
         </section>
       </div>
+
+      {video && (
+        <VideoBoasVindas
+          obrigatorio={video === 'obrigatorio'}
+          onConcluir={() => {
+            if (usuarioId) marcarBoasVindasAssistido(usuarioId)
+          }}
+          onFechar={() => setVideo(null)}
+        />
+      )}
     </main>
   )
 }
