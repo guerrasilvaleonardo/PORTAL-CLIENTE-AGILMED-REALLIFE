@@ -363,7 +363,7 @@ const manualInterno: Manual = {
           passos: [
             '"Avaliação do cliente" mostra a nota (Ruim, Bom, Excelente) e o comentário, ou até quando o cliente pode avaliar.',
             '"★ Estrelas deste chamado" mostra as estrelas pelo prazo e pela avaliação, e se estão Válidas, Suspensas (chamado reaberto) ou Estornadas. O atendente vê as dos próprios chamados; gestor e admin veem todas.',
-            'Extensões de prazo (por troca de prioridade, ajuste manual ou tempo em Atendimento suspenso) ficam "Aguardando gestor". Gestor e admin escrevem a justificativa e clicam em Autorizar ou Recusar; também podem estornar ou restabelecer as estrelas.',
+            'Extensões de prazo (por troca de prioridade, ajuste manual ou tempo em Atendimento suspenso) ficam "Aguardando gestor". Só o Leonardo decide: escreve a justificativa e clica em Autorizar ou Recusar; também é o único que estorna ou restabelece estrelas, configura o programa, fecha o ano e registra o acompanhamento de avaliação ruim (marcação pode_decidir_estrelas no cadastro, que só muda por SQL). Gestores e administradores continuam vendo o painel individual da equipe e o reconhecimento do mês.',
           ],
         },
       ],
