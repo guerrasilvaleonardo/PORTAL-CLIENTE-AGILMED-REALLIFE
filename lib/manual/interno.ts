@@ -27,7 +27,7 @@ const manualInterno: Manual = {
             'Cada chamado tem responsável, prioridade, prazo (SLA), conversas, etapas, anexos e histórico.',
             'Painel, Prioridades, Agenda e Desempenho ajudam a organizar a fila e a carga de cada um.',
             'Certificados e Treinamentos acompanham a validade e o andamento EAD dos colaboradores dos clientes. Documentos SST controla prazos, revisões e versões assinadas de PGR, PCMSO, laudos e programas de cada empresa.',
-            'Cliente novo: no primeiro acesso, a tela Início abre sozinha o vídeo de boas-vindas (3 min, o Lif explicando o portal) e só libera quando ele termina. Depois o vídeo fica no botão "Vídeo: como usar o portal" e pode ser fechado a qualquer momento. A data em que cada pessoa terminou fica em profiles.video_boas_vindas_em.',
+            'Cliente novo: no primeiro acesso, a tela Início abre sozinha o vídeo de boas-vindas (3 min, o Lif explicando o portal) e só libera quando ele termina. Depois o vídeo fica no botão "Vídeo: como usar o portal" e pode ser fechado a qualquer momento. Depois de assistido uma vez, não abre mais sozinho em nenhum navegador ou aparelho: a data fica em profiles.video_boas_vindas_em e também na conta da pessoa (Supabase Auth). Se o vídeo não carregar, a pessoa segue usando o portal e ele volta a abrir sozinho só no próximo acesso.',
           ],
         },
         {

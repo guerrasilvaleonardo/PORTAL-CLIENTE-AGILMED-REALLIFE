@@ -15,7 +15,11 @@ import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
 import { MODULOS, useModulos, type Modulo } from '@/lib/modulos'
 import Icone, { type NomeIcone } from '@/components/Icone'
 import VideoBoasVindas from '@/components/VideoBoasVindas'
-import { jaAssistiuBoasVindas, marcarBoasVindasAssistido } from '@/lib/videoBoasVindas'
+import {
+  adiarBoasVindasNestaSessao,
+  jaAssistiuBoasVindas,
+  marcarBoasVindasAssistido,
+} from '@/lib/videoBoasVindas'
 import {
   comLimiteDeTempo,
   irParaLoginSessaoExpirada,
@@ -483,6 +487,9 @@ export default function HomePage() {
             if (usuarioId) marcarBoasVindasAssistido(usuarioId)
           }}
           onFechar={() => setVideo(null)}
+          onFalhou={() => {
+            if (usuarioId && video === 'obrigatorio') adiarBoasVindasNestaSessao(usuarioId)
+          }}
         />
       )}
     </main>
