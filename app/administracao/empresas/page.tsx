@@ -256,6 +256,12 @@ export default function EmpresasPage() {
 
         <div className="topbar-spacer" />
 
+        {/* Quem ligou o teste de 7 dias sozinho: é a lista de quem já
+            levantou a mão, e ela não aparecia em lugar nenhum. */}
+        <Link href="/administracao/testes" className="btn">
+          Testes de 7 dias
+        </Link>
+
         <Link href="/administracao/usuarios" className="btn">
           Usuários
         </Link>
