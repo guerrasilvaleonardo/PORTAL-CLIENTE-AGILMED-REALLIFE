@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { empresaAtual, perfilAtual } from '@/lib/sessaoAtual'
 
 /*
  * Ferramentas cobradas à parte (supabase/modulos-cliente.sql). Cada
@@ -201,25 +202,22 @@ export function useModulos(): AcessoModulos {
 
     async function carregar() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        /*
+         * Perfil e empresa vêm de lib/sessaoAtual: o cabeçalho já pediu
+         * os dois nesta carga de página, e antes disto cada componente
+         * repetia a mesma pergunta ao banco por conta própria.
+         */
+        const perfil = await perfilAtual()
 
-        if (!user) return
+        if (!perfil) return
 
-        const { data: perfil } = await supabase.from('profiles').select('perfil, empresa_id').eq('id', user.id).single()
-
-        const interno = PERFIS_INTERNOS.includes(perfil?.perfil || '')
+        const interno = PERFIS_INTERNOS.includes(perfil.perfil || '')
         let liberados = { certificados: true, treinamentos: true, documentos: true, epi: true, inspecoes: true, auditoria: true, implantacao: true }
 
-        if (!interno && perfil?.empresa_id) {
-          const { data: emp, error } = await supabase
-            .from('empresas')
-            .select('modulo_certificados, modulo_treinamentos, modulo_documentos, modulo_epi, modulo_inspecoes, modulo_auditoria, modulo_implantacao')
-            .eq('id', perfil.empresa_id)
-            .maybeSingle()
+        if (!interno && perfil.empresa_id) {
+          const emp = await empresaAtual()
 
-          if (!error && emp) {
+          if (emp) {
             liberados = {
               certificados: emp.modulo_certificados !== false,
               treinamentos: emp.modulo_treinamentos !== false,

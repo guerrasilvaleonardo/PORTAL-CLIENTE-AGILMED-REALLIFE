@@ -225,7 +225,19 @@ export default function ContratarPage() {
                   )}
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                    {contratado || emTeste ? (
+                    {/*
+                      * ENQUANTO CARREGA, NENHUM BOTÃO — nem o errado.
+                      *
+                      * Antes, durante o carregamento o cartão caía no
+                      * último caso e mostrava "Pedir orçamento", que é
+                      * exatamente a resposta de quem NÃO tem teste. Quem
+                      * abrisse a tela e olhasse rápido concluía que o
+                      * teste de 7 dias não existia. Carregando não é
+                      * "não tem": é "ainda não sei".
+                      */}
+                    {modulos.carregando ? (
+                      <span className="esqueleto esqueleto-botoes" aria-label="Carregando" />
+                    ) : contratado || emTeste ? (
                       <Link href={info.href} className="btn btn-sm">
                         Abrir
                       </Link>
