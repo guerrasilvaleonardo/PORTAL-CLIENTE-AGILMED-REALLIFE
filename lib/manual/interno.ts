@@ -1166,7 +1166,7 @@ const manualInterno: Manual = {
         {
           titulo: 'Campo: apontar, e a conferência de saída',
           texto:
-            'A tela de campo é de celular, de pé, no cliente. Aponta-se com foto, voz e GPS, dentro ou fora do checklist. Sem sinal, o apontamento fica guardado no aparelho (IndexedDB) e sobe sozinho quando a rede volta.',
+            'A tela de campo é de celular, de pé, no cliente. Aponta-se com foto, voz e GPS, dentro ou fora do checklist. Sem sinal, o apontamento fica guardado no aparelho (IndexedDB) e sobe sozinho quando a rede volta. A caixa da foto tem duas metades: Câmera abre a câmera na hora (o caminho de quem está em campo) e Arquivo abre a galeria do celular ou os arquivos do computador — serve para a foto que já existe, mandada pelo encarregado ou tirada antes de abrir o portal.',
           tela: {
             url: '/inspecoes/campo',
             blocos: [

@@ -1,0 +1,75 @@
+/*
+ * A caixa de foto com duas metades: câmera em cima, arquivo embaixo.
+ *
+ * O tamanho e a borda vêm da classe da tela (.campo-add-foto,
+ * .insp-add-foto), que já existem e já estão certas em cada lugar.
+ * Aqui só se divide o miolo.
+ */
+
+.foto-duas {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  /* A borda é da classe da tela; o miolo não acrescenta nada. */
+  gap: 0;
+}
+
+.foto-duas label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-muted);
+  cursor: pointer;
+  /* Alvo de toque: as duas metades dividem a altura da caixa, que já é
+     de 72 a 84 px — cada metade fica com 36 a 42 px, e a caixa inteira
+     é um alvo só de 84 px na vertical. */
+  padding: 2px;
+  text-align: center;
+}
+
+/* A linha que separa as duas é tracejada como a borda da caixa: parece
+   uma caixa dividida, não duas caixas coladas. */
+.foto-duas label + label {
+  border-top: 1px dashed var(--ink-faint);
+}
+
+.foto-duas label:hover,
+.foto-duas label:focus-within {
+  background: var(--primary-tint);
+  color: var(--primary);
+}
+
+.foto-duas label svg {
+  flex: none;
+}
+
+.foto-duas input {
+  /* Fora da tela em vez de display:none, para o teclado ainda alcançar
+     o campo e o foco acender a metade certa. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.foto-duas-enviando {
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+/* Numa tela estreita o texto encolhe antes de quebrar a caixa. */
+@media (max-width: 420px) {
+  .foto-duas label {
+    font-size: 10px;
+    gap: 3px;
+  }
+}
