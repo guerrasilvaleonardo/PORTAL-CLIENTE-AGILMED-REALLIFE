@@ -10,6 +10,8 @@ import { avisar } from '@/lib/avisar';
 import { normalizarUrl } from '@/lib/links';
 import { HORAS_SLA, prazoEmHorasUteis, rotuloPrazo } from '@/lib/prazo';
 import type { Marca } from '@/lib/marca';
+import { MODULOS, MODULOS_COM_TESTE, testeVirouChamado } from '@/lib/modulos';
+import { PREFIXO_CONTRATACAO } from '@/lib/servicos';
 import { SeletorParticipantes } from '@/components/ParticipantesChamado';
 import Link from 'next/link';
 import Icone from '@/components/Icone';
@@ -418,6 +420,20 @@ export default function NovoChamadoPage() {
         );
 
         return;
+      }
+
+      /*
+       * O teste de 7 dias que virou pedido (supabase/teste-de-7-dias.sql).
+       *
+       * Amarra o chamado ao teste da ferramenta, para o portal parar de
+       * oferecer a contratação a quem já pediu. Se falhar, não atrapalha
+       * o chamado: o pedido já está aberto, que é o que importa.
+       */
+      for (const m of MODULOS_COM_TESTE) {
+        if (assunto.trim() === PREFIXO_CONTRATACAO + MODULOS[m].rotulo) {
+          await testeVirouChamado(m, data.id)
+          break
+        }
       }
 
       if (!todaEmpresa && participantes.length > 0) {

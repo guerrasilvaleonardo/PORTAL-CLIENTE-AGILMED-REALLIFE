@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import Ajuda from '@/components/Ajuda'
+import FaixaDoTeste from '@/components/FaixaDoTeste'
+import { useModulos } from '@/lib/modulos'
 import '../colaboradores/colaboradores.css'
 import './inspecoes.css'
 import './visual.css'
@@ -346,6 +348,31 @@ function InspecoesConteudo() {
     [linhas]
   )
 
+  /*
+   * O TESTE DE 7 DIAS (supabase/teste-de-7-dias.sql).
+   *
+   * Encerrado o teste, a tela continua aberta: o relatório da visita é
+   * registro da empresa e não fica refém de contrato. O que fecha é a
+   * inspeção nova — e o banco recusa junto, não é trava só de tela.
+   */
+  const modulos = useModulos()
+  const teste = modulos.teste('inspecoes')
+  const podeGravar = modulos.carregando || modulos.podeGravar('inspecoes')
+
+  const numerosDoTeste = useMemo(() => {
+    if (teste.estado !== 'encerrado') return []
+    const vivas = inspecoes.filter((i) => i.situacao !== 'cancelada')
+    const locaisVistos = new Set(vivas.map((i) => i.local_nome).filter(Boolean))
+    return [
+      { valor: vivas.length, rotulo: 'inspeções aplicadas em campo' },
+      { valor: locaisVistos.size, rotulo: 'locais de trabalho visitados' },
+      {
+        valor: vivas.reduce((s, i) => s + (i.nao_conformes || 0), 0),
+        rotulo: 'achados virando não conformidade',
+      },
+    ]
+  }, [inspecoes, teste.estado])
+
   const modelosDisponiveis = modelos.filter(
     (m) => m.ativo && (m.empresa_id === null || m.empresa_id === empresaAtual)
   )
@@ -353,6 +380,10 @@ function InspecoesConteudo() {
 
   async function comecar() {
     if (abrindo) return
+    if (!podeGravar) {
+      setErro('O teste de 7 dias terminou. Contrate as Inspeções para aplicar novas visitas — o que você já registrou continua aqui.')
+      return
+    }
     if (!empresaAtual) {
       setErro('Escolha a empresa antes de começar.')
       return
@@ -480,12 +511,21 @@ function InspecoesConteudo() {
         {/* O botão leva ao quadro de começar, logo abaixo: a visita
             nasce escolhendo local e checklists, e não existe tela
             separada para isso. */}
-        <a href="#comecar" className="btn btn-primary">
-          Nova inspeção
-        </a>
+        {podeGravar ? (
+          <a href="#comecar" className="btn btn-primary">
+            Nova inspeção
+          </a>
+        ) : (
+          /* Visível e desligado: é o que o cliente deixa na mesa. */
+          <span className="btn btn-primary teste-desligado" aria-disabled="true">
+            Nova inspeção
+          </span>
+        )}
       </div>
 
       {erro && <div className="banner bad">{erro}</div>}
+
+      <FaixaDoTeste modulo="inspecoes" teste={teste} numeros={numerosDoTeste} />
 
       {/*
        * ONDE COMEÇA.
