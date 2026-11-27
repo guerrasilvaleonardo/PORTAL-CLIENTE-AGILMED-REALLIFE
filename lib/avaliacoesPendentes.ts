@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { usuarioAtual } from '@/lib/sessaoAtual'
 
 /*
  * Chamados que o usuário logado ainda pode avaliar.
@@ -36,9 +37,8 @@ export function useAvaliacoesPendentes(ativo = true) {
 
     async function carregar() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        /* De lib/sessaoAtual: uma ida ao auth por carga de página. */
+        const user = await usuarioAtual()
 
         if (!user) return
 

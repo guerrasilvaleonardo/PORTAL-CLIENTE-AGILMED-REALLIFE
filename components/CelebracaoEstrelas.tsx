@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { usuarioAtual } from '@/lib/sessaoAtual'
 import {
   avisarAtualizacao,
   carregarConfig,
@@ -57,9 +58,8 @@ export default function CelebracaoEstrelas() {
       const cfg = await carregarConfig()
       if (!cfg || !cfg.ativo) return
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      /* De lib/sessaoAtual: uma ida ao auth por carga de página. */
+      const user = await usuarioAtual()
       if (!user) return
 
       const novos: Aviso[] = []

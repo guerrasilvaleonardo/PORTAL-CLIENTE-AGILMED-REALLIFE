@@ -29,7 +29,7 @@ import { supabase } from '@/lib/supabase'
  * chame `limparSessaoAtual()` nela.
  */
 
-type Usuario = { id: string } | null
+type Usuario = { id: string; email: string | null } | null
 
 type Perfil = { perfil: string | null; empresa_id: string | null } | null
 
@@ -62,6 +62,7 @@ export function limparSessaoAtual() {
   promessaUsuario = null
   promessaPerfil = null
   promessaEmpresa = null
+  promessaTestes = null
 }
 
 /*
@@ -69,18 +70,60 @@ export function limparSessaoAtual() {
  * e redirecionamento para o login. Em vez de pedir de novo aqui, ele
  * entrega o que já tem.
  */
-export function semearUsuario(user: { id: string } | null) {
-  if (user) promessaUsuario = Promise.resolve({ id: user.id })
+export function semearUsuario(user: { id: string; email?: string | null } | null) {
+  if (user) promessaUsuario = Promise.resolve({ id: user.id, email: user.email ?? null })
 }
 
+/*
+ * UMA IDA AO AUTH POR CARGA, NÃO CINCO.
+ *
+ * Medido em produção em 26/11/2026, numa única página: `/auth/v1/user`
+ * saiu CINCO vezes, cada uma custando de 240 a 683 ms, boa parte delas
+ * em fila. Era o maior gasto do carregamento inteiro — maior que o HTML
+ * e o JavaScript somados (DOM pronto em 474 ms).
+ *
+ * `auth.getUser()` é uma requisição de rede: o Supabase valida o token
+ * no servidor. Continua sendo feita UMA vez, porque validar é bom; o
+ * que acabou foi cada componente fazer a sua.
+ */
 export function usuarioAtual(): Promise<Usuario> {
   if (!promessaUsuario) {
     promessaUsuario = supabase.auth
       .getUser()
-      .then((r) => (r.data.user ? { id: r.data.user.id } : null))
+      .then((r) => (r.data.user ? { id: r.data.user.id, email: r.data.user.email ?? null } : null))
       .catch(() => null)
   }
   return promessaUsuario
+}
+
+/*
+ * Os testes de 7 dias da empresa. Três componentes usam `useModulos` na
+ * mesma tela, e cada um disparava esta consulta: medi três
+ * `modulo_testes` saindo no mesmo instante, a mais lenta levando 880 ms.
+ *
+ * Tabela ausente (o SQL não rodou) devolve lista vazia, e o portal se
+ * comporta como antes de o teste existir.
+ */
+export type TesteDaSessao = { modulo: string; termina_em: string; convertido_em: string | null }
+
+let promessaTestes: Promise<TesteDaSessao[]> | null = null
+
+export function testesAtuais(): Promise<TesteDaSessao[]> {
+  if (!promessaTestes) {
+    promessaTestes = (async () => {
+      const perfil = await perfilAtual()
+      if (!perfil?.empresa_id) return []
+
+      const { data, error } = await supabase
+        .from('modulo_testes')
+        .select('modulo, termina_em, convertido_em')
+        .eq('empresa_id', perfil.empresa_id)
+
+      if (error) return []
+      return (data as TesteDaSessao[]) || []
+    })()
+  }
+  return promessaTestes
 }
 
 export function perfilAtual(): Promise<Perfil> {

@@ -16,6 +16,7 @@ import {
 } from '@/lib/modulos'
 import { SERVICOS, linkOrcamento, PREFIXO_CONTRATACAO, PREFIXO_ORCAMENTO } from '@/lib/servicos'
 import { ROTULO_SITUACAO } from '@/lib/situacoes'
+import { perfilAtual } from '@/lib/sessaoAtual'
 import Icone from '@/components/Icone'
 import CursosEad from '@/components/CursosEad'
 import CatalogoServicos from '@/components/CatalogoServicos'
@@ -105,12 +106,9 @@ export default function ContratarPage() {
         const marcaEmpresa = (await obterMarcaDaEmpresa().catch(() => null)) || marcaDoDominio()
         if (ativo) setMarca(marcaEmpresa)
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) return
-
-        const { data: perfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).maybeSingle()
+        /* De lib/sessaoAtual: o cabeçalho já pediu usuário e perfil
+           nesta carga; esta tela aproveita em vez de repetir. */
+        const perfil = await perfilAtual()
         if (!perfil?.empresa_id) return
 
         const { data } = await supabase
