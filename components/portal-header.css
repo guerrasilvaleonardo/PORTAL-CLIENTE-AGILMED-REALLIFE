@@ -60,6 +60,7 @@
  * quanto o verde: sem ele o cliente só descobre que o teste acabou
  * quando o botão de registrar não responde.
  */
+.menu-gratis,
 .menu-teste,
 .menu-leitura {
   margin-left: auto;
@@ -71,8 +72,15 @@
   flex: none;
 }
 
+/* Pode experimentar agora: o único verde ao lado de um cadeado, para
+   contrastar com as cinco ferramentas que só se pedem por orçamento. */
+.menu-gratis { background: var(--accent); color: var(--on-accent); }
 .menu-teste { background: var(--accent); color: var(--on-accent); }
 .menu-leitura { background: #4A5080; color: #fff; }
+
+/* O item fica apagado quando bloqueado, mas o selo não: é justamente
+   ele que precisa ser notado. */
+.modtabs a.bloqueado .menu-gratis { opacity: 1; }
 
 .balao-nao-lidas {
   min-width: 18px;

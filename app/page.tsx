@@ -12,7 +12,7 @@ import CobrancasPendentes, { SeloCobranca } from '@/components/CobrancasPendente
 import { useCobrancasPendentes } from '@/lib/cobrancasPendentes'
 import SeloMensagemNova from '@/components/SeloMensagemNova'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
-import { MODULOS, useModulos, type Modulo } from '@/lib/modulos'
+import { MODULOS, MODULOS_COM_TESTE, useModulos, type Modulo } from '@/lib/modulos'
 import Icone, { type NomeIcone } from '@/components/Icone'
 import VideoBoasVindas from '@/components/VideoBoasVindas'
 import {
@@ -354,6 +354,10 @@ export default function HomePage() {
     titulo: MODULOS[o.modulo].rotulo,
     texto: MODULOS[o.modulo].chamada,
     modulo: o.modulo,
+    /* EPI e Inspeções têm teste de 7 dias e a empresa ainda não usou:
+       o cartão convida a experimentar em vez de pedir orçamento. */
+    podeExperimentar:
+      MODULOS_COM_TESTE.includes(o.modulo) && modulos.teste(o.modulo).estado === 'nenhum',
   }))
 
   return (
@@ -416,13 +420,22 @@ export default function HomePage() {
                     <span className="mod-icone">
                       <Icone nome={c.icone} tamanho={24} />
                     </span>
-                    <span className="mod-cadeado">
-                      <Icone nome="cadeado" tamanho={18} rotulo="Ferramenta não contratada" />
-                    </span>
+                    {/* Duas das sete podem ser experimentadas hoje, de
+                        graça. O cadeado sozinho dizia "você não tem" do
+                        mesmo jeito para todas. */}
+                    {c.podeExperimentar ? (
+                      <span className="mod-selo selo-teste">7 dias grátis</span>
+                    ) : (
+                      <span className="mod-cadeado">
+                        <Icone nome="cadeado" tamanho={18} rotulo="Ferramenta não contratada" />
+                      </span>
+                    )}
                   </div>
                   <h3>{c.titulo}</h3>
                   <p>{c.texto}</p>
-                  <span className="mod-selo acento">Conhecer e pedir orçamento</span>
+                  <span className="mod-selo acento">
+                    {c.podeExperimentar ? 'Experimentar por 7 dias' : 'Conhecer e pedir orçamento'}
+                  </span>
                 </Link>
               ))}
             </nav>
