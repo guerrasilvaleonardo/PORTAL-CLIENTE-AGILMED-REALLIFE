@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { useModulos, type Modulo } from '@/lib/modulos'
+import { MODULOS_COM_TESTE, useModulos, type Modulo } from '@/lib/modulos'
 import SeletorEmpresa from '@/components/SeletorEmpresa'
 import AvisoForaHorario from '@/components/AvisoForaHorario'
 import AvisoRelatorioDesempenho from '@/components/AvisoRelatorioDesempenho'
@@ -530,20 +530,34 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
               !interno && !!MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
 
             /*
-             * O selo do teste de 7 dias, no próprio menu. Verde enquanto
-             * está rodando, cinza depois — ler continua valendo, gravar
-             * não. Sem isso o cliente só descobre o fim do teste quando
-             * o botão de registrar não funciona.
+             * O SELO DO TESTE DE 7 DIAS, NO PRÓPRIO MENU.
+             *
+             * São três recados, e o primeiro é o que faltava: o cadeado
+             * sozinho diz "você não tem", e dizia isso igual para as
+             * sete ferramentas. Só que duas delas o cliente pode
+             * experimentar hoje, de graça — e isso não aparecia em lugar
+             * nenhum até ele entrar em Contratar e descer a tela.
+             *
+             *   7 DIAS   verde, pode experimentar agora
+             *   TESTE    verde, está testando, o relógio corre
+             *   LEITURA  cinza, acabou: ler vale, gravar não
              */
             const moduloDaRota = MODULO_DA_ROTA[item.href]
             const testeDoItem =
               !interno && moduloDaRota && !modulos.carregando ? modulos.teste(moduloDaRota) : null
+            const podeExperimentar =
+              !!testeDoItem &&
+              testeDoItem.estado === 'nenhum' &&
+              !modulos.contratado(moduloDaRota!) &&
+              MODULOS_COM_TESTE.includes(moduloDaRota!)
             const seloTeste =
               testeDoItem && testeDoItem.estado === 'andamento'
                 ? { texto: 'TESTE', classe: 'menu-teste' }
                 : testeDoItem && testeDoItem.estado === 'encerrado' && !modulos.contratado(moduloDaRota!)
                   ? { texto: 'LEITURA', classe: 'menu-leitura' }
-                  : null
+                  : podeExperimentar
+                    ? { texto: '7 DIAS', classe: 'menu-gratis' }
+                    : null
 
             const secoes = SECOES[item.href]
 
