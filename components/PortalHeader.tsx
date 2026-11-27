@@ -330,8 +330,54 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
     return <>{children}</>
   }
 
+  /*
+   * ENQUANTO CARREGA, A MOLDURA FICA — O MENU NÃO SOME.
+   *
+   * Antes este trecho devolvia só o conteúdo. Na prática o cliente
+   * passava ~2,3 segundos, EM TODA CARGA DE PÁGINA, vendo o portal sem
+   * cabeçalho e sem menu: a tela parecia uma página solta, sem jeito de
+   * navegar, e depois tudo pulava para o lugar quando a marca chegava.
+   *
+   * Agora a moldura aparece na hora, com a mesma largura e a mesma
+   * altura que terá depois. O que ainda não se sabe (se é cliente ou
+   * equipe, qual a marca) fica como barra cinza em vez de virar menu
+   * errado por dois segundos — e o conteúdo já nasce no lugar certo,
+   * sem salto.
+   */
   if (carregando || !marca) {
-    return <>{children}</>
+    return (
+      <>
+        <header className="portal-esqueleto-topo">
+          <div
+            className="topbar"
+            style={{
+              width: '100%',
+              maxWidth: 1400,
+              margin: '0 auto',
+              padding: '12px clamp(14px, 3vw, 32px)',
+            }}
+          >
+            <span className="esqueleto esqueleto-marca" />
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+              <span className="esqueleto esqueleto-botao" />
+              <span className="esqueleto esqueleto-botao" />
+            </span>
+          </div>
+        </header>
+
+        <div className="portal-shell">
+          <aside className="portal-menu nao-imprimir" aria-hidden="true">
+            <nav className="modtabs vertical">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <span key={i} className="esqueleto esqueleto-item" />
+              ))}
+            </nav>
+          </aside>
+
+          <div className="portal-conteudo">{children}</div>
+        </div>
+      </>
+    )
   }
 
   const tema = marcas[marca]

@@ -1,3 +1,56 @@
+/*
+ * A MOLDURA ENQUANTO O CABEÇALHO CARREGA.
+ *
+ * O cliente levava ~2,3 s, em toda carga de página, vendo o portal sem
+ * cabeçalho e sem menu — e depois tudo pulava para o lugar. Estas
+ * medidas são as mesmas da moldura de verdade: largura do menu, altura
+ * do topo e dos itens. É o que faz o conteúdo nascer no lugar certo em
+ * vez de escorregar quando o menu chega.
+ */
+
+.portal-esqueleto-topo {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.portal-esqueleto-topo .topbar {
+  display: flex;
+  align-items: center;
+}
+
+.esqueleto {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #EDEEF3 25%, #F6F7FA 37%, #EDEEF3 63%);
+  background-size: 400% 100%;
+  animation: esqueleto-brilho 1.4s ease infinite;
+}
+
+.esqueleto-marca { width: 150px; height: 26px; }
+.esqueleto-botao { width: 74px; height: 26px; border-radius: 999px; }
+
+.esqueleto-item {
+  height: 34px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+@keyframes esqueleto-brilho {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* Quem pediu menos animação vê a barra parada, não piscando. */
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto {
+    animation: none;
+    background: #EDEEF3;
+  }
+}
+
 /* Balão vermelho de mensagens não lidas na aba Conversas. */
 
 /*
