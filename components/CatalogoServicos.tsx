@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useModulos } from '@/lib/modulos'
+import { perfilAtual } from '@/lib/sessaoAtual'
 import { PREFIXO_ORCAMENTO } from '@/lib/servicos'
 import { dataBr, diasAteData } from '@/lib/documentosSst'
 import Icone from '@/components/Icone'
@@ -141,12 +142,10 @@ export default function CatalogoServicos() {
      */
     async function carregarDocumentos() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) return
-
-        const { data: perfil } = await supabase.from('profiles').select('empresa_id').eq('id', user.id).maybeSingle()
+        /* Usuário e perfil vêm de lib/sessaoAtual: o cabeçalho já pediu
+           os dois nesta carga, e antes disto esta tela repetia as duas
+           viagens por conta própria. */
+        const perfil = await perfilAtual()
         if (!perfil?.empresa_id) return
 
         const [{ data: tipos }, { data: docs }] = await Promise.all([

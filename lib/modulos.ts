@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { empresaAtual, perfilAtual } from '@/lib/sessaoAtual'
+import { empresaAtual, perfilAtual, testesAtuais } from '@/lib/sessaoAtual'
 
 /*
  * Ferramentas cobradas à parte (supabase/modulos-cliente.sql). Cada
@@ -235,25 +235,16 @@ export function useModulos(): AcessoModulos {
          * rodou), o portal segue como era antes: sem teste nenhum,
          * nenhuma tela quebra.
          */
-        let testes: Partial<Record<Modulo, Teste>> = {}
+        const testes: Partial<Record<Modulo, Teste>> = {}
 
-        if (perfil?.empresa_id) {
-          const { data: linhas, error: erroTeste } = await supabase
-            .from('modulo_testes')
-            .select('modulo, termina_em, convertido_em')
-            .eq('empresa_id', perfil.empresa_id)
-
-          if (!erroTeste && linhas) {
-            for (const l of linhas as { modulo: string; termina_em: string; convertido_em: string | null }[]) {
-              const fim = new Date(l.termina_em)
-              const emAndamento = fim.getTime() > Date.now()
-              testes[l.modulo as Modulo] = {
-                estado: emAndamento ? 'andamento' : 'encerrado',
-                terminaEm: fim,
-                diasRestantes: emAndamento ? diasAte(fim) : 0,
-                convertido: Boolean(l.convertido_em),
-              }
-            }
+        for (const l of await testesAtuais()) {
+          const fim = new Date(l.termina_em)
+          const emAndamento = fim.getTime() > Date.now()
+          testes[l.modulo as Modulo] = {
+            estado: emAndamento ? 'andamento' : 'encerrado',
+            terminaEm: fim,
+            diasRestantes: emAndamento ? diasAte(fim) : 0,
+            convertido: Boolean(l.convertido_em),
           }
         }
 

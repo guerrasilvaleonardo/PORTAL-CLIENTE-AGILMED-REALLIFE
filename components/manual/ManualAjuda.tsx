@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { usuarioAtual } from '@/lib/sessaoAtual'
 import type { Capitulo, Manual } from '@/lib/manual/tipos'
 import TelaIlustrada from './TelaIlustrada'
 import './manual.css'
@@ -60,9 +61,8 @@ export default function ManualAjuda({ interno }: { interno: boolean }) {
     setIndiceAberto(false)
     setAberto(true)
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    /* De lib/sessaoAtual: uma ida ao auth por carga de página. */
+    const user = await usuarioAtual()
     setEmail(user?.email || '')
   }, [interno, pathname])
 
