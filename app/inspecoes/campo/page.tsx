@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import EscolherFoto from '@/components/EscolherFoto'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import Ajuda from '@/components/Ajuda'
 import {
@@ -1827,21 +1828,13 @@ function CampoConteudo() {
                                       ))}
 
                                       {(i.fotos || []).length < 3 && (
-                                        <label className="campo-add-foto">
-                                          {enviandoFotoItem === i.id ? 'enviando…' : 'foto'}
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="environment"
-                                            onChange={(e) =>
-                                              anexarAoItem(
-                                                c.inspecaoId,
-                                                i.id,
-                                                e.target.files?.[0]
-                                              )
-                                            }
-                                          />
-                                        </label>
+                                        <EscolherFoto
+                                          classe="campo-add-foto"
+                                          enviando={enviandoFotoItem === i.id}
+                                          aoEscolher={(arquivo) =>
+                                            anexarAoItem(c.inspecaoId, i.id, arquivo)
+                                          }
+                                        />
                                       )}
                                     </div>
                                   </div>
@@ -2048,16 +2041,12 @@ function CampoConteudo() {
                   </div>
                 ))}
                 {fotos.length < 3 && (
-                  <label className="campo-add-foto">
-                    {enviandoFoto ? 'enviando…' : 'foto'}
-                    <input
-                      ref={inputFoto}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => anexar(e.target.files?.[0])}
-                    />
-                  </label>
+                  <EscolherFoto
+                    classe="campo-add-foto"
+                    enviando={enviandoFoto}
+                    refCamera={inputFoto}
+                    aoEscolher={anexar}
+                  />
                 )}
               </div>
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { use } from 'react'
 import { supabase } from '@/lib/supabase'
+import EscolherFoto from '@/components/EscolherFoto'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import { AgendaDaAuditoria, ParticipantesDaAuditoria } from '@/components/PlanoDaAuditoria'
 import '../../colaboradores/colaboradores.css'
@@ -1396,19 +1397,12 @@ function AplicarInspecaoConteudo({ params }: { params: Promise<{ id: string }> }
                 ))}
 
                 {!fechada && (r.fotos || []).length < 3 && (
-                  <label className="insp-add-foto">
-                    {enviando === r.id ? 'Enviando…' : '+ Foto'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      disabled={!!enviando}
-                      onChange={(e) => {
-                        enviarFoto(r.id, e.target.files?.[0])
-                        e.target.value = ''
-                      }}
-                    />
-                  </label>
+                  <EscolherFoto
+                    classe="insp-add-foto"
+                    enviando={enviando === r.id}
+                    desabilitado={!!enviando}
+                    aoEscolher={(arquivo) => enviarFoto(r.id, arquivo)}
+                  />
                 )}
               </div>
 
