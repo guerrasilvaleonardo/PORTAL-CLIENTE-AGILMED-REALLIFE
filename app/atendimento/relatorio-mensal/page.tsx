@@ -60,6 +60,10 @@ type Publicacao = {
   perguntas: string[] | null
   respostas: Record<string, string> | null
   respostas_em: string | null
+  /* O PDF do relatório fechado, guardado no balde privado. Só existe
+     depois da ciência (supabase/desempenho-pdf.sql). */
+  pdf_path: string | null
+  pdf_em: string | null
 }
 
 async function chamarApiRelatorio(corpo: any) {
@@ -74,6 +78,28 @@ async function chamarApiRelatorio(corpo: any) {
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.erro || 'Falha na operação.')
   return j
+}
+
+/*
+ * PDF do relatório fechado (supabase/desempenho-pdf.sql). A rota monta
+ * o arquivo na primeira vez, guarda no balde privado e devolve um link
+ * que expira em minutos.
+ */
+async function chamarApiRelatorioPdf(id: number) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const r = await fetch('/api/desempenho-pdf', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: 'Bearer ' + (session?.access_token || ''),
+    },
+    body: JSON.stringify({ id }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.erro || 'Não foi possível gerar o PDF.')
+  return j as { url: string; nome: string }
 }
 
 /*
@@ -102,6 +128,22 @@ function Devolutiva({
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
+  const [baixandoPdf, setBaixandoPdf] = useState(false)
+
+  async function baixarPdf(id: number) {
+    if (baixandoPdf) return
+    setBaixandoPdf(true)
+    setErro('')
+    try {
+      const r = await chamarApiRelatorioPdf(id)
+      if (r.url) window.open(r.url, '_blank', 'noopener')
+      onMudou()
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível gerar o PDF.')
+    } finally {
+      setBaixandoPdf(false)
+    }
+  }
 
   if (!instalado) {
     return (
@@ -168,6 +210,25 @@ function Devolutiva({
           {ativa.primeira_abertura_em ? `aberto pela pessoa em ${dataHora(ativa.primeira_abertura_em)} (${ativa.aberturas}x)` : 'ainda não aberto'} ·{' '}
           {ativa.ciente_em ? <strong>ciência em {dataHora(ativa.ciente_em)}</strong> : 'aguardando ciência'}
           {ativa.mensagem && <div className="rel-sub">Mensagem enviada: {ativa.mensagem}</div>}
+
+          {/* O PDF do relatório fechado. Nasce sozinho na ciência; o
+              botão existe para quando isso falhar (sem sinal, aba
+              fechada) e para baixar meses depois. */}
+          {ativa.ciente_em && (
+            <div style={{ marginTop: 6 }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={baixandoPdf}
+                onClick={() => baixarPdf(ativa.id)}
+              >
+                {baixandoPdf ? 'Preparando…' : ativa.pdf_path ? 'Baixar o PDF guardado' : 'Guardar o PDF'}
+              </button>{' '}
+              <span className="rel-sub">
+                {ativa.pdf_path ? `PDF guardado em ${dataHora(ativa.pdf_em)}` : 'PDF ainda não guardado'}
+              </span>
+            </div>
+          )}
           {/*
             * O QUE A PESSOA RESPONDEU, PARA LER ANTES DA CONVERSA.
             *
@@ -648,12 +709,13 @@ export default function RelatorioMensalPage() {
        não parar por causa disso. */
     const completa = await supabase
       .from('desempenho_publicacoes')
-      .select(base + ', perguntas, respostas, respostas_em')
+      .select(base + ', perguntas, respostas, respostas_em, pdf_path, pdf_em')
       .eq('relatorio_id', id)
 
     const antiga =
       completa.error &&
-      ((completa.error as any).code === '42703' || /perguntas|respostas/.test(completa.error.message))
+      ((completa.error as any).code === '42703' ||
+        /perguntas|respostas|pdf_/.test(completa.error.message))
         ? await supabase.from('desempenho_publicacoes').select(base).eq('relatorio_id', id)
         : null
 

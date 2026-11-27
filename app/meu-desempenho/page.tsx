@@ -30,6 +30,31 @@ type Publicacao = {
   respostas_em: string | null
 }
 
+/*
+ * Baixa o PDF do relatório fechado.
+ *
+ * A rota monta o arquivo na primeira vez, guarda no balde privado e
+ * devolve um link que expira. Por isso ela é chamada tanto logo depois
+ * da ciência (para o arquivo nascer sem ninguém precisar lembrar)
+ * quanto no botão (para quem quiser a folha meses depois).
+ */
+async function pedirPdf(id: number): Promise<{ url?: string; erro?: string }> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const r = await fetch('/api/desempenho-pdf', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: 'Bearer ' + (session?.access_token || ''),
+    },
+    body: JSON.stringify({ id }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) return { erro: j.erro || 'Não foi possível gerar o PDF.' }
+  return { url: j.url as string }
+}
+
 function dataHora(v: string | null | undefined) {
   if (!v) return '—'
   return new Date(v).toLocaleString('pt-BR', { timeZone: 'America/Porto_Velho', dateStyle: 'short', timeStyle: 'short' })
@@ -49,6 +74,7 @@ export default function MeuDesempenhoPage() {
   const [respostas, setRespostas] = useState<Record<string, string>>({})
   const [salvandoResp, setSalvandoResp] = useState(false)
   const [avisoResp, setAvisoResp] = useState('')
+  const [baixando, setBaixando] = useState(false)
 
   const BASE =
     'id, mes, conteudo, mensagem, liberado_em, ciente_em, manifestacao, manifestacao_em'
@@ -204,11 +230,31 @@ export default function MeuDesempenhoPage() {
       await carregar(meuId)
       setTexto('')
       setAviso(sel.ciente_em ? 'Manifestação registrada.' : 'Ciência registrada. Obrigado.')
+
+      /* O PDF do relatório fechado nasce agora, sem ninguém precisar
+         lembrar. Falhar aqui não desfaz a ciência: o botão "Baixar o
+         PDF" tenta de novo quando a pessoa quiser. */
+      if (!sel.ciente_em) pedirPdf(sel.id).catch(() => {})
     } catch (e: any) {
       setErro(e?.message || 'Não foi possível registrar.')
     } finally {
       setSalvando(false)
     }
+  }
+
+  async function baixarPdf() {
+    if (!sel || baixando) return
+    setBaixando(true)
+    setErro('')
+    const r = await pedirPdf(sel.id)
+    setBaixando(false)
+    if (r.erro) {
+      setErro(r.erro)
+      return
+    }
+    /* Abre em aba nova: o link já vem com o nome do arquivo e expira
+       em poucos minutos. */
+    if (r.url) window.open(r.url, '_blank', 'noopener')
   }
 
   function imprimir() {
@@ -259,6 +305,13 @@ export default function MeuDesempenhoPage() {
           {sel && (
             <button className="btn btn-sm btn-primary" onClick={imprimir}>
               Imprimir cópia
+            </button>
+          )}
+          {/* O PDF guardado só existe depois da ciência: antes disso a
+              liberação ainda pode ser revogada ou refeita. */}
+          {sel?.ciente_em && (
+            <button className="btn btn-sm" disabled={baixando} onClick={baixarPdf}>
+              {baixando ? 'Preparando…' : 'Baixar o PDF guardado'}
             </button>
           )}
           <div style={{ flex: 1 }} />
