@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { perfilAtual } from '@/lib/sessaoAtual'
 import { ComModulo } from '@/components/ModuloBloqueado'
 import Ajuda from '@/components/Ajuda'
 import '../../../colaboradores/colaboradores.css'
@@ -69,8 +70,36 @@ type Relatorio = {
   resumo: any
 }
 
+/* Uma ação do plano daquele apontamento (nc_acoes). */
+type Acao = {
+  id: string
+  nc_id: string
+  ordem: number
+  tipo: string
+  descricao: string
+  responsavel_nome: string | null
+  prazo: string | null
+  situacao: string
+}
+
+const TIPO_ACAO: Record<string, string> = {
+  correcao: 'Correção',
+  corretiva: 'Ação corretiva',
+  preventiva: 'Ação preventiva',
+  verificacao: 'Verificação',
+}
+
+const SITUACAO_ACAO: Record<string, { rotulo: string; cor: string }> = {
+  aberta: { rotulo: 'Aberta', cor: 'flat' },
+  execucao: { rotulo: 'Em execução', cor: 'warn' },
+  verificacao: { rotulo: 'Em verificação', cor: 'warn' },
+  encerrada: { rotulo: 'Encerrada', cor: 'good' },
+  cancelada: { rotulo: 'Cancelada', cor: 'flat' },
+}
+
 type Apontamento = {
   id: string
+  codigo: string | null
   titulo: string | null
   descricao: string
   classificacao: string | null
@@ -84,6 +113,65 @@ type Apontamento = {
 }
 
 type Empresa = { razao_social: string; nome_fantasia: string | null; cnpj: string | null }
+
+/* Uma correção registrada: o que foi mexido, por quem e por quê. */
+type Alteracao = {
+  id: number
+  acao: string
+  motivo: string
+  campos: string | null
+  revisao: number | null
+  por_nome: string | null
+  created_at: string
+}
+
+const ACAO: Record<string, string> = {
+  reabertura: 'Reaberta para correção',
+  cabecalho: 'Identificação corrigida',
+  reencerramento: 'Encerrada de novo',
+}
+
+/* Nome legível de cada campo, para o histórico não falar em coluna. */
+const CAMPO_ROTULO: Record<string, string> = {
+  local_id: 'local',
+  local_nome: 'local',
+  responsavel_nome: 'quem inspecionou',
+  iniciada_em: 'início',
+  encerrada_em: 'encerramento',
+  latitude: 'coordenada',
+  longitude: 'coordenada',
+  precisao_m: 'coordenada',
+  observacoes: 'observações',
+  ciente_nome: 'ciente',
+  ciente_cargo: 'ciente',
+}
+
+const nomesDosCampos = (campos: string | null) => {
+  if (!campos) return ''
+  const nomes = campos
+    .split(',')
+    .map((c) => CAMPO_ROTULO[c.trim()] || c.trim())
+    .filter((n, i, arr) => arr.indexOf(n) === i)
+  return nomes.join(', ')
+}
+
+/*
+ * ISO ↔ campo de data e hora da tela.
+ *
+ * O <input type="datetime-local"> fala no fuso de quem olha, e o banco
+ * guarda em UTC. Sem converter nos dois sentidos, abrir o formulário já
+ * deslocaria a hora da visita em quatro horas — e salvar sem mexer
+ * gravaria esse deslocamento como se fosse correção.
+ */
+function paraCampo(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+const doCampo = (valor: string): string | null =>
+  valor ? new Date(valor).toISOString() : null
 
 const dataHora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null
@@ -113,7 +201,26 @@ function VisitaConteudo() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
   const [fotos, setFotos] = useState<Record<string, string>>({})
+  const [acoes, setAcoes] = useState<Record<string, Acao[]>>({})
   const [revisando, setRevisando] = useState(false)
+
+  /* Correção: só gestor e admin, e só com motivo. */
+  const [gestao, setGestao] = useState(false)
+  const [corrigindo, setCorrigindo] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [motivo, setMotivo] = useState('')
+  const [alteracoes, setAlteracoes] = useState<Alteracao[]>([])
+  const [locais, setLocais] = useState<{ id: string; nome: string }[]>([])
+  const [form, setForm] = useState({
+    local_id: '',
+    responsavel_nome: '',
+    iniciada_em: '',
+    encerrada_em: '',
+    latitude: '',
+    longitude: '',
+    precisao_m: '',
+    observacoes: '',
+  })
 
   const carregar = useCallback(async () => {
     try {
@@ -152,7 +259,7 @@ function VisitaConteudo() {
         supabase
           .from('nao_conformidades')
           .select(
-            'id, titulo, descricao, classificacao, gravidade, prazo, responsavel_nome, situacao, fotos, foto_path, created_at'
+            'id, codigo, titulo, descricao, classificacao, gravidade, prazo, responsavel_nome, situacao, fotos, foto_path, created_at'
           )
           .eq('visita_id', id)
           .order('created_at'),
@@ -160,8 +267,69 @@ function VisitaConteudo() {
 
       setRelatorio((rel || null) as Relatorio | null)
       setEmpresa((emp || null) as Empresa | null)
+
+      /* O formulário de correção começa com o que está valendo: quem
+         corrige um campo não deveria ter de redigitar os outros. */
+      setForm({
+        local_id: (v as any).local_id || '',
+        responsavel_nome: (v as any).responsavel_nome || '',
+        iniciada_em: paraCampo((v as any).iniciada_em),
+        encerrada_em: paraCampo((v as any).encerrada_em),
+        latitude: (v as any).latitude === null ? '' : String((v as any).latitude),
+        longitude: (v as any).longitude === null ? '' : String((v as any).longitude),
+        precisao_m: (v as any).precisao_m === null ? '' : String((v as any).precisao_m),
+        observacoes: (v as any).observacoes || '',
+      })
+
+      /*
+       * Histórico, perfil e locais em paralelo, e nenhum deles derruba
+       * a tela: o relatório precisa abrir mesmo que o SQL da correção
+       * ainda não tenha rodado no banco.
+       */
+      const [{ data: alts }, perfil, { data: locs }] = await Promise.all([
+        supabase
+          .from('inspecao_visitas_alteracoes')
+          .select('id, acao, motivo, campos, revisao, por_nome, created_at')
+          .eq('visita_id', id)
+          .order('created_at', { ascending: false }),
+        perfilAtual().catch(() => null),
+        supabase
+          .from('locais_trabalho')
+          .select('id, nome')
+          .eq('empresa_id', (v as any).empresa_id)
+          .order('nome'),
+      ])
+
+      setAlteracoes(((alts || []) as unknown as Alteracao[]) || [])
+      setGestao(!!perfil && ['gestor', 'admin'].includes(perfil.perfil || ''))
+      setLocais(((locs || []) as { id: string; nome: string }[]) || [])
       const lista = (aps || []) as unknown as Apontamento[]
       setApontamentos(lista)
+
+      /*
+       * O plano de ação de cada apontamento.
+       *
+       * Sem isto, o RIC prova o problema e cala sobre o tratamento: o
+       * cliente lê "não conformidade, prazo 10/12" e não tem como saber
+       * se alguém já definiu o que vai ser feito. A ISO 45001 10.2 não
+       * pergunta se o problema foi visto, pergunta o que se fez com a
+       * causa.
+       */
+      if (lista.length) {
+        const { data: acs } = await supabase
+          .from('nc_acoes')
+          .select('id, nc_id, ordem, tipo, descricao, responsavel_nome, prazo, situacao')
+          .in(
+            'nc_id',
+            lista.map((a) => a.id)
+          )
+          .order('ordem')
+        const porNc: Record<string, Acao[]> = {}
+        ;((acs || []) as unknown as Acao[]).forEach((a) => {
+          porNc[a.nc_id] = [...(porNc[a.nc_id] || []), a]
+        })
+        setAcoes(porNc)
+      }
 
       const caminhos = lista
         .flatMap((a) => a.fotos || (a.foto_path ? [a.foto_path] : []))
@@ -199,6 +367,81 @@ function VisitaConteudo() {
       return
     }
     carregar()
+  }
+
+  /*
+   * Corrigir a identificação.
+   *
+   * Manda só o que está na tela, e a empresa nunca vai junto: o código
+   * RIC é por empresa e por ano, e mover a visita de cliente deixaria
+   * um número fora de ordem nos dois. Visita no cliente errado se
+   * cancela e se refaz.
+   */
+  async function salvarCabecalho() {
+    if (salvando) return
+    if (motivo.trim().length < 5) {
+      setErro('Diga o motivo da correção — é o que separa corrigir de maquiar.')
+      return
+    }
+    setSalvando(true)
+    setErro('')
+
+    const local = locais.find((l) => l.id === form.local_id) || null
+    const campos: Record<string, string | null> = {
+      responsavel_nome: form.responsavel_nome.trim() || null,
+      iniciada_em: doCampo(form.iniciada_em),
+      encerrada_em: doCampo(form.encerrada_em),
+      latitude: form.latitude.trim() || null,
+      longitude: form.longitude.trim() || null,
+      precisao_m: form.precisao_m.trim() || null,
+      observacoes: form.observacoes.trim() || null,
+    }
+    /* Local só entra quando foi escolhido um da lista: assim o texto
+       congelado de uma visita antiga não some por falta de cadastro. */
+    if (local) {
+      campos.local_id = local.id
+      campos.local_nome = local.nome
+    }
+
+    const { error } = await supabase.rpc('corrigir_visita', {
+      p_visita: id,
+      p_motivo: motivo.trim(),
+      p_campos: campos,
+    })
+    setSalvando(false)
+    if (error) {
+      setErro(error.message)
+      return
+    }
+    setCorrigindo(false)
+    setMotivo('')
+    carregar()
+  }
+
+  /*
+   * Reabrir para mexer nos apontamentos. A tela de campo só deixa
+   * editar visita em andamento — é lá que estão a foto, a classificação
+   * e o prazo de cada apontamento, e refazer isso aqui seria uma
+   * segunda tela dizendo a mesma coisa.
+   */
+  async function corrigirApontamentos() {
+    if (salvando) return
+    if (motivo.trim().length < 5) {
+      setErro('Diga o motivo da correção — é o que separa corrigir de maquiar.')
+      return
+    }
+    setSalvando(true)
+    setErro('')
+    const { error } = await supabase.rpc('reabrir_visita', {
+      p_visita: id,
+      p_motivo: motivo.trim(),
+    })
+    if (error) {
+      setSalvando(false)
+      setErro(error.message)
+      return
+    }
+    window.location.href = '/inspecoes/campo?visita=' + id
   }
 
   if (carregando) {
@@ -242,7 +485,155 @@ function VisitaConteudo() {
             {revisando ? 'Registrando…' : 'Registrar revisão'}
           </button>
         )}
+        {gestao && visita.situacao !== 'cancelada' && (
+          <button type="button" className="btn btn-sm" onClick={() => setCorrigindo((c) => !c)}>
+            {corrigindo ? 'Deixar como está' : 'Corrigir esta inspeção'}
+          </button>
+        )}
       </div>
+
+      {visita.situacao === 'em_andamento' && (
+        <div className="banner nao-imprimir">
+          Esta visita está aberta para correção.{' '}
+          <Link href={'/inspecoes/campo?visita=' + id}>Voltar para a tela de campo</Link> e encerrar
+          de novo — o código não muda, a revisão sobe.
+        </div>
+      )}
+
+      {/*
+        * CORRIGIR É PARTE DO DOCUMENTO, NÃO UMA BRECHA NELE.
+        *
+        * Documento que não pode ser corrigido vira documento em que
+        * ninguém confia: a pessoa passa a manter a planilha paralela
+        * "de verdade" do lado. O que protege o RIC é o motivo
+        * registrado, o histórico embaixo e a revisão que sobe — não a
+        * impossibilidade de arrumar o nome de quem inspecionou.
+        */}
+      {corrigindo && gestao && (
+        <div className="panel nao-imprimir" style={{ marginBottom: 16 }}>
+          <div className="panel-body insp-ficha">
+            <h3 style={{ marginTop: 0 }}>Corrigir a inspeção</h3>
+            <p className="rel-mini">
+              A empresa não muda: o código {relatorio?.codigo || 'RIC'} é dela e do ano. Visita
+              lançada no cliente errado se cancela e se refaz.
+            </p>
+
+            <label>
+              Motivo da correção
+              <textarea
+                rows={2}
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Ex.: o encerramento ficou com a hora em que o celular pegou sinal, não a da saída."
+              />
+            </label>
+
+            <div className="corrigir-grade">
+              <label>
+                Local
+                <select
+                  value={form.local_id}
+                  onChange={(e) => setForm({ ...form, local_id: e.target.value })}
+                >
+                  <option value="">
+                    {visita.local_nome ? `Manter "${visita.local_nome}"` : 'Sem local'}
+                  </option>
+                  {locais.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Inspeção realizada por
+                <input
+                  value={form.responsavel_nome}
+                  onChange={(e) => setForm({ ...form, responsavel_nome: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Início
+                <input
+                  type="datetime-local"
+                  value={form.iniciada_em}
+                  onChange={(e) => setForm({ ...form, iniciada_em: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Encerramento
+                <input
+                  type="datetime-local"
+                  value={form.encerrada_em}
+                  onChange={(e) => setForm({ ...form, encerrada_em: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Latitude
+                <input
+                  value={form.latitude}
+                  onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                  placeholder="-9.243703"
+                />
+              </label>
+
+              <label>
+                Longitude
+                <input
+                  value={form.longitude}
+                  onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                  placeholder="-64.648577"
+                />
+              </label>
+
+              <label>
+                Precisão (m)
+                <input
+                  value={form.precisao_m}
+                  onChange={(e) => setForm({ ...form, precisao_m: e.target.value })}
+                  placeholder="5"
+                />
+              </label>
+            </div>
+
+            <label>
+              Observações da visita
+              <textarea
+                rows={3}
+                value={form.observacoes}
+                onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
+              />
+            </label>
+
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={salvando}
+                onClick={salvarCabecalho}
+              >
+                {salvando ? 'Salvando…' : 'Salvar e subir a revisão'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={salvando}
+                onClick={corrigirApontamentos}
+              >
+                Corrigir os apontamentos
+              </button>
+              <Ajuda
+                titulo="Corrigir os apontamentos"
+                texto="Reabre a visita e leva de volta à tela de campo, onde estão a foto, a classificação e o prazo de cada apontamento. Ao encerrar de novo, o mesmo relatório sobe de revisão — não sai código novo."
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {!relatorio && (
         <div className="banner bad nao-imprimir">
@@ -355,7 +746,15 @@ function VisitaConteudo() {
                     <p className="ric-titulo">{a.titulo || 'Sem título'}</p>
                     <span className={'pill ' + (classe ? classe.cor : 'bad')}>
                       {classe ? classe.rotulo : 'Não conformidade'}
-                    </span>
+                    </span>{' '}
+                    {/* O código do apontamento: é por ele que se
+                        conversa sobre o caso ("a NC-2026-0004 está
+                        atrasada") sem reler a descrição inteira. */}
+                    {a.codigo && (
+                      <Link href={'/inspecoes/nc/' + a.id} className="ric-codigo-nc">
+                        {a.codigo}
+                      </Link>
+                    )}
                   </div>
                 </div>
 
@@ -369,6 +768,56 @@ function VisitaConteudo() {
                     <Campo rotulo="Situação" valor={a.situacao} />
                   </div>
                 ) : null}
+
+                {/*
+                  * O PLANO DE AÇÃO VINCULADO.
+                  *
+                  * Aparece só quando existe. Inventar uma seção vazia
+                  * "Plano de ação: —" em cada apontamento faria o
+                  * relatório parecer completo quando não está, e o
+                  * cliente assinaria a ciência sem reparar no que
+                  * ninguém definiu.
+                  */}
+                {(acoes[a.id] || []).length > 0 && (
+                  <div className="ric-plano">
+                    <p className="ric-plano-rot">
+                      Plano de ação · {(acoes[a.id] || []).length}{' '}
+                      {(acoes[a.id] || []).length === 1 ? 'ação' : 'ações'}
+                    </p>
+                    <table className="tabela-colab rel-itens">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>O que</th>
+                          <th>Tipo</th>
+                          <th>Responsável</th>
+                          <th>Prazo</th>
+                          <th>Situação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(acoes[a.id] || []).map((ac) => {
+                          const s = SITUACAO_ACAO[ac.situacao] || {
+                            rotulo: ac.situacao,
+                            cor: 'flat',
+                          }
+                          return (
+                            <tr key={ac.id}>
+                              <td className="mono">{ac.ordem}</td>
+                              <td>{ac.descricao}</td>
+                              <td>{TIPO_ACAO[ac.tipo] || ac.tipo}</td>
+                              <td>{ac.responsavel_nome || '—'}</td>
+                              <td>{soData(ac.prazo) || '—'}</td>
+                              <td>
+                                <span className={'pill ' + s.cor}>{s.rotulo}</span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {imagens.length > 0 && (
                   <div className="ric-fotos">
@@ -399,6 +848,47 @@ function VisitaConteudo() {
             <Campo rotulo="Data" valor={dataHora(visita.ciente_em)} />
           </div>
         ) : null}
+
+        {/*
+          * O histórico sai impresso, junto com o documento.
+          *
+          * Revisão 03 sem dizer o que mudou obriga o cliente a comparar
+          * três folhas lado a lado para descobrir. É isso que a ISO
+          * 7.5.2 quer dizer com controle: não é esconder a mudança, é
+          * conseguir mostrá-la.
+          */}
+        {alteracoes.length > 0 && (
+          <div className="rel-historico">
+            <h3>Histórico de correções</h3>
+            <table className="tabela-colab rel-itens">
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  <th>O que</th>
+                  <th>Motivo</th>
+                  <th>Por</th>
+                  <th>Revisão</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alteracoes.map((a) => (
+                  <tr key={a.id}>
+                    <td>{dataHora(a.created_at)}</td>
+                    <td>
+                      {ACAO[a.acao] || a.acao}
+                      {a.campos ? ` · ${nomesDosCampos(a.campos)}` : ''}
+                    </td>
+                    <td>{a.motivo}</td>
+                    <td>{a.por_nome || '—'}</td>
+                    <td className="mono">
+                      {a.revisao ? String(a.revisao).padStart(2, '0') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div className="rel-assinaturas">
           <div>

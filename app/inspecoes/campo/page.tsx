@@ -260,6 +260,27 @@ function CampoConteudo() {
   const [observacoes, setObservacoes] = useState('')
   const [cienteNome, setCienteNome] = useState('')
   const [cienteCargo, setCienteCargo] = useState('')
+  /*
+   * O que a visita JÁ TINHA quando foi encerrada da primeira vez.
+   *
+   * Corrigir uma inspeção de ontem não pode reescrever onde e quando
+   * ela aconteceu: sem isto, reencerrar hoje gravaria a coordenada do
+   * escritório e a hora de agora por cima do que foi colhido em campo
+   * — e o documento passaria a mentir justamente nos campos que
+   * existem para provar que alguém esteve lá.
+   */
+  const [jaEncerrada, setJaEncerrada] = useState<{
+    encerrada_em: string | null
+    latitude: number | null
+    longitude: number | null
+    precisao_m: number | null
+    ciente_em: string | null
+  } | null>(null)
+  /* O relatório que esta visita já tem. Existindo, reencerrar REVISA o
+     documento em vez de emitir um código novo. */
+  const [ricDaVisita, setRicDaVisita] = useState<{ id: string; codigo: string; revisao: number } | null>(
+    null
+  )
   const [enviandoFoto, setEnviandoFoto] = useState(false)
   const [salvando, setSalvando] = useState(false)
 
@@ -320,7 +341,10 @@ function CampoConteudo() {
         /* Observações e ciência entram aqui porque a tela grava os dois
            ao sair do campo: se viessem vazios na retomada, o primeiro
            clique fora apagaria o que já estava escrito. */
-        .select('id, empresa_id, local_id, local_nome, situacao, observacoes, ciente_nome, ciente_cargo')
+        .select(
+          'id, empresa_id, local_id, local_nome, situacao, observacoes, ciente_nome, ciente_cargo,' +
+            ' encerrada_em, latitude, longitude, precisao_m, ciente_em'
+        )
         .eq('id', visitaDaUrl)
         .maybeSingle()
       if (!ativo || !v) return
@@ -339,6 +363,26 @@ function CampoConteudo() {
         .order('created_at', { ascending: false })
 
       if (!ativo) return
+
+      /* Visita que já foi encerrada uma vez e voltou para correção:
+         guarda o que não pode ser reescrito e o código que ela ganhou. */
+      if ((v as any).encerrada_em) {
+        setJaEncerrada({
+          encerrada_em: (v as any).encerrada_em,
+          latitude: (v as any).latitude,
+          longitude: (v as any).longitude,
+          precisao_m: (v as any).precisao_m,
+          ciente_em: (v as any).ciente_em,
+        })
+        const { data: rel } = await supabase
+          .from('relatorios_emitidos')
+          .select('id, codigo, revisao')
+          .eq('visita_id', visitaDaUrl)
+          .order('emitido_em', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (ativo && rel) setRicDaVisita(rel as any)
+      }
 
       setMinhaEmpresa((m) => m || (v as any).empresa_id)
       setEmpresaFiltro((e) => e || (v as any).empresa_id)
@@ -913,29 +957,59 @@ function CampoConteudo() {
         .from('inspecao_visitas')
         .update({
           situacao: 'encerrada',
-          encerrada_em: new Date().toISOString(),
-          latitude: posicao?.lat ?? null,
-          longitude: posicao?.lon ?? null,
-          precisao_m: posicao?.precisao ?? null,
+          /*
+           * Numa correção, o encerramento, a coordenada e a hora da
+           * ciência são os do dia da visita — não os de agora. Quem
+           * precisar mudar a hora de encerramento faz isso no
+           * cabeçalho do RIC, de propósito e com motivo.
+           */
+          encerrada_em: jaEncerrada?.encerrada_em ?? new Date().toISOString(),
+          latitude: jaEncerrada?.latitude ?? posicao?.lat ?? null,
+          longitude: jaEncerrada?.longitude ?? posicao?.lon ?? null,
+          precisao_m: jaEncerrada?.precisao_m ?? posicao?.precisao ?? null,
           observacoes: observacoes.trim() || null,
           ciente_nome: cienteNome.trim() || null,
           ciente_cargo: cienteCargo.trim() || null,
           /* A hora da ciência é a do encerramento, que é quando a
              pessoa de fato ficou sabendo — e não a de agora, se o
              relatório for reaberto amanhã. */
-          ciente_em: cienteNome.trim() ? new Date().toISOString() : null,
+          ciente_em: cienteNome.trim()
+            ? jaEncerrada?.ciente_em ?? new Date().toISOString()
+            : null,
         })
         .eq('id', visitaId)
       if (erroFecha) throw erroFecha
 
-      const { error: erroCodigo } = await supabase.rpc('emitir_relatorio', {
-        p_empresa: empresaAtual,
-        p_tipo: 'visita',
-        p_prefixo: 'RIC',
-        p_visita: visitaId,
-        p_resumo: resumo,
-      })
-      if (erroCodigo) throw erroCodigo
+      if (ricDaVisita) {
+        /*
+         * Visita corrigida: o documento é o MESMO, com um número de
+         * revisão a mais. Emitir de novo criaria um segundo código
+         * para o mesmo dia, e o cliente ficaria com duas folhas sem
+         * saber qual substitui qual.
+         */
+        const { error: erroRevisao } = await supabase.rpc('revisar_relatorio', {
+          p_relatorio: ricDaVisita.id,
+          p_resumo: resumo,
+        })
+        if (erroRevisao) throw erroRevisao
+
+        /* Registra no histórico que a correção foi fechada. Falhar
+           aqui não desfaz a correção: o documento já está certo. */
+        await supabase.rpc('registrar_reencerramento_visita', {
+          p_visita: visitaId,
+          p_motivo: 'Apontamentos corrigidos e visita encerrada de novo',
+          p_revisao: ricDaVisita.revisao + 1,
+        })
+      } else {
+        const { error: erroCodigo } = await supabase.rpc('emitir_relatorio', {
+          p_empresa: empresaAtual,
+          p_tipo: 'visita',
+          p_prefixo: 'RIC',
+          p_visita: visitaId,
+          p_resumo: resumo,
+        })
+        if (erroCodigo) throw erroCodigo
+      }
 
       window.location.href = '/inspecoes/visita/' + visitaId
     } catch (e: any) {
@@ -2136,6 +2210,24 @@ function CampoConteudo() {
 
           </div>
 
+          {/*
+            * Corrigindo um documento que já foi entregue.
+            *
+            * Sem este aviso, a tela é idêntica à de uma visita nova — e
+            * quem está mexendo não tem como saber que o cliente já está
+            * com a folha na mão, nem que o encerramento vai subir a
+            * revisão em vez de criar outro relatório.
+            */}
+          {ricDaVisita && (
+            <div className="banner nao-imprimir" style={{ marginBottom: 12 }}>
+              Corrigindo o <strong>{ricDaVisita.codigo}</strong>, hoje na revisão{' '}
+              {String(ricDaVisita.revisao).padStart(2, '0')}. O código não muda: ao encerrar, o
+              mesmo relatório passa para a revisão{' '}
+              {String(ricDaVisita.revisao + 1).padStart(2, '0')}. A data do encerramento e a
+              coordenada continuam sendo as da visita.
+            </div>
+          )}
+
           {feitos.length > 0 && (
             <div className="campo-visita">
               <div className="campo-visita-cabeca">
@@ -2150,7 +2242,11 @@ function CampoConteudo() {
                   disabled={encerrando}
                   onClick={encerrar}
                 >
-                  {encerrando ? 'Encerrando…' : 'Encerrar e emitir o relatório'}
+                  {encerrando
+                    ? 'Encerrando…'
+                    : ricDaVisita
+                      ? 'Encerrar e revisar o relatório'
+                      : 'Encerrar e emitir o relatório'}
                 </button>{' '}
                 <Ajuda
                   titulo="Encerrar e emitir"
