@@ -5,7 +5,15 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { marcaDoDominio, type Marca } from '@/lib/marca'
-import { MODULOS, linkContratacao, useModulos, type Modulo } from '@/lib/modulos'
+import {
+  DIAS_DE_TESTE,
+  MODULOS,
+  MODULOS_COM_TESTE,
+  iniciarTeste,
+  linkContratacao,
+  useModulos,
+  type Modulo,
+} from '@/lib/modulos'
 import { SERVICOS, linkOrcamento, PREFIXO_CONTRATACAO, PREFIXO_ORCAMENTO } from '@/lib/servicos'
 import { ROTULO_SITUACAO } from '@/lib/situacoes'
 import Icone from '@/components/Icone'
@@ -53,11 +61,41 @@ const ORDEM: Modulo[] = [
   'auditoria',
 ]
 
+/* O que cada ferramenta com teste promete no cartão. */
+const CHAMADA_DO_TESTE: Partial<Record<Modulo, { titulo: string; texto: string }>> = {
+  epi: {
+    titulo: 'Experimente com a sua equipe, por ' + DIAS_DE_TESTE + ' dias',
+    texto:
+      'Sem cartão e sem compromisso. No 8º dia a ferramenta fecha — e tudo o que você registrou continua aqui, para ver e imprimir.',
+  },
+  inspecoes: {
+    titulo: 'Faça uma visita de verdade, por ' + DIAS_DE_TESTE + ' dias',
+    texto:
+      'Use um checklist nosso ou o seu. No 8º dia a ferramenta fecha — e o relatório da visita continua aqui.',
+  },
+}
+
 export default function ContratarPage() {
   const modulos = useModulos()
   const [marca, setMarca] = useState<Marca>('reallife')
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [carregandoPedidos, setCarregandoPedidos] = useState(true)
+  const [ligando, setLigando] = useState<Modulo | null>(null)
+  const [erroTeste, setErroTeste] = useState('')
+
+  async function comecarTeste(m: Modulo) {
+    if (ligando) return
+    setErroTeste('')
+    setLigando(m)
+    const r = await iniciarTeste(m)
+    setLigando(null)
+    if (!r.ok) {
+      setErroTeste(r.erro || 'Não foi possível começar o teste agora.')
+      return
+    }
+    /* Recarrega para a ferramenta já aparecer aberta no menu. */
+    window.location.href = MODULOS[m].href
+  }
 
   useEffect(() => {
     let ativo = true
@@ -119,13 +157,28 @@ export default function ContratarPage() {
 
         <section>
           <div className="section-title" style={{ marginBottom: 10 }}>Ferramentas do portal</div>
+          {erroTeste && <div className="banner bad" style={{ marginBottom: 10 }}>{erroTeste}</div>}
           <div className="contratar-grade">
             {ORDEM.map((m) => {
               const info = MODULOS[m]
-              const contratado = !modulos.carregando && modulos.liberado(m)
+              /* `contratado` é contrato mesmo — o teste não conta aqui. */
+              const contratado = !modulos.carregando && modulos.contratado(m)
+              const teste = modulos.teste(m)
+              const podeTestar =
+                !modulos.carregando && !contratado && MODULOS_COM_TESTE.includes(m) && teste.estado === 'nenhum'
+              const emTeste = teste.estado === 'andamento'
+              const testeAcabou = !contratado && teste.estado === 'encerrado'
+              const chamada = CHAMADA_DO_TESTE[m]
 
               return (
-                <div key={m} className={'mod-card' + (contratado || modulos.carregando ? '' : ' bloqueado')}>
+                <div
+                  key={m}
+                  className={
+                    'mod-card' +
+                    (contratado || emTeste || modulos.carregando ? '' : ' bloqueado') +
+                    (podeTestar || emTeste ? ' com-teste' : '')
+                  }
+                >
                   <div className="mod-topo">
                     <span className="mod-icone">
                       <Icone nome={m} tamanho={24} />
@@ -133,6 +186,16 @@ export default function ContratarPage() {
                     {!modulos.carregando &&
                       (contratado ? (
                         <span className="mod-selo">Contratado</span>
+                      ) : emTeste ? (
+                        <span className="mod-selo selo-teste">
+                          {teste.diasRestantes === 0
+                            ? 'Teste acaba hoje'
+                            : teste.diasRestantes === 1
+                              ? 'Teste · falta 1 dia'
+                              : 'Teste · faltam ' + teste.diasRestantes + ' dias'}
+                        </span>
+                      ) : podeTestar ? (
+                        <span className="mod-selo selo-teste">{DIAS_DE_TESTE} dias grátis</span>
                       ) : (
                         <span className="mod-cadeado">
                           <Icone nome="cadeado" tamanho={18} rotulo="Não contratado" />
@@ -141,18 +204,52 @@ export default function ContratarPage() {
                   </div>
                   <h3>{info.rotulo}</h3>
                   <p>{info.resumo}</p>
+
+                  {/* O convite do teste, com o que acontece no 8º dia dito
+                      antes do 8º dia: teste sem relógio parece armadilha. */}
+                  {podeTestar && chamada && (
+                    <div className="mod-convite">
+                      <strong>{chamada.titulo}</strong>
+                      <span>{chamada.texto}</span>
+                    </div>
+                  )}
+
+                  {testeAcabou && (
+                    <div className="mod-convite">
+                      <strong>Seu teste terminou</strong>
+                      <span>
+                        O que você registrou continua aqui para ver e imprimir. Para voltar a
+                        registrar, é só contratar.
+                      </span>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                    {contratado ? (
+                    {contratado || emTeste ? (
                       <Link href={info.href} className="btn btn-sm">
                         Abrir
                       </Link>
+                    ) : podeTestar ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary"
+                          onClick={() => comecarTeste(m)}
+                          disabled={ligando === m}
+                        >
+                          {ligando === m ? 'Abrindo…' : 'Começar o teste'}
+                        </button>
+                        <Link href={info.href} className="btn btn-sm btn-ghost">
+                          Conhecer
+                        </Link>
+                      </>
                     ) : (
                       <>
                         <a href={linkContratacao(m)} className="btn btn-sm btn-primary">
                           Pedir orçamento
                         </a>
                         <Link href={info.href} className="btn btn-sm btn-ghost">
-                          Conhecer
+                          {testeAcabou ? 'Ver meus registros' : 'Conhecer'}
                         </Link>
                       </>
                     )}

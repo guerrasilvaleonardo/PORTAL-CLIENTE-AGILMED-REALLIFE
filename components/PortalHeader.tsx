@@ -455,6 +455,22 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
             const bloqueado =
               !interno && !!MODULO_DA_ROTA[item.href] && !modulos.carregando && !modulos.liberado(MODULO_DA_ROTA[item.href])
 
+            /*
+             * O selo do teste de 7 dias, no próprio menu. Verde enquanto
+             * está rodando, cinza depois — ler continua valendo, gravar
+             * não. Sem isso o cliente só descobre o fim do teste quando
+             * o botão de registrar não funciona.
+             */
+            const moduloDaRota = MODULO_DA_ROTA[item.href]
+            const testeDoItem =
+              !interno && moduloDaRota && !modulos.carregando ? modulos.teste(moduloDaRota) : null
+            const seloTeste =
+              testeDoItem && testeDoItem.estado === 'andamento'
+                ? { texto: 'TESTE', classe: 'menu-teste' }
+                : testeDoItem && testeDoItem.estado === 'encerrado' && !modulos.contratado(moduloDaRota!)
+                  ? { texto: 'LEITURA', classe: 'menu-leitura' }
+                  : null
+
             const secoes = SECOES[item.href]
 
             /* Chamados é seção do Atendimento e não começa com
@@ -544,6 +560,7 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
                 >
                   {bloqueado && <Icone nome="cadeado" tamanho={14} rotulo="não contratada" />}
                   {item.rotulo}
+                  {seloTeste && <span className={seloTeste.classe}>{seloTeste.texto}</span>}
                   {item.href === (interno ? '/atendimento' : '/chamados') &&
                     chamadosNovos > 0 && (
                       <span

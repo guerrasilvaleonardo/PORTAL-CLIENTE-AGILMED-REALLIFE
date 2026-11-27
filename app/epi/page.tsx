@@ -9,6 +9,8 @@ import { formatarCpf } from '@/lib/historicoCertificados'
 import FiltroEmpresa from '@/components/FiltroEmpresa'
 import { chaveDaFuncao } from '@/lib/funcao'
 import Icone from '@/components/Icone'
+import { useModulos } from '@/lib/modulos'
+import FaixaDoTeste from '@/components/FaixaDoTeste'
 import '../colaboradores/colaboradores.css'
 import './entregas.css'
 
@@ -476,6 +478,30 @@ export default function EntregasEpi() {
     }
   }, [entregas, empresaFiltro])
 
+  /*
+   * O TESTE DE 7 DIAS (supabase/teste-de-7-dias.sql).
+   *
+   * Durante o teste a tela é a de verdade. Depois dele ela continua
+   * aberta em modo leitura: a ficha da NR-06 é registro do trabalhador,
+   * não fica refém de contrato. O que fecha é o registro novo — e isso
+   * o banco também recusa, não só a tela.
+   */
+  const modulos = useModulos()
+  const teste = modulos.teste('epi')
+  const podeGravar = modulos.carregando || modulos.podeGravar('epi')
+
+  /* O que a empresa construiu no teste, para a tela do 8º dia. */
+  const numerosDoTeste = useMemo(() => {
+    if (teste.estado !== 'encerrado') return []
+    const vivas = entregas.filter((e) => !e.cancelada_em)
+    const pessoas = new Set(vivas.map((e) => e.colaborador_id).filter(Boolean))
+    return [
+      { valor: vivas.length, rotulo: 'entregas de EPI registradas' },
+      { valor: pessoas.size, rotulo: 'colaboradores com ficha aberta' },
+      { valor: vivas.filter((e) => e.assinado_em).length, rotulo: 'entregas assinadas pelo trabalhador' },
+    ]
+  }, [entregas, teste.estado])
+
   /* Quem entregou de fato: o encarregado escolhido, ou quem está logado
    * quando ninguém foi escolhido. O nome vai congelado para a ficha —
    * a pessoa pode sair da empresa e a ficha continua dizendo quem foi. */
@@ -921,6 +947,8 @@ export default function EntregasEpi() {
 
       {erro && <div className="banner bad">{erro}</div>}
 
+      <FaixaDoTeste modulo="epi" teste={teste} numeros={numerosDoTeste} />
+
       <div className="stats">
         <div className="stat">
           <div className="num">{numeros.mes}</div>
@@ -946,9 +974,22 @@ export default function EntregasEpi() {
             opcoes={empresas.map((e) => ({ id: e.id, nome: nomeEmpresa(e) }))}
           />
         )}
-        <button type="button" className="btn btn-primary" onClick={abrirNova}>
+        {/* Depois do teste o botão fica visível e desligado, de propósito:
+            sumir com ele esconderia do cliente o que ele deixa na mesa. */}
+        <button
+          type="button"
+          className={'btn btn-primary' + (podeGravar ? '' : ' teste-desligado')}
+          onClick={abrirNova}
+          disabled={!podeGravar}
+          title={podeGravar ? undefined : 'O teste terminou. Contrate o EPI para registrar de novo.'}
+        >
           <Icone nome="mais" /> Nova entrega
         </button>
+        {!podeGravar && (
+          <span className="teste-leitura">
+            <Icone nome="cadeado" tamanho={11} rotulo="" /> SOMENTE LEITURA
+          </span>
+        )}
         <button
           type="button"
           className={`btn ${filtrosAbertos ? 'btn-ativo' : ''}`}

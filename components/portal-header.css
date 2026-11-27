@@ -1,5 +1,26 @@
 /* Balão vermelho de mensagens não lidas na aba Conversas. */
 
+/*
+ * O SELO DO TESTE DE 7 DIAS, no menu lateral.
+ *
+ * Verde enquanto o teste corre, cinza depois. O cinza é tão importante
+ * quanto o verde: sem ele o cliente só descobre que o teste acabou
+ * quando o botão de registrar não responde.
+ */
+.menu-teste,
+.menu-leitura {
+  margin-left: auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.menu-teste { background: var(--accent); color: var(--on-accent); }
+.menu-leitura { background: #4A5080; color: #fff; }
+
 .balao-nao-lidas {
   min-width: 18px;
   height: 18px;

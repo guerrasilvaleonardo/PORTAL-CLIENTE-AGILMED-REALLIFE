@@ -128,11 +128,52 @@ export const MODULOS: Record<
   },
 }
 
+/*
+ * AS DUAS QUE TÊM TESTE DE 7 DIAS (supabase/teste-de-7-dias.sql).
+ *
+ * São as únicas que se demonstram sozinhas em uma semana, com os dados
+ * do próprio cliente. As outras cinco só mostram valor com o acervo
+ * dele já carregado — teste em tela vazia vende contra nós — e
+ * Implantar e Auditar ainda consomem a nossa equipe a cada etapa.
+ */
+export const MODULOS_COM_TESTE: Modulo[] = ['epi', 'inspecoes']
+
+export const DIAS_DE_TESTE = 7
+
+export type EstadoTeste = 'nenhum' | 'andamento' | 'encerrado'
+
+export type Teste = {
+  estado: EstadoTeste
+  terminaEm: Date | null
+  /* Dias cheios que faltam. 0 = termina hoje. */
+  diasRestantes: number
+  convertido: boolean
+}
+
 export type AcessoModulos = {
   carregando: boolean
   interno: boolean
-  /* Ferramenta liberada para quem está vendo (equipe: sempre). */
+  /*
+   * VER e GRAVAR deixaram de ser a mesma coisa.
+   *
+   * Quem testou e não contratou continua VENDO o que registrou — ficha
+   * da NR-06, relatório de inspeção — e só não grava mais. Por isso
+   * `liberado` (a tela abre, o cadeado some) e `podeGravar` (os botões
+   * de registrar funcionam) são duas perguntas diferentes.
+   */
   liberado: (m: Modulo) => boolean
+  podeGravar: (m: Modulo) => boolean
+  /* Só contrato, sem contar teste. */
+  contratado: (m: Modulo) => boolean
+  teste: (m: Modulo) => Teste
+}
+
+const SEM_TESTE: Teste = { estado: 'nenhum', terminaEm: null, diasRestantes: 0, convertido: false }
+
+/* Dias cheios daqui até lá, nunca negativo. */
+function diasAte(fim: Date): number {
+  const ms = fim.getTime() - Date.now()
+  return ms <= 0 ? 0 : Math.ceil(ms / 86400000)
 }
 
 const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
@@ -143,10 +184,16 @@ const PERFIS_INTERNOS = ['atendimento', 'gestor', 'admin']
  * bloquear ninguém por engano.
  */
 export function useModulos(): AcessoModulos {
-  const [estado, setEstado] = useState<{ carregando: boolean; interno: boolean; liberados: Record<Modulo, boolean> }>({
+  const [estado, setEstado] = useState<{
+    carregando: boolean
+    interno: boolean
+    liberados: Record<Modulo, boolean>
+    testes: Partial<Record<Modulo, Teste>>
+  }>({
     carregando: true,
     interno: false,
     liberados: { certificados: true, treinamentos: true, documentos: true, epi: true, inspecoes: true, auditoria: true, implantacao: true },
+    testes: {},
   })
 
   useEffect(() => {
@@ -185,7 +232,34 @@ export function useModulos(): AcessoModulos {
           }
         }
 
-        if (ativo) setEstado({ carregando: false, interno, liberados })
+        /*
+         * Os testes da empresa. Se a tabela ainda não existe (o SQL não
+         * rodou), o portal segue como era antes: sem teste nenhum,
+         * nenhuma tela quebra.
+         */
+        let testes: Partial<Record<Modulo, Teste>> = {}
+
+        if (perfil?.empresa_id) {
+          const { data: linhas, error: erroTeste } = await supabase
+            .from('modulo_testes')
+            .select('modulo, termina_em, convertido_em')
+            .eq('empresa_id', perfil.empresa_id)
+
+          if (!erroTeste && linhas) {
+            for (const l of linhas as { modulo: string; termina_em: string; convertido_em: string | null }[]) {
+              const fim = new Date(l.termina_em)
+              const emAndamento = fim.getTime() > Date.now()
+              testes[l.modulo as Modulo] = {
+                estado: emAndamento ? 'andamento' : 'encerrado',
+                terminaEm: fim,
+                diasRestantes: emAndamento ? diasAte(fim) : 0,
+                convertido: Boolean(l.convertido_em),
+              }
+            }
+          }
+        }
+
+        if (ativo) setEstado({ carregando: false, interno, liberados, testes })
       } catch (e) {
         console.error('Não foi possível ler as ferramentas contratadas:', e)
         if (ativo) setEstado((a) => ({ ...a, carregando: false }))
@@ -199,11 +273,60 @@ export function useModulos(): AcessoModulos {
     }
   }, [])
 
+  const teste = (m: Modulo): Teste => estado.testes[m] || SEM_TESTE
+
   return {
     carregando: estado.carregando,
     interno: estado.interno,
-    liberado: (m) => estado.interno || estado.liberados[m],
+    contratado: (m) => estado.interno || estado.liberados[m],
+    /* Ver: contratou, ou testou um dia — o registro dele não vira refém. */
+    liberado: (m) => estado.interno || estado.liberados[m] || teste(m).estado !== 'nenhum',
+    /* Gravar: contratou, ou está dentro dos 7 dias. */
+    podeGravar: (m) => estado.interno || estado.liberados[m] || teste(m).estado === 'andamento',
+    teste,
   }
+}
+
+/*
+ * Liga o teste. O banco é quem decide: recusa ferramenta sem teste,
+ * empresa que já contratou e empresa que já usou o teste uma vez.
+ */
+export async function iniciarTeste(m: Modulo): Promise<{ ok: boolean; erro?: string }> {
+  const { error } = await supabase.rpc('iniciar_teste_modulo', { p_modulo: m })
+  if (!error) return { ok: true }
+
+  /* Função ainda não criada: o SQL não rodou. */
+  if (/iniciar_teste_modulo|does not exist|42883/.test(error.message || '')) {
+    return { ok: false, erro: 'O teste ainda não está disponível. Fale com a nossa equipe.' }
+  }
+  return { ok: false, erro: error.message }
+}
+
+/* Marca que o teste virou pedido, para o portal parar de insistir. */
+export async function testeVirouChamado(m: Modulo, chamadoId: string) {
+  await supabase.rpc('teste_virou_chamado', { p_modulo: m, p_chamado: chamadoId }).then(
+    () => undefined,
+    () => undefined,
+  )
+}
+
+/* Link do chamado de contratação depois do teste, com o uso dele dentro. */
+export function linkContratacaoAposTeste(m: Modulo, resumoDoUso: string) {
+  const info = MODULOS[m]
+  const q = new URLSearchParams({
+    categoria: 'Atendimento administrativo',
+    assunto: 'Contratação: ' + info.rotulo,
+    descricao:
+      'Testamos a ferramenta ' +
+      info.rotulo +
+      ' por ' +
+      DIAS_DE_TESTE +
+      ' dias no portal e queremos contratar.\n\n' +
+      'O que registramos no teste:\n' +
+      resumoDoUso +
+      '\n\nQuantidade aproximada de colaboradores: \nMelhor contato para a proposta: ',
+  })
+  return '/chamados/novo?' + q.toString()
 }
 
 /* Link do chamado de contratação, já preenchido. */

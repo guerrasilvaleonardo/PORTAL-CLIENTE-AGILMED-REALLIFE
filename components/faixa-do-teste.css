@@ -1,0 +1,243 @@
+/*
+ * A faixa do teste de 7 dias.
+ *
+ * Durante o teste ela é escura e discreta: quem está trabalhando não
+ * precisa de alarme todo dia. No dia 8 ela clareia, ganha borda verde e
+ * passa a ser a coisa mais importante da tela — é ali que o cliente vê
+ * o que construiu e decide.
+ */
+
+/* ---------- Durante os 7 dias -------------------------------------- */
+
+.teste-faixa {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: var(--primary);
+  border-radius: var(--radius-m);
+  padding: 15px 18px;
+  margin-bottom: 16px;
+}
+
+.teste-contador {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #2A3375;
+  border: 2.5px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.teste-contador strong {
+  font-size: 19px;
+  color: #fff;
+}
+
+.teste-contador span {
+  font-size: 8.5px;
+  color: #C9CCDE;
+  margin-top: 2px;
+}
+
+.teste-texto {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.teste-titulo {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.teste-texto p {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: #C9CCDE;
+  line-height: 1.45;
+}
+
+.teste-texto p strong {
+  color: #fff;
+}
+
+.teste-barra {
+  margin-top: 9px;
+  height: 5px;
+  background: #2A3375;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.teste-barra span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.teste-faixa .teste-cta {
+  flex: none;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* ---------- Dia 8: fechou, mas não sumiu --------------------------- */
+
+.teste-fim {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-m);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+.teste-fim-esq {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.teste-fim-esq h2 {
+  margin: 6px 0 0;
+  font-size: 21px;
+  color: var(--primary);
+  letter-spacing: -0.3px;
+}
+
+.teste-numeros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.teste-numeros > div {
+  background: var(--primary-tint);
+  border: 1px solid #DCEBB2;
+  border-radius: var(--radius-s);
+  padding: 12px 14px;
+}
+
+.teste-numeros strong {
+  display: block;
+  font-size: 25px;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.teste-numeros span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.teste-fim-esq > p {
+  margin: 13px 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.teste-fim-esq > p strong {
+  color: var(--primary);
+}
+
+.teste-fim-dir {
+  flex: none;
+  width: 262px;
+  background: var(--primary);
+  border-radius: var(--radius-s);
+  padding: 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.teste-fim-chamada {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.35;
+}
+
+.teste-fim-dir p {
+  margin: 0;
+  font-size: 12px;
+  color: #C9CCDE;
+  line-height: 1.5;
+}
+
+.teste-fim-dir .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary);
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+.teste-fim-depois {
+  text-align: center;
+  color: #C9CCDE;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px;
+  text-decoration: none;
+}
+
+.teste-fim-depois:hover {
+  color: #fff;
+}
+
+/* Num celular a coluna escura desce e ocupa a largura toda. */
+@media (max-width: 720px) {
+  .teste-fim-dir {
+    width: 100%;
+  }
+}
+
+/* ---------- O aviso de somente leitura ------------------------------ */
+
+.teste-leitura {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+/* Botão que existe para ser visto desligado: sumir com ele esconderia
+   do cliente exatamente o que ele está deixando na mesa. */
+.btn.teste-desligado,
+.btn.teste-desligado:hover {
+  background: #FAFAFC;
+  border-color: var(--border);
+  color: #A8ACC0;
+  cursor: not-allowed;
+}
+
+@media print {
+  .teste-faixa,
+  .teste-fim {
+    display: none;
+  }
+}
