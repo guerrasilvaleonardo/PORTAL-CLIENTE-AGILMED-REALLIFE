@@ -4,7 +4,6 @@ import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { obterMarcaDaEmpresa } from '@/lib/empresa'
 import { useModulos, type Modulo } from '@/lib/modulos'
 import SeletorEmpresa from '@/components/SeletorEmpresa'
 import AvisoForaHorario from '@/components/AvisoForaHorario'
@@ -248,55 +247,56 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         }
 
         /*
-         * UMA CONSULTA, NÃO QUATRO.
+         * TRÊS VIAGENS AO SERVIDOR, NÃO CINCO.
          *
          * O menu levava 2,3 s para aparecer e a culpa era de idas e
          * voltas repetidas: este efeito pedia o perfil, e logo em
          * seguida `obterMarcaDaEmpresa()` pedia DE NOVO o usuário, DE
-         * NOVO o perfil e só então a empresa. Cinco viagens ao servidor,
-         * duas delas pela mesma informação, uma esperando a outra.
+         * NOVO o perfil e só então a empresa. Cinco viagens, duas delas
+         * pela mesma informação, cada uma esperando a anterior.
          *
-         * Agora o perfil vem com a marca da empresa junto, numa consulta
-         * só. Se o banco não aceitar o aninhamento, o caminho antigo
-         * continua ali embaixo — mais lento, mas correto.
+         * A primeira tentativa foi trazer a marca aninhada no perfil,
+         * numa consulta só. NÃO FUNCIONOU: medido em produção, o
+         * aninhamento falha (não há chave estrangeira de
+         * profiles.empresa_id para empresas) e a salvaguarda caía no
+         * caminho antigo — mesmo tempo de antes, mais uma viagem
+         * desperdiçada. Fica o registro para ninguém tentar de novo
+         * sem criar a chave antes.
+         *
+         * Agora: o perfil traz empresa_id junto, e a empresa só é
+         * consultada quando existe. Equipe interna não tem empresa e
+         * nem chega a fazer a segunda consulta.
          *
          * Tudo com limite de tempo. Se nada vier, o menu aparece do
          * mesmo jeito (menu do cliente, marca do domínio): a segurança
          * dos dados está no banco (RLS), não no menu.
          */
-        type PerfilComMarca = { perfil: string | null; empresa_id: string | null; empresas: unknown }
-
-        const juntos = await comLimiteDeTempo(
+        const perfilResp = await comLimiteDeTempo(
           supabase
             .from('profiles')
-            .select('perfil, empresa_id, empresas(marca)')
+            .select('perfil, empresa_id')
             .eq('id', user.id)
             .maybeSingle()
         ).catch(() => null)
 
-        let perfil: { perfil: string | null } | null = null
+        const linha = (perfilResp?.data || null) as { perfil: string | null; empresa_id: string | null } | null
+        const perfil = linha ? { perfil: linha.perfil } : null
+
+        /*
+         * Equipe interna não tem empresa: a marca é a do domínio, e nem
+         * vale a viagem ao servidor.
+         */
         let marcaEmpresa: Marca | null = null
 
-        if (juntos && !juntos.error && juntos.data) {
-          const linha = juntos.data as PerfilComMarca
-          perfil = { perfil: linha.perfil }
+        if (linha?.empresa_id) {
+          const empresaResp = await comLimiteDeTempo(
+            supabase.from('empresas').select('marca').eq('id', linha.empresa_id).maybeSingle()
+          ).catch(() => null)
 
-          /* O aninhado vem como objeto ou como lista de um, conforme a
-             versão do PostgREST. Aceita os dois. */
-          const empresa = Array.isArray(linha.empresas) ? linha.empresas[0] : linha.empresas
-          const nomeDaMarca = (empresa as { marca?: string } | null)?.marca
-
-          /* Equipe interna não tem empresa: a marca é a do domínio. */
+          const nomeDaMarca = (empresaResp?.data as { marca?: string } | null)?.marca
           marcaEmpresa = (nomeDaMarca ? obterMarca(nomeDaMarca) : null) || marcaDoDominio()
         } else {
-          /* Caminho antigo, para o caso de o aninhamento não funcionar. */
-          const perfilResp = await comLimiteDeTempo(
-            supabase.from('profiles').select('perfil').eq('id', user.id).maybeSingle()
-          ).catch(() => null)
-          perfil = perfilResp?.data || null
-
-          marcaEmpresa =
-            (await comLimiteDeTempo(obterMarcaDaEmpresa()).catch(() => null)) || marcaDoDominio()
+          marcaEmpresa = marcaDoDominio()
         }
 
         if (!ativo) {
