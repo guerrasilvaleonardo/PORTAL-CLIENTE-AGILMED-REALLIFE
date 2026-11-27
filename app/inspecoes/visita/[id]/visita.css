@@ -156,3 +156,64 @@
     page-break-after: avoid;
   }
 }
+
+/*
+ * Formulário de correção do RIC.
+ *
+ * Grade que se adapta: no computador cabem três campos por linha, no
+ * celular um. Quem corrige o relatório quase sempre está sentado, mas
+ * quem percebe o erro está no cliente, com o celular na mão.
+ */
+.corrigir-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* Histórico de correções: sai impresso, junto do documento. */
+.rel-historico {
+  margin-top: 22px;
+}
+
+.rel-historico h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  margin: 0 0 8px;
+}
+
+/* O código da NC, ao lado da classificação do apontamento. */
+.ric-codigo-nc {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+
+/* Plano de ação dentro do apontamento. */
+.ric-plano {
+  margin-top: 10px;
+  padding-left: 10px;
+  border-left: 3px solid var(--primary-tint);
+}
+
+.ric-plano-rot {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+@media print {
+  /* No papel o link não clica: fica como texto do documento. */
+  .ric-codigo-nc {
+    border-bottom: 0;
+    color: inherit;
+  }
+}

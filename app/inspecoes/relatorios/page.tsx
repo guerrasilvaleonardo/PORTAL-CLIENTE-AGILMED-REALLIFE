@@ -76,6 +76,11 @@ function RelatoriosConteudo() {
      linhas podem terminar com 0041. */
   const [busca, setBusca] = useState('')
   const [ano, setAno] = useState('')
+  /* Por visita: não conformidades e ações ainda abertas hoje. */
+  const [pendencias, setPendencias] = useState<{
+    ncs: Record<string, number>
+    acoes: Record<string, number>
+  }>({ ncs: {}, acoes: {} })
 
   const empresaAtual = interno ? empresaFiltro : minhaEmpresa
 
@@ -114,7 +119,55 @@ function RelatoriosConteudo() {
         )
         .order('emitido_em', { ascending: false })
         .limit(500)
-      setLista((data || []) as unknown as Relatorio[])
+      const relatorios = (data || []) as unknown as Relatorio[]
+      setLista(relatorios)
+
+      /*
+       * O QUE AINDA ESTÁ ABERTO EM CADA RELATÓRIO.
+       *
+       * A lista dizia quantos apontamentos o documento tinha no dia em
+       * que saiu — número congelado, que nunca muda. Quem olha esta
+       * tela, porém, está perguntando outra coisa: qual visita ainda
+       * tem coisa pendente. Sem isto, descobrir isso exigia abrir
+       * relatório por relatório.
+       *
+       * Falhar aqui não derruba a lista: a coluna some e os códigos
+       * continuam lá, que é o que esta tela existe para provar.
+       */
+      const visitas = relatorios.map((r) => r.visita_id).filter((v): v is string => !!v)
+      if (visitas.length) {
+        const { data: ncs } = await supabase
+          .from('nao_conformidades')
+          .select('id, visita_id, situacao')
+          .in('visita_id', visitas)
+
+        const abertas: Record<string, number> = {}
+        const idsAbertos: string[] = []
+        ;((ncs || []) as any[]).forEach((n) => {
+          if (['encerrada', 'cancelada'].includes(n.situacao)) return
+          abertas[n.visita_id] = (abertas[n.visita_id] || 0) + 1
+          idsAbertos.push(n.id)
+        })
+
+        const acoesPorVisita: Record<string, number> = {}
+        if (idsAbertos.length) {
+          const { data: acs } = await supabase
+            .from('nc_acoes')
+            .select('nc_id, situacao')
+            .in('nc_id', idsAbertos)
+          const visitaDaNc: Record<string, string> = {}
+          ;((ncs || []) as any[]).forEach((n) => {
+            visitaDaNc[n.id] = n.visita_id
+          })
+          ;((acs || []) as any[]).forEach((a) => {
+            if (['encerrada', 'cancelada'].includes(a.situacao)) return
+            const v = visitaDaNc[a.nc_id]
+            if (v) acoesPorVisita[v] = (acoesPorVisita[v] || 0) + 1
+          })
+        }
+
+        setPendencias({ ncs: abertas, acoes: acoesPorVisita })
+      }
     } catch (e: any) {
       setErro(e?.message || 'Não foi possível carregar os relatórios.')
     } finally {
@@ -250,6 +303,13 @@ function RelatoriosConteudo() {
               <th>Tipo</th>
               {interno && <th>Empresa</th>}
               <th>Referência</th>
+              <th>
+                Em aberto{' '}
+                <Ajuda
+                  titulo="Em aberto"
+                  texto="Quantas não conformidades desta visita ainda não foram encerradas, e quantas ações do plano continuam pendentes. É o número de hoje, não o do dia da emissão: a referência ao lado é o que o documento dizia quando saiu."
+                />
+              </th>
               <th>Emitido</th>
               <th>Por</th>
               <th className="acoes" />
@@ -274,6 +334,28 @@ function RelatoriosConteudo() {
                     : r.resumo?.apontamentos !== undefined
                       ? `${r.resumo.apontamentos} apontamento${r.resumo.apontamentos === 1 ? '' : 's'}`
                       : '—'}
+                </td>
+                <td>
+                  {(() => {
+                    if (!r.visita_id) return '—'
+                    const nc = pendencias.ncs[r.visita_id] || 0
+                    const ac = pendencias.acoes[r.visita_id] || 0
+                    if (!nc && !ac) return <span className="pill good">nada em aberto</span>
+                    return (
+                      <>
+                        {nc > 0 && (
+                          <span className="pill bad">
+                            {nc} {nc === 1 ? 'NC' : 'NCs'}
+                          </span>
+                        )}{' '}
+                        {ac > 0 && (
+                          <span className="pill warn">
+                            {ac} {ac === 1 ? 'ação' : 'ações'}
+                          </span>
+                        )}
+                      </>
+                    )
+                  })()}
                 </td>
                 <td className="mono">{dataHora(r.emitido_em)}</td>
                 <td>{r.emitido_por_nome || '—'}</td>
