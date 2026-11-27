@@ -12,6 +12,7 @@ import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
 import { comLimiteDeTempo, irParaLoginSessaoExpirada, TempoEsgotadoError } from '@/lib/sessao'
+import { empresaAtual, perfilAtual, semearUsuario } from '@/lib/sessaoAtual'
 import { marcaDoDominio, obterMarca } from '@/lib/marca'
 import './portal-header.css'
 import Icone from '@/components/Icone'
@@ -271,33 +272,21 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
          * mesmo jeito (menu do cliente, marca do domínio): a segurança
          * dos dados está no banco (RLS), não no menu.
          */
-        const perfilResp = await comLimiteDeTempo(
-          supabase
-            .from('profiles')
-            .select('perfil, empresa_id')
-            .eq('id', user.id)
-            .maybeSingle()
-        ).catch(() => null)
+        /*
+         * O usuário já veio acima, com limite de tempo e ida para o
+         * login se estourar. Entrega para lib/sessaoAtual: assim o
+         * `useModulos` e a marca não pedem o usuário de novo.
+         */
+        semearUsuario(user)
 
-        const linha = (perfilResp?.data || null) as { perfil: string | null; empresa_id: string | null } | null
+        const linha = await comLimiteDeTempo(perfilAtual()).catch(() => null)
         const perfil = linha ? { perfil: linha.perfil } : null
 
-        /*
-         * Equipe interna não tem empresa: a marca é a do domínio, e nem
-         * vale a viagem ao servidor.
-         */
-        let marcaEmpresa: Marca | null = null
+        const empresa = await comLimiteDeTempo(empresaAtual()).catch(() => null)
 
-        if (linha?.empresa_id) {
-          const empresaResp = await comLimiteDeTempo(
-            supabase.from('empresas').select('marca').eq('id', linha.empresa_id).maybeSingle()
-          ).catch(() => null)
-
-          const nomeDaMarca = (empresaResp?.data as { marca?: string } | null)?.marca
-          marcaEmpresa = (nomeDaMarca ? obterMarca(nomeDaMarca) : null) || marcaDoDominio()
-        } else {
-          marcaEmpresa = marcaDoDominio()
-        }
+        /* Sem empresa (equipe interna) ou sem marca legível: marca do domínio. */
+        const marcaEmpresa: Marca =
+          (empresa?.marca ? obterMarca(empresa.marca) : null) || marcaDoDominio()
 
         if (!ativo) {
           return
