@@ -126,6 +126,15 @@ export type AnalisePessoa = {
   pontos_atencao: string[]
   plano_acao: AcaoPlano[]
   roteiro_conversa: string[]
+  /*
+   * As perguntas que vão PARA A PESSOA, na devolutiva, uma por ponto do
+   * roteiro. Escritas em segunda pessoa: o roteiro fala sobre ela, isto
+   * fala com ela.
+   *
+   * Relatório gerado antes de 27/11/2026 não tem este campo, e a
+   * devolutiva dele sai sem perguntas — por isso é opcional.
+   */
+  perguntas_pessoa?: string[]
 }
 
 export type Analise = {
@@ -425,6 +434,29 @@ export function analisePorRegras(d: DadosRelatorio): Analise {
           : 'Perguntar em que a pessoa quer se desenvolver no próximo mês.',
         'Ouvir as causas antes de concluir: volume, tipo de demanda, dependência do cliente ou de outra área.',
         'Fechar o plano junto (ação, meta e prazo) e marcar a data de retorno.',
+      ],
+      /*
+       * A MESMA CONVERSA, PERGUNTADA ANTES.
+       *
+       * Cada pergunta corresponde a um ponto do roteiro, mas falando
+       * com a pessoa. Quem responde por escrito chega na conversa com
+       * o que pensou, em vez de improvisar na frente do gestor — e a
+       * gestão chega tendo lido.
+       *
+       * Nenhuma pergunta é de sim ou não: "você concorda com os
+       * números?" produz "sim" e não ensina nada a ninguém.
+       */
+      perguntas_pessoa: [
+        'Antes de olhar os números: como você avalia o seu mês?',
+        fortes.length
+          ? 'O que você fez de diferente neste mês que ajuda a explicar o que foi bem?'
+          : 'O que funcionou no seu mês, mesmo que os números não mostrem?',
+        atencao.length
+          ? 'Sobre o que ficou abaixo do esperado: o que atrapalhou, e o que estava fora do seu alcance?'
+          : 'Em que você quer se desenvolver no próximo mês?',
+        'Algum chamado deste mês merece uma explicação que os números não contam? Qual, e o que aconteceu?',
+        'Olhando o plano de ação proposto: as metas e os prazos são viáveis para você? O que mudaria?',
+        'O que a gestão pode fazer, em concreto, para facilitar o seu próximo mês?',
       ],
     }
   }

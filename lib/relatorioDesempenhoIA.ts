@@ -261,7 +261,14 @@ export async function analisarComIA(acesso: AcessoIA, d: DadosRelatorio, porRegr
         JSON.stringify(ctx) +
         `\n\nDados de ${codigo} (JSON):\n` +
         JSON.stringify(resumoPessoa(p, codigo)) +
-        '\n\nResponda neste formato JSON: {"sintese": "2 a 4 frases sobre o mês da pessoa", "pontos_fortes": ["com evidência"], "pontos_atencao": ["com evidência"], "plano_acao": [{"acao": "...", "indicador": "...", "meta": "...", "prazo": "..."}], "roteiro_conversa": ["passo 1", "..."]}'
+        /*
+         * `perguntas_pessoa` vai PARA A PESSOA, antes da conversa. Por
+         * isso o pedido insiste em segunda pessoa e em pergunta aberta:
+         * o roteiro fala sobre ela, estas falam com ela, e uma pergunta
+         * de sim ou não devolve "sim" e não ensina nada a ninguém.
+         */
+        '\n\nResponda neste formato JSON: {"sintese": "2 a 4 frases sobre o mês da pessoa", "pontos_fortes": ["com evidência"], "pontos_atencao": ["com evidência"], "plano_acao": [{"acao": "...", "indicador": "...", "meta": "...", "prazo": "..."}], "roteiro_conversa": ["passo 1", "..."], "perguntas_pessoa": ["pergunta 1", "..."]}' +
+        '\n\nEm "perguntas_pessoa", escreva de 4 a 6 perguntas ABERTAS, dirigidas à própria pessoa em segunda pessoa ("você"), uma para cada ponto do roteiro. Elas serão enviadas a ela para responder por escrito ANTES da conversa. Nunca use o código dela na pergunta, nunca faça pergunta de sim ou não, e nunca peça que ela concorde com um número.'
       const r = await chamar(acesso, pedido, 3500)
       const base = porRegras.pessoas[p.id]
       const plano = planoValido(r.plano_acao)
@@ -273,6 +280,11 @@ export async function analisarComIA(acesso: AcessoIA, d: DadosRelatorio, porRegr
           pontos_atencao: strs(r.pontos_atencao),
           plano_acao: plano.length ? plano : base.plano_acao,
           roteiro_conversa: strs(r.roteiro_conversa, 8).length ? strs(r.roteiro_conversa, 8) : base.roteiro_conversa,
+          /* Sem perguntas, a devolutiva sairia sem nada para a pessoa
+             responder — então as das regras entram no lugar. */
+          perguntas_pessoa: strs(r.perguntas_pessoa, 8).length
+            ? strs(r.perguntas_pessoa, 8)
+            : base.perguntas_pessoa,
         },
       ]
     } catch (e: any) {

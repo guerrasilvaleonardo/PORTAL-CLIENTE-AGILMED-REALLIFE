@@ -55,6 +55,15 @@ type Publicacao = {
   ciente_em: string | null
   manifestacao: string | null
   manifestacao_em: string | null
+  /* O que foi perguntado à pessoa e o que ela respondeu. Devolutiva
+     liberada antes de 27/11/2026 não tem nenhum dos dois. */
+  perguntas: string[] | null
+  respostas: Record<string, string> | null
+  respostas_em: string | null
+  /* O PDF do relatório fechado, guardado no balde privado. Só existe
+     depois da ciência (supabase/desempenho-pdf.sql). */
+  pdf_path: string | null
+  pdf_em: string | null
 }
 
 async function chamarApiRelatorio(corpo: any) {
@@ -69,6 +78,28 @@ async function chamarApiRelatorio(corpo: any) {
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.erro || 'Falha na operação.')
   return j
+}
+
+/*
+ * PDF do relatório fechado (supabase/desempenho-pdf.sql). A rota monta
+ * o arquivo na primeira vez, guarda no balde privado e devolve um link
+ * que expira em minutos.
+ */
+async function chamarApiRelatorioPdf(id: number) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const r = await fetch('/api/desempenho-pdf', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: 'Bearer ' + (session?.access_token || ''),
+    },
+    body: JSON.stringify({ id }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.erro || 'Não foi possível gerar o PDF.')
+  return j as { url: string; nome: string }
 }
 
 /*
@@ -97,6 +128,22 @@ function Devolutiva({
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
+  const [baixandoPdf, setBaixandoPdf] = useState(false)
+
+  async function baixarPdf(id: number) {
+    if (baixandoPdf) return
+    setBaixandoPdf(true)
+    setErro('')
+    try {
+      const r = await chamarApiRelatorioPdf(id)
+      if (r.url) window.open(r.url, '_blank', 'noopener')
+      onMudou()
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível gerar o PDF.')
+    } finally {
+      setBaixandoPdf(false)
+    }
+  }
 
   if (!instalado) {
     return (
@@ -163,6 +210,64 @@ function Devolutiva({
           {ativa.primeira_abertura_em ? `aberto pela pessoa em ${dataHora(ativa.primeira_abertura_em)} (${ativa.aberturas}x)` : 'ainda não aberto'} ·{' '}
           {ativa.ciente_em ? <strong>ciência em {dataHora(ativa.ciente_em)}</strong> : 'aguardando ciência'}
           {ativa.mensagem && <div className="rel-sub">Mensagem enviada: {ativa.mensagem}</div>}
+
+          {/* O PDF do relatório fechado. Nasce sozinho na ciência; o
+              botão existe para quando isso falhar (sem sinal, aba
+              fechada) e para baixar meses depois. */}
+          {ativa.ciente_em && (
+            <div style={{ marginTop: 6 }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={baixandoPdf}
+                onClick={() => baixarPdf(ativa.id)}
+              >
+                {baixandoPdf ? 'Preparando…' : ativa.pdf_path ? 'Baixar o PDF guardado' : 'Guardar o PDF'}
+              </button>{' '}
+              <span className="rel-sub">
+                {ativa.pdf_path ? `PDF guardado em ${dataHora(ativa.pdf_em)}` : 'PDF ainda não guardado'}
+              </span>
+            </div>
+          )}
+          {/*
+            * O QUE A PESSOA RESPONDEU, PARA LER ANTES DA CONVERSA.
+            *
+            * É o ponto da autoavaliação: sentar já sabendo como ela lê
+            * o próprio mês. Pergunta em branco aparece como em branco,
+            * de propósito — o que ela escolheu não responder diz tanto
+            * quanto o que escreveu.
+            */}
+          {(ativa.perguntas || []).length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <strong>
+                Respostas de {pessoa.nome.split(' ')[0]}
+              </strong>{' '}
+              <span className="rel-sub">
+                {(ativa.perguntas || []).filter((_, i) => (ativa.respostas?.[String(i)] || '').trim()).length} de{' '}
+                {(ativa.perguntas || []).length}
+                {ativa.respostas_em ? ` · última em ${dataHora(ativa.respostas_em)}` : ''}
+              </span>
+              <ol className="rel-lista" style={{ marginTop: 6 }}>
+                {(ativa.perguntas || []).map((q, i) => {
+                  const r = (ativa.respostas?.[String(i)] || '').trim()
+                  return (
+                    <li key={i} style={{ marginBottom: 6 }}>
+                      <span className="rel-sub">{q}</span>
+                      <div
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          color: r ? undefined : 'var(--ink-faint)',
+                        }}
+                      >
+                        {r || 'Em branco.'}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+          )}
+
           {ativa.manifestacao && (
             <div style={{ marginTop: 6 }}>
               <strong>Manifestação de {pessoa.nome}</strong> ({dataHora(ativa.manifestacao_em)}):
@@ -435,6 +540,30 @@ function Ficha({
               <div className="section-title" style={{ marginBottom: 8 }}>Roteiro da conversa individual</div>
               <ol className="rel-lista">{a.roteiro_conversa.map((t, i) => <li key={i}>{t}</li>)}</ol>
             </div>
+
+            {/*
+              * As mesmas perguntas, do lado de lá.
+              *
+              * Aparecem aqui antes de liberar para a direção saber o
+              * que está sendo pedido — e poder gerar o relatório de
+              * novo se alguma pergunta não couber nesta pessoa.
+              */}
+            {(a.perguntas_pessoa || []).length > 0 && (
+              <div>
+                <div className="section-title" style={{ marginBottom: 8 }}>
+                  Perguntas que vão para a pessoa responder
+                </div>
+                <ol className="rel-lista">
+                  {(a.perguntas_pessoa || []).map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ol>
+                <p className="rel-sub">
+                  Vão junto com a ficha ao liberar a devolutiva, mesmo que a análise escrita não
+                  vá. As respostas aparecem aqui embaixo, em Devolutiva ao colaborador.
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -573,17 +702,32 @@ export default function RelatorioMensalPage() {
   }, [selId])
 
   async function carregarPubs(id: number) {
-    const { data, error } = await supabase
+    const base =
+      'id, pessoa_id, mensagem, liberado_em, revogado_em, primeira_abertura_em, aberturas, ciente_em, manifestacao, manifestacao_em'
+    /* Com as respostas quando o banco já tem as colunas; sem elas
+       enquanto o SQL da autoavaliação não rodar, para a tela de gestão
+       não parar por causa disso. */
+    const completa = await supabase
       .from('desempenho_publicacoes')
-      .select('id, pessoa_id, mensagem, liberado_em, revogado_em, primeira_abertura_em, aberturas, ciente_em, manifestacao, manifestacao_em')
+      .select(base + ', perguntas, respostas, respostas_em, pdf_path, pdf_em')
       .eq('relatorio_id', id)
+
+    const antiga =
+      completa.error &&
+      ((completa.error as any).code === '42703' ||
+        /perguntas|respostas|pdf_/.test(completa.error.message))
+        ? await supabase.from('desempenho_publicacoes').select(base).eq('relatorio_id', id)
+        : null
+
+    const data = (antiga || completa).data
+    const error = (antiga || completa).error
     if (error) {
       setPubInstalado(false)
       setPubs([])
       return
     }
     setPubInstalado(true)
-    setPubs((data || []) as Publicacao[])
+    setPubs((data || []) as unknown as Publicacao[])
   }
 
   async function carregarAcessos(id: number) {
