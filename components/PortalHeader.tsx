@@ -13,7 +13,7 @@ import { marcas, type Marca } from '@/lib/marca'
 import CelebracaoEstrelas from '@/components/CelebracaoEstrelas'
 import ManualAjuda from '@/components/manual/ManualAjuda'
 import { comLimiteDeTempo, irParaLoginSessaoExpirada, TempoEsgotadoError } from '@/lib/sessao'
-import { marcaDoDominio } from '@/lib/marca'
+import { marcaDoDominio, obterMarca } from '@/lib/marca'
 import './portal-header.css'
 import Icone from '@/components/Icone'
 import { useChamadosNaoLidos } from '@/lib/chamadosNaoLidos'
@@ -248,17 +248,56 @@ export default function PortalHeader({ children }: { children?: React.ReactNode 
         }
 
         /*
-         * Perfil e marca também com limite. Se não vierem, o menu aparece
-         * mesmo assim (menu do cliente, marca do domínio): a segurança dos
-         * dados está no banco (RLS), não no menu.
+         * UMA CONSULTA, NÃO QUATRO.
+         *
+         * O menu levava 2,3 s para aparecer e a culpa era de idas e
+         * voltas repetidas: este efeito pedia o perfil, e logo em
+         * seguida `obterMarcaDaEmpresa()` pedia DE NOVO o usuário, DE
+         * NOVO o perfil e só então a empresa. Cinco viagens ao servidor,
+         * duas delas pela mesma informação, uma esperando a outra.
+         *
+         * Agora o perfil vem com a marca da empresa junto, numa consulta
+         * só. Se o banco não aceitar o aninhamento, o caminho antigo
+         * continua ali embaixo — mais lento, mas correto.
+         *
+         * Tudo com limite de tempo. Se nada vier, o menu aparece do
+         * mesmo jeito (menu do cliente, marca do domínio): a segurança
+         * dos dados está no banco (RLS), não no menu.
          */
-        const perfilResp = await comLimiteDeTempo(
-          supabase.from('profiles').select('perfil').eq('id', user.id).maybeSingle()
-        ).catch(() => null)
-        const perfil = perfilResp?.data || null
+        type PerfilComMarca = { perfil: string | null; empresa_id: string | null; empresas: unknown }
 
-        const marcaEmpresa =
-          (await comLimiteDeTempo(obterMarcaDaEmpresa()).catch(() => null)) || marcaDoDominio()
+        const juntos = await comLimiteDeTempo(
+          supabase
+            .from('profiles')
+            .select('perfil, empresa_id, empresas(marca)')
+            .eq('id', user.id)
+            .maybeSingle()
+        ).catch(() => null)
+
+        let perfil: { perfil: string | null } | null = null
+        let marcaEmpresa: Marca | null = null
+
+        if (juntos && !juntos.error && juntos.data) {
+          const linha = juntos.data as PerfilComMarca
+          perfil = { perfil: linha.perfil }
+
+          /* O aninhado vem como objeto ou como lista de um, conforme a
+             versão do PostgREST. Aceita os dois. */
+          const empresa = Array.isArray(linha.empresas) ? linha.empresas[0] : linha.empresas
+          const nomeDaMarca = (empresa as { marca?: string } | null)?.marca
+
+          /* Equipe interna não tem empresa: a marca é a do domínio. */
+          marcaEmpresa = (nomeDaMarca ? obterMarca(nomeDaMarca) : null) || marcaDoDominio()
+        } else {
+          /* Caminho antigo, para o caso de o aninhamento não funcionar. */
+          const perfilResp = await comLimiteDeTempo(
+            supabase.from('profiles').select('perfil').eq('id', user.id).maybeSingle()
+          ).catch(() => null)
+          perfil = perfilResp?.data || null
+
+          marcaEmpresa =
+            (await comLimiteDeTempo(obterMarcaDaEmpresa()).catch(() => null)) || marcaDoDominio()
+        }
 
         if (!ativo) {
           return
