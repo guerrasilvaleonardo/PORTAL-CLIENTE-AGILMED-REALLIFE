@@ -607,7 +607,10 @@ const manualInterno: Manual = {
             'Antes de revelar, decida todas as extensões de prazo pendentes do ano: com pendência, o sistema não deixa revelar. Até lá, as abas Mensal e Anual mostram só as estrelas acumuladas, sem medalhas no anual.',
             'Avaliações ruins: acompanhamento reservado. O gestor registra a ação tomada.',
             'Extensões de prazo pendentes: decida na tela do chamado, com justificativa.',
+            'A quem são as estrelas de um chamado: procure pelo número, veja de quem elas são hoje e passe para quem resolveu de fato. Exige motivo e fica na auditoria. A quantidade de estrelas não muda, e o responsável pelo chamado também não.',
           ],
+          atencao:
+            'A estrela vai para quem era responsável NO MOMENTO DA RESOLUÇÃO, e isso fica congelado: trocar o responsável depois não move estrela nenhuma, e é assim de propósito. A correção, quando quem resolveu foi outra pessoa, é a transferência — explícita, com motivo e registrada.',
         },
         {
           titulo: 'Reconhecimento do mês (gestor e admin)',

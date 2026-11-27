@@ -73,6 +73,7 @@ Regras do projeto para o Claude Code. Leia antes de qualquer alteração.
 
 - Por chamado: 1 estrela por resolver no prazo. Avaliação do cliente: Bom +1, Excelente +2, Ruim 0.
 - Só o cliente que abriu o chamado avalia.
+- A estrela vai para quem era responsável **no momento da resolução**, e o lançamento congela isso: trocar o responsável depois não move estrela. Quando quem resolveu foi outra pessoa, gestor ou admin transfere em `/estrelas` (aba Gestão), com motivo e registro na auditoria (`supabase/estrelas-transferir.sql`).
 - Ranking mensal e anual, com premiação de fim de ano. O resultado final do ano sai pelo índice e é revelado só no fechamento.
 - Todo cálculo e toda permissão ficam no banco (`supabase/programa-estrelas.sql` e revisões posteriores).
 

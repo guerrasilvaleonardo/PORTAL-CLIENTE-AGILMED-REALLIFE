@@ -1072,6 +1072,32 @@ function AbaGestao({
   const [auditoria, setAuditoria] = useState<any[]>([])
   const [textoAcomp, setTextoAcomp] = useState<Record<string, string>>({})
 
+  /*
+   * TRANSFERIR AS ESTRELAS DE UM CHAMADO.
+   *
+   * O lançamento congela a quem a estrela pertence, e isso é proposital:
+   * sem o congelamento, bastaria trocar o responsável depois de
+   * resolvido para a estrela andar. O que faltava era a exceção
+   * explícita — chamado resolvido por uma pessoa e registrado no nome
+   * de outra ficava errado para sempre.
+   */
+  const [numeroBusca, setNumeroBusca] = useState('')
+  const [achado, setAchado] = useState<{
+    chamado_id: string
+    numero: number
+    assunto: string
+    dono_id: string
+    dono_nome: string
+    estrelas: number
+    situacao: string
+  } | null>(null)
+  const [equipe, setEquipe] = useState<{ id: string; nome: string | null }[]>([])
+  const [destino, setDestino] = useState('')
+  const [motivoTransf, setMotivoTransf] = useState('')
+  const [erroTransf, setErroTransf] = useState('')
+  const [msgTransf, setMsgTransf] = useState('')
+  const [transferindo, setTransferindo] = useState(false)
+
   const carregar = useCallback(async () => {
     const [{ data: f }, { data: r }, { data: p }, { data: a }] = await Promise.all([
       supabase.from('estrelas_fechamentos').select('*').order('ano', { ascending: false }),
@@ -1092,7 +1118,15 @@ function AbaGestao({
       supabase
         .from('estrelas_eventos')
         .select('id, tipo, motivo, created_at, chamado_id, autor_id, chamados(numero), autor:autor_id(nome)')
-        .in('tipo', ['config', 'fechamento', 'estornada', 'restabelecida', 'prazo_decidido', 'acompanhamento'])
+        .in('tipo', [
+          'config',
+          'fechamento',
+          'estornada',
+          'restabelecida',
+          'transferida',
+          'prazo_decidido',
+          'acompanhamento',
+        ])
         .order('created_at', { ascending: false })
         .limit(40),
     ])
@@ -1114,6 +1148,100 @@ function AbaGestao({
   useEffect(() => {
     carregar()
   }, [carregar, versao])
+
+  /* Acha o chamado pelo número e diz de quem são as estrelas hoje.
+     Mostrar o dono antes da escolha evita transferir para quem já
+     tinha — e evita descobrir isso só pela mensagem de erro. */
+  async function buscarChamado() {
+    setErroTransf('')
+    setMsgTransf('')
+    setAchado(null)
+    const n = parseInt(numeroBusca.replace(/\D/g, ''), 10)
+    if (!n) {
+      setErroTransf('Digite o número do chamado.')
+      return
+    }
+
+    const { data: c } = await supabase
+      .from('chamados')
+      .select('id, numero, assunto')
+      .eq('numero', n)
+      .maybeSingle()
+    if (!c) {
+      setErroTransf(`Não achei o chamado #${n}.`)
+      return
+    }
+
+    const { data: l } = await supabase
+      .from('estrelas_lancamentos')
+      .select('atendente_id, estrelas_prazo, estrelas_avaliacao, situacao')
+      .eq('chamado_id', (c as any).id)
+      .maybeSingle()
+    if (!l) {
+      setErroTransf(
+        `O chamado #${n} não tem estrelas lançadas. Sem lançamento não há o que transferir: confira se ele foi resolvido e se tinha responsável.`
+      )
+      return
+    }
+
+    const { data: dono } = await supabase
+      .from('profiles')
+      .select('nome')
+      .eq('id', (l as any).atendente_id)
+      .maybeSingle()
+
+    if (equipe.length === 0) {
+      const { data: time } = await supabase
+        .from('profiles')
+        .select('id, nome')
+        .in('perfil', ['atendimento', 'gestor', 'admin'])
+        .order('nome')
+      setEquipe(((time || []) as any[]).map((p) => ({ id: p.id, nome: p.nome })))
+    }
+
+    setAchado({
+      chamado_id: (c as any).id,
+      numero: (c as any).numero,
+      assunto: (c as any).assunto,
+      dono_id: (l as any).atendente_id,
+      dono_nome: (dono as any)?.nome || '—',
+      estrelas: ((l as any).estrelas_prazo || 0) + ((l as any).estrelas_avaliacao || 0),
+      situacao: (l as any).situacao,
+    })
+  }
+
+  async function transferir() {
+    if (!achado || transferindo) return
+    if (!destino) {
+      setErroTransf('Escolha para quem vão as estrelas.')
+      return
+    }
+    if (motivoTransf.trim().length < 12) {
+      setErroTransf('Escreva o motivo da transferência, com pelo menos 12 caracteres.')
+      return
+    }
+    setTransferindo(true)
+    setErroTransf('')
+    const { error } = await supabase.rpc('estrelas_transferir', {
+      p_chamado: achado.chamado_id,
+      p_para: destino,
+      p_motivo: motivoTransf.trim(),
+    })
+    setTransferindo(false)
+    if (error) {
+      setErroTransf(error.message)
+      return
+    }
+    const nome = equipe.find((p) => p.id === destino)?.nome || 'o novo responsável'
+    setMsgTransf(
+      `As ${achado.estrelas} estrela${achado.estrelas === 1 ? '' : 's'} do chamado #${achado.numero} agora são de ${nome}.`
+    )
+    setAchado(null)
+    setNumeroBusca('')
+    setDestino('')
+    setMotivoTransf('')
+    onSalvo()
+  }
 
   async function decidirPrazo(id: number, autorizar: boolean, forcar = false) {
     if (decidindo !== null) return
@@ -1504,6 +1632,108 @@ function AbaGestao({
         </div>
       </div>
 
+      {/*
+        * Corrigir a quem a estrela pertence.
+        *
+        * O congelamento do lançamento continua valendo — ele existe
+        * para ninguém passar a estrela para si mesmo trocando o
+        * responsável depois de resolvido. O que este bloco acrescenta
+        * é a exceção assinada: com motivo, registrada na auditoria e
+        * só por quem decide no programa.
+        */}
+      <div className="panel">
+        <div className="panel-head">
+          <div className="section-title">A quem são as estrelas de um chamado</div>
+        </div>
+        <div className="panel-body">
+          <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--ink-muted)' }}>
+            A estrela vai para quem era responsável no momento da resolução, e isso fica congelado.
+            Quando quem resolveu de fato foi outra pessoa, a correção é aqui — com motivo, e fica na
+            auditoria.
+          </p>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 700 }}>
+              Número do chamado
+              <input
+                value={numeroBusca}
+                onChange={(e) => setNumeroBusca(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') buscarChamado()
+                }}
+                placeholder="495"
+                style={{ width: 120 }}
+              />
+            </label>
+            <button type="button" className="btn btn-sm" onClick={buscarChamado}>
+              Procurar
+            </button>
+          </div>
+
+          {achado && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+                <strong>#{achado.numero}</strong> · {achado.assunto}
+                <br />
+                {achado.estrelas} estrela{achado.estrelas === 1 ? '' : 's'}, hoje de{' '}
+                <strong>{achado.dono_nome}</strong>
+                {achado.situacao === 'estornada' ? ' (estornadas)' : ''}
+              </p>
+
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 700 }}>
+                  Passar para
+                  <select value={destino} onChange={(e) => setDestino(e.target.value)}>
+                    <option value="">Escolha quem resolveu</option>
+                    {equipe
+                      .filter((p) => p.id !== achado.dono_id)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nome || p.id}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 700 }}>
+                  Motivo
+                  <textarea
+                    rows={2}
+                    value={motivoTransf}
+                    onChange={(e) => setMotivoTransf(e.target.value)}
+                    placeholder="Ex.: o chamado estava no nome da fila, mas quem resolveu e respondeu ao cliente foi o Leonardo."
+                  />
+                </label>
+
+                <div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={transferindo}
+                    onClick={transferir}
+                  >
+                    {transferindo ? 'Transferindo…' : 'Transferir as estrelas'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {erroTransf && (
+            <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--bad, #b3261e)' }}>{erroTransf}</p>
+          )}
+          {msgTransf && (
+            <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--ink-muted)' }}>{msgTransf}</p>
+          )}
+
+          <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--ink-faint)' }}>
+            A quantidade de estrelas não muda: prazo e avaliação continuam como estavam. O
+            responsável pelo chamado também não muda — são dois fatos diferentes, e reescrever um
+            para arrumar o outro apagaria o histórico de quem conduziu o atendimento.
+          </p>
+        </div>
+      </div>
+
       <div className="panel">
         <div className="panel-head"><div className="section-title">Auditoria recente</div></div>
         <div className="panel-body">
@@ -1512,7 +1742,7 @@ function AbaGestao({
           ) : auditoria.map((a) => (
             <div key={a.id} style={{ fontSize: 13 }}>
               <strong>{formatarDataHora(a.created_at)}</strong> · {a.autor?.nome || 'Sistema'} ·{' '}
-              {{ config: 'Configuração', fechamento: 'Fechamento', estornada: 'Estorno', restabelecida: 'Restabelecimento', prazo_decidido: 'Decisão de prazo', acompanhamento: 'Acompanhamento' }[a.tipo as string] || a.tipo}
+              {{ config: 'Configuração', fechamento: 'Fechamento', estornada: 'Estorno', restabelecida: 'Restabelecimento', transferida: 'Transferência de estrelas', prazo_decidido: 'Decisão de prazo', acompanhamento: 'Acompanhamento' }[a.tipo as string] || a.tipo}
               {a.chamados?.numero ? ' · chamado #' + a.chamados.numero : ''}
               {a.motivo ? ' — ' + a.motivo : ''}
             </div>
