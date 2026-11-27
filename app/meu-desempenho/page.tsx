@@ -23,6 +23,11 @@ type Publicacao = {
   ciente_em: string | null
   manifestacao: string | null
   manifestacao_em: string | null
+  /* As perguntas da devolutiva e o que já foi respondido. Devolutiva
+     liberada antes de 27/11/2026 não tem nenhuma das duas. */
+  perguntas: string[] | null
+  respostas: Record<string, string> | null
+  respostas_em: string | null
 }
 
 function dataHora(v: string | null | undefined) {
@@ -40,15 +45,35 @@ export default function MeuDesempenhoPage() {
   const [li, setLi] = useState(false)
   const [texto, setTexto] = useState('')
   const [salvando, setSalvando] = useState(false)
+  /* O que a pessoa está escrevendo agora, por índice de pergunta. */
+  const [respostas, setRespostas] = useState<Record<string, string>>({})
+  const [salvandoResp, setSalvandoResp] = useState(false)
+  const [avisoResp, setAvisoResp] = useState('')
+
+  const BASE =
+    'id, mes, conteudo, mensagem, liberado_em, ciente_em, manifestacao, manifestacao_em'
+  const COM_PERGUNTAS = BASE + ', perguntas, respostas, respostas_em'
 
   const carregar = useCallback(async (uid: string) => {
-    const { data, error } = await supabase
-      .from('desempenho_publicacoes')
-      .select('id, mes, conteudo, mensagem, liberado_em, ciente_em, manifestacao, manifestacao_em')
-      .eq('pessoa_id', uid)
-      .is('revogado_em', null)
-      .order('mes', { ascending: false })
-      .order('liberado_em', { ascending: false })
+    /*
+     * Tenta com as colunas das perguntas e, se elas ainda não existirem
+     * no banco (42703), busca de novo sem elas. Assim a tela continua
+     * mostrando a ficha e aceitando ciência mesmo antes de o SQL rodar
+     * — a pessoa não fica sem o próprio relatório por causa disso.
+     */
+    const buscar = (colunas: string) =>
+      supabase
+        .from('desempenho_publicacoes')
+        .select(colunas)
+        .eq('pessoa_id', uid)
+        .is('revogado_em', null)
+        .order('mes', { ascending: false })
+        .order('liberado_em', { ascending: false })
+
+    let { data, error } = await buscar(COM_PERGUNTAS)
+    if (error && ((error as any).code === '42703' || /perguntas|respostas/.test(error.message))) {
+      ;({ data, error } = await buscar(BASE))
+    }
     if (error) {
       if ((error as any).code === '42P01' || /desempenho_publicacoes/.test(error.message)) {
         setErro('Os relatórios individuais ainda não foram instalados no portal.')
@@ -56,7 +81,7 @@ export default function MeuDesempenhoPage() {
       }
       throw error
     }
-    const l = (data || []) as Publicacao[]
+    const l = (data || []) as unknown as Publicacao[]
     setLista(l)
     return l
   }, [])
@@ -95,10 +120,52 @@ export default function MeuDesempenhoPage() {
     setLi(false)
     setTexto('')
     setAviso('')
+    setAvisoResp('')
+    /* Começa do que já foi respondido, para a pessoa continuar de onde
+       parou em vez de recomeçar. */
+    const p = lista.find((x) => x.id === selId)
+    setRespostas({ ...((p?.respostas || {}) as Record<string, string>) })
     supabase.rpc('abrir_relatorio_publicado', { p_id: selId }).then(() => {})
+    /* `lista` fora das dependências de propósito: recarregar a lista
+       depois de salvar não pode apagar o que a pessoa está digitando. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId])
 
   const sel = lista.find((x) => x.id === selId) || null
+  const perguntas = sel?.perguntas || []
+  const respondidas = perguntas.filter((_, i) => (respostas[String(i)] || '').trim()).length
+  const faltam = perguntas.length - respondidas
+
+  /* Salva sem dar ciência: responder seis perguntas não cabe numa
+     sentada só, e perder o escrito ensina a responder "ok" em tudo. */
+  async function salvarRespostas() {
+    if (!sel || salvandoResp) return
+    setSalvandoResp(true)
+    setErro('')
+    setAvisoResp('')
+    try {
+      const limpas: Record<string, string> = {}
+      perguntas.forEach((_, i) => {
+        const t = (respostas[String(i)] || '').trim()
+        if (t) limpas[String(i)] = t
+      })
+      const { error } = await supabase.rpc('responder_relatorio_publicado', {
+        p_id: sel.id,
+        p_respostas: limpas,
+      })
+      if (error) throw error
+      await carregar(meuId)
+      setAvisoResp(
+        faltam > 0
+          ? `Respostas guardadas. Falta${faltam === 1 ? '' : 'm'} ${faltam} pergunta${faltam === 1 ? '' : 's'}.`
+          : 'Respostas guardadas. Pode registrar a ciência.'
+      )
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível guardar as respostas.')
+    } finally {
+      setSalvandoResp(false)
+    }
+  }
 
   async function registrar() {
     if (!sel) return
@@ -106,10 +173,32 @@ export default function MeuDesempenhoPage() {
       setErro('Marque "Li o relatório" para registrar a ciência.')
       return
     }
+    if (!sel.ciente_em && faltam > 0) {
+      setErro(
+        `Responda as ${perguntas.length} perguntas antes de registrar a ciência: ${respondidas} respondida${respondidas === 1 ? '' : 's'}.`
+      )
+      return
+    }
     setSalvando(true)
     setErro('')
     setAviso('')
     try {
+      /* Grava o que está na tela antes da ciência: o banco confere as
+         respostas GRAVADAS, e sem isto quem escrevesse tudo e clicasse
+         direto em ciência levaria uma recusa sem entender o motivo. */
+      if (!sel.ciente_em && perguntas.length) {
+        const limpas: Record<string, string> = {}
+        perguntas.forEach((_, i) => {
+          const t = (respostas[String(i)] || '').trim()
+          if (t) limpas[String(i)] = t
+        })
+        const { error: erroResp } = await supabase.rpc('responder_relatorio_publicado', {
+          p_id: sel.id,
+          p_respostas: limpas,
+        })
+        if (erroResp) throw erroResp
+      }
+
       const { error } = await supabase.rpc('dar_ciencia_relatorio', { p_id: sel.id, p_manifestacao: texto.trim() || null })
       if (error) throw error
       await carregar(meuId)
@@ -183,6 +272,90 @@ export default function MeuDesempenhoPage() {
         <>
           <FichaPublicada c={sel.conteudo} mensagem={sel.mensagem} />
 
+          {/*
+            * SUAS RESPOSTAS, ANTES DA CONVERSA.
+            *
+            * A conversa individual costumava começar com "como você
+            * avalia o seu mês?" perguntado na hora, de improviso, na
+            * frente de quem avalia. Respondendo por escrito antes,
+            * quem é avaliado chega tendo pensado e a gestão chega
+            * tendo lido — a conversa começa do segundo assunto.
+            *
+            * Sai impresso junto com a ficha: faz parte do registro.
+            */}
+          {perguntas.length > 0 && (
+            <div className="panel">
+              <div className="panel-head">
+                <div className="section-title">Suas respostas</div>
+                <span className="rel-sub">
+                  {sel.ciente_em
+                    ? `${respondidas} de ${perguntas.length} respondidas`
+                    : faltam > 0
+                      ? `Falta${faltam === 1 ? '' : 'm'} ${faltam} de ${perguntas.length}`
+                      : 'Tudo respondido'}
+                </span>
+              </div>
+              <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {!sel.ciente_em && (
+                  <p className="rel-sub nao-imprimir" style={{ margin: 0 }}>
+                    Responda antes da conversa. Pode guardar e voltar depois — fecha quando você
+                    registrar a ciência.
+                  </p>
+                )}
+
+                {perguntas.map((q, i) => (
+                  <div key={i}>
+                    <label
+                      htmlFor={'resp-' + i}
+                      className="section-title"
+                      style={{ display: 'block', marginBottom: 6, lineHeight: 1.4 }}
+                    >
+                      {i + 1}. {q}
+                    </label>
+                    {sel.ciente_em ? (
+                      <p
+                        style={{
+                          margin: 0,
+                          whiteSpace: 'pre-wrap',
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                          color: (respostas[String(i)] || '').trim() ? undefined : 'var(--ink-faint)',
+                        }}
+                      >
+                        {(respostas[String(i)] || '').trim() || 'Sem resposta.'}
+                      </p>
+                    ) : (
+                      <textarea
+                        id={'resp-' + i}
+                        className="nao-imprimir"
+                        rows={3}
+                        style={{ width: '100%' }}
+                        value={respostas[String(i)] || ''}
+                        onChange={(e) =>
+                          setRespostas({ ...respostas, [String(i)]: e.target.value })
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+
+                {!sel.ciente_em && (
+                  <div className="nao-imprimir" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={salvandoResp}
+                      onClick={salvarRespostas}
+                    >
+                      {salvandoResp ? 'Guardando…' : 'Guardar respostas'}
+                    </button>
+                    {avisoResp && <span className="rel-sub">{avisoResp}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="panel">
             <div className="panel-head">
               <div className="section-title">Ciência</div>
@@ -224,11 +397,26 @@ export default function MeuDesempenhoPage() {
                     <button
                       className="btn btn-sm btn-primary"
                       onClick={registrar}
-                      disabled={salvando || (!!sel.ciente_em && !texto.trim()) || (!sel.ciente_em && !li)}
+                      disabled={
+                        salvando ||
+                        (!!sel.ciente_em && !texto.trim()) ||
+                        (!sel.ciente_em && !li) ||
+                        /* Decisão dele: responder tudo é condição para a
+                           ciência. O botão diz por que está apagado logo
+                           abaixo, para não virar um botão morto sem
+                           explicação. */
+                        (!sel.ciente_em && faltam > 0)
+                      }
                     >
                       {salvando ? 'Registrando...' : sel.ciente_em ? 'Registrar manifestação' : 'Registrar ciência'}
                     </button>
                   </div>
+                  {!sel.ciente_em && faltam > 0 && (
+                    <p className="rel-sub">
+                      Falta{faltam === 1 ? '' : 'm'} responder {faltam} pergunta
+                      {faltam === 1 ? '' : 's'} acima para registrar a ciência.
+                    </p>
+                  )}
                   <p className="rel-sub">Depois de registrada, a ciência e a manifestação não podem ser editadas.</p>
                 </div>
               )}

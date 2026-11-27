@@ -543,6 +543,8 @@ const manualInterno: Manual = {
           passos: [
             'Em cada ficha do relatório mensal há o quadro "Devolutiva ao colaborador". Revise a ficha e clique em "Liberar para [nome]". Escolha se a análise escrita vai junto (síntese, pontos fortes, pontos de atenção e plano de ação) e, se quiser, escreva uma mensagem (ex.: data da conversa individual).',
             'O portal guarda uma cópia congelada do que foi liberado. O roteiro da conversa nunca vai para a pessoa. A pessoa recebe e-mail e vê um aviso azul no topo do portal.',
+            'Junto com a ficha vão as PERGUNTAS para a pessoa responder — uma por ponto do roteiro, escritas para ela. Aparecem na ficha, em "Perguntas que vão para a pessoa responder", e vão mesmo que você escolha não enviar a análise escrita. O roteiro em si continua sendo só seu.',
+            'As respostas dela aparecem no mesmo quadro da devolutiva, com a contagem ("4 de 6") e a data. Leia ANTES da conversa individual: é para isso que elas existem.',
             'O quadro mostra quando a pessoa abriu, quando deu ciência e a manifestação dela. Na "Visão por pessoa" há a coluna Devolutiva (não liberado, aguardando ciência ou ciência com a data).',
             'Antes da ciência dá para revogar ou liberar de novo (atualiza a cópia). Depois da ciência a cópia não muda: para corrigir, gere nova versão do relatório e libere de novo. Nada é apagado.',
             'Só a direção (quem tem acesso ao relatório de gestão) libera e revoga.',
@@ -559,11 +561,12 @@ const manualInterno: Manual = {
           },
           passos: [
             'Quando a direção libera o seu relatório, chega um e-mail e aparece um aviso azul no topo do portal. Clique em "Ler e registrar ciência" ou vá em Desempenho > "Meus relatórios mensais".',
+            'Responda as perguntas do quadro "Suas respostas" — elas falam com você, não sobre você. Dá para guardar e voltar depois: "Guardar respostas" salva sem fechar nada.',
             'Leia a ficha, marque "Li o relatório e tomei ciência" e clique em "Registrar ciência". Se quiser, escreva a sua manifestação: concordância, discordância ou contexto. Ciência não significa concordância.',
             'A manifestação pode ir junto com a ciência ou ser acrescentada depois, uma vez. O que foi registrado não pode ser editado.',
             '"Imprimir cópia" gera a versão em papel/PDF com campos de assinatura (colaborador, direção e data).',
           ],
-          atencao: 'Só você e a direção veem o seu relatório.',
+          atencao: 'Só você e a direção veem o seu relatório. Responder TODAS as perguntas é condição para registrar a ciência (decisão do Leonardo em 27/11/2026): com pergunta em branco o botão fica apagado e a tela diz quantas faltam. Depois da ciência, as respostas não mudam mais.',
         },
       ],
     },

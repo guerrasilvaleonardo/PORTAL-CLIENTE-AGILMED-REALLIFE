@@ -55,6 +55,11 @@ type Publicacao = {
   ciente_em: string | null
   manifestacao: string | null
   manifestacao_em: string | null
+  /* O que foi perguntado à pessoa e o que ela respondeu. Devolutiva
+     liberada antes de 27/11/2026 não tem nenhum dos dois. */
+  perguntas: string[] | null
+  respostas: Record<string, string> | null
+  respostas_em: string | null
 }
 
 async function chamarApiRelatorio(corpo: any) {
@@ -163,6 +168,45 @@ function Devolutiva({
           {ativa.primeira_abertura_em ? `aberto pela pessoa em ${dataHora(ativa.primeira_abertura_em)} (${ativa.aberturas}x)` : 'ainda não aberto'} ·{' '}
           {ativa.ciente_em ? <strong>ciência em {dataHora(ativa.ciente_em)}</strong> : 'aguardando ciência'}
           {ativa.mensagem && <div className="rel-sub">Mensagem enviada: {ativa.mensagem}</div>}
+          {/*
+            * O QUE A PESSOA RESPONDEU, PARA LER ANTES DA CONVERSA.
+            *
+            * É o ponto da autoavaliação: sentar já sabendo como ela lê
+            * o próprio mês. Pergunta em branco aparece como em branco,
+            * de propósito — o que ela escolheu não responder diz tanto
+            * quanto o que escreveu.
+            */}
+          {(ativa.perguntas || []).length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <strong>
+                Respostas de {pessoa.nome.split(' ')[0]}
+              </strong>{' '}
+              <span className="rel-sub">
+                {(ativa.perguntas || []).filter((_, i) => (ativa.respostas?.[String(i)] || '').trim()).length} de{' '}
+                {(ativa.perguntas || []).length}
+                {ativa.respostas_em ? ` · última em ${dataHora(ativa.respostas_em)}` : ''}
+              </span>
+              <ol className="rel-lista" style={{ marginTop: 6 }}>
+                {(ativa.perguntas || []).map((q, i) => {
+                  const r = (ativa.respostas?.[String(i)] || '').trim()
+                  return (
+                    <li key={i} style={{ marginBottom: 6 }}>
+                      <span className="rel-sub">{q}</span>
+                      <div
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          color: r ? undefined : 'var(--ink-faint)',
+                        }}
+                      >
+                        {r || 'Em branco.'}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+          )}
+
           {ativa.manifestacao && (
             <div style={{ marginTop: 6 }}>
               <strong>Manifestação de {pessoa.nome}</strong> ({dataHora(ativa.manifestacao_em)}):
@@ -435,6 +479,30 @@ function Ficha({
               <div className="section-title" style={{ marginBottom: 8 }}>Roteiro da conversa individual</div>
               <ol className="rel-lista">{a.roteiro_conversa.map((t, i) => <li key={i}>{t}</li>)}</ol>
             </div>
+
+            {/*
+              * As mesmas perguntas, do lado de lá.
+              *
+              * Aparecem aqui antes de liberar para a direção saber o
+              * que está sendo pedido — e poder gerar o relatório de
+              * novo se alguma pergunta não couber nesta pessoa.
+              */}
+            {(a.perguntas_pessoa || []).length > 0 && (
+              <div>
+                <div className="section-title" style={{ marginBottom: 8 }}>
+                  Perguntas que vão para a pessoa responder
+                </div>
+                <ol className="rel-lista">
+                  {(a.perguntas_pessoa || []).map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ol>
+                <p className="rel-sub">
+                  Vão junto com a ficha ao liberar a devolutiva, mesmo que a análise escrita não
+                  vá. As respostas aparecem aqui embaixo, em Devolutiva ao colaborador.
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -573,17 +641,31 @@ export default function RelatorioMensalPage() {
   }, [selId])
 
   async function carregarPubs(id: number) {
-    const { data, error } = await supabase
+    const base =
+      'id, pessoa_id, mensagem, liberado_em, revogado_em, primeira_abertura_em, aberturas, ciente_em, manifestacao, manifestacao_em'
+    /* Com as respostas quando o banco já tem as colunas; sem elas
+       enquanto o SQL da autoavaliação não rodar, para a tela de gestão
+       não parar por causa disso. */
+    const completa = await supabase
       .from('desempenho_publicacoes')
-      .select('id, pessoa_id, mensagem, liberado_em, revogado_em, primeira_abertura_em, aberturas, ciente_em, manifestacao, manifestacao_em')
+      .select(base + ', perguntas, respostas, respostas_em')
       .eq('relatorio_id', id)
+
+    const antiga =
+      completa.error &&
+      ((completa.error as any).code === '42703' || /perguntas|respostas/.test(completa.error.message))
+        ? await supabase.from('desempenho_publicacoes').select(base).eq('relatorio_id', id)
+        : null
+
+    const data = (antiga || completa).data
+    const error = (antiga || completa).error
     if (error) {
       setPubInstalado(false)
       setPubs([])
       return
     }
     setPubInstalado(true)
-    setPubs((data || []) as Publicacao[])
+    setPubs((data || []) as unknown as Publicacao[])
   }
 
   async function carregarAcessos(id: number) {
