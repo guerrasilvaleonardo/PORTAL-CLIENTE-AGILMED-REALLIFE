@@ -1193,6 +1193,35 @@ const manualInterno: Manual = {
         },
 
         {
+          titulo: 'Corrigir uma inspeção já encerrada',
+          texto:
+            'Gestor e admin corrigem o RIC inteiro, pelo botão "Corrigir esta inspeção" na própria tela do relatório. O cabeçalho — local, quem inspecionou, início, encerramento, coordenada e observações — se corrige ali mesmo; os apontamentos se corrigem em "Corrigir os apontamentos", que reabre a visita e leva de volta à tela de campo. Toda correção exige motivo.',
+          tela: {
+            url: '/inspecoes/visita/<id>',
+            blocos: [
+              {
+                t: 'topo',
+                sobre: 'RIC-2026-0001',
+                titulo: 'Relatório de inspeção de campo',
+                botoes: ['Corrigir esta inspeção'],
+              },
+              {
+                t: 'aviso',
+                texto: 'O código não muda. Ao salvar, o mesmo relatório passa da revisão 02 para a 03.',
+                tom: 'alerta',
+              },
+            ],
+          },
+          passos: [
+            'O motivo é obrigatório e sai impresso no "Histórico de correções", no fim do documento, junto com o que mudou, quem mudou e em que revisão.',
+            'Reencerrar uma visita corrigida NÃO emite código novo: revisa o relatório que já existe. O cliente nunca fica com duas folhas sobre o mesmo dia.',
+            'A data de encerramento e a coordenada continuam sendo as da visita, mesmo que a correção aconteça semanas depois — quem precisa mudar a hora faz isso no cabeçalho, de propósito.',
+          ],
+          atencao:
+            'A empresa não entra na correção. O código RIC é por empresa e por ano: mover a visita de cliente deixaria um buraco na sequência de um e um número fora de ordem no outro. Visita lançada no cliente errado se cancela e se refaz.',
+        },
+
+        {
           titulo: 'A não conformidade, em quatro abas',
           texto:
             'A ficha é o item 10.2 desenhado: Ocorrência, Investigação, Plano de ação e Verificação. A bolinha na aba diz qual ainda está em branco. Salvar e Encerrar ficam fora das abas, sempre à vista.',
